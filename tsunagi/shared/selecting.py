@@ -5,70 +5,114 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 from glom import glom
 from glom.core import T, Coalesce
 from lark import Lark, Transformer, v_args
+from lark.visitors import Discard
 from .schemas.wrappers import Scalar
+
+
+# GRAMMAR NOTES
+# - ":" = alias (rename output key):  name:alias, arr[]:alias, arr[].child:alias
+# - "[]" = iterate array; "." = pluck a child; "(...)" = multi-pluck per element
+# - Multi-pluck aliasing:
+#     • per-item inside () → (name:nm, ord:ix)
+#     • optional group alias after () → arr[].(...):group_alias
+# - Missing values: scalar→None, array→[], missing child in pluck→None
+#
+# Examples:
+#   flds[]                    # copy list
+#   flds[].name:labels        # pluck one field with alias
+#   flds[].(name:nm,ord:ix):fields  # multi-pluck with per-item + group alias
 
 _SELECT_GRAMMAR = r"""
 start: sel ("," sel)*
 
-?sel : arr_copy
-     | arr_child
-     | arr_copy_alias
-     | arr_child_alias
-     | scalar
+?sel  : scalar
+      | arr_copy
+      | arr_child
+      | arr_multi
 
-scalar: NAME [ ":" NAME ]                   -> scalar_alias
-arr_copy: NAME "[]"                         -> arr_copy
-arr_child: NAME "[]" "." NAME               -> arr_child
-arr_copy_alias: NAME "[]" ":" NAME          -> arr_copy_alias
-arr_child_alias: NAME "[]" "." NAME ":" NAME-> arr_child_alias
+# Scalars
+scalar: NAME alias?                              -> scalar
 
-NAME: /[A-Za-z_][A-Za-z0-9_]*/
+# Arrays
+arr_copy : NAME ARR alias?                       -> arr_copy
+arr_child: NAME ARR DOT NAME alias?              -> arr_child
+arr_multi: NAME ARR DOT LP group_items RP alias? -> arr_multi
+
+# Common pieces
+group_items: group_item ("," group_item)*
+group_item : NAME alias?                         -> group_item
+alias      : ":" NAME                            -> alias
+
+# Tokens
+ARR  : "[]"
+DOT  : "."
+LP   : "("
+RP   : ")"
+NAME : /[A-Za-z_][A-Za-z0-9_]*/
+
 %ignore " "
 """
 
 @dataclass
 class SelectScalar:
     path: Tuple[str, ...]
-    as_name: Optional[str]  # alias or None
+    as_name: Optional[str]
 
 @dataclass
 class SelectArrayPluck:
-    base: Tuple[str, ...]           # e.g. ("fields",)
-    child: Optional[Tuple[str, ...]]  # e.g. ("name",) or None for [] copy
+    base: Tuple[str, ...]           # ("flds",)
+    child: Optional[Tuple[str, ...]]  # None or ("name",)
     as_name: Optional[str]
 
-SelectNode = Union[SelectScalar, SelectArrayPluck]
+@dataclass
+class SelectArrayMulti:
+    base: Tuple[str, ...]
+    # [ ( ("name",), "nm"|None ), ( ("ord",), "ix"|None ), ... ]
+    children: List[Tuple[Tuple[str, ...], Optional[str]]]
+    as_name: Optional[str]
+
+SelectNode = Union[SelectScalar, SelectArrayPluck, SelectArrayMulti]
 
 @v_args(inline=True)
 class _SelectTransformer(Transformer):
+
+    def ARR(self, _): return Discard
+    def DOT(self, _): return Discard
+    def LP(self, _):  return Discard
+    def RP(self, _):  return Discard
+    
+    # helpers
+    def alias(self, name_tok):
+        return str(name_tok)
+
+    # start
     def start(self, *sels):
         return list(sels)
 
-    def scalar_alias(self, name_token, alias_token=None):
-        name = str(name_token)
-        alias = str(alias_token) if alias_token else None
+    # scalars
+    def scalar(self, name_tok, alias_tok=None):
+        name = str(name_tok)
+        alias = str(alias_tok) if alias_tok else None
         return SelectScalar(path=(name,), as_name=alias)
 
-    # flds[]                -> base=flds, child=None, alias=None
-    def arr_copy(self, base_token):
-        return SelectArrayPluck(base=(str(base_token),), child=None, as_name=None)
+    # arrays
+    def arr_copy(self, base_tok, alias_tok=None):
+        return SelectArrayPluck(base=(str(base_tok),), child=None,
+                                as_name=(str(alias_tok) if alias_tok else None))
 
-    # flds[].name           -> base=flds, child=name, alias=None
-    def arr_child(self, base_token, child_token):
-        return SelectArrayPluck(base=(str(base_token),), child=(str(child_token),), as_name=None)
+    def arr_child(self, base_tok, child_tok, alias_tok=None):
+        return SelectArrayPluck(base=(str(base_tok),), child=(str(child_tok),),
+                                as_name=(str(alias_tok) if alias_tok else None))
 
-    # flds[]:fields         -> base=flds, child=None, alias=fields   <-- your failing case
-    def arr_copy_alias(self, base_token, alias_token):
-        return SelectArrayPluck(base=(str(base_token),), child=None, as_name=str(alias_token))
+    def group_item(self, name_tok, alias_tok=None):
+        return ((str(name_tok),), (str(alias_tok) if alias_tok else None))
 
-    # flds[].name:alias
-    def arr_child_alias(self, base_token, child_token, alias_token):
-        return SelectArrayPluck(
-            base=(str(base_token),),
-            child=(str(child_token),),
-            as_name=str(alias_token),
-        )
+    def group_items(self, first, *rest):
+        return [first, *rest]
 
+    def arr_multi(self, base_tok, items, alias_tok=None):
+        return SelectArrayMulti(base=(str(base_tok),), children=items,
+                                as_name=(str(alias_tok) if alias_tok else None))
 
 _parser = Lark(_SELECT_GRAMMAR, parser="lalr", maybe_placeholders=False)
 
@@ -86,38 +130,38 @@ def parse_select_csv(select_text: str) -> List[SelectNode]:
     except Exception as e:
         raise SelectParseError(f"Malformed select: {e}")
     
-def validate_select(
-    nodes: Sequence[SelectNode],
-    allowed: Dict[Tuple[str, ...], Sequence[str]]
-) -> None:
-    """
-    Validate node paths against an 'allowed' table like:
-      {
-        (): ["id","name","fields","templates"],
-        ("fields",): ["name","ord"],
-        ("templates",): ["name"]
-      }
-    """
-    top_allowed = set(allowed.get((), []))
-    for n in nodes:
-        if isinstance(n, SelectScalar):
-            key = n.path[0]
-            if key not in top_allowed:
-                allowed_list = ", ".join(sorted(top_allowed))
-                raise SelectValidationError(f"Invalid select key '{key}' (allowed: {allowed_list})")
-        elif isinstance(n, SelectArrayPluck):
-            base_key = n.base[0]
-            if base_key not in top_allowed:
-                allowed_list = ", ".join(sorted(top_allowed))
-                raise SelectValidationError(f"Invalid select key '{base_key}' (allowed: {allowed_list})")
-            if n.child:
-                child_allowed = set(allowed.get(n.base, []))
-                child = n.child[0]
-                if child not in child_allowed:
-                    allowed_child = ", ".join(sorted(child_allowed)) or "<none>"
-                    raise SelectValidationError(
-                        f"Invalid nested key '{base_key}[].{child}' (allowed under {base_key}: {allowed_child})"
-                    )
+# def validate_select(
+#     nodes: Sequence[SelectNode],
+#     allowed: Dict[Tuple[str, ...], Sequence[str]]
+# ) -> None:
+#     """
+#     Validate node paths against an 'allowed' table like:
+#       {
+#         (): ["id","name","fields","templates"],
+#         ("fields",): ["name","ord"],
+#         ("templates",): ["name"]
+#       }
+#     """
+#     top_allowed = set(allowed.get((), []))
+#     for n in nodes:
+#         if isinstance(n, SelectScalar):
+#             key = n.path[0]
+#             if key not in top_allowed:
+#                 allowed_list = ", ".join(sorted(top_allowed))
+#                 raise SelectValidationError(f"Invalid select key '{key}' (allowed: {allowed_list})")
+#         elif isinstance(n, SelectArrayPluck):
+#             base_key = n.base[0]
+#             if base_key not in top_allowed:
+#                 allowed_list = ", ".join(sorted(top_allowed))
+#                 raise SelectValidationError(f"Invalid select key '{base_key}' (allowed: {allowed_list})")
+#             if n.child:
+#                 child_allowed = set(allowed.get(n.base, []))
+#                 child = n.child[0]
+#                 if child not in child_allowed:
+#                     allowed_child = ", ".join(sorted(child_allowed)) or "<none>"
+#                     raise SelectValidationError(
+#                         f"Invalid nested key '{base_key}[].{child}' (allowed under {base_key}: {allowed_child})"
+#                     )
 
 def _as_iterable_list(base_path: Tuple[str, ...]):
     """
@@ -133,33 +177,25 @@ def _as_iterable_list(base_path: Tuple[str, ...]):
     # If you want to be strict, use: Coalesce(base, default=[])
     return Coalesce(base, default=[T])
 
-def _node_to_glom_spec(n: SelectNode) -> Tuple[str, object]:
-    """
-    Compile a SelectNode into a (alias, glom_spec) pair with tolerant behavior:
-      - Missing scalar -> None
-      - Missing array  -> []
-      - Array pluck on missing/ill-typed base -> []
-    """
+def _node_to_glom_spec(n: SelectNode):
     if isinstance(n, SelectScalar):
-        alias = n.as_name or n.path[-1]
-        # Scalars: missing key becomes None thanks to glom(default=None) at call site.
-        return alias, tuple(n.path)
+        return (n.as_name or n.path[-1]), tuple(n.path)
 
-    # Array cases
-    alias = n.as_name or n.base[-1]
-    base_path = tuple(n.base)
+    if isinstance(n, SelectArrayPluck):
+        alias = n.as_name or n.base[-1]
+        safe = _as_iterable_list(tuple(n.base))
+        if n.child is None:
+            return alias, safe
+        return alias, (safe, [Coalesce(tuple(n.child), default=None)])
 
-    # Ensure we always have a list to map over ([] when missing)
-    safe_list_spec = _as_iterable_list(base_path)
+    if isinstance(n, SelectArrayMulti):
+        alias = n.as_name or n.base[-1]
+        safe = _as_iterable_list(tuple(n.base))
+        elem_spec = { (a or p[-1]): Coalesce(tuple(p), default=None)
+                      for (p, a) in n.children }
+        return alias, (safe, [elem_spec])
 
-    if n.child is None:
-        # 'fields[]' → return the (possibly coerced) list as-is
-        return alias, safe_list_spec
-
-    # 'fields[].name' → pluck, defaulting each element's child to None
-    inner = Coalesce(tuple(n.child), default=None)
-    # Map 'inner' over the safe list
-    return alias, (safe_list_spec, [inner])
+    raise RuntimeError(f"Unknown node: {n!r}")
 
         
 def project_scalars(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Dict[str, Any]:
@@ -183,7 +219,6 @@ def project_scalars(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Dict
     try:
         return glom(obj, spec, default=None)
     except Exception as e:
-        # Convert confusing glom errors into a clean 400
         raise SelectValidationError(f"Projection failed: {e}")
 
 def _is_scalar(value: Any) -> bool:

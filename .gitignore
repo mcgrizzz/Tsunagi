@@ -6,3 +6,4 @@
 /dist
 /lib
 /__pycache__
+.pyc

@@ -1,11 +1,11 @@
 # tsunagi/http/v1/models.py
 from fastapi import APIRouter, HTTPException, Query
-from typing import Any, Optional, List, Union
+from typing import Optional, List, Union
 from ...shared.schemas.wrappers import Paginated, ProjectedObject, Scalar
 from ...shared.schemas.models import ModelInfo
 from ...adapters.anki.models import list_models
 from ...shared.pagination import paginate_keyset
-from ...shared.selecting import parse_select_csv, maybe_flatten, project_scalars, validate_select
+from ...shared.selecting import parse_select_csv, maybe_flatten, project_scalars
 
 router = APIRouter()
 
