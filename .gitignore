@@ -1,0 +1,8 @@
+/.mypy_cache
+/.pylintrc
+/.vscode
+/.wheelhouse
+/config.json
+/dist
+/lib
+/__pycache__
