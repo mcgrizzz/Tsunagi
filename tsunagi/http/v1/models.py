@@ -1,6 +1,8 @@
 # tsunagi/http/v1/models.py
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Union
+
+from ...shared.filtering import build_predicate
 from ...shared.schemas.wrappers import Paginated, ProjectedObject, Scalar
 from ...shared.schemas.models import ModelInfo
 from ...adapters.anki.models import list_models
@@ -15,13 +17,19 @@ ModelRow = Union[ ModelInfo, ProjectedObject, Scalar]
 def get_models(
     select: Optional[str] = Query(default=None, description="top-level keys: id,name,fields,templates"),
     shape: Optional[str]  = Query(default="auto", description="auto|object|scalar"),
+    where: List[str]      = Query(default_factory=list, description="Repeatable where clauses"),
     limit: int            = Query(default=1000, ge=1, le=5000),
     cursor: Optional[str] = None,
 ) -> Paginated[ModelRow]:
     try:
         all_items: List[ModelInfo] = list_models()
+        
+        if where:
+            pred = build_predicate(where)
+            all_items = [m for m in all_items if pred(m.model_dump())]
+        
+        all_items.sort(key=lambda m: int(m.id)) 
 
-        all_items.sort(key=lambda m: int(m.id)) # anki service doesn't sort on id
         page_items, next_cursor = paginate_keyset(all_items, limit, cursor, key_fn=lambda m: int(m.id))
 
         # No select → return full objects (ProjectedObject)
