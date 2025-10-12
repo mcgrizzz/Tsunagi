@@ -149,13 +149,14 @@ def _as_iterable_list(base_path: Tuple[str, ...]):
 
 # ---------- Cache directly on Tuple[SelectNode, ...] ----------
 
-@lru_cache(maxsize=128)  # cache distinct select shapes
+@lru_cache(maxsize=128)
 def _build_spec(nodes: Tuple[SelectNode, ...]) -> Dict[str, object]:
     spec: Dict[str, object] = {}
     for n in nodes:
         if isinstance(n, SelectScalar):
             alias = n.as_name or n.path[-1]
-            spec[alias] = tuple(n.path)
+            # before: spec[alias] = tuple(n.path)
+            spec[alias] = Coalesce(tuple(n.path), default=None)
 
         elif isinstance(n, SelectArrayPluck):
             alias = n.as_name or n.base[-1]
