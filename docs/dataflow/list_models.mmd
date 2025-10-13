@@ -1,0 +1,60 @@
+%%{init:{
+  "sequence": { "showSequenceNumbers": true, "actorMargin": 60 },
+  "themeVariables": { "fontFamily": "Inter, Segoe UI, Arial", "fontSize": "12px" }
+}}%%
+sequenceDiagram
+  title list_models() — ModelManager.all() path
+
+  box rgb(156, 151, 131) TSUNAGI 
+    participant TS as Tsunagi (/v1/models)
+  end
+
+  box rgb(156, 151, 131) ANKI PYTHON 
+    participant PY as ModelManager (pylib)
+  end
+
+  box rgb(184,81,240) Python ⇄ Rust bridge
+    participant PB as Bridge
+  end
+
+  box rgb(211,69,22) RUST CORE 
+    participant RC as Rust Core
+  end
+
+  box rgb(121, 153, 131) SQL 
+    participant DB as SQLite
+  end
+
+  TS->>PY: list_models()
+  PY->>PY: all()
+  PY->>PY: all_names_and_ids()
+  PY->>PB: _run_command(23, 8) • get_notetype_names
+  PB->>RC: get_notetype_names
+  RC->>DB: SELECT id, name FROM notetypes
+  DB->>RC: rows (id, name)
+  RC->>PB: encode NotetypeName[]
+  PB->>PY: decode NotetypeName[]
+
+  loop for each id in [(name, id)]
+    PY->>PY: get(id)
+    alt
+      note over PY,DB: CACHE HIT
+      rect rgba(0,0,0,0.45)
+        PY-->>PY: use cached Notetype
+      end
+    else
+      note over PY,DB: CACHE MISS
+      rect rgba(0,0,0,0.45)
+        PY->>PB: _run_command(23, 7) • get_notetype_legacy(id)
+        PB->>RC: get_notetype_legacy(id)
+        RC->>DB: get_notetype.sql / get_fields.sql / get_templates.sql
+        DB->>RC: core row, fields, templates
+        RC->>PB: encode Notetype
+        PB->>PY: decode Notetype
+      end
+    end
+  end
+
+  PY-->>TS: list of Notetypes
+  TS-->>TS: paginate / project
+  TS-->>TS: HTTP 200 (JSON)
