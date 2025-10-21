@@ -1,4 +1,4 @@
-from ...shared.route_factory import ModelRow, create_get_route, make_id_getter
+from ...shared.route_factory import ModelRow, create_query_routes, make_id_getter
 from ...shared.planning import IndexSpec, SourceCaps
 from ...shared.schemas.wrappers import Paginated
 from ...adapters.anki.models import get_model_names_and_ids, get_models_by_ids, get_models_by_names, list_models
@@ -26,7 +26,8 @@ caps = SourceCaps(
     }, 
 )
 
-router = create_get_route(
+# Creates both GET /v1/models and POST /v1/models/query
+router = create_query_routes(
     path="/v1/models",
     caps=caps,
     response_model=Paginated[ModelRow],
