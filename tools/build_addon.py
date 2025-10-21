@@ -44,7 +44,7 @@ CACHE_CORE = CACHE / "core"
 # Pure-Python runtime deps (latest). Keep these pure to avoid per-OS wheels.
 PURE_REQS = [
     "fastapi",          # latest
-    "pydantic>=2",      # latest v2 (pure wheel)
+    "pydantic==2.10.4",      # pinned to match pydantic-core
     "starlette",        # latest
     "anyio",            # latest
     "h11",              # HTTP parser
@@ -55,6 +55,8 @@ PURE_REQS = [
 ]
 
 # pydantic-core is native; we fetch for each (OS/platform) × (Python minor) combo.
+# IMPORTANT: pydantic-core version must be compatible with pydantic version above
+CORE_PACKAGE = "pydantic-core==2.27.2"  # matches pydantic 2.10.4
 
 # Declare platforms once (no Python versions here).
 # Keys become subfolders under lib/<os_dir>/
@@ -78,7 +80,6 @@ CORE_PLATFORMS = {
 # Python minors to cover (inclusive): 3.9 → 3.13
 PY_MINOR_RANGE = [39, 310, 311, 312, 313]
 
-CORE_PACKAGE = "pydantic-core"
 
 # --- CLI ----------------------------------------------------------------------
 
