@@ -1,13 +1,14 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple, Union
 
 from .selecting import selected_top_fields
 from .filtering import parse_where  # we’ll read ops & tokens directly
+from .schemas.wrappers import Scalar
 
 Row = Union[Mapping[str, Any], Any]
 FetchAllFn       = Callable[[], List[Row]]
-FetchValuesFn    = Callable[[List[int]], List[Row]]       # for index-based fetch
+FetchValuesFn    = Callable[[Sequence[Any]], List[Row]]       # for index-based fetch
 FetchColumnsFn   = Callable[[], List[Row]]                # for selection-based fast path
 
 # ---- Capabilities ----
@@ -16,6 +17,7 @@ FetchColumnsFn   = Callable[[], List[Row]]                # for selection-based 
 class IndexSpec:
     path: Tuple[str, ...]                  # e.g. ("id",) or ("nid",) or ("cid",)
     fetch_values: FetchValuesFn            # called with [values] for == / in filters
+    coerce: Optional[Callable[[Any], Optional[Any]]] = None #Force the index into the correct type, returning None on invalid value
 
 @dataclass
 class SourceCaps:
@@ -27,6 +29,16 @@ class SourceCaps:
 class Plan:
     mode: str                     # 'index' | 'columns' | 'full'
     fetch: Callable[[], List[Row]]
+
+def _dedupe_indices(xs):
+    seen = {}
+    out = []
+    for x in xs:          # dicts are insertion-ordered (Py3.7+)
+        if x not in seen:
+            seen[x] = None
+            out.append(x)
+    return out
+
 
 def make_plan(
     select_text: Optional[str],
@@ -46,6 +58,20 @@ def make_plan(
                     vals = list(c.value)
                 else:
                     continue
+
+                scalars: List[Scalar] = [v for v in vals if isinstance(v, (str, int, float, bool)) or v is None]
+                if idx.coerce is not None:
+                    coerced: List[Scalar] = []
+                    for v in scalars:
+                        nv = idx.coerce(v)
+                        if nv is not None:
+                            coerced.append(nv)
+                    scalars = coerced
+
+                scalars = _dedupe_indices(scalars)
+                if not scalars:
+                    continue
+
                 return Plan("index", fetch=lambda idx=idx, vals=vals: idx.fetch_values(vals))
 
     # 2) COLUMNS FAST PATH — ex: User only wants (id,name) from models we have an alternate route to fetch that
