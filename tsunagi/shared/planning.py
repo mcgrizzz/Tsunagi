@@ -10,6 +10,11 @@ Row = Union[Mapping[str, Any], Any]
 FetchAllFn       = Callable[[], List[Row]]
 FetchValuesFn    = Callable[[Sequence[Any]], List[Row]]       # for index-based fetch
 FetchColumnsFn   = Callable[[], List[Row]]                # for selection-based fast path
+CoerceFn         = Callable[[Any], Optional[Any]]
+
+CreateFn         = Callable[[str, Any], Row]
+PatchFn          = Callable[[int, Dict[str, Any]], Row]
+DeleteFn         = Callable[[int], bool]
 
 # ---- Capabilities ----
 
@@ -17,8 +22,9 @@ FetchColumnsFn   = Callable[[], List[Row]]                # for selection-based 
 class IndexSpec:
     path: Tuple[str, ...]                  # e.g. ("id",) or ("nid",) or ("cid",)
     fetch_values: FetchValuesFn            # called with [values] for == / in filters
-    coerce: Optional[Callable[[Any], Optional[Any]]] = None #Force the index into the correct type, returning None on invalid value
+    coerce: Optional[CoerceFn] = None #Force the index into the correct type, returning None on invalid value
 
+#Source Capabilities
 @dataclass
 class SourceCaps:
     fetch_all: FetchAllFn                                # required
@@ -26,9 +32,15 @@ class SourceCaps:
     columns_fetchers: Optional[Dict[FrozenSet[str], FetchColumnsFn]] = None  # optional: exact top-level sets → fetcher
 
 @dataclass
+class MutationCaps:
+    create: Optional[CreateFn] = None
+    patch: Optional[PatchFn] = None
+    delete: Optional[DeleteFn] = None
+
+@dataclass
 class Plan:
     mode: str                     # 'index' | 'columns' | 'full'
-    fetch: Callable[[], List[Row]]
+    fetch: FetchAllFn
 
 def _dedupe_indices(xs):
     seen = {}

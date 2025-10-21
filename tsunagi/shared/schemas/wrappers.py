@@ -1,5 +1,6 @@
 from typing import Any, Generic, List, Optional, Sequence, TypeVar, Union, Mapping
 from pydantic import BaseModel, ConfigDict
+from pydantic.fields import Field
 
 # Scalars we may return when shape=scalar or auto-flatten
 Scalar = Union[str, int, float, bool, None]
@@ -24,3 +25,11 @@ class DeletionResult(BaseModel):
     success: bool
     affected_ids: List[int]
     stats: dict
+
+# Wrapper for POST queries, for more complicated and/or structured
+class QueryRequest(BaseModel):
+    select: Optional[str] = None
+    where: Optional[List[str]] = None
+    shape: Optional[str] = "auto"
+    limit: int = Field(default=1000, ge=1, le=5000)
+    cursor: Optional[str] = None
