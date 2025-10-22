@@ -1,13 +1,13 @@
 from __future__ import annotations
 import time
-from typing import Any, Callable, List, Mapping, Optional, Union
-from fastapi import APIRouter, HTTPException, Query, Body
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+from fastapi import APIRouter, HTTPException, Query, Body, Path
 
 from .planning import SourceCaps, make_plan
 from .filtering import build_predicate
 from .selecting import parse_select_csv, maybe_flatten, project_scalars
 from ..shared.pagination import paginate_keyset
-from ..shared.schemas.wrappers import Paginated, ProjectedObject, QueryRequest, Scalar
+from ..shared.schemas.wrappers import Paginated, ProjectedObject, QueryRequest, Scalar, MutationResult, DeletionResult
 
 Row = Union[Mapping[str, Any], Any]
 ModelRow = Union[Any, ProjectedObject, Scalar]
@@ -105,7 +105,7 @@ def create_post_query_route(
 
     return router
 
-def create_query_routes(
+def create_resource_routes(
     path: str,
     *,
     caps: SourceCaps,
@@ -114,27 +114,38 @@ def create_query_routes(
     post_path: Optional[str] = None,
 ) -> APIRouter:
     """
-    Create both GET and POST query routes in a single router.
+    Create complete REST routes for a resource (queries + mutations).
 
     Args:
-        path: Base path for GET endpoint (e.g., "/v1/models")
-        caps: Source capabilities
-        response_model: Pydantic response model
+        path: Base path for resource (e.g., "/v1/models")
+        caps: Source capabilities (queries + optional mutations)
+        response_model: Pydantic response model for query results
         id_getter: Function to extract ID from row for sorting/pagination
-        post_path: Optional custom path for POST endpoint (default: path + "/query")
+        post_path: Optional custom path for POST query endpoint (default: path + "/query")
 
     Returns:
-        Single APIRouter with both GET and POST endpoints registered
+        Single APIRouter with all endpoints registered:
+        - GET {path} - Query with URL params
+        - POST {path}/query - Query with body params
+        - POST {path} - Create (if mutations.create provided)
+        - PATCH {path}/{id} - Partial update (if mutations.patch provided)
+        - DELETE {path}/{id} - Delete (if mutations.delete provided)
 
     Example:
-        router = create_query_routes(
+        router = create_resource_routes(
             path="/v1/models",
-            caps=caps,
+            caps=SourceCaps(
+                fetch_all=list_models,
+                mutations=MutationCaps(
+                    create=create_model,
+                    patch=patch_model,
+                    delete=delete_model,
+                )
+            ),
             response_model=Paginated[ModelRow],
             id_getter=make_id_getter("id"),
         )
         app.include_router(router)
-        # Creates: GET /v1/models and POST /v1/models/query
     """
     router = APIRouter()
 
@@ -167,6 +178,72 @@ def create_query_routes(
             caps,
             id_getter,
         )
+
+    # Mutation endpoints (if mutations provided)
+    if caps.mutations:
+        # POST {path} - Create
+        if caps.mutations.create:
+            @router.post(path, response_model=MutationResult[Any], status_code=201)
+            def _create(
+                data: Dict[str, Any] = Body(..., description="Resource data to create"),
+            ) -> MutationResult[Any]:
+                start = time.perf_counter()
+                try:
+                    result = caps.mutations.create(data)
+                    return MutationResult(
+                        result=result,
+                        stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3), "operation": "create"}
+                    )
+                except ValueError as ve:
+                    raise HTTPException(status_code=400, detail=str(ve))
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Create failed: {e}")
+
+        # PATCH {path}/{id} - Partial update
+        if caps.mutations.patch:
+            @router.patch(f"{path}/{{id}}", response_model=MutationResult[Any])
+            def _patch(
+                id: int = Path(..., description="Resource ID"),
+                updates: Dict[str, Any] = Body(..., description="Fields to update"),
+            ) -> MutationResult[Any]:
+                start = time.perf_counter()
+                try:
+                    result = caps.mutations.patch(id, updates)
+                    if result is None:
+                        raise HTTPException(status_code=404, detail=f"Resource with id={id} not found")
+                    return MutationResult(
+                        result=result,
+                        stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3), "operation": "patch"}
+                    )
+                except ValueError as ve:
+                    raise HTTPException(status_code=400, detail=str(ve))
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Update failed: {e}")
+
+        # DELETE {path}/{id} - Delete
+        if caps.mutations.delete:
+            @router.delete(f"{path}/{{id}}", response_model=DeletionResult)
+            def _delete(
+                id: int = Path(..., description="Resource ID to delete"),
+            ) -> DeletionResult:
+                start = time.perf_counter()
+                try:
+                    success = caps.mutations.delete(id)
+                    if not success:
+                        raise HTTPException(status_code=404, detail=f"Resource with id={id} not found")
+                    return DeletionResult(
+                        success=True,
+                        affected_ids=[id],
+                        stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3), "operation": "delete"}
+                    )
+                except ValueError as ve:
+                    raise HTTPException(status_code=400, detail=str(ve))
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Delete failed: {e}")
 
     return router
 

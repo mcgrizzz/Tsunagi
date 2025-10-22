@@ -7,12 +7,15 @@ from .filtering import parse_where  # we’ll read ops & tokens directly
 from .schemas.wrappers import Scalar
 
 Row = Union[Mapping[str, Any], Any]
+
+# Query operations
 FetchAllFn       = Callable[[], List[Row]]
-FetchValuesFn    = Callable[[Sequence[Any]], List[Row]]       # for index-based fetch
-FetchColumnsFn   = Callable[[], List[Row]]                # for selection-based fast path
+FetchValuesFn    = Callable[[Sequence[Any]], List[Row]]
+FetchColumnsFn   = Callable[[], List[Row]]
 CoerceFn         = Callable[[Any], Optional[Any]]
 
-CreateFn         = Callable[[str, Any], Row]
+# Mutation operations
+CreateFn         = Callable[[Dict[str, Any]], Row]
 PatchFn          = Callable[[int, Dict[str, Any]], Row]
 DeleteFn         = Callable[[int], bool]
 
@@ -24,18 +27,20 @@ class IndexSpec:
     fetch_values: FetchValuesFn            # called with [values] for == / in filters
     coerce: Optional[CoerceFn] = None #Force the index into the correct type, returning None on invalid value
 
-#Source Capabilities
-@dataclass
-class SourceCaps:
-    fetch_all: FetchAllFn                                # required
-    indices: Optional[List[IndexSpec]] = None                      # optional list of indices
-    columns_fetchers: Optional[Dict[FrozenSet[str], FetchColumnsFn]] = None  # optional: exact top-level sets → fetcher
-
+# Mutation Capabilities
 @dataclass
 class MutationCaps:
     create: Optional[CreateFn] = None
     patch: Optional[PatchFn] = None
     delete: Optional[DeleteFn] = None
+
+# Source Capabilities
+@dataclass
+class SourceCaps:
+    fetch_all: FetchAllFn                                                    # required
+    indices: Optional[List[IndexSpec]] = None                                # optional list of indices
+    columns_fetchers: Optional[Dict[FrozenSet[str], FetchColumnsFn]] = None # optional: exact top-level sets → fetcher
+    mutations: Optional[MutationCaps] = None                                 # optional: mutation operations
 
 @dataclass
 class Plan:
