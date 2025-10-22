@@ -1,18 +1,18 @@
 # Tsunagi
 
-> HTTP API for Anki with advanced querying and sane pagination
+> HTTP API for Anki with advanced querying and pagination
 
-**Tsunagi** (繋ぎ = “connection”) exposes your Anki collection over a small, local HTTP server so other tools can talk to it without poking at the database directly. It’s aimed at integrations, automations, and external apps that want fast, typed, queryable access to Anki data.
+**Tsunagi** (繋ぎ = “connection”) exposes your Anki collection over a small, local HTTP server so other tools can talk to it. It’s aimed at integrations, automations, and external apps that want fast, typed, queryable access to Anki data.
 
 > **Status:** early/experimental. I’m building this in public and I’ll keep breaking things until it feels right. Once it’s complete, I’ll publish a proper comparison against AnkiConnect.
 
 ## Why this exists
 
-AnkiConnect is great and battle-tested, but while building [Yomine](https://github.com/mcgrizzz/Yomine) I kept running into patterns that felt chatty and a bit lossy.
+AnkiConnect is great and battle-tested, but while building [Yomine](https://github.com/mcgrizzz/Yomine) I kept running into patterns that felt longwinded and lossy.
 
 **A concrete example: get all models and their field names.**
 
-With AnkiConnect today you typically:
+Here's how I tackle this with AnkiConnect in Yomine:
 
 1) Fetch names + IDs  
 ```json
@@ -24,11 +24,11 @@ With AnkiConnect today you typically:
 {"action":"modelFieldNames","version":6,"params":{"modelName":"Basic"}}
 ```
 
-What feels off about this flow:
+Here are some issues I have with this:
 
-- **Redundant internal work.** `modelNamesAndIds` first gathers names via `all_names_and_ids()`, then re-looks up each model by name to produce the map—despite Anki’s internal `all_names_and_ids()` already having what we want.
+- **Redundant internal work.** `modelNamesAndIds` first gathers names via `all_names_and_ids()` throws out the ids, then in a loop, looks up each model id by name. But Anki’s internal `all_names_and_ids()` already has what we want in one call to the DB, both the names and ids.
 - **Name→ID round-tripping.** `modelFieldNames` takes a single **name** as input, which forces another lookup to get the ID again.
-- **Data is thrown away.** `modelFieldNames` returns only the field **names**, even though the underlying call had richer field metadata (descriptions, fonts, ordinals, etc.). If you want that, you’re back to more calls.
+- **Data is thrown away.** `modelFieldNames` returns only the field **names**, even though the underlying call had richer field metadata (descriptions, fonts, ordinals, etc.). If you want any of that, you have to make more calls.
 
 **How Tsunagi handles the same task**
 
@@ -54,7 +54,7 @@ curl --get "http://127.0.0.1:7777/v1/models" \
   --data-urlencode 'select=flds[].(name,ord,description,font)'
 ```
 
-No special endpoints, no throwaway filtering—just `select` what you want and go.
+No special endpoints, no throwaway filtering-just `select` what you want and go.
 
 **Design goals, summarized**
 
@@ -90,7 +90,7 @@ I’m also planning an **AnkiConnect shim** so you can adopt this gradually with
 
 ## Install
 
-Not published yet. If you’re adventurous, you can build the add-on locally:
+Not published yet. If you’re adventurous, you can build the addon locally:
 
 ```bash
 # from the repo root
@@ -101,7 +101,7 @@ Then install the produced file in Anki. Tsunagi runs **inside Anki** and starts 
 
 ### Dependencies
 
-Dependencies are bundled with the add-on. I may pin to an earlier **pydantic** to avoid platform-specific wheels.
+Dependencies are bundled with the addon. I may pin to an earlier **pydantic** to avoid platform-specific wheels.
 
 ## Usage
 
@@ -184,11 +184,11 @@ Query operators (`==`, `>=`, `~=`, brackets, quotes, etc.) can be annoying to sh
 
 | Parameter | Type      | Default  | Description |
 |-----------|-----------|----------|-------------|
-| `select`  | `string`  | —        | Comma-separated fields to return. Supports array projection and aliasing. |
-| `where`   | `string`* | —        | Filter expression. Repeat the parameter for multiple ANDed filters. |
+| `select`  | `string`  | -        | Comma-separated fields to return. Supports array projection and aliasing. |
+| `where`   | `string`* | -        | Filter expression. Repeat the parameter for multiple ANDed filters. |
 | `shape`   | `string`  | `auto`   | `auto` (objects), `object` (always objects), `scalar` (single-field results as values). |
 | `limit`   | `integer` | `1000`   | Items per page (1–5000). |
-| `cursor`  | `string`  | —        | Opaque pagination cursor returned by the API. |
+| `cursor`  | `string`  | -        | Opaque pagination cursor returned by the API. |
 
 \* For POST JSON, you can pass a single string or an array of strings for `where`.
 
@@ -204,8 +204,8 @@ Query operators (`==`, `>=`, `~=`, brackets, quotes, etc.) can be annoying to sh
 
 ### Endpoints
 
-- **GET `/v1/models`** — List/query note types (“models” in Anki terms).  
-- **GET `/v1/health`** — Simple health check.
+- **GET `/v1/models`** - List/query note types (“models” in Anki terms).  
+- **GET `/v1/health`** - Simple health check.
 
 **GET/POST parity**
 
