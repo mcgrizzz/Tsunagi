@@ -122,19 +122,37 @@ def collection_op_call(
 
     def start_on_main() -> None:
         def _success(res: Any) -> None:
-            box.setdefault("result", res)
+            # Extract the actual value from ResultWithChanges if present
+            if hasattr(res, 'value'):
+                box.setdefault("result", res.value)
+            else:
+                box.setdefault("result", res)
             done.set()
 
         def _failure(exc: Exception) -> None:
             box.setdefault("exc", exc)
             done.set()
 
+        # Wrap the function to return a ResultWithChanges object
+        def wrapped_op(col: Collection) -> Any:
+            result = fn(col, *args, **kwargs)
+            # If the result already has .changes, return as-is
+            if hasattr(result, 'changes'):
+                return result
+            # Otherwise, wrap it with empty changes
+            from anki.collection import OpChanges
+            class ResultWithChanges:
+                def __init__(self, value, changes):
+                    self.value = value
+                    self.changes = changes
+            return ResultWithChanges(result, OpChanges())
+
         # Cast to appease type checkers: (Collection) -> ResultWithChanges[Any]
         op = CollectionOp(
             parent=mw,
             op=cast(
                 Callable[[Collection], Any],
-                lambda col: fn(col, *args, **kwargs),
+                wrapped_op,
             ),  # type: ignore[arg-type]
         )
         try:
