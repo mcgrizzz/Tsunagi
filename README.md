@@ -252,4 +252,4 @@ This is a solo project; I’ll review when I come up for air. Thoughtful bug rep
 
 ## License
 
-License TBD
+License [MIT](LICENSE)
