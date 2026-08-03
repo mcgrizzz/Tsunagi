@@ -464,24 +464,6 @@ def ac_update_note_fields(col: Collection, note_id: int, fields: Dict[str, str],
     col.update_note(note)
 
 
-@as_collection_op
-def add_tags(col: Collection, note_ids: Sequence[int], tags: str) -> int:
-    """Add space-separated tags to notes (one undoable op)."""
-    res = col.tags.bulk_add([int(i) for i in note_ids], tags)
-    return int(getattr(res, "count", 0) or 0)
-
-
-@as_collection_op
-def remove_tags(col: Collection, note_ids: Sequence[int], tags: str) -> int:
-    res = col.tags.bulk_remove([int(i) for i in note_ids], tags)
-    return int(getattr(res, "count", 0) or 0)
-
-
-@as_query_op
-def all_tags(col: Collection) -> List[str]:
-    return list(col.tags.all())
-
-
 @as_query_op
 def notes_mod_times(col: Collection, note_ids: Sequence[int]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []

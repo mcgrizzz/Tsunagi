@@ -23,15 +23,13 @@ from ....adapters.anki.notes import (
     ac_add_note,
     ac_check_note,
     ac_update_note_fields,
-    add_tags,
-    all_tags,
     delete_notes,
     find_note_ids,
     get_notes_by_ids,
     notes_mod_times,
     profile_name,
-    remove_tags,
 )
+from ....adapters.anki.tags import add_tags, all_tags, remove_tags
 from ..errors import NOTES_INFO_NO_INPUT
 from ..registry import registry
 
