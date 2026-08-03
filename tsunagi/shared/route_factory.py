@@ -5,6 +5,7 @@ import traceback
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
+from pydantic import BaseModel
 
 from ..shared.pagination import paginate_keyset
 from ..shared.schemas.wrappers import (
@@ -31,6 +32,13 @@ ModelRow = Union[Any, ProjectedObject, Scalar]
 def _stats(start_time: float) -> dict:
     duration_ms = (time.perf_counter() - start_time) * 1000.0
     return {"duration_ms": round(duration_ms, 3)}
+
+def _plain(x: Any) -> Any:
+    # Serialize schema rows to human field names ourselves. FastAPI's
+    # _prepare_response_content calls .dict(by_alias=True) on BaseModels
+    # BEFORE response validation, so response_model_by_alias=False never
+    # reaches rows typed as Any - Anki wire aliases would leak through.
+    return x.dict() if isinstance(x, BaseModel) else x
 
 def _execute_query(
     select: Optional[str],
@@ -66,7 +74,8 @@ def _execute_query(
 
         # Return without projection if no select
         if not select:
-            return Paginated[ModelRow](items=page_rows, next_cursor=next_cursor, stats=_stats(start))
+            return Paginated[ModelRow](items=[_plain(r) for r in page_rows],
+                                       next_cursor=next_cursor, stats=_stats(start))
 
         # Apply field selection and projection
         nodes = parse_select_csv(select)
@@ -208,7 +217,7 @@ def create_resource_routes(
                 """Create a new resource."""
                 with track_operation("create") as stats:
                     result = caps.mutations.create(data)
-                    return MutationResult(result=result, stats=stats)
+                    return MutationResult(result=_plain(result), stats=stats)
 
         # PATCH {path}/{id} - Partial update
         if caps.mutations.patch:
@@ -231,7 +240,7 @@ def create_resource_routes(
                     result = caps.mutations.patch(id, updates)
                     if result is None:
                         raise HTTPException(status_code=404, detail=f"{resource_name_title} with id={id} not found")
-                    return MutationResult(result=result, stats=stats)
+                    return MutationResult(result=_plain(result), stats=stats)
 
         # DELETE {path}/{id} - Delete
         if caps.mutations.delete:
@@ -332,7 +341,7 @@ def _add_subresource_routes(
                 data = kwargs.get('data')
                 with track_operation(f"create_{subres_name}") as stats:
                     result = caps.create(parent_id, data)
-                    return MutationResult(result=result, stats=stats)
+                    return MutationResult(result=_plain(result), stats=stats)
 
             # Set proper signature for FastAPI
             import inspect
@@ -367,7 +376,7 @@ def _add_subresource_routes(
                 updates = kwargs.get('updates')
                 with track_operation(f"patch_{subres_name}") as stats:
                     result = caps.patch(parent_id, sub_id, updates)
-                    return MutationResult(result=result, stats=stats)
+                    return MutationResult(result=_plain(result), stats=stats)
 
             import inspect
             handler.__signature__ = inspect.Signature([
@@ -401,7 +410,7 @@ def _add_subresource_routes(
                 sub_id = kwargs.get(sub_param_name)
                 with track_operation(f"delete_{subres_name}") as stats:
                     result = caps.delete(parent_id, sub_id)
-                    return MutationResult(result=result, stats=stats)
+                    return MutationResult(result=_plain(result), stats=stats)
 
             import inspect
             handler.__signature__ = inspect.Signature([
@@ -436,7 +445,7 @@ def _add_subresource_routes(
                     if not order:
                         raise ValueError("'order' array is required")
                     result = caps.reorder(parent_id, order)
-                    return MutationResult(result=result, stats=stats)
+                    return MutationResult(result=_plain(result), stats=stats)
 
             import inspect
             handler.__signature__ = inspect.Signature([
