@@ -201,13 +201,16 @@ Field names and bare values may be non-ASCII: `?where=fields[].value==犬` and
 `?select=単語` both work. Quote values containing spaces or punctuation:
 `?where=name=="Basic (and reversed)"`.
 
-**Pagination on search-backed resources.** `/v1/notes` enumerates note **ids**
-first and loads rows a batch at a time, continuing until your page is full —
-so a `where` filter returns real matches, not just matches that happened to
-fall in the first batch. `next_cursor` is `null` when there is nothing more to
-scan. Very selective filters over a large collection may stop early with a
-cursor set (a per-request scan budget bounds the work); as always, **iterate
-until `next_cursor` is `null`** rather than until `len(items) < limit`.
+**Filters are complete.** If a row matching your `where` exists anywhere in
+the collection, it is returned — no partial scans, no retry loops. `limit`
+bounds the *results*, not the search: `/v1/notes` enumerates ids first, then
+loads rows a batch at a time until your page is full or the collection is
+exhausted. `next_cursor` is `null` when there is genuinely nothing more.
+
+The cost is that a `where`-only query over a large collection loads notes
+until it fills the page. Pair it with `search` whenever you can — that pushes
+the narrowing into Anki's own index, and `where` then refines a much smaller
+set: `?search=tag:verb&where=fields[].value~=犬`.
 
 ### Response Format
 

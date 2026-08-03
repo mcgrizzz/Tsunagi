@@ -68,12 +68,6 @@ def _finish(
     final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
     return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
 
-# Most ids a single request will hydrate while looking for `limit` matches.
-# Bounds the work when a filter matches little or nothing; the response still
-# carries a cursor so a client can continue from where the scan stopped.
-_SCAN_BUDGET_MULTIPLIER = 20
-_SCAN_BUDGET_MIN = 1000
-
 def _paged_scan(
     plan: Any,
     limit: int,
@@ -84,12 +78,13 @@ def _paged_scan(
 ) -> tuple:
     """
     Walk the id list, hydrating a batch at a time until `limit` rows survive
-    the filter (or the ids run out, or the scan budget is spent).
+    the filter or the ids run out.
 
-    Filtering can't be pushed into Anki's search, so a naive
-    "hydrate one page, then filter" returns mostly-empty pages: asking for 3
-    notes matching a filter would silently return none because the first 3
-    ids didn't match. Keep going instead.
+    The guarantee is completeness: if a matching row exists anywhere in the
+    collection, it is returned. `where` can't be pushed into Anki's search, so
+    the only honest way to keep that promise is to keep scanning - a partial
+    scan would mean "no results" for rows that do exist, and would force
+    clients into retry loops. `limit` bounds the results, not the search.
     """
     ids = sorted({int(i) for i in plan.find_ids()})
     last_key = decode_cursor(cursor).get("last_key")
@@ -102,12 +97,11 @@ def _paged_scan(
         rows = plan.hydrate(page_ids, wants) if page_ids else []
         return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
 
-    budget = max(limit * _SCAN_BUDGET_MULTIPLIER, _SCAN_BUDGET_MIN)
     batch_size = max(limit, 50)
     out: List[Row] = []
     examined = 0
 
-    while examined < len(ids) and len(out) < limit and examined < budget:
+    while examined < len(ids) and len(out) < limit:
         chunk = ids[examined:examined + batch_size]
         examined += len(chunk)
         out.extend(r for r in plan.hydrate(chunk, wants) if pred(_as_dict(r)))
