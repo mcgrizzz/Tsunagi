@@ -1,4 +1,5 @@
 {
   "package": "tsunagi",
-  "name": "Tsunagi - Modern API access to Anki"
+  "name": "Tsunagi - Modern API access to Anki",
+  "min_point_version": 231000
 }
