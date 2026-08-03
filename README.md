@@ -277,7 +277,10 @@ One practical difference worth knowing: every mutation goes through Anki's
 browser is open with the note selected** — a case that fails against
 AnkiConnect's legacy `startEditing()`/`stopEditing()` approach.
 
-`GET /actions` lists the implemented actions.
+`GET /actions` lists the implemented actions. **86 of AnkiConnect's 122** are
+in place — see [docs/ankiconnect_parity.md](docs/ankiconnect_parity.md) for the
+full table, the handful of deliberate behavioural deviations, and the two
+places AnkiConnect's own documentation disagrees with its code.
 
 **GET/POST parity**
 

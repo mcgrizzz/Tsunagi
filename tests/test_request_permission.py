@@ -20,10 +20,18 @@ from tsunagi.http.compat.registry import registry
 ORIGIN = "https://allowed.test"
 OTHER = "https://unknown.test"
 
-if not registry.is_registered("testEcho"):
-    @registry.register("testEcho")
-    def _echo(params):
-        return {"echo": params or None}
+@pytest.fixture(autouse=True, scope="module")
+def _test_echo_action():
+    """
+    A stand-in action for the gate tests, added for this module only.
+
+    It used to be registered at import and left there, which leaked a
+    non-existent action into the global registry - test_parity_doc.py then saw
+    'testEcho' as implemented and failed depending on test order.
+    """
+    registry.register("testEcho")(lambda params: {"echo": params or None})
+    yield
+    registry._handlers.pop("testEcho", None)   # our mess, our cleanup
 
 
 def rpc(action, settings, origin=None, key=None, ask=None):
