@@ -11,8 +11,8 @@ GitHub is stale (2023) and disagrees with it. Counts here come from the
 | | |
 | --- | --- |
 | Actions upstream | **122** |
-| Implemented | **92** |
-| Planned (M6) | **27** |
+| Implemented | **99** |
+| Planned (M6) | **20** |
 | Out of scope | **3** |
 
 `GET /actions` returns the live list. `tests/test_parity_doc.py` checks this
@@ -159,15 +159,15 @@ work.
 | Action | Status | Notes |
 | --- | --- | --- |
 | `apiReflect` | implemented |  |
-| `exportPackage` | M6 | M6 - profile and collection lifecycle. |
-| `getActiveProfile` | M6 | M6 - profile and collection lifecycle. |
-| `getProfiles` | M6 | M6 - profile and collection lifecycle. |
-| `importPackage` | M6 | M6 - profile and collection lifecycle. |
-| `loadProfile` | M6 | M6 - profile and collection lifecycle. |
+| `exportPackage` | implemented | Uses Anki's current export API, feature-detected - the signature changed between 23.10 and now. |
+| `getActiveProfile` | implemented | Manual verification only (needs a live main window). |
+| `getProfiles` | implemented | Manual verification only (needs a live main window). |
+| `importPackage` | implemented | M6 - profile and collection lifecycle. |
+| `loadProfile` | implemented | Manual verification only. The collection is unavailable mid-switch; requests get a 503. |
 | `multi` | implemented |  |
-| `reloadCollection` | M6 | M6 - profile and collection lifecycle. |
+| `reloadCollection` | implemented | M6 - profile and collection lifecycle. |
 | `requestPermission` | implemented |  |
-| `sync` | M6 | M6 - profile and collection lifecycle. |
+| `sync` | implemented | Manual verification only. Deviation: canonical then calls `mw.onSync()`, which no longer exists. |
 | `version` | implemented |  |
 
 ### Graphical Actions
