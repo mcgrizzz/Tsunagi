@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from ....adapters.anki.media import (
     delete_media_file,
     list_media,
+    media_dir_path,
     resolve_media_path,
     store_media_bytes,
 )
@@ -100,3 +101,8 @@ def ac_getMediaFilesNames(p: PatternParams) -> List[str]:
 def ac_deleteMediaFile(p: FilenameParams) -> None:
     delete_media_file(p.filename)
     return None
+
+
+@registry.register("getMediaDirPath")
+def ac_getMediaDirPath(params: Any) -> str:
+    return media_dir_path()

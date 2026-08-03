@@ -142,18 +142,22 @@ def get_cards_of_notes(col: Collection, note_ids: Sequence[int],
 
 @as_query_op
 def notes_of_cards(col: Collection, card_ids: Sequence[int]) -> List[int]:
-    """Note id per card, deduped - AnkiConnect's cardsToNotes."""
+    """
+    Note ids for these cards, deduped - AnkiConnect's cardsToNotes. Walks the
+    ids in ascending order so the result matches the row order canonical's
+    'select distinct nid from cards where id in (...)' produces.
+    """
     seen: List[int] = []
-    for cid in card_ids:
+    for cid in sorted({int(c) for c in card_ids}):
         try:
-            nid = int(col.get_card(int(cid)).nid)
+            nid = int(col.get_card(cid).nid)
         except Exception as e:
             if type(e).__name__ == "NotFoundError":
                 continue
             raise
         if nid not in seen:
             seen.append(nid)
-    return sorted(seen)
+    return seen
 
 
 @as_query_op

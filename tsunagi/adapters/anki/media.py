@@ -32,6 +32,12 @@ def _contained_path(col: Collection, filename: str) -> str:
 
 
 @as_query_op
+def media_dir_path(col: Collection) -> str:
+    """Absolute path of the collection's media folder."""
+    return col.media.dir()
+
+
+@as_query_op
 def list_media(col: Collection) -> List[Tuple[str, int, int]]:
     """(filename, size, mtime) for every file in the media folder."""
     root = col.media.dir()
