@@ -17,27 +17,46 @@ for p in (str(_SHARED), str(ROOT), str(ROOT / "tests")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-# Install fake aqt/anki modules BEFORE any test module imports tsunagi's
+# The real Anki library is a test dependency: tests run against the actual
+# Rust backend, not a hand-written imitation of it. A fake collection hid four
+# return-path bugs across M5 - see the M5c section of the plan.
+try:
+    import anki.collection  # noqa: F401
+except ImportError as exc:  # pragma: no cover - environment guard
+    raise RuntimeError(
+        "the anki library is missing - tests run against a real collection.\n"
+        "  install it with: python -m pip install 'anki==23.10'\n"
+        "(23.10 is our declared floor; CI also runs the latest release)"
+    ) from exc
+
+# aqt calls this during startup; pylib on its own leaves anki.lang.current_i18n
+# as None, and anything routed through the Rust backend's text helpers -
+# anki.utils.field_checksum / strip_html_media, which the AnkiConnect duplicate
+# check uses - raises AttributeError without it. Inside Anki this is already
+# done for us, so it belongs in the harness rather than in tsunagi.
+import anki.lang  # noqa: E402
+
+anki.lang.set_lang("en_US")
+
+# Install fake aqt modules BEFORE any test module imports tsunagi's
 # Anki-facing code (conftest execution precedes test-module collection).
-# The real aqt/anki are never installed in the test env, so this cannot
-# shadow anything for the aqt-free tests.
+# Only aqt is stubbed - it drags in Qt, and its threading is what we want to
+# short-circuit. `anki` above is the genuine package.
 from fakes.anki_stubs import install, mw  # noqa: E402
 
 install()
 
 
 @pytest.fixture()
-def fake_col():
-    """Fresh seeded FakeCollection assigned to the fake mw.col."""
-    import shutil
+def col(tmp_path):
+    """A real, empty Anki collection assigned to the fake mw.col."""
+    from anki.collection import Collection
 
-    from fakes.collection import FakeCollection
-
-    mw.col = FakeCollection()
+    mw.col = Collection(str(tmp_path / "collection.anki2"))
     try:
         yield mw.col
     finally:
-        shutil.rmtree(mw.col.media.dir(), ignore_errors=True)
+        mw.col.close()
         mw.col = None
 
 
@@ -53,7 +72,7 @@ def reset_settings():
 
 
 @pytest.fixture()
-def client(fake_col, reset_settings):
+def client(col, reset_settings):
     """TestClient over the real full app (auth off, no Origin header sent)."""
     from fastapi.testclient import TestClient
 

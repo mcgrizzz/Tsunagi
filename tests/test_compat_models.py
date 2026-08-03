@@ -15,7 +15,7 @@ from tsunagi.http.compat.errors import (
 )
 
 BASIC_QFMT = "{{Front}}"
-BASIC_AFMT = "{{FrontSide}}<hr id=answer>{{Back}}"
+BASIC_AFMT = "{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}"
 
 
 def rpc(client, action, params=None, version=6):
@@ -35,7 +35,8 @@ def templates_of(client, model="Basic"):
 
 class TestReads:
     def test_model_name_from_id(self, client):
-        assert rpc(client, "modelNameFromId", {"modelId": 1001})["result"] == "Basic"
+        mid = rpc(client, "modelNamesAndIds")["result"]["Basic"]
+        assert rpc(client, "modelNameFromId", {"modelId": mid})["result"] == "Basic"
 
     def test_model_name_from_unknown_id(self, client):
         resp = rpc(client, "modelNameFromId", {"modelId": 999999})
@@ -91,16 +92,18 @@ class TestCreateModel:
 
     def test_template_names_default_to_card_n(self, client):
         model = self._create(client, cardTemplates=[
-            {"Front": "a", "Back": "b"}, {"Front": "c", "Back": "d"}])["result"]
+            {"Front": "{{A}}", "Back": "{{B}}"},
+            {"Front": "{{B}}", "Back": "{{A}}"}])["result"]
         assert [t["name"] for t in model["tmpls"]] == ["Card 1", "Card 2"]
 
     def test_template_name_can_be_given(self, client):
         model = self._create(client, cardTemplates=[
-            {"Name": "Recognition", "Front": "a", "Back": "b"}])["result"]
+            {"Name": "Recognition", "Front": "{{A}}", "Back": "{{B}}"}])["result"]
         assert model["tmpls"][0]["name"] == "Recognition"
 
     def test_is_cloze(self, client):
-        assert self._create(client, isCloze=True)["result"]["type"] == 1
+        assert self._create(client, isCloze=True, cardTemplates=[
+            {"Front": "{{cloze:A}}", "Back": "{{cloze:A}}"}])["result"]["type"] == 1
 
     def test_css(self, client):
         assert self._create(client, css=".x{}")["result"]["css"] == ".x{}"
@@ -122,9 +125,22 @@ class TestCreateModel:
 
 
 class TestFindAndReplace:
+    def _matching(self, client, needle, key="css"):
+        """How many notetypes actually contain `needle` - a real collection
+        ships six stock ones, so the count can't be hardcoded."""
+        n = 0
+        for name in rpc(client, "modelNames")["result"]:
+            blob = (rpc(client, "modelStyling", {"modelName": name})["result"]["css"]
+                    if key == "css"
+                    else str(rpc(client, "modelTemplates", {"modelName": name})["result"]))
+            n += needle in blob
+        return n
+
     def test_counts_models_that_matched(self, client):
+        expected = self._matching(client, "20px")
+        assert expected                      # guard: the premise holds
         assert rpc(client, "findAndReplaceInModels", {
-            "findText": "20px", "replaceText": "24px"})["result"] == 2
+            "findText": "20px", "replaceText": "24px"})["result"] == expected
 
     def test_scoped_to_one_model(self, client):
         assert rpc(client, "findAndReplaceInModels", {
@@ -134,9 +150,13 @@ class TestFindAndReplace:
                              {"modelName": "Basic"})["result"]["css"]
 
     def test_can_target_the_answer_side_only(self, client):
+        # `<hr id=answer>` lives only in afmt. Rewriting {{FrontSide}} instead
+        # would leave a replacement naming no field, which Anki refuses.
+        expected = self._matching(client, "hr id=answer", key="templates")
+        assert expected                      # guard: the premise holds
         assert rpc(client, "findAndReplaceInModels", {
-            "findText": "FrontSide", "replaceText": "X",
-            "css": False, "front": False})["result"] == 2
+            "findText": "hr id=answer", "replaceText": "hr id=ANSWER",
+            "css": False, "front": False})["result"] == expected
 
     def test_unknown_model_is_an_error(self, client):
         assert rpc(client, "findAndReplaceInModels", {
@@ -147,16 +167,17 @@ class TestFindAndReplace:
 class TestUpdateModel:
     def test_update_templates(self, client):
         resp = rpc(client, "updateModelTemplates", {"model": {
-            "name": "Basic", "templates": {"Card 1": {"Front": "NEW", "Back": "ALSO"}}}})
+            "name": "Basic",
+            "templates": {"Card 1": {"Front": "{{Front}} NEW", "Back": "{{Back}} ALSO"}}}})
         assert resp == {"result": None, "error": None}
         assert rpc(client, "modelTemplates", {"modelName": "Basic"})["result"] == {
-            "Card 1": {"Front": "NEW", "Back": "ALSO"}}
+            "Card 1": {"Front": "{{Front}} NEW", "Back": "{{Back}} ALSO"}}
 
     def test_empty_side_is_left_alone(self, client):
         rpc(client, "updateModelTemplates", {"model": {
-            "name": "Basic", "templates": {"Card 1": {"Front": "NEW", "Back": ""}}}})
+            "name": "Basic", "templates": {"Card 1": {"Front": "{{Front}} NEW", "Back": ""}}}})
         result = rpc(client, "modelTemplates", {"modelName": "Basic"})["result"]
-        assert result["Card 1"] == {"Front": "NEW", "Back": BASIC_AFMT}
+        assert result["Card 1"] == {"Front": "{{Front}} NEW", "Back": BASIC_AFMT}
 
     def test_unknown_template_name_is_ignored(self, client):
         resp = rpc(client, "updateModelTemplates", {"model": {
@@ -192,13 +213,13 @@ class TestTemplateEdits:
         # DEVIATION: canonical returns without saving here, silently discarding
         # the update.
         rpc(client, "modelTemplateAdd", {"modelName": "Basic", "template": {
-            "Name": "Card 1", "Front": "CHANGED", "Back": "ALSO"}})
+            "Name": "Card 1", "Front": "{{Front}} CHANGED", "Back": "{{Back}} ALSO"}})
         assert rpc(client, "modelTemplates", {"modelName": "Basic"})["result"] == {
-            "Card 1": {"Front": "CHANGED", "Back": "ALSO"}}
+            "Card 1": {"Front": "{{Front}} CHANGED", "Back": "{{Back}} ALSO"}}
 
     def test_reposition(self, client):
         rpc(client, "modelTemplateAdd", {"modelName": "Basic", "template": {
-            "Name": "Reverse", "Front": "a", "Back": "b"}})
+            "Name": "Reverse", "Front": "{{Back}}", "Back": "{{Front}}"}})
         rpc(client, "modelTemplateReposition", {
             "modelName": "Basic", "templateName": "Reverse", "index": 0})
         assert templates_of(client) == ["Reverse", "Card 1"]

@@ -74,6 +74,14 @@ class TestBulk:
         body = seeded.post("/v1/tags:bulk-remove",
                            json={"note_ids": nids, "tags": "vocab"}).json()
         assert body["affected"] == 2
+        # Anki's tag registry keeps a tag after the last note drops it; only
+        # clear-unused retires it. GET /v1/tags reports the registry, so the
+        # tag is still listed until then.
+        assert "vocab" in seeded.get("/v1/tags").json()["items"]
+        notes = seeded.get("/v1/notes", params={
+            "select": "id,tags", "shape": "object"}).json()["items"]
+        assert all("vocab" not in n["tags"] for n in notes)
+        seeded.post("/v1/tags:clear-unused")
         assert "vocab" not in seeded.get("/v1/tags").json()["items"]
 
     def test_camel_case_body_accepted(self, client):

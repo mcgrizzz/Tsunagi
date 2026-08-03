@@ -74,7 +74,8 @@ class TestAddNote:
     def test_tags_round_trip(self, client):
         nid = rpc(client, "addNote", {"note": note_spec(tags=["vocab", "jp"])})["result"]
         info = rpc(client, "notesInfo", {"notes": [nid]})["result"][0]
-        assert info["tags"] == ["vocab", "jp"]
+        # Anki canonifies a note's tags on save, which sorts them.
+        assert info["tags"] == ["jp", "vocab"]
 
 
 class TestAddNotes:
@@ -118,10 +119,10 @@ class TestCanAddNotes:
         notes = [note_spec(), note_spec(model="Nope"), note_spec(front="")]
         assert len(rpc(client, "canAddNotes", {"notes": notes})["result"]) == 3
 
-    def test_check_writes_nothing(self, client, fake_col):
-        before = len(fake_col._notes)
+    def test_check_writes_nothing(self, client, col):
+        before = col.note_count()
         rpc(client, "canAddNotes", {"notes": [note_spec()]})
-        assert len(fake_col._notes) == before
+        assert col.note_count() == before
 
 
 class TestDuplicateScope:
@@ -226,7 +227,7 @@ class TestUpdateNoteFields:
         resp = rpc(client, "updateNoteFields", {"note": {"id": 999999, "fields": {"Back": "x"}}})
         assert resp["error"] == NOTE_NOT_FOUND.format(999999)
 
-    def test_attaches_audio_to_existing_note(self, client, fake_col):
+    def test_attaches_audio_to_existing_note(self, client, col):
         # asbplayer's "update last card with audio" flow
         nid = rpc(client, "addNote", {"note": note_spec()})["result"]
         resp = rpc(client, "updateNoteFields", {"note": {
@@ -235,7 +236,7 @@ class TestUpdateNoteFields:
         assert resp == {"result": None, "error": None}
         (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
         assert info["fields"]["Back"]["value"] == "dog[sound:word.mp3]"
-        assert fake_col.media.have("word.mp3")
+        assert col.media.have("word.mp3")
 
     def test_attaches_picture_to_existing_note(self, client):
         nid = rpc(client, "addNote", {"note": note_spec()})["result"]
@@ -299,7 +300,7 @@ class TestTags:
         assert rpc(client, "addTags", {"notes": [nid], "tags": "mined asbplayer"}) == \
             {"result": None, "error": None}
         (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
-        assert info["tags"] == ["mined", "asbplayer"]
+        assert info["tags"] == ["asbplayer", "mined"]   # Anki sorts on save
 
     def test_add_tags_is_idempotent(self, client):
         nid = rpc(client, "addNote", {"note": note_spec(tags=["mined"])})["result"]
@@ -346,12 +347,12 @@ class TestNoteMedia:
             {"filename": "a.png", "data": B64, "fields": ["Back"]}, None])})
         assert resp["error"] is None
 
-    def test_fields_optional_stores_without_markup(self, client, fake_col):
+    def test_fields_optional_stores_without_markup(self, client, col):
         nid = rpc(client, "addNote", {"note": note_spec(picture={
             "filename": "solo.png", "data": B64})})["result"]
         (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
         assert "<img" not in info["fields"]["Back"]["value"]
-        assert fake_col.media.have("solo.png")
+        assert col.media.have("solo.png")
 
     def test_unknown_target_field_is_skipped(self, client):
         resp = rpc(client, "addNote", {"note": note_spec(picture={
@@ -398,13 +399,13 @@ class TestMediaActions:
         resp = rpc(client, "storeMediaFile", {"filename": "a.png"})
         assert "data" in resp["error"] and "url" in resp["error"]
 
-    def test_skip_hash_match_returns_null_and_writes_nothing(self, client, fake_col):
+    def test_skip_hash_match_returns_null_and_writes_nothing(self, client, col):
         import hashlib
         digest = hashlib.md5(PNG).hexdigest()
         resp = rpc(client, "storeMediaFile",
                    {"filename": "a.png", "data": B64, "skipHash": digest})
         assert resp == {"result": None, "error": None}
-        assert not fake_col.media.have("a.png")
+        assert not col.media.have("a.png")
 
     def test_skip_hash_mismatch_stores(self, client):
         resp = rpc(client, "storeMediaFile",
@@ -431,7 +432,7 @@ class TestMediaActions:
         assert rpc(client, "getMediaFilesNames", {})["result"] == ["a.png", "b.mp3"]
         assert rpc(client, "getMediaFilesNames", {"pattern": "*.mp3"})["result"] == ["b.mp3"]
 
-    def test_delete_media_file(self, client, fake_col):
+    def test_delete_media_file(self, client, col):
         rpc(client, "storeMediaFile", {"filename": "a.png", "data": B64})
         assert rpc(client, "deleteMediaFile", {"filename": "a.png"}) == {"result": None, "error": None}
-        assert not fake_col.media.have("a.png")
+        assert not col.media.have("a.png")

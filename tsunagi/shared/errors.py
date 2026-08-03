@@ -103,6 +103,29 @@ def track_operation(operation_name: str) -> Iterator[Dict[str, Any]]:
         stats["duration_ms"] = round((time.perf_counter() - start) * 1000, 3)
 
 
+# Anki errors that mean "the client sent something invalid", not "we broke".
+# Matched by name rather than by class so this module stays importable without
+# anki - the same idiom the adapters already use. Anything not listed here is
+# a genuine fault and still becomes a 500.
+ANKI_CLIENT_ERRORS = frozenset({
+    "CardTypeError",     # template has no field replacement, or names a missing field
+    "TemplateError",
+    "InvalidInput",
+    "SearchError",
+    "DeckRenameError",
+    "FilteredDeckError",
+    "ExistsError",
+})
+
+# Anki wraps interpolated names in Unicode directional isolates for RTL
+# rendering. They are invisible noise in a JSON error message.
+_ISOLATES = str.maketrans("", "", "⁦⁧⁨⁩")
+
+
+def anki_error_detail(exc: Exception) -> str:
+    return str(exc).translate(_ISOLATES)
+
+
 def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator to standardize mutation error handling.
@@ -125,6 +148,10 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
         if isinstance(exc, (ResourceNotFoundError, SubresourceNotFoundError, ValidationError,
                             DuplicateNoteError, AnkiBusyError, CollectionUnavailableError)):
             return HTTPException(status_code=exc.status_code, detail=str(exc))
+        if type(exc).__name__ in ANKI_CLIENT_ERRORS:
+            # Anki's own message explains the problem far better than we could
+            # ("Expected to find a field replacement on the front of the card").
+            return HTTPException(status_code=400, detail=anki_error_detail(exc))
         if isinstance(exc, ValueError):
             return HTTPException(status_code=400, detail=str(exc))
         if isinstance(exc, HTTPException):

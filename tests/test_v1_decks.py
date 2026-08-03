@@ -45,11 +45,11 @@ class TestStats:
         assert body["items"] == [
             {"id": did, "name": "JP", "new_count": 3, "total_in_deck": 3}]
 
-    def test_counts_skipped_when_not_asked_for(self, client, fake_col):
+    def test_counts_skipped_when_not_asked_for(self, client, col):
         self._seed(client)
         calls = []
-        original = fake_col.sched.deck_due_tree
-        fake_col.sched.deck_due_tree = lambda: calls.append(1) or original()
+        original = col.sched.deck_due_tree
+        col.sched.deck_due_tree = lambda: calls.append(1) or original()
 
         client.get("/v1/decks", params={"select": "id,name"})
         assert calls == []                      # no tree walk for a cheap select
@@ -62,12 +62,14 @@ class TestStats:
         jp = [d for d in client.get("/v1/decks").json()["items"] if d["name"] == "JP"][0]
         assert jp["new_count"] == 3             # no select means the whole record
 
-    def test_deck_absent_from_the_tree_reports_zeros(self, client, fake_col):
+    def test_deck_absent_from_the_tree_reports_zeros(self, client, col):
         # Regression: Anki drops the Default deck from deck_due_tree() while
         # it's empty and other decks exist, and a deck with no node was
         # reporting null counts - "unknown" where zero is the truth.
         self._seed(client)                       # a second deck, so Default is dropped
-        assert 1 not in fake_col.sched.deck_due_tree_ids()
+        def tree_ids(node):
+            return {int(node.deck_id)} | {i for c in node.children for i in tree_ids(c)}
+        assert 1 not in tree_ids(col.sched.deck_due_tree())
 
         empty = client.get("/v1/decks", params={
             "select": "name,new_count,review_count,total_in_deck",
@@ -82,7 +84,9 @@ class TestStats:
         decks = {d["name"]: d for d in client.get(
             "/v1/decks", params={"select": "name,total_in_deck", "shape": "object"}).json()["items"]}
         assert decks["A::B"]["total_in_deck"] == 1
-        assert decks["A"]["total_in_deck"] == 1  # parent rolls up its subdecks
+        # Anki rolls the DUE counts up into a parent but not total_in_deck,
+        # which counts only the cards sitting directly in that deck.
+        assert decks["A"]["total_in_deck"] == 0
 
 
 class TestMutations:

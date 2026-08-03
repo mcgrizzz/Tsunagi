@@ -1,39 +1,26 @@
 """
-Fake `aqt` / `anki` modules so tsunagi's Anki-facing code imports and runs
-under pytest. Everything is synchronous and in-process: run_on_main calls
-inline, QueryOp/CollectionOp execute immediately against `mw.col`.
+Fake `aqt` module so tsunagi's Anki-facing code imports and runs under pytest.
+Everything is synchronous and in-process: run_on_main calls inline,
+QueryOp/CollectionOp execute immediately against `mw.col`.
+
+`anki` itself is NOT faked - the real pylib is a test dependency and `mw.col`
+is a real Collection. Only `aqt` is stubbed, because it drags in Qt and its
+threading is the part we actually want to short-circuit. Anything from
+anki.collection / anki.errors / anki.utils is the genuine article.
 
 Faithful to the exact contract in tsunagi/adapters/ops.py:
 - QueryOp(parent=, op=, success=) + .failure(cb) + .run_in_background();
   success receives the raw result.
 - CollectionOp(parent=, op=) with .success(cb)/.failure(cb) attached AFTER
   construction; success receives the ResultWithChanges object raw (ops.py
-  unwraps .value itself). ops.py imports anki.collection.OpChanges inside
-  the op wrapper, so it must be zero-arg constructible.
+  unwraps .value itself).
 
-Tests assign a FakeCollection to `mw.col` (see the fake_col fixture) - the
-`mw` object itself must stay the same instance forever because ops.py does
-`from aqt import mw` once at import time.
+The `mw` object itself must stay the same instance forever because ops.py
+does `from aqt import mw` once at import time; the `col` fixture swaps
+`mw.col` underneath it.
 """
-import hashlib
-import re
 import sys
 import types
-
-
-def strip_html_media(text):
-    """
-    Anki strips HTML but PRESERVES media filenames, which is why adding an
-    image to a note's first field changes its duplicate status. A fake that
-    dropped the filename would hide that behavior.
-    """
-    text = re.sub(r"""<img[^>]*src=["']?([^"'>\s]+)["']?[^>]*>""", r" \1 ", text or "")
-    return re.sub(r"<[^>]+>", "", text)
-
-
-def field_checksum(data):
-    """Anki's: 32-bit int from the first 8 hex digits of sha1(stripped)."""
-    return int(hashlib.sha1(strip_html_media(data).encode("utf-8")).hexdigest()[:8], 16)
 
 
 class _TaskMan:
@@ -50,36 +37,6 @@ class _FakeMainWindow:
 
 
 mw = _FakeMainWindow()
-
-
-class Collection:  # only used for type annotations in adapters/ops
-    pass
-
-
-class OpChanges:
-    pass
-
-
-class NotFoundError(Exception):
-    pass
-
-
-class SearchError(Exception):
-    pass
-
-
-class SearchNode:
-    """Minimal stand-in; only FakeCollection.build_search_string reads these."""
-
-    class Dupe:
-        def __init__(self, notetype_id=None, first_field=None):
-            self.notetype_id = notetype_id
-            self.first_field = first_field
-
-    def __init__(self, dupe=None, deck=None, nids=None):
-        self.dupe = dupe
-        self.deck = deck
-        self.nids = nids
 
 
 class QueryOp:
@@ -127,26 +84,9 @@ class CollectionOp:
 
 
 def install() -> None:
-    """Register the fake modules in sys.modules (idempotent)."""
+    """Register the fake aqt modules in sys.modules (idempotent)."""
     if "aqt" in sys.modules:
         return
-
-    anki_mod = types.ModuleType("anki")
-    anki_col_mod = types.ModuleType("anki.collection")
-    anki_col_mod.Collection = Collection
-    anki_col_mod.OpChanges = OpChanges
-    anki_col_mod.SearchNode = SearchNode
-    anki_mod.collection = anki_col_mod
-
-    anki_err_mod = types.ModuleType("anki.errors")
-    anki_err_mod.NotFoundError = NotFoundError
-    anki_err_mod.SearchError = SearchError
-    anki_mod.errors = anki_err_mod
-
-    anki_utils_mod = types.ModuleType("anki.utils")
-    anki_utils_mod.strip_html_media = strip_html_media
-    anki_utils_mod.field_checksum = field_checksum
-    anki_mod.utils = anki_utils_mod
 
     aqt_mod = types.ModuleType("aqt")
     aqt_mod.mw = mw
@@ -155,9 +95,5 @@ def install() -> None:
     aqt_ops_mod.CollectionOp = CollectionOp
     aqt_mod.operations = aqt_ops_mod
 
-    sys.modules["anki"] = anki_mod
-    sys.modules["anki.collection"] = anki_col_mod
-    sys.modules["anki.errors"] = anki_err_mod
-    sys.modules["anki.utils"] = anki_utils_mod
     sys.modules["aqt"] = aqt_mod
     sys.modules["aqt.operations"] = aqt_ops_mod

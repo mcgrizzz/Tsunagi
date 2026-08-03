@@ -71,7 +71,7 @@ class TestErrors:
 
 
 class TestMulti:
-    def test_versionless_subs_are_bare_inside_outer_envelope(self, client, fake_col):
+    def test_versionless_subs_are_bare_inside_outer_envelope(self, client, col):
         body = client.post("/", json={
             "action": "multi", "version": 6,
             "params": {"actions": [{"action": "version"}, {"action": "deckNames"}]},
@@ -129,7 +129,7 @@ class TestBrowserOrigins:
 
     YOMITAN = "chrome-extension://likgccmbimhjbgkjambclfkhldnlhbnn"
 
-    def test_extension_origin_works_out_of_the_box(self, client, fake_col):
+    def test_extension_origin_works_out_of_the_box(self, client, col):
         resp = client.post("/", json={"action": "deckNames", "version": 2},
                            headers={"Origin": self.YOMITAN})
         assert resp.status_code == 200
