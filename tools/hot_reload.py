@@ -30,8 +30,8 @@ def kill_process(image_name: str) -> None:
         print(f"Ignored taskkill error: {e}")
 
 def latest_zip(dist_dir: Path) -> Optional[Path]:
-    """Return the newest *.ankiaddon.zip file."""
-    zips = sorted(dist_dir.glob("*.ankiaddon.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    """Return the newest built add-on (a zip under an .ankiaddon name)."""
+    zips = sorted(dist_dir.glob("*.ankiaddon"), key=lambda p: p.stat().st_mtime, reverse=True)
     return zips[0] if zips else None
 
 def extract_zip(src: Path, dest: Path) -> None:

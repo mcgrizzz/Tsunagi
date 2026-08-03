@@ -260,11 +260,23 @@ def start_server(mw) -> None:
         except Exception:
             pass  # headless / no Qt available
 
-def stop_server() -> None:
-    """Signal uvicorn to exit and wait briefly; called on profile close."""
+def server_url() -> Optional[str]:
+    """Base URL if the server is up, else None."""
     st = _SERVER_STATE
+    return f"http://{st.host}:{st.port}" if st.started else None
+
+
+def stop_server() -> bool:
+    """
+    Signal uvicorn to exit and wait briefly; called on profile close.
+
+    Returns False if the thread outlived the wait, which means the port may
+    still be held - the dev reload needs to know that before rebinding.
+    """
+    st = _SERVER_STATE
+    stopped = True
     if not st.started:
-        return
+        return True
     try:
         if st.server is not None:
             st.server.should_exit = True
@@ -272,10 +284,13 @@ def stop_server() -> None:
             st.thread.join(5)
             if st.thread.is_alive():
                 _log("server thread did not stop within 5s; abandoning (daemon)")
+                stopped = False
     except Exception:
         _log(f"stop_server failed:\n{traceback.format_exc()}")
+        stopped = False
     finally:
         st.thread = None
         st.server = None
         st.port = None
         st.started = False
+    return stopped
