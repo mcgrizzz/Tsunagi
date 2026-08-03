@@ -23,6 +23,7 @@ from ....adapters.anki.notes import (
     ac_check_note,
     ac_update_note_fields,
     delete_notes,
+    find_card_ids,
     find_note_ids,
     get_notes_by_ids,
     profile_name,
@@ -243,6 +244,13 @@ def ac_findNotes(p: FindNotesParams) -> List[int]:
     if p.query is None:
         return []
     return find_note_ids(p.query)
+
+
+@registry.register("findCards", params=FindNotesParams)
+def ac_findCards(p: FindNotesParams) -> List[int]:
+    if p.query is None:
+        return []
+    return find_card_ids(p.query)
 
 
 @registry.register("deleteNotes", params=DeleteNotesParams)
