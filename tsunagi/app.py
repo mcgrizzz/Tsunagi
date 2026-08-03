@@ -20,6 +20,7 @@ from .http.compat.ankiconnect import (
 )
 from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
 from .http.v1.decks import router as decks_router
+from .http.v1.media import router as media_router
 from .http.v1.models import router as models_router
 from .http.v1.notes import router as notes_router
 from .shared.errors import register_exception_handlers
@@ -47,6 +48,10 @@ app = FastAPI(
             "description": "Notes hold the content; cards are generated from them. Supports Anki search syntax via the `search` parameter."
         },
         {
+            "name": "Media",
+            "description": "Files in the collection's media folder. Downloads stream raw bytes; uploads report the name Anki actually stored."
+        },
+        {
             "name": "Health",
             "description": "API health and status checks"
         },
@@ -60,6 +65,7 @@ app = FastAPI(
 app.include_router(models_router)
 app.include_router(decks_router)
 app.include_router(notes_router)
+app.include_router(media_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 
 # Auth inner, CORS outermost (added last runs first) so auth 401s still carry
