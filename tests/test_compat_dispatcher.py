@@ -153,6 +153,38 @@ class TestBrowserOrigins:
         assert resp.json() == {"result": {"permission": "denied"}, "error": None}
 
 
+class TestAlwaysEnvelope:
+    """
+    Regression: AnkiConnect clients check only `error` and then read `result`.
+    A FastAPI 422 body ({"detail": ...}) has neither key, so it slips past
+    their guard and crashes them on the next property access (asbplayer died
+    with "Cannot read properties of undefined (reading 'length')"). Every
+    reply from POST / must be an envelope.
+    """
+
+    def test_malformed_json_is_an_envelope(self, client):
+        resp = client.post("/", content=b"{not json", headers={"Content-Type": "application/json"})
+        body = resp.json()
+        assert set(body) == {"result", "error"}
+        assert body["result"] is None and body["error"]
+
+    def test_non_object_body_is_an_envelope(self, client):
+        body = client.post("/", json=[1, 2, 3]).json()
+        assert set(body) == {"result", "error"}
+        assert body["result"] is None
+
+    def test_missing_action_is_an_envelope(self, client):
+        body = client.post("/", json={"version": 6}).json()
+        assert body == {"result": None, "error": UNSUPPORTED_ACTION}
+
+    def test_bad_params_shape_is_an_envelope(self, client):
+        # Wrong param type would be a 422 if the body were a typed parameter
+        body = client.post("/", json={"action": "notesInfo", "version": 6,
+                                      "params": {"notes": "not-a-list"}}).json()
+        assert set(body) == {"result", "error"}
+        assert body["result"] is None and body["error"]
+
+
 class TestRegistry:
     def test_duplicate_registration_raises(self):
         with pytest.raises(ValueError):

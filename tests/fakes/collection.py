@@ -312,6 +312,45 @@ class FakeNote:
         return 0  # NORMAL
 
 
+class FakeTagManager:
+    def __init__(self, col):
+        self._col = col
+
+    def all(self):
+        seen = []
+        for note in self._col._notes.values():
+            for tag in note.tags:
+                if tag not in seen:
+                    seen.append(tag)
+        return sorted(seen)
+
+    def bulk_add(self, note_ids, tags):
+        wanted = [t for t in tags.split() if t]
+        count = 0
+        for nid in note_ids:
+            note = self._col._notes.get(int(nid))
+            if note is None:
+                continue
+            added = [t for t in wanted if t not in note.tags]
+            if added:
+                note.tags = list(note.tags) + added
+                count += 1
+        return SimpleNamespace(count=count)
+
+    def bulk_remove(self, note_ids, tags):
+        drop = {t for t in tags.split() if t}
+        count = 0
+        for nid in note_ids:
+            note = self._col._notes.get(int(nid))
+            if note is None:
+                continue
+            kept = [t for t in note.tags if t not in drop]
+            if kept != note.tags:
+                note.tags = kept
+                count += 1
+        return SimpleNamespace(count=count)
+
+
 class FakeDb:
     """
     Shim for the handful of raw SQL statements AnkiConnect's scoped
@@ -353,6 +392,7 @@ class FakeCollection:
         self.decks = FakeDeckManager(seed=seed)
         self.media = FakeMediaManager()
         self.db = FakeDb(self)
+        self.tags = FakeTagManager(self)
         self._notes = {}
         self._cards = {}
         self._next_note_id = 7000
