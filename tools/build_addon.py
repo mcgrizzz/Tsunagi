@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """
-Builds a single .ankiaddon ZIP that vendors:
-- Pure-Python deps (FastAPI latest, Pydantic v2, Starlette, AnyIO, h11, uvicorn, packaging) under lib/shared/
-- pydantic-core native wheels for multiple platforms/ABIs under:
-    lib/<os>/pydantic_core/<py_tag>/<platform_tag>/
+Builds a single .ankiaddon ZIP that vendors pure-Python deps under lib/shared/.
+
+All runtime dependencies are pinned in tools/requirements.lock.txt and must be
+available as pure-Python (none-any) wheels. Downloads are constrained to
+pure wheels (--implementation py --abi none --platform any), wheels are
+selected strictly by lockfile pin (stale cache entries are ignored), and the
+build fails loudly if any compiled artifact would end up in lib/shared/.
 
 Usage:
   python tools/build_addon.py [--refresh] [--offline]
 
-Config:
-- PURE_REQS: pure-Python deps to vendor
-- CORE_PLATFORMS: just OS + platform tags (no Python versions)
-- PY_MINOR_RANGE: Python minors to cover (e.g., 3.9 → 3.13)
-- Version is read from tools/version.py (VERSION = "...").
+Version is read from tools/version.py (VERSION = "...").
 """
 
+from __future__ import annotations
+
 import argparse
+import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -33,53 +36,15 @@ LIB = ROOT / "lib"                           # vendored deps go here
 SHARED = LIB / "shared"
 DIST = ROOT / "dist"
 META = ROOT / "meta.json"
+LOCKFILE = TOOLS / "requirements.lock.txt"
 
 # Persistent local wheel cache
 CACHE = ROOT / ".wheelhouse"
 CACHE_PURE = CACHE / "pure"
-CACHE_CORE = CACHE / "core"
 
-# --- What to vendor -----------------------------------------------------------
-
-# Pure-Python runtime deps (latest). Keep these pure to avoid per-OS wheels.
-PURE_REQS = [
-    "fastapi",          # latest
-    "pydantic==2.10.4",      # pinned to match pydantic-core
-    "starlette",        # latest
-    "anyio",            # latest
-    "h11",              # HTTP parser
-    "uvicorn==0.30.6",  # pure-Python uvicorn (no [standard])
-    "lark",
-    "glom",
-    "packaging",        # used at runtime to select native pydantic-core
-]
-
-# pydantic-core is native; we fetch for each (OS/platform) × (Python minor) combo.
-# IMPORTANT: pydantic-core version must be compatible with pydantic version above
-CORE_PACKAGE = "pydantic-core==2.27.2"  # matches pydantic 2.10.4
-
-# Declare platforms once (no Python versions here).
-# Keys become subfolders under lib/<os_dir>/
-CORE_PLATFORMS = {
-    # Windows x64
-    "win": [
-        "win_amd64",
-    ],
-    # macOS (Intel + Apple Silicon)
-    "macos": [
-        "macosx_11_0_x86_64",
-        "macosx_11_0_arm64",
-    ],
-    # Linux glibc x86_64 (manylinux2014+)
-    "linux": [
-        "manylinux_2_17_x86_64",
-        # If you want aarch64 later, add: "manylinux_2_17_aarch64",
-    ],
-}
-
-# Python minors to cover (inclusive): 3.9 → 3.13
-PY_MINOR_RANGE = [39, 310, 311, 312, 313]
-
+# Minimum supported interpreter (Anki 23.10 bundles Python 3.9). Wheels are
+# resolved against this version so newer-only wheels can't slip in.
+MIN_PYTHON = "3.9"
 
 # --- CLI ----------------------------------------------------------------------
 
@@ -106,7 +71,6 @@ def prepare_cache(refresh: bool):
     if refresh and CACHE.exists():
         shutil.rmtree(CACHE)
     CACHE_PURE.mkdir(parents=True, exist_ok=True)
-    CACHE_CORE.mkdir(parents=True, exist_ok=True)
 
 def read_version() -> str:
     ns = {}
@@ -118,6 +82,25 @@ def bump_meta_mod():
         data = json.loads(META.read_text(encoding="utf-8"))
         data["mod"] = int(time.time())
         META.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+def _canonical(name: str) -> str:
+    # PEP 503 normalization, used to compare lockfile names to wheel filenames
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+def read_lockfile() -> list[tuple[str, str]]:
+    """Parse tools/requirements.lock.txt into (name, version) pins."""
+    pins: list[tuple[str, str]] = []
+    for raw in LOCKFILE.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if "==" not in line:
+            raise RuntimeError(f"lockfile entry is not an exact pin: {raw!r}")
+        name, version = (part.strip() for part in line.split("==", 1))
+        pins.append((name, version))
+    if not pins:
+        raise RuntimeError(f"no pins found in {LOCKFILE}")
+    return pins
 
 def unzip_wheel_to_shared(whl: Path):
     with zipfile.ZipFile(whl) as z:
@@ -139,125 +122,77 @@ def unzip_wheel_to_shared(whl: Path):
                 with z.open(n) as src, open(out_path, "wb") as dst:
                     dst.write(src.read())
 
-def extract_core_native(whl: Path, dest_dir: Path):
-    with zipfile.ZipFile(whl) as z:
-        for n in z.namelist():
-            if not n.startswith("pydantic_core") or n.endswith("/"):
-                continue
-            out_path = dest_dir / n
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            with z.open(n) as src, open(out_path, "wb") as dst:
-                dst.write(src.read())
-
-def write_dependencies_txt(core_paths: list[str]):
-    lines = []
-    lines.append("# Vendored dependencies (auto-generated)\n")
-    lines.append("# name".ljust(42) + "path(s)\n")
-    # shared (pure) — list top-level packages/modules under lib/shared
-    top_entries = sorted({
-        p.relative_to(SHARED).parts[0]
-        for p in SHARED.glob("*")
-        if p.is_dir() or p.suffix == ".py"
-    })
-    for name in top_entries:
-        lines.append(f"{name:<42}shared/{name}")
-    # pydantic-core multi-paths
-    if core_paths:
-        lines.append(f"{CORE_PACKAGE:<42}{core_paths[0]}")
-        for p in core_paths[1:]:
-            lines.append(" " * 42 + p)
-    else:
-        lines.append(f"{CORE_PACKAGE:<42}(none)")
-    (LIB / "dependencies.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
 # --- Cache-aware vendoring ----------------------------------------------------
+
+def _find_wheel(name: str, version: str) -> Path:
+    """Find exactly one cached wheel matching a lockfile pin."""
+    matches = []
+    for whl in CACHE_PURE.glob("*.whl"):
+        parts = whl.name.split("-")
+        if len(parts) < 3:
+            continue
+        if _canonical(parts[0]) == _canonical(name) and parts[1] == version:
+            matches.append(whl)
+    if not matches:
+        raise RuntimeError(
+            f"no cached wheel for {name}=={version}; run without --offline (or with --refresh)"
+        )
+    if len(matches) > 1:
+        raise RuntimeError(f"ambiguous wheels for {name}=={version}: {[m.name for m in matches]}")
+    whl = matches[0]
+    if not whl.name.endswith("-none-any.whl"):
+        raise RuntimeError(f"{whl.name} is not a pure-Python wheel; refusing to vendor it")
+    return whl
+
+def _assert_pure():
+    """Fail the build if any compiled artifact landed in lib/shared/."""
+    binaries = [p for p in SHARED.rglob("*") if p.suffix in {".pyd", ".so", ".dylib"}]
+    if binaries:
+        listing = "\n".join(str(p.relative_to(SHARED)) for p in binaries)
+        raise RuntimeError(f"compiled artifacts found in lib/shared:\n{listing}")
 
 def vendor_pure_python_deps(offline: bool) -> list[Path]:
     """
-    Ensure pure wheels exist in CACHE_PURE (download if not offline),
-    then unpack all into lib/shared/.
+    Ensure the exact lockfile-pinned pure wheels exist in CACHE_PURE (download
+    unless offline), then unpack only those into lib/shared/.
     """
     if not offline:
-        # pip will skip files that already exist in -d dir
+        # --implementation py --abi none --platform any: pip only accepts
+        # none-any wheels, so a package without a pure wheel fails loudly
+        # instead of silently vendoring a platform-specific binary.
         sh([sys.executable, "-m", "pip", "download",
-            "--only-binary=:all:", "--prefer-binary",
-            "-d", str(CACHE_PURE), *PURE_REQS])
-    else:
-        if not any(CACHE_PURE.glob("*.whl")):
-            raise RuntimeError("offline mode: no cached pure-python wheels in .wheelhouse/pure")
+            "--no-deps", "-r", str(LOCKFILE),
+            "--only-binary=:all:",
+            "--implementation", "py", "--abi", "none", "--platform", "any",
+            "--python-version", MIN_PYTHON,
+            "-d", str(CACHE_PURE)])
 
-    whls = list(CACHE_PURE.glob("*.whl"))
-    if not whls:
-        raise RuntimeError("no pure-python wheels available in cache")
-    for whl in whls:
+    selected = [_find_wheel(name, version) for name, version in read_lockfile()]
+    for whl in selected:
         unzip_wheel_to_shared(whl)
-    return whls
+    _assert_pure()
+    return selected
 
-def _core_cache_dir(os_dir: str, py_tag: str, platform_tag: str) -> Path:
-    return CACHE_CORE / f"{os_dir}_{py_tag}_{platform_tag}"
-
-def _py_tags(minor: int) -> tuple[str, str]:
-    """
-    minor=311 -> ('cp311','311') for --abi and --python-version
-    """
-    return (f"cp{minor}", f"{minor}")
-
-def vendor_pydantic_core(offline: bool) -> list[str]:
-    """
-    For each (OS/platform) × (Python minor) combo, ensure a pydantic-core wheel exists
-    in cache (download unless offline), then extract into:
-        lib/<os>/pydantic_core/<py_tag>/<platform_tag>/
-
-    Returns a flat list of relative paths that were populated (for dependencies.txt).
-    """
-    out_paths: list[str] = []
-
-    for os_dir, plat_tags in CORE_PLATFORMS.items():
-        for minor in PY_MINOR_RANGE:
-            py_tag, py_ver_num = _py_tags(minor)
-            abi_tag = py_tag  # pydantic-core wheels use cpXY ABIs
-
-            for platform_tag in plat_tags:
-                wheels_dir = _core_cache_dir(os_dir, py_tag, platform_tag)
-                wheels_dir.mkdir(parents=True, exist_ok=True)
-
-                if not offline and not list(wheels_dir.glob("pydantic_core-*.whl")):
-                    cmd = [
-                        sys.executable, "-m", "pip", "download",
-                        "--only-binary=:all:", "--prefer-binary",
-                        "--platform", platform_tag,
-                        "--python-version", py_ver_num,
-                        "--implementation", "cp",
-                        "--abi", abi_tag,
-                        "-d", str(wheels_dir),
-                        CORE_PACKAGE,
-                    ]
-                    try:
-                        sh(cmd)
-                    except subprocess.CalledProcessError:
-                        print(f"!! Failed to download {CORE_PACKAGE} for {os_dir} {py_tag} {platform_tag}")
-                        continue
-
-                whl_files = list(wheels_dir.glob("pydantic_core-*.whl"))
-                if not whl_files:
-                    if offline:
-                        raise RuntimeError(f"offline mode: missing cached wheel for {os_dir} {py_tag} {platform_tag}")
-                    print(f"!! No wheel found for {CORE_PACKAGE} at {wheels_dir}")
-                    continue
-
-                whl = whl_files[0]
-                dest = LIB / os_dir / "pydantic_core" / py_tag / platform_tag
-                extract_core_native(whl, dest)
-
-                rel = dest.relative_to(ROOT).as_posix()
-                out_paths.append(rel)
-
-    return out_paths
+def write_vendor_manifest(wheels: list[Path]):
+    """Record exactly what was vendored (name, version, wheel, sha256)."""
+    entries = []
+    for whl in sorted(wheels, key=lambda p: p.name.lower()):
+        name, version = whl.name.split("-")[:2]
+        entries.append({
+            "name": name,
+            "version": version,
+            "wheel": whl.name,
+            "sha256": hashlib.sha256(whl.read_bytes()).hexdigest(),
+        })
+    (LIB / "vendor_manifest.json").write_text(
+        json.dumps(entries, indent=2) + "\n", encoding="utf-8"
+    )
 
 # --- Pack ---------------------------------------------------------------------
 
 def make_zip(version: str):
-    out = DIST / f"tsunagi-{version}.ankiaddon.zip"
+    # Anki's install-from-file dialog only lists *.ankiaddon (it's a zip inside)
+    out = DIST / f"tsunagi-{version}.ankiaddon"
     if out.exists():
         out.unlink()
 
@@ -268,14 +203,18 @@ def make_zip(version: str):
             if p.exists():
                 z.write(p, arcname=p.name)
 
+        def include(p: Path) -> bool:
+            # Skip stale bytecode from the source tree
+            return p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+
         # lib/ (vendored deps)
         for p in LIB.rglob("*"):
-            if p.is_file():
+            if include(p):
                 z.write(p, arcname=str(p.relative_to(ROOT)))
 
         # your package code
         for p in PKG_ROOT.rglob("*"):
-            if p.is_file():
+            if include(p):
                 z.write(p, arcname=str(p.relative_to(ROOT)))
 
     print("Built:", out)
@@ -300,18 +239,15 @@ def main():
     clean_lib_and_dist()
 
     # 1) Pure-Python deps → lib/shared/
-    vendor_pure_python_deps(offline=args.offline)
+    wheels = vendor_pure_python_deps(offline=args.offline)
 
-    # 2) pydantic-core natives → lib/<os>/pydantic_core/<py_tag>/<platform_tag>/
-    core_paths = vendor_pydantic_core(offline=args.offline)
+    # 2) Record what was vendored
+    write_vendor_manifest(wheels)
 
-    # 3) Write a simple manifest for humans
-    write_dependencies_txt(core_paths)
-
-    # 4) Bump meta.mod
+    # 3) Bump meta.mod
     bump_meta_mod()
 
-    # 5) Build the final .ankiaddon ZIP
+    # 4) Build the final .ankiaddon ZIP
     make_zip(version)
 
 if __name__ == "__main__":
