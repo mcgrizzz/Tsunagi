@@ -274,15 +274,40 @@ class TestSearchParam:
         # `client` fixture has no SearchSpec
         assert client.get("/v1/things", params={"search": "x"}).status_code == 400
 
-    def test_short_page_still_has_cursor(self, search_client):
-        # Documented contract: on search-backed resources `where` filters the
-        # page AFTER id-level pagination, so a page can be empty while more
-        # pages remain. Clients must iterate until next_cursor is null.
+    def test_filter_scans_past_non_matching_rows(self, search_client):
+        # Regression: filtering can't be pushed into the backend search, so a
+        # naive "hydrate one page then filter" returned an empty page when the
+        # first `limit` ids didn't match. The scan must keep going.
         body = search_client.get(
-            "/v1/things", params={"limit": 1, "where": "name==Cloze"}
+            "/v1/things", params={"limit": 1, "where": 'name=="Basic (typed)"'}
+        ).json()
+        assert [r["id"] for r in body["items"]] == [3]
+
+    def test_filtered_page_fills_to_limit(self, search_client):
+        body = search_client.get(
+            "/v1/things", params={"limit": 2, "where": "type==0"}
+        ).json()
+        assert [r["id"] for r in body["items"]] == [1, 3]
+
+    def test_no_matches_returns_empty_without_cursor(self, search_client):
+        body = search_client.get(
+            "/v1/things", params={"where": "name==Nonexistent"}
         ).json()
         assert body["items"] == []
-        assert body["next_cursor"] is not None
+        assert body["next_cursor"] is None
+
+    def test_filtered_pagination_walks_every_match(self, search_client):
+        seen, cursor = [], None
+        while True:
+            params = {"limit": 1, "where": "type==0"}
+            if cursor:
+                params["cursor"] = cursor
+            body = search_client.get("/v1/things", params=params).json()
+            seen += [r["id"] for r in body["items"]]
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert seen == [1, 3]
 
     def test_cursor_walks_every_row(self, search_client):
         seen, cursor = [], None

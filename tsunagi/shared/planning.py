@@ -16,7 +16,6 @@ from typing import (
 )
 
 from .filtering import parse_where  # we'll read ops & tokens directly
-from .pagination import paginate_keyset
 from .schemas.wrappers import Scalar
 from .selecting import selected_top_fields
 
@@ -32,8 +31,7 @@ FetchValuesFn    = Callable[[Sequence[Any], Wants], List[Row]]
 FetchColumnsFn   = Callable[[], List[Row]]
 CoerceFn         = Callable[[Any], Optional[Any]]
 SearchIdsFn      = Callable[[str], List[int]]
-# (limit, cursor, wants) -> (rows, next_cursor)
-PageFn           = Callable[[int, Optional[str], Wants], Tuple[List[Row], Optional[str]]]
+BoundIdsFn       = Callable[[], List[int]]     # search query already bound
 
 # Mutation operations
 CreateFn         = Callable[[Dict[str, Any]], Row]                    # (data) -> result (for top-level create)
@@ -100,7 +98,10 @@ class SourceCaps:
 class Plan:
     mode: str                                  # 'search'|'scan'|'index'|'columns'|'full'
     fetch: Optional[FetchAllFn] = None         # materialize-everything tiers
-    fetch_page: Optional[PageFn] = None        # pre-paginated tiers (search/scan)
+    # Search/scan tiers: enumerate ids cheaply, then hydrate a page at a time.
+    # The caller drives the loop because it owns `where` filtering.
+    find_ids: Optional[BoundIdsFn] = None
+    hydrate: Optional[FetchValuesFn] = None
 
 def _dedupe_indices(xs):
     seen = {}
@@ -110,18 +111,6 @@ def _dedupe_indices(xs):
             seen[x] = None
             out.append(x)
     return out
-
-
-def _search_page(
-    spec: SearchSpec,
-    query: str,
-    limit: int,
-    cursor: Optional[str],
-    wants: Wants,
-) -> Tuple[List[Row], Optional[str]]:
-    ids = sorted({int(i) for i in spec.find_ids(query)})
-    page_ids, next_cursor = paginate_keyset(ids, limit, cursor, key_fn=lambda i: i)
-    return spec.hydrate(page_ids, wants), next_cursor
 
 
 def make_plan(
@@ -137,8 +126,7 @@ def make_plan(
         if caps.search is None:
             raise ValueError("search is not supported for this resource")
         spec, q = caps.search, search
-        return Plan("search", fetch_page=lambda limit, cursor, wants:
-                    _search_page(spec, q, limit, cursor, wants))
+        return Plan("search", find_ids=lambda: spec.find_ids(q), hydrate=spec.hydrate)
 
     # 1) INDEX FIRST — ex: User wants to grab models by id
     if caps.indices and where_params:
@@ -192,7 +180,6 @@ def make_plan(
     # the same path as a search, with the empty query (= whole collection).
     if caps.search is not None:
         spec = caps.search
-        return Plan("scan", fetch_page=lambda limit, cursor, wants:
-                    _search_page(spec, "", limit, cursor, wants))
+        return Plan("scan", find_ids=lambda: spec.find_ids(""), hydrate=spec.hydrate)
 
     raise ValueError("resource has no way to enumerate rows")

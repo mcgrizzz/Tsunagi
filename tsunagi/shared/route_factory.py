@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from pydantic import BaseModel
 
-from ..shared.pagination import paginate_keyset
+from ..shared.pagination import decode_cursor, encode_cursor, paginate_keyset
 from ..shared.schemas.wrappers import (
     DeletionResult,
     MutationResult,
@@ -68,6 +68,59 @@ def _finish(
     final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
     return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
 
+# Most ids a single request will hydrate while looking for `limit` matches.
+# Bounds the work when a filter matches little or nothing; the response still
+# carries a cursor so a client can continue from where the scan stopped.
+_SCAN_BUDGET_MULTIPLIER = 20
+_SCAN_BUDGET_MIN = 1000
+
+def _paged_scan(
+    plan: Any,
+    limit: int,
+    cursor: Optional[str],
+    wants: Optional[set],
+    id_getter: Callable[[Row], int],
+    pred: Optional[Callable[[Mapping[str, Any]], bool]],
+) -> tuple:
+    """
+    Walk the id list, hydrating a batch at a time until `limit` rows survive
+    the filter (or the ids run out, or the scan budget is spent).
+
+    Filtering can't be pushed into Anki's search, so a naive
+    "hydrate one page, then filter" returns mostly-empty pages: asking for 3
+    notes matching a filter would silently return none because the first 3
+    ids didn't match. Keep going instead.
+    """
+    ids = sorted({int(i) for i in plan.find_ids()})
+    last_key = decode_cursor(cursor).get("last_key")
+    if last_key is not None:
+        ids = [i for i in ids if i > last_key]
+
+    if pred is None:
+        # No filtering: one batch is exactly the page.
+        page_ids, more = ids[:limit], len(ids) > limit
+        rows = plan.hydrate(page_ids, wants) if page_ids else []
+        return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
+
+    budget = max(limit * _SCAN_BUDGET_MULTIPLIER, _SCAN_BUDGET_MIN)
+    batch_size = max(limit, 50)
+    out: List[Row] = []
+    examined = 0
+
+    while examined < len(ids) and len(out) < limit and examined < budget:
+        chunk = ids[examined:examined + batch_size]
+        examined += len(chunk)
+        out.extend(r for r in plan.hydrate(chunk, wants) if pred(_as_dict(r)))
+
+    if len(out) > limit:
+        # Over-collected within a batch: cut to the page and resume from the
+        # last INCLUDED row, so the surplus isn't skipped next time.
+        out = out[:limit]
+        return out, encode_cursor({"last_key": id_getter(out[-1])})
+    if examined < len(ids):
+        return out, encode_cursor({"last_key": ids[examined - 1]})
+    return out, None
+
 def _wanted_fields(select: Optional[str], where: Optional[List[str]]) -> Optional[set]:
     """
     Top-level fields the caller actually referenced, so fetchers can skip
@@ -96,15 +149,11 @@ def _execute_query(
         plan = make_plan(select, where, caps, search)
         wants = _wanted_fields(select, where)
 
-        if plan.fetch_page is not None:
-            # Pre-paginated tier (search/scan): ids are paged before rows are
-            # loaded, so `where` filters the page afterwards and a page may be
-            # short - callers must iterate until next_cursor is null.
-            page_rows, next_cursor = plan.fetch_page(limit, cursor, wants)
-            if where:
-                pred = build_predicate(where)
-                page_rows = [r for r in page_rows
-                             if pred(r if isinstance(r, Mapping) else r.dict())]
+        if plan.find_ids is not None:
+            page_rows, next_cursor = _paged_scan(
+                plan, limit, cursor, wants, id_getter,
+                build_predicate(where) if where else None,
+            )
             return _finish(page_rows, next_cursor, select, shape, start)
 
         rows = plan.fetch(wants) if plan.mode == "index" else plan.fetch()

@@ -107,7 +107,7 @@ class TestSearchTier:
         log = []
         plan = make_plan(None, None, self.make_search_caps(log), "deck:JP")
         assert plan.mode == "search"
-        plan.fetch_page(10, None, None)
+        plan.find_ids()
         assert log[0] == ("find", "deck:JP")
 
     def test_search_beats_index(self):
@@ -125,32 +125,21 @@ class TestSearchTier:
         log = []
         plan = make_plan(None, None, self.make_search_caps(log))
         assert plan.mode == "scan"
-        plan.fetch_page(10, None, None)
+        plan.find_ids()
         assert log[0] == ("find", "")  # empty query = whole collection
 
     def test_fetch_all_wins_over_scan(self):
         plan = make_plan(None, None, self.make_search_caps([], with_fetch_all=True))
         assert plan.mode == "full"
 
-    def test_hydrate_receives_sorted_deduped_page_ids(self):
+    def test_hydrate_receives_wants(self):
         log = []
         caps = self.make_search_caps(log)
         plan = make_plan(None, None, caps, "x")
-        plan.fetch_page(2, None, {"id", "name"})
+        plan.hydrate([1, 2], {"id", "name"})
         hydrate_call = [c for c in log if c[0] == "hydrate"][0]
-        assert hydrate_call[1] == [1, 2]          # page only, ascending
+        assert hydrate_call[1] == [1, 2]
         assert hydrate_call[2] == {"id", "name"}  # wants threaded through
-
-    def test_page_cursor_walks_all_ids(self):
-        caps = self.make_search_caps([])
-        seen, cursor = [], None
-        while True:
-            plan = make_plan(None, None, caps, "x")
-            rows, cursor = plan.fetch_page(1, cursor, None)
-            seen += [r["id"] for r in rows]
-            if cursor is None:
-                break
-        assert seen == [1, 2]
 
     def test_no_enumeration_path_is_error(self):
         with pytest.raises(ValueError, match="no way to enumerate"):

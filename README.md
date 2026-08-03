@@ -201,11 +201,13 @@ Field names and bare values may be non-ASCII: `?where=fields[].value==犬` and
 `?select=単語` both work. Quote values containing spaces or punctuation:
 `?where=name=="Basic (and reversed)"`.
 
-**Pagination on search-backed resources.** `/v1/notes` pages note **ids**
-before loading rows, so `where` filters the page afterwards. A page can
-therefore contain fewer than `limit` items — even zero — while `next_cursor`
-is still set. **Iterate until `next_cursor` is `null`**, never until
-`len(items) < limit`. Every other resource returns full pages.
+**Pagination on search-backed resources.** `/v1/notes` enumerates note **ids**
+first and loads rows a batch at a time, continuing until your page is full —
+so a `where` filter returns real matches, not just matches that happened to
+fall in the first batch. `next_cursor` is `null` when there is nothing more to
+scan. Very selective filters over a large collection may stop early with a
+cursor set (a per-request scan budget bounds the work); as always, **iterate
+until `next_cursor` is `null`** rather than until `len(items) < limit`.
 
 ### Response Format
 
