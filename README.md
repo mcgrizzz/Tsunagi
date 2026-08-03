@@ -58,14 +58,18 @@ No special endpoints, no throwaway filtering-just `select` what you want and go.
 
 **Design goals, summarized**
 
-- **Query planner** chooses the fastest route (index/column/full fetch).
-- **Thread-safe** via Anki’s `QueryOp`/`CollectionOp`.
+- **Query planner** chooses the fastest route (search/index/column/full fetch).
+- **Thread-safe** via Anki’s `QueryOp`/`CollectionOp` — reads run off the UI
+  thread, writes are undoable, and requests time out instead of hanging when
+  Anki is busy.
 - **Typed I/O** with Pydantic.
 - **Small query DSL** for filters + projections.
 - **Cursor pagination** for large scans.
 - **GET/POST parity** so URL queries and JSON bodies are equivalent.
 
-I’m also planning an **AnkiConnect shim** so you can adopt this gradually without ripping anything out.
+There’s also an **AnkiConnect shim** at `POST /`, so you can adopt this
+gradually without ripping anything out — see
+[AnkiConnect compatibility](#ankiconnect-compatibility).
 
 ## Table of Contents
 
@@ -186,11 +190,22 @@ Query operators (`==`, `>=`, `~=`, brackets, quotes, etc.) can be annoying to sh
 |-----------|-----------|----------|-------------|
 | `select`  | `string`  | -        | Comma-separated fields to return. Supports array projection and aliasing. |
 | `where`   | `string`* | -        | Filter expression. Repeat the parameter for multiple ANDed filters. |
+| `search`  | `string`  | -        | Anki search string (e.g. `deck:Japanese tag:verb`, `is:due`). Search-backed resources only (`/v1/notes`); others return 400. |
 | `shape`   | `string`  | `auto`   | `auto` (objects), `object` (always objects), `scalar` (single-field results as values). |
 | `limit`   | `integer` | `1000`   | Items per page (1–5000). |
 | `cursor`  | `string`  | -        | Opaque pagination cursor returned by the API. |
 
 \* For POST JSON, you can pass a single string or an array of strings for `where`.
+
+Field names and bare values may be non-ASCII: `?where=fields[].value==犬` and
+`?select=単語` both work. Quote values containing spaces or punctuation:
+`?where=name=="Basic (and reversed)"`.
+
+**Pagination on search-backed resources.** `/v1/notes` pages note **ids**
+before loading rows, so `where` filters the page afterwards. A page can
+therefore contain fewer than `limit` items — even zero — while `next_cursor`
+is still set. **Iterate until `next_cursor` is `null`**, never until
+`len(items) < limit`. Every other resource returns full pages.
 
 ### Response Format
 
@@ -204,8 +219,41 @@ Query operators (`==`, `>=`, `~=`, brackets, quotes, etc.) can be annoying to sh
 
 ### Endpoints
 
-- **GET `/v1/models`** - List/query note types (“models” in Anki terms).  
-- **GET `/v1/health`** - Simple health check.
+Every resource below supports the query parameters above, plus
+`POST {path}` (create), `PATCH {path}/{id}`, `DELETE {path}/{id}`.
+
+- **`/v1/models`** - Note types (“models” in Anki terms), with `fields` and
+  `templates` subresources (`POST/PATCH/DELETE /v1/models/{id}/fields/{name}`,
+  `PUT /v1/models/{id}/fields:order`).
+- **`/v1/decks`** - Decks. Nested names use `::`; creating `A::B` creates `A`.
+  Filtered (dynamic) decks appear in reads.
+- **`/v1/notes`** - Notes. Supports `search`. `fields` come back as
+  `[{name, value, ord}]` (so `where=fields[].name==Front` works); writes accept
+  that array *or* a plain `{"Front": "犬"}` map. `cards` is only computed when
+  your `select`/`where` asks for it.
+  - **`POST /v1/notes:check`** - “can these be added?” per candidate, with
+    `duplicate_note_ids` — without adding anything.
+- **`/v1/media`** - Media files. `GET /v1/media/{filename}` streams raw bytes
+  with a real `Content-Type`; `POST /v1/media` takes base64 `data` or a `url`
+  (local `path` is off by default, see `media_allow_local_path` in config) and
+  returns the filename Anki **actually** stored — it renames on collision.
+  Filter the listing with `prefix`/`suffix`; media is a flat namespace, not a
+  DSL-queryable resource.
+- **GET `/v1/health`** - Simple health check (never requires an API key).
+
+### AnkiConnect compatibility
+
+`POST /` speaks AnkiConnect's protocol, so existing tools work unchanged —
+point them at `http://127.0.0.1:7777` instead of `:8765`. Yomitan and
+asbplayer are tested end to end. The shim is a thin translation over the same
+adapters the `/v1` API uses, so there is no second path into Anki.
+
+One practical difference worth knowing: every mutation goes through Anki's
+`CollectionOp`, so writes land in the undo history and **work while the
+browser is open with the note selected** — a case that fails against
+AnkiConnect's legacy `startEditing()`/`stopEditing()` approach.
+
+`GET /actions` lists the implemented actions.
 
 **GET/POST parity**
 
