@@ -7,6 +7,10 @@ Managers hand out deepcopies (like Anki's backend returns fresh dicts) and
 persist on add/update_dict/save.
 """
 import copy
+import hashlib
+import os
+import re
+import tempfile
 from types import SimpleNamespace
 
 
@@ -51,6 +55,12 @@ class FakeModelManager:
     def all_names_and_ids(self):
         return [SimpleNamespace(id=m["id"], name=m["name"])
                 for m in sorted(self._store.values(), key=lambda x: x["name"])]
+
+    def by_name(self, name):
+        for m in self._store.values():
+            if m["name"] == name:
+                return copy.deepcopy(m)
+        return None
 
     # --- construction ---
     def new(self, name):
@@ -191,7 +201,208 @@ class FakeDeckManager:
         self._store[deck["id"]] = copy.deepcopy(deck)
 
 
+class FakeMediaManager:
+    """
+    Backed by a real temp directory - os.scandir, FileResponse, realpath and
+    symlink containment are filesystem behavior that an in-memory fake would
+    not exercise. Tests must rmtree dir() on teardown.
+    """
+
+    def __init__(self):
+        self._dir = tempfile.mkdtemp(prefix="tsunagi-media-")
+
+    def dir(self):
+        return self._dir
+
+    def have(self, fname):
+        return os.path.exists(os.path.join(self._dir, fname))
+
+    def write_data(self, desired_fname, data):
+        """
+        Replicates Anki's rename-on-collision: same name + different bytes
+        gets a suffix. The suffix format is arbitrary - assert that the
+        returned name differs, never its exact spelling.
+        """
+        name = os.path.basename(desired_fname)
+        path = os.path.join(self._dir, name)
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                if fh.read() == data:
+                    return name  # identical content: no rename
+            stem, ext = os.path.splitext(name)
+            name = f"{stem}-{hashlib.sha1(data).hexdigest()[:8]}{ext}"
+            path = os.path.join(self._dir, name)
+        with open(path, "wb") as fh:
+            fh.write(data)
+        return name
+
+    def add_file(self, path):
+        with open(path, "rb") as fh:
+            return self.write_data(os.path.basename(path), fh.read())
+
+    def trash_files(self, fnames):
+        for fname in fnames:
+            try:
+                os.unlink(os.path.join(self._dir, os.path.basename(fname)))
+            except OSError:
+                pass
+
+
+class FakeNote:
+    """
+    Faithful to anki.notes.Note: .fields is POSITIONAL, name access goes
+    through the notetype's field map, and unknown names raise KeyError (a
+    permissive fake would green-light code that 500s against real Anki).
+    """
+
+    def __init__(self, col, notetype, nid=0):
+        self._col = col
+        self._nt = notetype
+        self.id = nid
+        self.mid = int(notetype["id"]) if notetype.get("id") else 0
+        self.guid = ""
+        self.mod = 0
+        self.usn = 0
+        self.tags = []
+        self.fields = [""] * len(notetype["flds"])
+        self._fmap = {f["name"]: i for i, f in enumerate(notetype["flds"])}
+
+    def keys(self):
+        return [f["name"] for f in self._nt["flds"]]
+
+    def items(self):
+        return list(zip(self.keys(), self.fields))
+
+    def __contains__(self, name):
+        return name in self._fmap
+
+    def __getitem__(self, name):
+        return self.fields[self._fmap[name]]
+
+    def __setitem__(self, name, value):
+        self.fields[self._fmap[name]] = value
+
+    def note_type(self):
+        return self._nt
+
+    def fields_check(self):
+        first = self.fields[0] if self.fields else ""
+        stripped = re.sub(r"<[^>]+>", "", first).strip()
+        if not stripped:
+            return 1  # EMPTY
+        if int(self._nt.get("type", 0)) == 1 and "{{c" not in "".join(self.fields):
+            return 3  # MISSING_CLOZE
+        for other in self._col._notes.values():
+            if other.id == self.id or other.mid != self.mid:
+                continue
+            other_first = other.fields[0] if other.fields else ""
+            if re.sub(r"<[^>]+>", "", other_first).strip() == stripped:
+                return 2  # DUPLICATE
+        return 0  # NORMAL
+
+
 class FakeCollection:
     def __init__(self, seed=True):
         self.models = FakeModelManager(seed=seed)
         self.decks = FakeDeckManager(seed=seed)
+        self.media = FakeMediaManager()
+        self._notes = {}
+        self._cards = {}
+        self._next_note_id = 7000
+        self._next_card_id = 8000
+        self.find_notes_calls = 0
+
+    # --- search ---
+    def build_search_string(self, *nodes, joiner="AND"):
+        parts = []
+        for n in nodes:
+            if getattr(n, "dupe", None) is not None:
+                parts.append(f"dupe:{n.dupe.notetype_id},{n.dupe.first_field}")
+            elif getattr(n, "deck", None) is not None:
+                parts.append(f"deck:{n.deck}")
+            elif getattr(n, "nids", None) is not None:
+                parts.append("nid:" + ",".join(str(i) for i in n.nids))
+        return f" {joiner} ".join(parts)
+
+    def find_notes(self, query, order=False, reverse=False):
+        """
+        Deliberately tiny parser. Unsupported syntax RAISES rather than
+        silently matching, so tests can't depend on semantics we don't have.
+        """
+        self.find_notes_calls += 1
+        q = (query or "").strip()
+        if not q:
+            return sorted(self._notes)  # whole collection, like Anki
+        if q.startswith("nid:"):
+            wanted = {int(x) for x in q[4:].split(",") if x}
+            return sorted(nid for nid in self._notes if nid in wanted)
+        if q.startswith("dupe:"):
+            mid_s, _, first = q[5:].partition(",")
+            mid = int(mid_s)
+            stripped = re.sub(r"<[^>]+>", "", first).strip()
+            return sorted(
+                n.id for n in self._notes.values()
+                if n.mid == mid and re.sub(r"<[^>]+>", "", n.fields[0] if n.fields else "").strip() == stripped
+            )
+        if q.startswith("deck:"):
+            name = q[5:]
+            deck = self.decks.by_name(name)
+            if deck is None:
+                return []
+            dids = {deck["id"]}
+            nids = {c["nid"] for c in self._cards.values() if c["did"] in dids}
+            return sorted(nids)
+        if q.startswith("tag:"):
+            tag = q[4:]
+            return sorted(n.id for n in self._notes.values() if tag in n.tags)
+        if ":" in q:
+            from fakes.anki_stubs import SearchError
+            raise SearchError(f"unsupported fake search: {q}")
+        needle = q.casefold()
+        return sorted(n.id for n in self._notes.values()
+                      if any(needle in f.casefold() for f in n.fields))
+
+    def find_cards(self, query):
+        nids = set(self.find_notes(query))
+        return sorted(c["id"] for c in self._cards.values() if c["nid"] in nids)
+
+    # --- notes ---
+    def get_note(self, nid):
+        note = self._notes.get(int(nid))
+        if note is None:
+            from fakes.anki_stubs import NotFoundError
+            raise NotFoundError(f"note {nid}")
+        return note
+
+    def new_note(self, notetype):
+        return FakeNote(self, notetype)
+
+    def add_note(self, note, deck_id):
+        self._next_note_id += 1
+        note.id = self._next_note_id
+        note.guid = f"guid{note.id}"
+        note.mod = 1700000000
+        self._notes[note.id] = note
+        for t in note._nt["tmpls"]:
+            self._next_card_id += 1
+            self._cards[self._next_card_id] = {
+                "id": self._next_card_id, "nid": note.id,
+                "did": int(deck_id), "ord": t["ord"],
+            }
+        return SimpleNamespace(count=1)
+
+    def update_note(self, note):
+        self._notes[note.id] = note
+
+    def remove_notes(self, nids):
+        count = 0
+        for nid in [int(n) for n in nids]:
+            if self._notes.pop(nid, None) is not None:
+                count += 1
+                for cid in [c["id"] for c in self._cards.values() if c["nid"] == nid]:
+                    self._cards.pop(cid, None)
+        return SimpleNamespace(count=count)
+
+    def card_ids_of_note(self, nid):
+        return [c["id"] for c in sorted(self._cards.values(), key=lambda c: c["ord"])
+                if c["nid"] == int(nid)]
