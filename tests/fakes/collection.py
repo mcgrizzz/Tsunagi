@@ -96,28 +96,40 @@ class FakeModelManager:
         return {"name": name, "type": 0, "mod": 0, "usn": 0, "sortf": 0,
                 "did": None, "css": "", "flds": [], "tmpls": []}
 
+    # Anki hands back ord=None on a new field or template; the backend assigns
+    # ordinals when the notetype is SAVED, not when the item is appended. Code
+    # that parses the in-memory dict before saving therefore sees a null ord -
+    # a fake that assigned one here hid exactly that bug.
     def new_field(self, name):
-        return _field(name, 0)
+        return _field(name, None)
 
     def new_template(self, name):
-        return _template(name, 0, "", "")
+        return _template(name, None, "", "")
 
     def add_field(self, m, field):
-        field["ord"] = len(m["flds"])
         m["flds"].append(field)
 
     def add_template(self, m, template):
-        template["ord"] = len(m["tmpls"])
         m["tmpls"].append(template)
 
     # --- persistence ---
+    @staticmethod
+    def _assign_ords(m):
+        for key in ("flds", "tmpls"):
+            for i, item in enumerate(m.get(key, [])):
+                item["ord"] = i
+
     def add(self, m):
         self._next_id += 1
         m["id"] = self._next_id
-        self._store[m["id"]] = copy.deepcopy(m)
+        stored = copy.deepcopy(m)
+        self._assign_ords(stored)
+        self._store[m["id"]] = stored
 
     def update_dict(self, m):
-        self._store[m["id"]] = copy.deepcopy(m)
+        stored = copy.deepcopy(m)
+        self._assign_ords(stored)
+        self._store[m["id"]] = stored
 
     def remove(self, mid):
         self._store.pop(mid, None)
