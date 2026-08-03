@@ -1,15 +1,20 @@
 """
-AnkiConnect-compatible RPC endpoint.
+AnkiConnect-compatible RPC dispatcher (POST / on the FastAPI app).
 
-This module provides handlers that will be registered directly on the FastAPI app
-to provide AnkiConnect compatibility at the root path (POST /).
-
-AnkiConnect uses: POST http://localhost:8765/ with JSON body
-Tsunagi equivalent: POST http://localhost:7777/ with same JSON format
+Wire semantics verified against AnkiConnect's source:
+- `version` defaults to 4. Success replies are BARE results for version <= 4
+  and {"result": ..., "error": null} envelopes for >= 5.
+- Error replies are ALWAYS {"result": null, "error": "<msg>"} regardless of
+  version.
+- `multi` re-dispatches each entry of params["actions"] as a full raw request
+  (own version default 4, own key check); one failure doesn't abort the rest;
+  nested multi is allowed. The list is wrapped per the OUTER version.
+- requestPermission is exempt from the key/origin gates but its result is
+  still version-formatted.
 
 NOTE: action handlers are registered by importing the action modules
-(e.g. compat/models.py). That side-effect import lives in app.py, not here,
-so this dispatcher stays importable without Anki for tests.
+(compat/actions/). That side-effect import lives in app.py, not here, so this
+dispatcher stays importable without Anki for tests.
 """
 from __future__ import annotations
 
@@ -17,44 +22,20 @@ import secrets
 import traceback
 from typing import Any, Callable, Dict, Optional
 
-from pydantic import BaseModel, Field
-
+from .errors import (  # noqa: F401  (API_KEY_ERROR re-exported)
+    ACTION_FAILED,
+    API_KEY_ERROR,
+    UNSUPPORTED_ACTION,
+)
 from .registry import registry
 
-# Canonical AnkiConnect error string - clients string-match on it.
-API_KEY_ERROR = "valid api key must be provided"
+
+def _success(version: int, result: Any) -> Any:
+    return result if version <= 4 else {"result": result, "error": None}
 
 
-class AnkiConnectRequest(BaseModel):
-    """
-    AnkiConnect request format.
-
-    Example:
-        {
-            "action": "findModelsById",
-            "params": {"modelIds": [123, 456]},
-            "version": 6,
-            "key": "optional api key"
-        }
-    """
-    action: str = Field(..., description="Action name to perform")
-    params: Optional[Dict[str, Any]] = Field(default=None, description="Parameters for the action")
-    version: int = Field(default=6, description="AnkiConnect API version")
-    key: Optional[str] = Field(default=None, description="API key (required when api_key is configured)")
-
-
-class AnkiConnectResponse(BaseModel):
-    """
-    AnkiConnect response format.
-
-    Success:
-        {"result": <data>, "error": null}
-
-    Error:
-        {"result": null, "error": "error message"}
-    """
-    result: Any = Field(default=None, description="Result data (null on error)")
-    error: Optional[str] = Field(default=None, description="Error message (null on success)")
+def _error(message: str) -> Dict[str, Any]:
+    return {"result": None, "error": message}
 
 
 def _default_settings():
@@ -95,72 +76,84 @@ def _request_permission(
 
 
 def handle_ankiconnect_rpc(
-    request: AnkiConnectRequest,
+    raw: Dict[str, Any],
     origin: Optional[str] = None,
     settings: Any = None,
     ask_permission: Optional[Callable[[str], bool]] = None,
-) -> AnkiConnectResponse:
+) -> Any:
     """
-    Handle AnkiConnect-style RPC requests.
+    Handle an AnkiConnect-style RPC request.
 
     Args:
-        request: AnkiConnect request with action, params, version, and key
+        raw: the raw request dict ({"action", "params", "version", "key"})
         origin: value of the HTTP Origin header, if any
         settings: injectable Settings (defaults to the live singleton)
         ask_permission: injectable permission prompt (defaults to the Qt dialog)
 
     Returns:
-        AnkiConnect response with result or error
+        Bare result (version <= 4 success) or a {"result","error"} envelope.
     """
+    action = raw.get("action", "")
+    try:
+        version = int(raw.get("version", 4))
+    except (TypeError, ValueError):
+        version = 4
+    params = raw.get("params") or {}
+    key = raw.get("key")
     settings = settings if settings is not None else _default_settings()
 
     # requestPermission is always exempt from the key/origin gates - it's how
     # a browser client bootstraps access in the first place.
-    if request.action == "requestPermission":
-        return AnkiConnectResponse(
-            result=_request_permission(origin, settings, ask_permission),
-            error=None,
-        )
+    if action == "requestPermission":
+        return _success(version, _request_permission(origin, settings, ask_permission))
 
-    # Key + origin gate (canonical AnkiConnect error on failure)
+    # Key + origin gate. Runs per invocation, so multi sub-actions are each
+    # gated with their own key (matches AnkiConnect).
     api_key: str = settings.get("api_key", "")
     key_ok = (not api_key) or (
-        request.key is not None
-        and secrets.compare_digest(request.key.encode(), api_key.encode())
+        isinstance(key, str)
+        and secrets.compare_digest(key.encode(), api_key.encode())
     )
     origin_ok = origin is None or settings.is_origin_allowed(origin)
     if not (key_ok and origin_ok):
-        return AnkiConnectResponse(result=None, error=API_KEY_ERROR)
+        return _error(API_KEY_ERROR)
+
+    # multi: dispatcher-level, recursive. Each sub-entry is a full raw request.
+    if action == "multi":
+        actions = params.get("actions")
+        if not isinstance(actions, list):
+            return _error("'actions' must be a list of requests")
+        subs = [
+            handle_ankiconnect_rpc(
+                sub if isinstance(sub, dict) else {},
+                origin=origin,
+                settings=settings,
+                ask_permission=ask_permission,
+            )
+            for sub in actions
+        ]
+        return _success(version, subs)
+
+    if not registry.is_registered(action):
+        return _error(UNSUPPORTED_ACTION)
 
     try:
-        # Check if action is registered
-        if not registry.is_registered(request.action):
-            available = registry.list_actions()
-            return AnkiConnectResponse(
-                result=None,
-                error=f"Unknown action '{request.action}'. Available: {', '.join(available) if available else 'none'}"
-            )
-
-        # Execute the action
-        result = registry.handle(request.action, request.params)
-
-        return AnkiConnectResponse(result=result, error=None)
-
+        return _success(version, registry.handle(action, params))
     except ValueError as ve:
-        # Client error - invalid parameters
-        return AnkiConnectResponse(result=None, error=str(ve))
-
+        # Client error - invalid parameters / canonical lookup failures
+        return _error(str(ve))
     except Exception:
         # Server error - log internally, return a generic string to the client
         print("[tsunagi] compat action failed:\n" + traceback.format_exc())
-        return AnkiConnectResponse(result=None, error="Action failed")
+        return _error(ACTION_FAILED)
 
 
 def get_available_actions() -> Dict[str, list[str]]:
     """
-    List all registered AnkiConnect actions.
+    List all available AnkiConnect actions (registered handlers plus the
+    dispatcher-level multi/requestPermission).
 
     Returns:
         Dictionary with 'actions' key containing list of action names
     """
-    return {"actions": registry.list_actions()}
+    return {"actions": sorted(registry.list_actions() + ["multi", "requestPermission"])}
