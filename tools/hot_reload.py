@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+import shutil
 import subprocess
 import sys
-import shutil
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -14,7 +14,7 @@ DIST = ROOT / "dist"
 
 # Windows Anki paths
 ANKI_ADDON_DIR = Path(r"C:\Users\Andrew\AppData\Roaming\Anki2\addons21\tsunagi")
-ANKI_CONSOLE_EXE = Path(r"C:\Users\Andrew\AppData\Local\Programs\Anki\anki-console.exe")
+ANKI_CONSOLE_EXE = Path(r"C:\Users\Andrew\AppData\Local\Programs\Anki\anki-console.bat")
 
 # --- Helpers ------------------------------------------------------------------
 

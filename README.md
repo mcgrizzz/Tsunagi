@@ -43,7 +43,7 @@ curl --get "http://127.0.0.1:7777/v1/models" \
 2) In one shot, get field names for a set of IDs:
 ```bash
 curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=flds[].name' \
+  --data-urlencode 'select=fields[].name' \
   --data-urlencode 'where=id in [1487718035000,1487718035001]'
 ```
 
@@ -51,7 +51,7 @@ If you need richer metadata, just ask for it:
 
 ```bash
 curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=flds[].(name,ord,description,font)'
+  --data-urlencode 'select=fields[].(name,ord,description,font)'
 ```
 
 No special endpoints, no throwaway filtering-just `select` what you want and go.
@@ -101,7 +101,7 @@ Then install the produced file in Anki. Tsunagi runs **inside Anki** and starts 
 
 ### Dependencies
 
-Dependencies are bundled with the addon. I may pin to an earlier **pydantic** to avoid platform-specific wheels.
+Dependencies are bundled with the addon. All dependencies are pure-Python (Pydantic v1.10.22, FastAPI 0.109.2), requiring no platform-specific native wheels. Requires Anki 23.10 or newer.
 
 ## Usage
 
@@ -130,7 +130,7 @@ You can also send the exact same query as JSON (see [GET/POST parity](#endpoints
 ```text
 # Equality / comparison
 ?where=id==123
-?where=sortf>=5
+?where=sort_field>=5
 
 # Substring match (case-insensitive)
 ?where=name~=Basic
@@ -141,7 +141,7 @@ You can also send the exact same query as JSON (see [GET/POST parity](#endpoints
 
 # Nested fields
 # (example: filter models whose fields contain a field named "Front")
-?where=flds[].name==Front
+?where=fields[].name==Front
 
 # Multiple filters (AND semantics; repeat the param)
 ?where=type==0&where=name~=medical
@@ -154,10 +154,10 @@ You can also send the exact same query as JSON (see [GET/POST parity](#endpoints
 ?select=id,name,type
 
 # Array projection
-?select=flds[].name
+?select=fields[].name
 
 # Multi-field with aliases
-?select=flds[].(name:label,ord:index)
+?select=fields[].(name:label,ord:index)
 ```
 
 > Tip: If you only select a single field, you can also set `shape=scalar` to get back an array of values instead of objects (see below).

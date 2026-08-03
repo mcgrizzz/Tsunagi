@@ -1,0 +1,29 @@
+# Fully-pinned runtime dependencies (direct + transitive), resolved for the
+# minimum supported interpreter (Python 3.9, bundled with Anki 23.10).
+# Every entry MUST be available as a pure-Python (none-any) wheel; the build
+# fails loudly otherwise. Regenerate deliberately - this is the lockfile.
+
+# Web framework (FastAPI 0.109.2 is the last release supporting Pydantic v1)
+fastapi==0.109.2
+starlette==0.36.3
+pydantic==1.10.22
+typing_extensions==4.12.2
+
+# ASGI server (pure-Python: no uvloop/httptools)
+uvicorn==0.30.6
+h11==0.16.0
+click==8.1.8
+colorama==0.4.6
+
+# anyio stack (starlette dependency); 4.5.x is the last line supporting old Pythons
+anyio==4.5.2
+sniffio==1.3.1
+idna==3.10
+exceptiongroup==1.2.2
+
+# Query DSL
+lark==1.2.2
+glom==24.11.0
+boltons==24.0.0
+face==24.0.0
+attrs==24.3.0

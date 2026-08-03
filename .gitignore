@@ -1,9 +1,11 @@
 /.mypy_cache
 /.pylintrc
 /.vscode
+/.serena
+/.claude
 /.wheelhouse
 /config.json
 /dist
 /lib
 /__pycache__
-.pyc
+*.pyc
