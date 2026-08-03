@@ -21,6 +21,7 @@ from .http.compat.ankiconnect import (
 )
 from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
 from .http.v1.cards import router as cards_router
+from .http.v1.collection import router as collection_router
 from .http.v1.deck_configs import router as deck_configs_router
 from .http.v1.decks import router as decks_router
 from .http.v1.media import router as media_router
@@ -86,6 +87,7 @@ app.include_router(cards_router)
 app.include_router(tags_router)
 app.include_router(deck_configs_router)
 app.include_router(reviews_router)
+app.include_router(collection_router)
 app.include_router(media_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 
