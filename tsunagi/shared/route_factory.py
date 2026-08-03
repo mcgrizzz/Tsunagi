@@ -22,9 +22,14 @@ from .errors import (
     handle_mutation_errors,
     track_operation,
 )
-from .filtering import build_predicate
+from .filtering import build_predicate, parse_where
 from .planning import SourceCaps, make_plan
-from .selecting import maybe_flatten, parse_select_csv, project_scalars
+from .selecting import (
+    maybe_flatten,
+    parse_select_csv,
+    project_scalars,
+    referenced_top_fields,
+)
 
 Row = Union[Mapping[str, Any], Any]
 ModelRow = Union[Any, ProjectedObject, Scalar]
@@ -40,6 +45,39 @@ def _plain(x: Any) -> Any:
     # reaches rows typed as Any - Anki wire aliases would leak through.
     return x.dict() if isinstance(x, BaseModel) else x
 
+def _as_dict(x: Any) -> Mapping[str, Any]:
+    # Use the schema's human-readable field names (fields, templates,
+    # sort_field) as the canonical keys for select/where. Aliases (flds,
+    # tmpls, ...) remain available via `select` aliasing if a caller wants
+    # Anki's wire names. This matches the non-aliased response output.
+    return x if isinstance(x, Mapping) else x.dict()
+
+def _finish(
+    page_rows: List[Row],
+    next_cursor: Optional[str],
+    select: Optional[str],
+    shape: Optional[str],
+    start: float,
+) -> Paginated[ModelRow]:
+    """Project (if select) and wrap a page. Shared by all planner tiers."""
+    if not select:
+        return Paginated[ModelRow](items=[_plain(r) for r in page_rows],
+                                   next_cursor=next_cursor, stats=_stats(start))
+    nodes = parse_select_csv(select)
+    projected = [project_scalars(_as_dict(r), nodes) for r in page_rows]
+    final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
+    return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
+
+def _wanted_fields(select: Optional[str], where: Optional[List[str]]) -> Optional[set]:
+    """
+    Top-level fields the caller actually referenced, so fetchers can skip
+    building expensive ones. None means "the whole record".
+    """
+    wants = referenced_top_fields(select)
+    if wants is None:
+        return None
+    return wants | {parse_where(w).tokens[0] for w in (where or [])}
+
 def _execute_query(
     select: Optional[str],
     where: Optional[List[str]],
@@ -48,40 +86,37 @@ def _execute_query(
     cursor: Optional[str],
     caps: SourceCaps,
     id_getter: Callable[[Row], int],
+    search: Optional[str] = None,
 ) -> Paginated[ModelRow]:
     """
     Core query execution logic shared between GET and POST routes.
     """
     start = time.perf_counter()
     try:
-        plan = make_plan(select, where, caps)
-        rows = plan.fetch()
+        plan = make_plan(select, where, caps, search)
+        wants = _wanted_fields(select, where)
 
-        def as_dict(x: Any) -> Mapping[str, Any]:
-            # Use the schema's human-readable field names (fields, templates,
-            # sort_field) as the canonical keys for select/where. Aliases (flds,
-            # tmpls, ...) remain available via `select` aliasing if a caller wants
-            # Anki's wire names. This matches the non-aliased response output.
-            return x if isinstance(x, Mapping) else x.dict()
+        if plan.fetch_page is not None:
+            # Pre-paginated tier (search/scan): ids are paged before rows are
+            # loaded, so `where` filters the page afterwards and a page may be
+            # short - callers must iterate until next_cursor is null.
+            page_rows, next_cursor = plan.fetch_page(limit, cursor, wants)
+            if where:
+                pred = build_predicate(where)
+                page_rows = [r for r in page_rows
+                             if pred(r if isinstance(r, Mapping) else r.dict())]
+            return _finish(page_rows, next_cursor, select, shape, start)
+
+        rows = plan.fetch(wants) if plan.mode == "index" else plan.fetch()
 
         # Filter rows if where clauses provided
         if where:
             pred = build_predicate(where)
-            rows = [r for r in rows if pred(as_dict(r))]
+            rows = [r for r in rows if pred(_as_dict(r))]
 
         rows.sort(key=id_getter)
         page_rows, next_cursor = paginate_keyset(rows, limit, cursor, key_fn=id_getter)
-
-        # Return without projection if no select
-        if not select:
-            return Paginated[ModelRow](items=[_plain(r) for r in page_rows],
-                                       next_cursor=next_cursor, stats=_stats(start))
-
-        # Apply field selection and projection
-        nodes = parse_select_csv(select)
-        projected = [project_scalars(as_dict(r), nodes) for r in page_rows]
-        final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
-        return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
+        return _finish(page_rows, next_cursor, select, shape, start)
 
     except HTTPException:
         raise
@@ -165,12 +200,18 @@ def create_resource_routes(
     def _get(
         select: Optional[str] = Query(default=None, description="Comma-separated fields to return"),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
+        search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
         shape: Optional[str]  = Query(default="auto", description="Response shape: auto, object, or scalar"),
         limit: int            = Query(default=1000, ge=1, le=5000, description="Maximum number of results"),
         cursor: Optional[str] = Query(default=None, description="Pagination cursor from previous response"),
     ) -> Any:
         """Query resource collection with URL parameters."""
-        return _execute_query(select, where, shape, limit, cursor, caps, id_getter)
+        # Keyword args: _execute_query's positional order must never be
+        # assumed here - a silent shift would land `shape` in `search`.
+        return _execute_query(
+            select=select, where=where, search=search, shape=shape,
+            limit=limit, cursor=cursor, caps=caps, id_getter=id_getter,
+        )
 
     # POST endpoint - query params in body
     @router.post(
@@ -187,13 +228,14 @@ def create_resource_routes(
     ) -> Any:
         """Query resource collection with POST body parameters."""
         return _execute_query(
-            query.select,
-            query.where,
-            query.shape,
-            query.limit,
-            query.cursor,
-            caps,
-            id_getter,
+            select=query.select,
+            where=query.where,
+            search=query.search,
+            shape=query.shape,
+            limit=query.limit,
+            cursor=query.cursor,
+            caps=caps,
+            id_getter=id_getter,
         )
 
     # Mutation endpoints (if mutations provided)
