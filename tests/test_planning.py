@@ -18,9 +18,9 @@ def make_caps(calls):
         return [r for r in ROWS if r["id"] in vals]
 
     return SourceCaps(
-        fetch_all=lambda: list(ROWS),
+        fetch_all=lambda wants=None: list(ROWS),
         indices=[IndexSpec(path=("id",), fetch_values=fetch_values, coerce=_int_or_none)],
-        columns_fetchers={frozenset({"id", "name"}): lambda: [dict(r) for r in ROWS]},
+        columns_fetchers={frozenset({"id", "name"}): lambda wants=None: [dict(r) for r in ROWS]},
     )
 
 
@@ -29,7 +29,7 @@ class TestIndexTier:
         calls = []
         plan = make_plan(None, ["id==1"], make_caps(calls))
         assert plan.mode == "index"
-        plan.fetch()
+        plan.fetch(None)
         assert calls == [[1]]
 
     def test_fetch_receives_coerced_deduped_values(self):
@@ -38,7 +38,7 @@ class TestIndexTier:
         calls = []
         plan = make_plan(None, ['id in ["1", 1, 2, "abc"]'], make_caps(calls))
         assert plan.mode == "index"
-        plan.fetch()
+        plan.fetch(None)
         assert calls == [[1, 2]]
 
     def test_all_invalid_values_fall_through(self):
@@ -98,7 +98,7 @@ class TestSearchTier:
             return [r for r in ROWS if r["id"] in set(ids)]
 
         return SourceCaps(
-            fetch_all=(lambda: list(ROWS)) if with_fetch_all else None,
+            fetch_all=(lambda wants=None: list(ROWS)) if with_fetch_all else None,
             indices=[IndexSpec(path=("id",), fetch_values=hydrate, coerce=_int_or_none)],
             search=SearchSpec(find_ids=find_ids, hydrate=hydrate),
         )
@@ -117,7 +117,7 @@ class TestSearchTier:
         assert plan.mode == "search"
 
     def test_search_unsupported_is_error(self):
-        caps = SourceCaps(fetch_all=lambda: list(ROWS))
+        caps = SourceCaps(fetch_all=lambda wants=None: list(ROWS))
         with pytest.raises(ValueError, match="search is not supported"):
             make_plan(None, None, caps, "deck:JP")
 
@@ -150,7 +150,15 @@ class TestFullTier:
     def test_no_hints_full_scan(self):
         plan = make_plan(None, None, make_caps([]))
         assert plan.mode == "full"
-        assert plan.fetch() == ROWS
+        assert plan.fetch(None) == ROWS
+
+    def test_fetch_all_receives_wants(self):
+        # Every tier gets `wants`, not just the index tier - it's what lets a
+        # full-tier resource (decks) skip building expensive fields.
+        seen = []
+        caps = SourceCaps(fetch_all=lambda wants=None: seen.append(wants) or list(ROWS))
+        make_plan(None, None, caps).fetch({"id", "name"})
+        assert seen == [{"id", "name"}]
 
     def test_index_beats_columns(self):
         # where on an indexed path wins even when select could use columns

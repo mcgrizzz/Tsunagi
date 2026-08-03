@@ -24,7 +24,7 @@ from ..ops import as_collection_op, as_query_op
 
 
 @as_query_op # Read, off the UI thread
-def list_models(col: Collection) -> List[ModelInfo]:
+def list_models(col: Collection, wants=None) -> List[ModelInfo]:
     return [ModelInfo.parse_obj(m) for m in col.models.all()] # 1 query + 3*each notetype This is worst case since it runs on all notetypes
 
 @as_query_op
@@ -77,7 +77,7 @@ def get_raw_models(col: Collection, ids: Sequence[int] = (),
     return out
 
 @as_query_op
-def get_model_names_and_ids(col: Collection) -> List[Mapping[str, Any]]: #1 query
+def get_model_names_and_ids(col: Collection, wants=None) -> List[Mapping[str, Any]]: #1 query
     res: List[Mapping[str, Any]] = []
     for nt in col.models.all_names_and_ids():
         # nt.id is NotetypeId -> int() is fine

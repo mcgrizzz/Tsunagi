@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 from anki.collection import Collection
 
@@ -14,32 +14,75 @@ from ..ops import as_collection_op, as_query_op
 # NOTE: DeckManager.get() defaults to default=True, which silently returns the
 # DEFAULT deck for missing ids. Every lookup here must pass default=False.
 
+# Due counts aren't stored on the deck; they come from the scheduler's tree.
+STAT_FIELDS = frozenset({"new_count", "learn_count", "review_count", "total_in_deck"})
+
+
+def _deck_stats(col: Collection) -> Dict[int, Dict[str, int]]:
+    """
+    Flatten the scheduler's due tree into {deck_id: counts}.
+
+    One backend call for the whole page - deck_due_tree() already walks the
+    entire collection, so asking it per deck would be the exact "redundant
+    internal work" this API exists to avoid.
+    """
+    out: Dict[int, Dict[str, int]] = {}
+
+    def walk(node: Any) -> None:
+        out[int(node.deck_id)] = {
+            "new_count": int(node.new_count),
+            "learn_count": int(node.learn_count),
+            "review_count": int(node.review_count),
+            "total_in_deck": int(node.total_in_deck),
+        }
+        for child in node.children:
+            walk(child)
+
+    walk(col.sched.deck_due_tree())
+    return out
+
+
+def _deck_info(d: Mapping[str, Any], stats: Optional[Dict[int, Dict[str, int]]]) -> DeckInfo:
+    info = DeckInfo.parse_obj(d)
+    if stats is not None:
+        for k, v in stats.get(int(info.id), {}).items():
+            setattr(info, k, v)
+    return info
+
+
+def _stats_if_wanted(col: Collection, wants: Optional[Set[str]]) -> Optional[Dict[int, Dict[str, int]]]:
+    if wants is None or (STAT_FIELDS & wants):
+        return _deck_stats(col)
+    return None
+
 
 @as_query_op
-def list_decks(col: Collection) -> List[DeckInfo]:
-    return [DeckInfo.parse_obj(d) for d in col.decks.all()]
+def list_decks(col: Collection, wants=None) -> List[DeckInfo]:
+    stats = _stats_if_wanted(col, wants)
+    return [_deck_info(d, stats) for d in col.decks.all()]
 
 @as_query_op
 def get_decks_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[DeckInfo]:
-    # `wants` accepted for the fetcher contract; decks have no expensive fields.
+    stats = _stats_if_wanted(col, wants)
     out: List[DeckInfo] = []
     for did in ids:
         d = col.decks.get(did, default=False)
         if d:
-            out.append(DeckInfo.parse_obj(d))
+            out.append(_deck_info(d, stats))
     return out
 
 @as_query_op
 def get_decks_by_names(col: Collection, names: Sequence[str], wants=None) -> List[DeckInfo]:
+    stats = _stats_if_wanted(col, wants)
     out: List[DeckInfo] = []
     for name in names:
         d = col.decks.by_name(name)
         if d:
-            out.append(DeckInfo.parse_obj(d))
+            out.append(_deck_info(d, stats))
     return out
 
 @as_query_op
-def get_deck_names_and_ids(col: Collection) -> List[Mapping[str, Any]]:
+def get_deck_names_and_ids(col: Collection, wants=None) -> List[Mapping[str, Any]]:
     res: List[Mapping[str, Any]] = []
     for nt in col.decks.all_names_and_ids(skip_empty_default=False, include_filtered=True):
         res.append({"id": int(nt.id), "name": nt.name})

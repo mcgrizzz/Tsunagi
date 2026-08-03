@@ -120,16 +120,76 @@ class FakeModelManager:
             t["ord"] = i
 
 
+def _deck_config(cid, name):
+    return {
+        "id": cid, "name": name, "mod": 0, "usn": 0, "maxTaken": 60,
+        "autoplay": True, "timer": 0, "replayq": True,
+        "new": {"delays": [1.0, 10.0], "ints": [1, 4, 0], "initialFactor": 2500,
+                "perDay": 20, "order": 1, "bury": False},
+        "rev": {"perDay": 200, "ease4": 1.3, "ivlFct": 1.0, "maxIvl": 36500,
+                "bury": False, "hardFactor": 1.2},
+        "lapse": {"delays": [10.0], "mult": 0.0, "minInt": 1, "leechFails": 8,
+                  "leechAction": 1},
+        "dyn": False,
+    }
+
+
 class FakeDeckManager:
     def __init__(self, seed=True):
         self._store = {}
+        self._configs = {}
         self._next_id = 5000
+        self._next_config_id = 6000
         if seed:
             self._store[1] = _deck(1, "Default")
+            self._configs[1] = _deck_config(1, "Default")
 
     def _new_id(self):
         self._next_id += 1
         return self._next_id
+
+    # --- deck configs (options groups) ---
+    def all_config(self):
+        return [copy.deepcopy(c) for c in self._configs.values()]
+
+    def get_config(self, conf_id):
+        c = self._configs.get(int(conf_id))
+        return copy.deepcopy(c) if c is not None else None
+
+    def config_dict_for_deck_id(self, did):
+        deck = self.get(did, default=False)
+        assert deck is not None
+        if "conf" in deck:
+            conf = self.get_config(int(deck["conf"])) or self.get_config(1)
+            conf["dyn"] = False
+            return conf
+        return deck  # filtered decks embed their own config
+
+    def update_config(self, conf, preserve_usn=False):
+        if not conf.get("id"):
+            self._next_config_id += 1
+            conf["id"] = self._next_config_id
+        self._configs[int(conf["id"])] = copy.deepcopy(conf)
+
+    def add_config(self, name, clone_from=None):
+        if clone_from is not None:
+            conf = copy.deepcopy(clone_from)
+            conf["id"] = 0
+        else:
+            conf = _deck_config(0, name)
+        conf["name"] = name
+        self.update_config(conf)
+        return conf
+
+    def add_config_returning_id(self, name, clone_from=None):
+        return self.add_config(name, clone_from)["id"]
+
+    def remove_config(self, conf_id):
+        # Anki reassigns every deck using it back to the default config.
+        for deck in self._store.values():
+            if "conf" in deck and str(deck["conf"]) == str(conf_id):
+                deck["conf"] = 1
+        self._configs.pop(int(conf_id), None)
 
     # --- reads ---
     def all(self):
@@ -312,6 +372,195 @@ class FakeNote:
         return 0  # NORMAL
 
 
+class FakeCard:
+    """
+    Faithful to anki.cards.Card in the ways the adapters care about: the
+    scheduling columns are plain attributes, and question()/answer() render
+    the notetype's templates against the note's fields rather than returning
+    a canned string (an inert fake would hide projection/`wants` bugs).
+    """
+
+    def __init__(self, col, cid, nid, did, ord_, due):
+        self._col = col
+        self.id = cid
+        self.nid = nid
+        self.did = did
+        self.odid = 0
+        self.ord = ord_
+        self.mod = 1700000000
+        self.usn = 0
+        self.type = 0        # CARD_TYPE_NEW
+        self.queue = 0       # QUEUE_TYPE_NEW
+        self.due = due
+        self.odue = 0
+        self.ivl = 0
+        self.factor = 0
+        self.reps = 0
+        self.lapses = 0
+        self.left = 0
+        self.flags = 0
+
+    def note(self):
+        return self._col.get_note(self.nid)
+
+    def note_type(self):
+        return self.note().note_type()
+
+    def template(self):
+        tmpls = self.note_type()["tmpls"]
+        return tmpls[self.ord] if self.ord < len(tmpls) else tmpls[0]
+
+    def current_deck_id(self):
+        return self.odid or self.did
+
+    def css(self):
+        return self.note_type().get("css", "")
+
+    def _render(self, fmt):
+        note = self.note()
+        out = fmt.replace("{{FrontSide}}", self._render_side("qfmt"))
+        for name, value in zip(note.keys(), note.fields):
+            out = out.replace("{{%s}}" % name, value)
+        return out
+
+    def _render_side(self, key):
+        tmpl = self.template()
+        fmt = tmpl.get(key, "")
+        note = self.note()
+        out = fmt
+        for name, value in zip(note.keys(), note.fields):
+            out = out.replace("{{%s}}" % name, value)
+        return out
+
+    def question(self):
+        return self._render_side("qfmt")
+
+    def answer(self):
+        return self._render(self.template().get("afmt", ""))
+
+
+class FakeScheduler:
+    """
+    The slice of anki.scheduler.base.Scheduler the cards adapter calls.
+    Queue/type values are Anki's real constants, so tests assert on the same
+    numbers a client would see.
+    """
+
+    def __init__(self, col):
+        self._col = col
+
+    def _cards(self, ids):
+        return [c for c in (self._col._cards.get(int(i)) for i in ids) if c is not None]
+
+    @staticmethod
+    def _restore_queue(card):
+        # Anki's restore_buried_and_suspended_cards puts the card back in the
+        # queue implied by its type.
+        card.queue = card.type if card.type in (0, 1, 2) else 0
+
+    def suspend_cards(self, ids):
+        cards = self._cards(ids)
+        for c in cards:
+            c.queue = -1
+        return SimpleNamespace(count=len(cards))
+
+    def unsuspend_cards(self, ids):
+        cards = self._cards(ids)
+        for c in cards:
+            if c.queue == -1:
+                self._restore_queue(c)
+        return SimpleNamespace(count=len(cards))
+
+    def bury_cards(self, ids, manual=True):
+        cards = self._cards(ids)
+        for c in cards:
+            c.queue = -3 if manual else -2
+        return SimpleNamespace(count=len(cards))
+
+    def unbury_cards(self, ids):
+        cards = self._cards(ids)
+        for c in cards:
+            if c.queue in (-2, -3):
+                self._restore_queue(c)
+        return SimpleNamespace(count=len(cards))
+
+    def schedule_cards_as_new(self, card_ids, *, restore_position=False,
+                              reset_counts=False, context=None):
+        cards = self._cards(card_ids)
+        for c in cards:
+            c.type = 0
+            c.queue = 0
+            c.ivl = 0
+            if reset_counts:
+                c.reps = 0
+                c.lapses = 0
+        return SimpleNamespace(count=len(cards))
+
+    def set_due_date(self, card_ids, days, config_key=None):
+        low = str(days).split("-")[0]
+        try:
+            offset = int(low)
+        except ValueError as e:
+            raise ValueError(f"invalid due date: {days}") from e
+        cards = self._cards(card_ids)
+        for c in cards:
+            c.type = 2
+            c.queue = 2
+            c.due = offset
+            c.ivl = max(c.ivl, offset)
+        return SimpleNamespace(count=len(cards))
+
+    def reposition_new_cards(self, card_ids, starting_from, step_size,
+                             randomize, shift_existing):
+        cards = self._cards(card_ids)
+        pos = starting_from
+        for c in cards:
+            c.due = pos
+            pos += step_size
+        return SimpleNamespace(count=len(cards))
+
+    def deck_due_tree(self):
+        decks = sorted(self._col.decks.all(), key=lambda d: d["name"])
+        own = {d["id"]: {"new_count": 0, "learn_count": 0,
+                         "review_count": 0, "total_in_deck": 0} for d in decks}
+        for c in self._col._cards.values():
+            counts = own.get(c.did)
+            if counts is None:
+                continue
+            counts["total_in_deck"] += 1
+            if c.queue == 0:
+                counts["new_count"] += 1
+            elif c.queue in (1, 3):
+                counts["learn_count"] += 1
+            elif c.queue == 2:
+                counts["review_count"] += 1
+
+        def build(name_prefix, parent_id):
+            children = []
+            for d in decks:
+                name = d["name"]
+                if name_prefix:
+                    if not name.startswith(name_prefix + "::"):
+                        continue
+                    rest = name[len(name_prefix) + 2:]
+                else:
+                    rest = name
+                if "::" in rest:
+                    continue
+                children.append(build(name, d["id"]))
+            counts = own.get(parent_id, {"new_count": 0, "learn_count": 0,
+                                         "review_count": 0, "total_in_deck": 0})
+            node = SimpleNamespace(
+                deck_id=parent_id,
+                name=name_prefix.split("::")[-1] if name_prefix else "",
+                children=children,
+                **{k: counts[k] + sum(getattr(ch, k) for ch in children) for k in counts},
+            )
+            return node
+
+        return build("", 0)
+
+
 class FakeTagManager:
     def __init__(self, col):
         self._col = col
@@ -350,6 +599,33 @@ class FakeTagManager:
                 count += 1
         return SimpleNamespace(count=count)
 
+    def rename(self, old, new):
+        count = 0
+        for note in self._col._notes.values():
+            # Anki renames the tag and its children ("a" also renames "a::b").
+            renamed = [new + t[len(old):] if t == old or t.startswith(old + "::") else t
+                       for t in note.tags]
+            if renamed != note.tags:
+                note.tags = renamed
+                count += 1
+        return SimpleNamespace(count=count)
+
+    def remove(self, space_separated_tags):
+        drop = {t for t in space_separated_tags.split() if t}
+        count = 0
+        for note in self._col._notes.values():
+            kept = [t for t in note.tags
+                    if t not in drop and not any(t.startswith(d + "::") for d in drop)]
+            if kept != note.tags:
+                note.tags = kept
+                count += 1
+        return SimpleNamespace(count=count)
+
+    def clear_unused_tags(self):
+        # Every tag in the fake is derived from live notes, so nothing is ever
+        # unused. Returning 0 is the honest answer, not a stub.
+        return SimpleNamespace(count=0)
+
 
 class FakeDb:
     """
@@ -382,7 +658,27 @@ class FakeDb:
                 out.append(note.id)
             return sorted(out)
         if norm == "select did from cards where nid = ?":
-            return [c["did"] for c in self._col._cards.values() if c["nid"] == args[0]]
+            return [c.did for c in self._col._cards.values() if c.nid == args[0]]
+        if norm == "select ivl from revlog where cid = ?":
+            return [ivl for (_id, cid, ivl) in self._col._revlog if cid == args[0]]
+        raise AssertionError(f"FakeDb: unhandled SQL {norm!r}")
+
+    def all(self, sql, *args):
+        norm = " ".join(sql.split())
+        if norm == "select id/1000.0, ivl from revlog where cid = ?":
+            return [(_id / 1000.0, ivl)
+                    for (_id, cid, ivl) in self._col._revlog if cid == args[0]]
+        raise AssertionError(f"FakeDb: unhandled SQL {norm!r}")
+
+    def execute(self, sql, *args):
+        norm = " ".join(sql.split())
+        m = re.match(r"^update cards set type=3, queue=1 where id in \((.*)\)$", norm)
+        if m:
+            for raw in m.group(1).split(","):
+                card = self._col._cards.get(int(raw))
+                if card is not None:
+                    card.type, card.queue = 3, 1
+            return None
         raise AssertionError(f"FakeDb: unhandled SQL {norm!r}")
 
 
@@ -393,10 +689,13 @@ class FakeCollection:
         self.media = FakeMediaManager()
         self.db = FakeDb(self)
         self.tags = FakeTagManager(self)
+        self.sched = FakeScheduler(self)
         self._notes = {}
         self._cards = {}
+        self._revlog = []          # (id_ms, cid, ivl) rows
         self._next_note_id = 7000
         self._next_card_id = 8000
+        self._next_due = 0
         self.find_notes_calls = 0
 
     # --- search ---
@@ -437,7 +736,7 @@ class FakeCollection:
             if deck is None:
                 return []
             dids = {deck["id"]}
-            nids = {c["nid"] for c in self._cards.values() if c["did"] in dids}
+            nids = {c.nid for c in self._cards.values() if c.did in dids}
             return sorted(nids)
         if q.startswith("tag:"):
             tag = q[4:]
@@ -450,8 +749,54 @@ class FakeCollection:
                       if any(needle in f.casefold() for f in n.fields))
 
     def find_cards(self, query):
+        q = (query or "").strip()
+        if q.startswith("cid:"):
+            # AnkiConnect's areDue probes "cid:<id> is:new" / "cid:<id> is:due".
+            cid_part, _, rest = q[4:].partition(" ")
+            card = self._cards.get(int(cid_part))
+            if card is None:
+                return []
+            rest = rest.strip()
+            if rest == "is:new":
+                return [card.id] if card.queue == 0 else []
+            if rest == "is:due":
+                return [card.id] if card.queue in (1, 2, 3) else []
+            if not rest:
+                return [card.id]
+            from fakes.anki_stubs import SearchError
+            raise SearchError(f"unsupported fake search: {q}")
         nids = set(self.find_notes(query))
-        return sorted(c["id"] for c in self._cards.values() if c["nid"] in nids)
+        return sorted(c.id for c in self._cards.values() if c.nid in nids)
+
+    # --- cards ---
+    def get_card(self, cid):
+        card = self._cards.get(int(cid))
+        if card is None:
+            from fakes.anki_stubs import NotFoundError
+            raise NotFoundError(f"card {cid}")
+        return card
+
+    def update_card(self, card, skip_undo_entry=False):
+        self._cards[int(card.id)] = card
+
+    def set_deck(self, card_ids, deck_id):
+        count = 0
+        for cid in card_ids:
+            card = self._cards.get(int(cid))
+            if card is not None:
+                card.did = int(deck_id)
+                card.odid = 0
+                count += 1
+        return SimpleNamespace(count=count)
+
+    def set_user_flag_for_cards(self, flag, cids):
+        count = 0
+        for cid in cids:
+            card = self._cards.get(int(cid))
+            if card is not None:
+                card.flags = (card.flags & ~0b111) | int(flag)
+                count += 1
+        return SimpleNamespace(count=count)
 
     # --- notes ---
     def get_note(self, nid):
@@ -472,10 +817,10 @@ class FakeCollection:
         self._notes[note.id] = note
         for t in note._nt["tmpls"]:
             self._next_card_id += 1
-            self._cards[self._next_card_id] = {
-                "id": self._next_card_id, "nid": note.id,
-                "did": int(deck_id), "ord": t["ord"],
-            }
+            self._next_due += 1
+            self._cards[self._next_card_id] = FakeCard(
+                self, self._next_card_id, note.id, int(deck_id), t["ord"], self._next_due,
+            )
         return SimpleNamespace(count=1)
 
     def update_note(self, note):
@@ -486,10 +831,10 @@ class FakeCollection:
         for nid in [int(n) for n in nids]:
             if self._notes.pop(nid, None) is not None:
                 count += 1
-                for cid in [c["id"] for c in self._cards.values() if c["nid"] == nid]:
+                for cid in [c.id for c in self._cards.values() if c.nid == nid]:
                     self._cards.pop(cid, None)
         return SimpleNamespace(count=count)
 
     def card_ids_of_note(self, nid):
-        return [c["id"] for c in sorted(self._cards.values(), key=lambda c: c["ord"])
-                if c["nid"] == int(nid)]
+        return [c.id for c in sorted(self._cards.values(), key=lambda c: c.ord)
+                if c.nid == int(nid)]

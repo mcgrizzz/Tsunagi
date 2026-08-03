@@ -24,6 +24,54 @@ class TestQueries:
         assert body["items"] == [{"id": 1, "name": "Default"}]
 
 
+class TestStats:
+    """Due counts come from the scheduler's tree, so they're demand-driven."""
+
+    def _seed(self, client):
+        client.post("/v1/decks", json={"name": "JP"})
+        did = [d["id"] for d in client.get("/v1/decks").json()["items"]
+               if d["name"] == "JP"][0]
+        for i in range(3):
+            client.post("/v1/notes", json={
+                "modelName": "Basic", "deckName": "JP",
+                "fields": {"Front": f"card{i}"}})
+        return did
+
+    def test_counts_returned_when_selected(self, client):
+        did = self._seed(client)
+        body = client.get("/v1/decks", params={
+            "select": "id,name,new_count,total_in_deck",
+            "where": f"id=={did}", "shape": "object"}).json()
+        assert body["items"] == [
+            {"id": did, "name": "JP", "new_count": 3, "total_in_deck": 3}]
+
+    def test_counts_skipped_when_not_asked_for(self, client, fake_col):
+        self._seed(client)
+        calls = []
+        original = fake_col.sched.deck_due_tree
+        fake_col.sched.deck_due_tree = lambda: calls.append(1) or original()
+
+        client.get("/v1/decks", params={"select": "id,name"})
+        assert calls == []                      # no tree walk for a cheap select
+
+        client.get("/v1/decks", params={"select": "id,new_count"})
+        assert len(calls) == 1                  # ...and exactly one for the page
+
+    def test_bare_listing_includes_counts(self, client):
+        self._seed(client)
+        jp = [d for d in client.get("/v1/decks").json()["items"] if d["name"] == "JP"][0]
+        assert jp["new_count"] == 3             # no select means the whole record
+
+    def test_parent_aggregates_children(self, client):
+        client.post("/v1/decks", json={"name": "A::B"})
+        client.post("/v1/notes", json={
+            "modelName": "Basic", "deckName": "A::B", "fields": {"Front": "x"}})
+        decks = {d["name"]: d for d in client.get(
+            "/v1/decks", params={"select": "name,total_in_deck", "shape": "object"}).json()["items"]}
+        assert decks["A::B"]["total_in_deck"] == 1
+        assert decks["A"]["total_in_deck"] == 1  # parent rolls up its subdecks
+
+
 class TestMutations:
     def test_create(self, client):
         resp = client.post("/v1/decks", json={"name": "Japanese", "description": "JP study"})

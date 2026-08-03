@@ -25,10 +25,11 @@ Row = Union[Mapping[str, Any], Any]
 # for "the whole record". Fetchers use it to skip expensive fields.
 Wants = Optional[Set[str]]
 
-# Query operations
-FetchAllFn       = Callable[[], List[Row]]
+# Query operations. Every fetcher takes `wants` so a resource can skip building
+# expensive fields nobody asked for, whichever tier ends up serving the query.
+FetchAllFn       = Callable[[Wants], List[Row]]
 FetchValuesFn    = Callable[[Sequence[Any], Wants], List[Row]]
-FetchColumnsFn   = Callable[[], List[Row]]
+FetchColumnsFn   = Callable[[Wants], List[Row]]
 CoerceFn         = Callable[[Any], Optional[Any]]
 SearchIdsFn      = Callable[[str], List[int]]
 BoundIdsFn       = Callable[[], List[int]]     # search query already bound
