@@ -34,6 +34,11 @@ from .selecting import (
 Row = Union[Mapping[str, Any], Any]
 ModelRow = Union[Any, ProjectedObject, Scalar]
 
+# Hydration runs inside a QueryOp with a wall-clock timeout, so a page is
+# fetched in bounded slices rather than one call: each slice gets its own
+# budget, and a large `limit` can't turn a slow page into a 503.
+HYDRATE_CHUNK = 250
+
 def _stats(start_time: float) -> dict:
     duration_ms = (time.perf_counter() - start_time) * 1000.0
     return {"duration_ms": round(duration_ms, 3)}
@@ -92,12 +97,13 @@ def _paged_scan(
         ids = [i for i in ids if i > last_key]
 
     if pred is None:
-        # No filtering: one batch is exactly the page.
         page_ids, more = ids[:limit], len(ids) > limit
-        rows = plan.hydrate(page_ids, wants) if page_ids else []
+        rows: List[Row] = []
+        for i in range(0, len(page_ids), HYDRATE_CHUNK):
+            rows.extend(plan.hydrate(page_ids[i:i + HYDRATE_CHUNK], wants))
         return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
 
-    batch_size = max(limit, 50)
+    batch_size = max(min(limit, HYDRATE_CHUNK), 50)
     out: List[Row] = []
     examined = 0
 
@@ -150,7 +156,7 @@ def _execute_query(
             )
             return _finish(page_rows, next_cursor, select, shape, start)
 
-        rows = plan.fetch(wants) if plan.mode == "index" else plan.fetch()
+        rows = plan.fetch(wants)
 
         # Filter rows if where clauses provided
         if where:

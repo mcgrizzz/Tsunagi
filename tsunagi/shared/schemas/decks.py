@@ -40,6 +40,13 @@ class DeckInfo(BaseModel):
     review_limit: Optional[int] = Field(alias="reviewLimit", default=None)
     new_limit: Optional[int] = Field(alias="newLimit", default=None)
 
+    # Due counts. Not stored on the deck - they come from the scheduler's due
+    # tree, so they're only computed when select/where asks for one of them.
+    new_count: Optional[int] = None
+    learn_count: Optional[int] = None
+    review_count: Optional[int] = None
+    total_in_deck: Optional[int] = None
+
 
 # ----------------- Request Schemas -----------------
 

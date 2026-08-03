@@ -24,7 +24,11 @@ from tsunagi.shared.planning import (
     SourceCaps,
     SubresourceMutations,
 )
-from tsunagi.shared.route_factory import create_resource_routes, make_id_getter
+from tsunagi.shared.route_factory import (
+    HYDRATE_CHUNK,
+    create_resource_routes,
+    make_id_getter,
+)
 
 SEED = [
     {"id": 1, "name": "Basic", "type": 0, "fields": [{"name": "Front", "ord": 0}, {"name": "Back", "ord": 1}]},
@@ -44,13 +48,13 @@ class FakeStore:
         return None
 
     # --- queries ---
-    def fetch_all(self):
+    def fetch_all(self, wants=None):
         return copy.deepcopy(self.rows)
 
     def fetch_by_ids(self, ids, wants=None):
         return [copy.deepcopy(r) for r in self.rows if r["id"] in set(ids)]
 
-    def fetch_id_name(self):
+    def fetch_id_name(self, wants=None):
         return [{"id": r["id"], "name": r["name"]} for r in self.rows]
 
     # --- mutations ---
@@ -218,7 +222,7 @@ class TestQueries:
         assert resp.status_code == 400
 
     def test_internal_error_hides_detail(self):
-        caps = SourceCaps(fetch_all=lambda: (_ for _ in ()).throw(RuntimeError("secret internals")))
+        caps = SourceCaps(fetch_all=lambda wants=None: (_ for _ in ()).throw(RuntimeError("secret internals")))
         app = FastAPI()
         app.include_router(create_resource_routes(
             path="/v1/boom", caps=caps, response_model=None,
@@ -273,6 +277,32 @@ class TestSearchParam:
     def test_unsupported_search_is_400(self, client):
         # `client` fixture has no SearchSpec
         assert client.get("/v1/things", params={"search": "x"}).status_code == 400
+
+    def test_unfiltered_page_hydrates_in_bounded_chunks(self):
+        # Hydration runs inside an op with a wall-clock timeout, so a big page
+        # must not be fetched in one call - each slice needs its own budget.
+        # The page itself must still come back whole and in order.
+        rows = [{"id": i, "name": f"r{i}"} for i in range(1, 601)]
+        chunks = []
+
+        def hydrate(ids, wants=None):
+            chunks.append(len(ids))
+            wanted = set(ids)
+            return [r for r in rows if r["id"] in wanted]
+
+        caps = SourceCaps(search=SearchSpec(find_ids=lambda q: [r["id"] for r in rows],
+                                            hydrate=hydrate))
+        app = FastAPI()
+        app.include_router(create_resource_routes(
+            path="/v1/things", caps=caps, response_model=None,
+            id_getter=make_id_getter("id"),
+            resource_name="thing", resource_plural="things", tag="Things",
+        ))
+        body = TestClient(app).get("/v1/things", params={"limit": 600}).json()
+
+        assert [r["id"] for r in body["items"]] == list(range(1, 601))
+        assert body["next_cursor"] is None
+        assert len(chunks) > 1 and max(chunks) <= HYDRATE_CHUNK
 
     def test_filter_scans_past_non_matching_rows(self, search_client):
         # Regression: filtering can't be pushed into the backend search, so a
@@ -362,7 +392,7 @@ class TestAvailabilityErrors:
 
     def test_unavailable_mutation_is_503(self):
         caps = SourceCaps(
-            fetch_all=lambda: [],
+            fetch_all=lambda wants=None: [],
             mutations=MutationCaps(create=self._raise(CollectionUnavailableError())),
         )
         resp = self._client(caps).post("/v1/things", json={"name": "x"})
@@ -370,7 +400,7 @@ class TestAvailabilityErrors:
 
     def test_busy_mutation_is_503(self):
         caps = SourceCaps(
-            fetch_all=lambda: [],
+            fetch_all=lambda wants=None: [],
             mutations=MutationCaps(create=self._raise(AnkiBusyError())),
         )
         assert self._client(caps).post("/v1/things", json={"name": "x"}).status_code == 503

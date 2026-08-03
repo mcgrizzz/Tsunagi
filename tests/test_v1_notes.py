@@ -184,7 +184,7 @@ class TestDelete:
         nid = add(client).json()["result"]["id"]
         assert client.delete(f"/v1/notes/{nid}").json()["success"] is True
         assert client.get("/v1/notes").json()["items"] == []
-        assert not [c for c in fake_col._cards.values() if c["nid"] == nid]
+        assert not [c for c in fake_col._cards.values() if c.nid == nid]
 
     def test_delete_missing_is_404(self, client):
         assert client.delete("/v1/notes/999999").status_code == 404
