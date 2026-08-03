@@ -108,7 +108,7 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
     m = mm.new(name)
 
     # Set to cloze type if explicitly requested
-    if data.get("type") in [1, "cloze"]:
+    if data.get("type") == 1:
         m["type"] = 1
 
     # Copy optional model-level properties

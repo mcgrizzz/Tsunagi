@@ -63,3 +63,25 @@ class TestFindReplace:
         resp = client.post("/v1/models:find-replace",
                            json={"find": "a", "replace": "b", "model_name": "Nope"})
         assert resp.status_code == 404
+
+
+class TestClozeCreation:
+    def test_create_cloze_model(self, client):
+        # Regression: `type` was absent from ModelCreate, and
+        # normalize_field_names round-trips through the schema, so the key was
+        # dropped and every model came out standard.
+        resp = client.post("/v1/models", json={
+            "name": "MyCloze", "type": 1,
+            "fields": [{"name": "Text"}, {"name": "Extra"}],
+            "templates": [{"name": "Cloze", "qfmt": "{{cloze:Text}}", "afmt": "{{cloze:Text}}"}],
+        })
+        assert resp.status_code == 201
+        assert resp.json()["result"]["type"] == 1
+
+    def test_default_is_standard(self, client):
+        resp = client.post("/v1/models", json={
+            "name": "Plain",
+            "fields": [{"name": "A"}],
+            "templates": [{"name": "Card 1", "qfmt": "{{A}}", "afmt": "x"}],
+        })
+        assert resp.json()["result"]["type"] == 0

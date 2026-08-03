@@ -7,6 +7,23 @@ API_KEY_ERROR = "valid api key must be provided"
 UNSUPPORTED_ACTION = "unsupported action"
 MODEL_NOT_FOUND = "model was not found: {}"
 DECK_NOT_FOUND = "deck was not found: {}"
+FIELD_NOT_FOUND = "field was not found in {}: {}"
+TEMPLATE_NOT_FOUND = "template was not found in {}: {}"
+
+# createModel. Note ours differs from the native /v1 message, which names the
+# model - canonical's is bare and clients may match on it.
+MODEL_NAME_EXISTS = "Model name already exists"
+CREATE_MODEL_NO_FIELDS = "Must provide at least one field for inOrderFields"
+CREATE_MODEL_NO_TEMPLATES = "Must provide at least one card for cardTemplates"
+
+# Model field setters reject wrong types rather than coercing
+FONT_NOT_STRING = "font should be a string: {}"
+FONT_SIZE_NOT_INT = "fontSize should be an integer: {}"
+DESCRIPTION_NOT_STRING = "description should be a string: {}"
+
+# updateNote / updateNoteTags
+NOTE_UPDATE_NO_INPUT = 'Must provide a "fields" or "tags" property.'
+TAGS_MUST_BE_LIST = "Must provide tags as a list of strings"
 NOTE_NOT_FOUND = "Note was not found: {}"
 CARD_NOT_FOUND = "Card was not found: {}"
 
