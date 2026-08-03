@@ -87,6 +87,9 @@ class NotePatch(BaseModel):
     tags: Optional[List[str]] = None                                  # replaces
     add_tags: Optional[List[str]] = Field(alias="addTags", default=None)
     remove_tags: Optional[List[str]] = Field(alias="removeTags", default=None)
+    # Retype the note. Requires `fields`: the new model's fields start empty.
+    model_id: Optional[int] = Field(alias="modelId", default=None)
+    model_name: Optional[str] = Field(alias="modelName", default=None)
 
 
 # ----------------- Duplicate/empty check -----------------

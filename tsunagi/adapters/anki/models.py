@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from anki.collection import Collection
 
@@ -148,6 +148,42 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
     mm.add(m)
 
     return ModelInfo.parse_obj(m)
+
+
+@as_collection_op
+def find_and_replace_in_models(col: Collection, find_text: str, replace_text: str,
+                               model_name: Optional[str] = None, front: bool = True,
+                               back: bool = True, css: bool = True) -> int:
+    """
+    Literal (non-regex) replace across template sides and styling.
+    Returns how many models actually contained the text.
+    """
+    mm = col.models
+    if model_name:
+        target = mm.by_name(model_name)
+        if target is None:
+            raise ResourceNotFoundError("Model", model_name)
+        models = [target]
+    else:
+        models = mm.all()
+
+    updated = 0
+    for m in models:
+        hit = False
+        if css and find_text in m.get("css", ""):
+            hit = True
+            m["css"] = m["css"].replace(find_text, replace_text)
+        for tmpl in m.get("tmpls", []):
+            if front and find_text in tmpl.get("qfmt", ""):
+                hit = True
+                tmpl["qfmt"] = tmpl["qfmt"].replace(find_text, replace_text)
+            if back and find_text in tmpl.get("afmt", ""):
+                hit = True
+                tmpl["afmt"] = tmpl["afmt"].replace(find_text, replace_text)
+        if hit:
+            mm.update_dict(m)
+            updated += 1
+    return updated
 
 
 # ====================

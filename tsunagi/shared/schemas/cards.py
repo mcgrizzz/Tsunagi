@@ -9,13 +9,19 @@ from .notes import NoteField
 # ----------------- Response Schemas -----------------
 
 
+class FsrsMemoryState(BaseModel):
+    """FSRS's per-card memory model. Null until the card has been reviewed."""
+    stability: float
+    difficulty: float
+
+
 class CardInfo(BaseModel):
     """
     A card row with human-readable names (Anki wire names as aliases).
 
-    Only the columns Anki has carried since 23.10 are exposed. FSRS additions
-    (memory_state, desired_retention, decay) are deliberately absent: they
-    don't exist on our minimum supported version.
+    Everything here is a plain column read - no backend call - including the
+    FSRS state. FSRS shipped in 23.10 (our floor) and has been the default
+    scheduler since 24.11, so it is part of a card, not an extra.
     """
     class Config:
         extra = "ignore"
@@ -43,6 +49,18 @@ class CardInfo(BaseModel):
     lapses: int = 0
     left: int = 0
     flags: int = 0
+
+    # Set while the card is in a filtered deck or has been repositioned.
+    original_position: Optional[int] = None
+    # Anki's own scratch space, a JSON string. Passed through unparsed -
+    # scheduling add-ons keep their state here and it is not ours to reshape.
+    custom_data: str = ""
+
+    # FSRS. Null on a card FSRS has not seen (never reviewed, or SM-2 only).
+    memory_state: Optional[FsrsMemoryState] = None
+    desired_retention: Optional[float] = None
+    decay: Optional[float] = None
+    last_review_time: Optional[int] = None
 
     # Derived from the columns above - free, so always present.
     suspended: bool = False

@@ -14,12 +14,33 @@ import tempfile
 from types import SimpleNamespace
 
 
+def _field(name, ord_):
+    """
+    A full schema11 field. Anki always populates every key here; a fake that
+    emitted only {name, ord} would KeyError on code that reads field["font"]
+    while the same code works fine against a real collection.
+    """
+    return {
+        "name": name, "ord": ord_, "sticky": False, "rtl": False,
+        "font": "Arial", "size": 20, "description": "",
+        "plainText": False, "collapsed": False,
+        "excludeFromSearch": False, "preventDeletion": False,
+    }
+
+
+def _template(name, ord_, qfmt, afmt):
+    return {"name": name, "ord": ord_, "qfmt": qfmt, "afmt": afmt,
+            "bqfmt": "", "bafmt": "", "did": None}
+
+
 def _basic_model(mid, name, fields, templates, mtype=0):
+    front, back = fields[0], (fields[1] if len(fields) > 1 else fields[0])
     return {
         "id": mid, "name": name, "type": mtype, "mod": 0, "usn": 0,
-        "sortf": 0, "did": None, "css": "",
-        "flds": [{"name": f, "ord": i} for i, f in enumerate(fields)],
-        "tmpls": [{"name": t, "ord": i, "qfmt": "{{%s}}" % fields[0], "afmt": ""}
+        "sortf": 0, "did": None, "css": ".card { font-size: 20px; }",
+        "flds": [_field(f, i) for i, f in enumerate(fields)],
+        "tmpls": [_template(t, i, "{{%s}}" % front,
+                            "{{FrontSide}}<hr id=answer>{{%s}}" % back)
                   for i, t in enumerate(templates)],
     }
 
@@ -36,7 +57,8 @@ def _deck(did, name, **overrides):
 
 
 class FakeModelManager:
-    def __init__(self, seed=True):
+    def __init__(self, col=None, seed=True):
+        self._col = col          # only needed by use_count
         self._store = {}
         self._next_id = 1000
         if seed:
@@ -62,16 +84,23 @@ class FakeModelManager:
                 return copy.deepcopy(m)
         return None
 
+    def field_map(self, m):
+        """{name: (ord, field_dict)} - what Note._fmap is built from."""
+        return {f["name"]: (f["ord"], f) for f in m["flds"]}
+
+    def use_count(self, m):
+        return sum(1 for n in self._col._notes.values() if n.mid == m["id"])
+
     # --- construction ---
     def new(self, name):
         return {"name": name, "type": 0, "mod": 0, "usn": 0, "sortf": 0,
                 "did": None, "css": "", "flds": [], "tmpls": []}
 
     def new_field(self, name):
-        return {"name": name, "ord": 0}
+        return _field(name, 0)
 
     def new_template(self, name):
-        return {"name": name, "ord": 0, "qfmt": "", "afmt": ""}
+        return _template(name, 0, "", "")
 
     def add_field(self, m, field):
         field["ord"] = len(m["flds"])
@@ -326,7 +355,7 @@ class FakeNote:
 
     def __init__(self, col, notetype, nid=0):
         self._col = col
-        self._nt = notetype
+        self._nt = notetype        # only consulted before `mid` is resolvable
         self.id = nid
         self.mid = int(notetype["id"]) if notetype.get("id") else 0
         self.guid = ""
@@ -334,25 +363,42 @@ class FakeNote:
         self.usn = 0
         self.tags = []
         self.fields = [""] * len(notetype["flds"])
-        self._fmap = {f["name"]: i for i, f in enumerate(notetype["flds"])}
+        # Anki's shape: {name: (ord, field_dict)}. Retyping a note works by
+        # rebinding mid and this map, so both must match the real thing.
+        self._fmap = {f["name"]: (f["ord"], f) for f in notetype["flds"]}
 
     def keys(self):
-        return [f["name"] for f in self._nt["flds"]]
+        return list(self._fmap.keys())
 
     def items(self):
-        return list(zip(self.keys(), self.fields))
+        return [(f["name"], self.fields[ord_]) for ord_, f in sorted(self._fmap.values(),
+                                                                    key=lambda v: v[0])]
 
     def __contains__(self, name):
         return name in self._fmap
 
     def __getitem__(self, name):
-        return self.fields[self._fmap[name]]
+        return self.fields[self._fmap[name][0]]
 
     def __setitem__(self, name, value):
-        self.fields[self._fmap[name]] = value
+        self.fields[self._fmap[name][0]] = value
 
     def note_type(self):
-        return self._nt
+        # Derived from mid, like Anki - NOT a cached reference, or a retyped
+        # note would keep reporting its old notetype.
+        return self._col.models.get(self.mid) or self._nt
+
+    # Anki's tag helpers are case-insensitive and match a tag exactly - "verb"
+    # does NOT match "verb::transitive". replaceTags depends on that.
+    def has_tag(self, tag):
+        return tag.lower() in {t.lower() for t in self.tags}
+
+    def add_tag(self, tag):
+        if not self.has_tag(tag):
+            self.tags.append(tag)
+
+    def remove_tag(self, tag):
+        self.tags = [t for t in self.tags if t.lower() != tag.lower()]
 
     def fields_check(self):
         from fakes.anki_stubs import strip_html_media
@@ -361,7 +407,7 @@ class FakeNote:
         stripped = strip_html_media(first).strip()
         if not stripped:
             return 1  # EMPTY
-        if int(self._nt.get("type", 0)) == 1 and "{{c" not in "".join(self.fields):
+        if int(self.note_type().get("type", 0)) == 1 and "{{c" not in "".join(self.fields):
             return 3  # MISSING_CLOZE
         for other in self._col._notes.values():
             if other.id == self.id or other.mid != self.mid:
@@ -399,6 +445,15 @@ class FakeCard:
         self.lapses = 0
         self.left = 0
         self.flags = 0
+        self.original_position = None
+        self.custom_data = ""
+        # FSRS state, as current Anki carries it. memory_state is a protobuf
+        # message on the real thing, so tests stand in a stability/difficulty
+        # object rather than a dict.
+        self.memory_state = None
+        self.desired_retention = None
+        self.decay = None
+        self.last_review_time = None
 
     def note(self):
         return self._col.get_note(self.nid)
@@ -719,7 +774,7 @@ class FakeDb:
 
 class FakeCollection:
     def __init__(self, seed=True):
-        self.models = FakeModelManager(seed=seed)
+        self.models = FakeModelManager(self, seed=seed)
         self.decks = FakeDeckManager(seed=seed)
         self.media = FakeMediaManager()
         self.db = FakeDb(self)
@@ -858,7 +913,7 @@ class FakeCollection:
         note.guid = f"guid{note.id}"
         note.mod = 1700000000
         self._notes[note.id] = note
-        for t in note._nt["tmpls"]:
+        for t in note.note_type()["tmpls"]:
             self._next_card_id += 1
             self._next_due += 1
             self._cards[self._next_card_id] = FakeCard(

@@ -1,3 +1,7 @@
+import time
+
+from fastapi import Body
+
 from ...adapters.anki.models import (
     # Field subresource mutations
     create_field,
@@ -8,6 +12,7 @@ from ...adapters.anki.models import (
     delete_field,
     delete_model,
     delete_template,
+    find_and_replace_in_models,
     get_model_names_and_ids,
     get_models_by_ids,
     get_models_by_names,
@@ -19,8 +24,10 @@ from ...adapters.anki.models import (
     reorder_fields,
     reorder_templates,
 )
+from ...shared.errors import handle_mutation_errors
 from ...shared.planning import IndexSpec, MutationCaps, SourceCaps, SubresourceMutations
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
+from ...shared.schemas.models import FindReplaceRequest, FindReplaceResult
 from ...shared.schemas.wrappers import Paginated
 
 mutation_caps = MutationCaps(
@@ -89,3 +96,23 @@ router = create_resource_routes(
     tag="Models",
     description="Note types define the structure of cards in Anki."
 )
+
+
+@router.post(
+    "/v1/models:find-replace",
+    response_model=FindReplaceResult,
+    summary="Find and replace across templates and styling",
+    description="Literal (not regex) replacement in card templates and CSS. Omit `model_name` to sweep every model. Only models that actually contained the text are touched or counted.",
+    tags=["Models"],
+    operation_id="modelsFindReplace",
+)
+@handle_mutation_errors("find-replace")
+def find_replace(body: FindReplaceRequest = Body(...)) -> FindReplaceResult:
+    start = time.perf_counter()
+    affected = find_and_replace_in_models(
+        body.find, body.replace, body.model_name, body.front, body.back, body.css,
+    )
+    return FindReplaceResult(
+        affected=affected,
+        stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
+    )

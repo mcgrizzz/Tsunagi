@@ -227,6 +227,36 @@ def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
     return _note_info(col, note, {int(nt["id"]): nt["name"]})
 
 
+def _change_notetype(col: Collection, note: Any, req: NotePatch) -> None:
+    """
+    Retype a note in place.
+
+    Rebinding `mid` resizes the note to the new notetype's field count, which
+    blanks every value - so `fields` is required alongside, or the change would
+    silently empty the note. Refreshing the private `_fmap` is what makes
+    name-based assignment work afterwards; it is how Anki's own Note builds it,
+    and how AnkiConnect's updateNoteModel does the same job.
+    """
+    if req.fields is None:
+        raise ValidationError(
+            "changing a note's model requires 'fields': the new model's fields "
+            "start empty, so omitting them would erase the note"
+        )
+
+    if req.model_id is not None:
+        notetype = col.models.get(int(req.model_id))
+        missing: Any = req.model_id
+    else:
+        notetype = col.models.by_name(str(req.model_name))
+        missing = req.model_name
+    if not notetype:
+        raise ValidationError(f"model was not found: {missing}")
+
+    note.mid = int(notetype["id"])
+    note._fmap = col.models.field_map(notetype)
+    note.fields = [""] * len(notetype["flds"])
+
+
 @as_collection_op
 def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteInfo:
     req = NotePatch.parse_obj(updates)
@@ -239,6 +269,9 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
         if type(e).__name__ == "NotFoundError":
             raise ResourceNotFoundError("Note", note_id) from e
         raise
+
+    if req.model_id is not None or req.model_name is not None:
+        _change_notetype(col, note, req)
 
     if req.fields is not None:
         model_name = _model_names(col).get(int(note.mid), "")
