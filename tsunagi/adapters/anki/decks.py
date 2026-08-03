@@ -16,6 +16,7 @@ from ..ops import as_collection_op, as_query_op
 
 # Due counts aren't stored on the deck; they come from the scheduler's tree.
 STAT_FIELDS = frozenset({"new_count", "learn_count", "review_count", "total_in_deck"})
+ZERO_COUNTS = {k: 0 for k in sorted(STAT_FIELDS)}
 
 
 def _deck_stats(col: Collection) -> Dict[int, Dict[str, int]]:
@@ -45,7 +46,12 @@ def _deck_stats(col: Collection) -> Dict[int, Dict[str, int]]:
 def _deck_info(d: Mapping[str, Any], stats: Optional[Dict[int, Dict[str, int]]]) -> DeckInfo:
     info = DeckInfo.parse_obj(d)
     if stats is not None:
-        for k, v in stats.get(int(info.id), {}).items():
+        # A deck missing from the tree has nothing due, not unknown counts.
+        # Anki drops the Default deck from deck_due_tree() while it's empty
+        # and other decks exist, so without this it reported nulls where
+        # zeros are the truth.
+        counts = stats.get(int(info.id)) or ZERO_COUNTS
+        for k, v in counts.items():
             setattr(info, k, v)
     return info
 
@@ -96,10 +102,8 @@ def get_deck_stats(col: Collection, names: Sequence[str]) -> Dict[int, Dict[str,
         if deck is None:
             continue
         did = int(deck["id"])
-        counts = stats.get(did)
-        if counts is None:
-            continue
-        out[did] = {"deck_id": did, "name": deck["name"], **counts}
+        out[did] = {"deck_id": did, "name": deck["name"],
+                    **(stats.get(did) or ZERO_COUNTS)}
     return out
 
 

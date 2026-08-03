@@ -141,6 +141,57 @@ class TestSuspendBury:
                            ).json()["affected"] == 1
 
 
+class TestAffectedCounts:
+    """
+    `affected` counts cards the call actually CHANGED, on every verb.
+
+    Anki hands back a count for some scheduler ops and a bare OpChanges for
+    others; reporting "however many ids you sent" for the latter meant
+    unsuspending an unsuspended card claimed work it never did.
+    """
+
+    def test_suspend_ignores_already_suspended(self, seeded):
+        all_ids = ids(seeded)
+        seeded.post("/v1/cards:suspend", json={"card_ids": all_ids[:1]})
+        assert seeded.post("/v1/cards:suspend", json={"card_ids": all_ids}
+                           ).json()["affected"] == 2   # not 3
+
+    def test_unsuspend_counts_only_suspended_cards(self, seeded):
+        all_ids = ids(seeded)
+        seeded.post("/v1/cards:suspend", json={"card_ids": all_ids[:1]})
+        assert seeded.post("/v1/cards:unsuspend", json={"card_ids": all_ids}
+                           ).json()["affected"] == 1
+
+    def test_unsuspend_on_nothing_is_zero(self, seeded):
+        assert seeded.post("/v1/cards:unsuspend", json={"card_ids": ids(seeded)}
+                           ).json()["affected"] == 0
+
+    def test_unbury_counts_only_buried_cards(self, seeded):
+        all_ids = ids(seeded)
+        seeded.post("/v1/cards:bury", json={"card_ids": all_ids[:2]})
+        assert seeded.post("/v1/cards:unbury", json={"card_ids": all_ids}
+                           ).json()["affected"] == 2
+
+    def test_missing_ids_are_not_counted(self, seeded):
+        body = seeded.post("/v1/cards:forget",
+                           json={"card_ids": ids(seeded)[:1] + [999999]}).json()
+        assert body["affected"] == 1
+
+    def test_change_deck_ignores_cards_already_there(self, seeded):
+        target = ids(seeded, search="deck:Default")
+        seeded.post("/v1/cards:change-deck",
+                    json={"card_ids": target, "deck_name": "JP"})
+        assert seeded.post("/v1/cards:change-deck",
+                           json={"card_ids": target, "deck_name": "JP"}
+                           ).json()["affected"] == 0
+
+    def test_set_flag_ignores_unchanged(self, seeded):
+        cid = ids(seeded)[:1]
+        seeded.post("/v1/cards:set-flag", json={"card_ids": cid, "flag": 3})
+        assert seeded.post("/v1/cards:set-flag", json={"card_ids": cid, "flag": 3}
+                           ).json()["affected"] == 0
+
+
 class TestScheduling:
     def test_set_due_date(self, seeded):
         cid = ids(seeded)[0]

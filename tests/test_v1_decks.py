@@ -62,6 +62,19 @@ class TestStats:
         jp = [d for d in client.get("/v1/decks").json()["items"] if d["name"] == "JP"][0]
         assert jp["new_count"] == 3             # no select means the whole record
 
+    def test_deck_absent_from_the_tree_reports_zeros(self, client, fake_col):
+        # Regression: Anki drops the Default deck from deck_due_tree() while
+        # it's empty and other decks exist, and a deck with no node was
+        # reporting null counts - "unknown" where zero is the truth.
+        self._seed(client)                       # a second deck, so Default is dropped
+        assert 1 not in fake_col.sched.deck_due_tree_ids()
+
+        empty = client.get("/v1/decks", params={
+            "select": "name,new_count,review_count,total_in_deck",
+            "where": "name==Default", "shape": "object"}).json()["items"][0]
+        assert empty == {"name": "Default", "new_count": 0,
+                         "review_count": 0, "total_in_deck": 0}
+
     def test_parent_aggregates_children(self, client):
         client.post("/v1/decks", json={"name": "A::B"})
         client.post("/v1/notes", json={

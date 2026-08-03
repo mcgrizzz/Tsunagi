@@ -458,43 +458,44 @@ class FakeScheduler:
         # queue implied by its type.
         card.queue = card.type if card.type in (0, 1, 2) else 0
 
+    # Anki's OpChangesWithCount reports cards actually MODIFIED, not cards
+    # submitted - suspending an already-suspended card counts for nothing.
+    # unsuspend/unbury return a bare OpChanges with no count at all.
     def suspend_cards(self, ids):
-        cards = self._cards(ids)
-        for c in cards:
+        changed = [c for c in self._cards(ids) if c.queue != -1]
+        for c in changed:
             c.queue = -1
-        return SimpleNamespace(count=len(cards))
+        return SimpleNamespace(count=len(changed))
 
     def unsuspend_cards(self, ids):
-        cards = self._cards(ids)
-        for c in cards:
+        for c in self._cards(ids):
             if c.queue == -1:
                 self._restore_queue(c)
-        return SimpleNamespace(count=len(cards))
+        return SimpleNamespace()  # OpChanges: no count
 
     def bury_cards(self, ids, manual=True):
-        cards = self._cards(ids)
-        for c in cards:
-            c.queue = -3 if manual else -2
-        return SimpleNamespace(count=len(cards))
+        target = -3 if manual else -2
+        changed = [c for c in self._cards(ids) if c.queue != target]
+        for c in changed:
+            c.queue = target
+        return SimpleNamespace(count=len(changed))
 
     def unbury_cards(self, ids):
-        cards = self._cards(ids)
-        for c in cards:
+        for c in self._cards(ids):
             if c.queue in (-2, -3):
                 self._restore_queue(c)
-        return SimpleNamespace(count=len(cards))
+        return SimpleNamespace()  # OpChanges: no count
 
     def schedule_cards_as_new(self, card_ids, *, restore_position=False,
                               reset_counts=False, context=None):
-        cards = self._cards(card_ids)
-        for c in cards:
+        for c in self._cards(card_ids):
             c.type = 0
             c.queue = 0
             c.ivl = 0
             if reset_counts:
                 c.reps = 0
                 c.lapses = 0
-        return SimpleNamespace(count=len(cards))
+        return SimpleNamespace()  # OpChanges: no count
 
     def set_due_date(self, card_ids, days, config_key=None):
         low = str(days).split("-")[0]
@@ -502,17 +503,17 @@ class FakeScheduler:
             offset = int(low)
         except ValueError as e:
             raise ValueError(f"invalid due date: {days}") from e
-        cards = self._cards(card_ids)
-        for c in cards:
+        for c in self._cards(card_ids):
             c.type = 2
             c.queue = 2
             c.due = offset
             c.ivl = max(c.ivl, offset)
-        return SimpleNamespace(count=len(cards))
+        return SimpleNamespace()  # OpChanges: no count
 
     def reposition_new_cards(self, card_ids, starting_from, step_size,
                              randomize, shift_existing):
-        cards = self._cards(card_ids)
+        # Only cards in the new queue have a position to reposition.
+        cards = [c for c in self._cards(card_ids) if c.queue == 0]
         pos = starting_from
         for c in cards:
             c.due = pos
@@ -521,6 +522,11 @@ class FakeScheduler:
 
     def deck_due_tree(self):
         decks = sorted(self._col.decks.all(), key=lambda d: d["name"])
+        # Anki hides the Default deck from the tree while it's empty and other
+        # decks exist, exactly like the deck browser. Adapters must therefore
+        # cope with a deck having no node at all.
+        if len(decks) > 1 and not any(c.did == 1 for c in self._col._cards.values()):
+            decks = [d for d in decks if d["id"] != 1]
         own = {d["id"]: {"new_count": 0, "learn_count": 0,
                          "review_count": 0, "total_in_deck": 0} for d in decks}
         for c in self._col._cards.values():
@@ -559,6 +565,18 @@ class FakeScheduler:
             return node
 
         return build("", 0)
+
+    def deck_due_tree_ids(self):
+        """Deck ids the tree actually contains - lets tests assert the gap."""
+        seen = set()
+
+        def walk(node):
+            seen.add(int(node.deck_id))
+            for child in node.children:
+                walk(child)
+
+        walk(self.deck_due_tree())
+        return seen
 
 
 class FakeBackend:
@@ -768,6 +786,10 @@ class FakeCollection:
 
     def find_cards(self, query):
         q = (query or "").strip()
+        if q == "is:suspended":
+            return sorted(c.id for c in self._cards.values() if c.queue == -1)
+        if q == "is:buried":
+            return sorted(c.id for c in self._cards.values() if c.queue in (-2, -3))
         if q.startswith("cid:"):
             # AnkiConnect's areDue probes "cid:<id> is:new" / "cid:<id> is:due".
             cid_part, _, rest = q[4:].partition(" ")
@@ -801,7 +823,7 @@ class FakeCollection:
         count = 0
         for cid in card_ids:
             card = self._cards.get(int(cid))
-            if card is not None:
+            if card is not None and card.did != int(deck_id):
                 card.did = int(deck_id)
                 card.odid = 0
                 count += 1
@@ -811,8 +833,11 @@ class FakeCollection:
         count = 0
         for cid in cids:
             card = self._cards.get(int(cid))
-            if card is not None:
-                card.flags = (card.flags & ~0b111) | int(flag)
+            if card is None:
+                continue
+            new_flags = (card.flags & ~0b111) | int(flag)
+            if new_flags != card.flags:
+                card.flags = new_flags
                 count += 1
         return SimpleNamespace(count=count)
 
