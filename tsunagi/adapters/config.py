@@ -1,28 +1,46 @@
-import secrets
 import socket
+from typing import Tuple
 
-from aqt import mw
+# Top-level package name of the addon (= installed folder name); used as the
+# key for addonManager.getConfig/writeConfig.
+ADDON_PACKAGE = __name__.split(".")[0]
 
 DEFAULTS = {
-    "enabled": True, 
+    "enabled": True,
     "host": "127.0.0.1",
-    "port": 0, 
+    "port": 0,
     "prefer_port": 7777,
-    "token": "", 
+    "api_key": "",
     "cors_allowlist": [],
     "log_level": "warning",
     "op_timeout_seconds": 15,
-    "config_version": 1,
+    "ankiconnect_import_offered": False,
+    "config_version": 2,
 }
 
-def load_config() -> dict:
-    cfg = mw.addonManager.getConfig(__name__.split(".")[0]) or {}
-    # migrate or fill defaults
+def _migrate(cfg: dict) -> Tuple[dict, bool]:
+    """Fill defaults and upgrade legacy keys. Returns (cfg, changed). Pure."""
+    changed = False
+    # v1 auto-minted a "token" nobody ever saw or validated; copying it into
+    # api_key would silently turn auth ON and break existing clients. Drop it.
+    if "token" in cfg:
+        cfg.pop("token")
+        changed = True
     for k, v in DEFAULTS.items():
-        cfg.setdefault(k, v)
-    if not cfg.get("token"):
-        cfg["token"] = secrets.token_urlsafe(24)
-        mw.addonManager.writeConfig(__name__.split(".")[0], cfg)
+        if k not in cfg:
+            cfg[k] = v
+            changed = True
+    if cfg.get("config_version", 1) < 2:
+        cfg["config_version"] = 2
+        changed = True
+    return cfg, changed
+
+def load_config() -> dict:
+    from aqt import mw
+    cfg = mw.addonManager.getConfig(ADDON_PACKAGE) or {}
+    cfg, changed = _migrate(cfg)
+    if changed:
+        mw.addonManager.writeConfig(ADDON_PACKAGE, cfg)
     return cfg
 
 def _bindable(host: str, port: int) -> bool:

@@ -198,7 +198,7 @@ def make_zip(version: str):
 
     with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
         # top-level files
-        for rel in ["meta.json", "manifest.json", "config.json", "__init__.py", "README.md", "CHANGELOG.md"]:
+        for rel in ["meta.json", "manifest.json", "config.json", "config.md", "__init__.py", "README.md", "CHANGELOG.md"]:
             p = ROOT / rel
             if p.exists():
                 z.write(p, arcname=p.name)
