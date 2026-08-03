@@ -4,7 +4,6 @@
 /.serena
 /.claude
 /.wheelhouse
-/config.json
 /dist
 /lib
 /__pycache__
