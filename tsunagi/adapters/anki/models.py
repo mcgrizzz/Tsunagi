@@ -85,6 +85,18 @@ def get_model_names_and_ids(col: Collection, wants=None) -> List[Mapping[str, An
     return res
 
 
+def _saved(mm, model_id: int) -> ModelInfo:
+    """
+    Re-read a notetype after saving it.
+
+    Anki assigns field/template ordinals in the BACKEND on save - new_field()
+    and new_template() hand back ord=None, and add_field()/add_template() only
+    append. Serializing the in-memory working copy would emit a null ord (and,
+    after a removal or reposition, stale ones). One extra read buys the truth.
+    """
+    return ModelInfo.parse_obj(mm.get(int(model_id)))
+
+
 # requires: name, flds (need a name), tmpls
 # optional: field properties, template properties, type, css
 @as_collection_op #Undoable, background thread
@@ -147,7 +159,7 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
     # Save the model to collection
     mm.add(m)
 
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, m["id"])
 
 
 @as_collection_op
@@ -209,7 +221,7 @@ def patch_model(col: Collection, model_id: int, updates: Dict[str, Any]) -> Mode
     # (standard vs cloze) is fixed at creation and intentionally not patchable.
     copy_if_present(updates, m, ["name", "css", "sortf"])
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 @as_collection_op
@@ -258,7 +270,7 @@ def create_field(col: Collection, model_id: int, field_data: Dict[str, Any]) -> 
 
     mm.add_field(m, field)
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 @as_collection_op
@@ -289,7 +301,7 @@ def patch_field(col: Collection, model_id: int, field_name: str, updates: Dict[s
     ])
 
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 @as_collection_op
@@ -310,7 +322,7 @@ def delete_field(col: Collection, model_id: int, field_name: str) -> ModelInfo:
     field = find_in_subresource(m, "flds", field_name, "name")
     mm.remove_field(m, field)
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 @as_collection_op
@@ -334,7 +346,7 @@ def reorder_fields(col: Collection, model_id: int, order: List[str]) -> ModelInf
         mm.reposition_field(m, field, new_idx)
 
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 # ====================
@@ -365,7 +377,7 @@ def create_template(col: Collection, model_id: int, template_data: Dict[str, Any
 
     mm.add_template(m, template)
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 @as_collection_op
@@ -389,7 +401,7 @@ def patch_template(col: Collection, model_id: int, template_name: str, updates: 
     copy_if_present(updates, template, ["name", "qfmt", "afmt", "bqfmt", "bafmt"])
 
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 @as_collection_op
@@ -410,7 +422,7 @@ def delete_template(col: Collection, model_id: int, template_name: str) -> Model
     template = find_in_subresource(m, "tmpls", template_name, "name")
     mm.remove_template(m, template)
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)
 
 
 @as_collection_op
@@ -434,4 +446,4 @@ def reorder_templates(col: Collection, model_id: int, order: List[str]) -> Model
         mm.reposition_template(m, template, new_idx)
 
     mm.update_dict(m)
-    return ModelInfo.parse_obj(m)
+    return _saved(mm, model_id)

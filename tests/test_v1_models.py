@@ -85,3 +85,40 @@ class TestClozeCreation:
             "templates": [{"name": "Card 1", "qfmt": "{{A}}", "afmt": "x"}],
         })
         assert resp.json()["result"]["type"] == 0
+
+
+class TestOrdinalsAfterMutation:
+    """
+    Regression: Anki's new_field()/new_template() return ord=None and the
+    BACKEND assigns ordinals on save, so serializing the in-memory working
+    copy emitted a null ord and failed ModelInfo validation - modelFieldAdd
+    reported an error even though the field had been added.
+    """
+
+    def test_add_field_returns_valid_ordinals(self, client):
+        resp = client.post("/v1/models/1001/fields", json={"name": "Reading"})
+        assert resp.status_code in (200, 201), resp.text
+        fields = resp.json()["result"]["fields"]
+        assert [f["ord"] for f in fields] == [0, 1, 2]
+        assert [f["name"] for f in fields] == ["Front", "Back", "Reading"]
+
+    def test_add_template_returns_valid_ordinals(self, client):
+        resp = client.post("/v1/models/1001/templates",
+                           json={"name": "Reverse", "qfmt": "{{Back}}", "afmt": "{{Front}}"})
+        assert resp.status_code in (200, 201), resp.text
+        assert [t["ord"] for t in resp.json()["result"]["templates"]] == [0, 1]
+
+    def test_ordinals_renumber_after_removal(self, client):
+        client.post("/v1/models/1001/fields", json={"name": "Reading"})
+        resp = client.delete("/v1/models/1001/fields/Back")
+        fields = resp.json()["result"]["fields"]
+        # Stale ordinals from the working copy would leave a gap here.
+        assert [(f["name"], f["ord"]) for f in fields] == [("Front", 0), ("Reading", 1)]
+
+    def test_ordinals_follow_a_reorder(self, client):
+        client.post("/v1/models/1001/fields", json={"name": "Reading"})
+        resp = client.put("/v1/models/1001/fields:order",
+                          json={"order": ["Reading", "Front", "Back"]})
+        fields = resp.json()["result"]["fields"]
+        assert [(f["name"], f["ord"]) for f in fields] == [
+            ("Reading", 0), ("Front", 1), ("Back", 2)]
