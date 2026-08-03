@@ -190,7 +190,7 @@ Query operators (`==`, `>=`, `~=`, brackets, quotes, etc.) can be annoying to sh
 |-----------|-----------|----------|-------------|
 | `select`  | `string`  | -        | Comma-separated fields to return. Supports array projection and aliasing. |
 | `where`   | `string`* | -        | Filter expression. Repeat the parameter for multiple ANDed filters. |
-| `search`  | `string`  | -        | Anki search string (e.g. `deck:Japanese tag:verb`, `is:due`). Search-backed resources only (`/v1/notes`); others return 400. |
+| `search`  | `string`  | -        | Anki search string (e.g. `deck:Japanese tag:verb`, `is:due`). Search-backed resources only (`/v1/notes`, `/v1/cards`); others return 400. |
 | `shape`   | `string`  | `auto`   | `auto` (objects), `object` (always objects), `scalar` (single-field results as values). |
 | `limit`   | `integer` | `1000`   | Items per page (1–5000). |
 | `cursor`  | `string`  | -        | Opaque pagination cursor returned by the API. |
@@ -231,13 +231,32 @@ Every resource below supports the query parameters above, plus
   `templates` subresources (`POST/PATCH/DELETE /v1/models/{id}/fields/{name}`,
   `PUT /v1/models/{id}/fields:order`).
 - **`/v1/decks`** - Decks. Nested names use `::`; creating `A::B` creates `A`.
-  Filtered (dynamic) decks appear in reads.
+  Filtered (dynamic) decks appear in reads. Due counts (`new_count`,
+  `learn_count`, `review_count`, `total_in_deck`) come from the scheduler, so
+  they're only computed when your `select`/`where` mentions one — and then it's
+  one call for the whole page, not one per deck.
+- **`/v1/deck-configs`** - Deck options groups. Returned as Anki's config dicts
+  verbatim (newer scheduler keys survive a read-modify-write), so `select` and
+  `where` reach into `new`/`rev`/`lapse`. `PATCH` merges recursively. Assign one
+  to a deck with `PATCH /v1/decks/{id} {"config_id": ...}`.
 - **`/v1/notes`** - Notes. Supports `search`. `fields` come back as
   `[{name, value, ord}]` (so `where=fields[].name==Front` works); writes accept
   that array *or* a plain `{"Front": "犬"}` map. `cards` is only computed when
   your `select`/`where` asks for it.
   - **`POST /v1/notes:check`** - “can these be added?” per candidate, with
     `duplicate_note_ids` — without adding anything.
+- **`/v1/cards`** - Cards. Supports `search`. Read-only as a resource: cards are
+  generated from notes by a model's templates, so there is no `POST` or
+  `DELETE`. `due` is passed through raw — it means a queue position, a day
+  number or a timestamp depending on `queue`. The note-derived fields
+  (`model_name`, `css`, `fields`, `question`, `answer`) are only built when your
+  `select`/`where` asks for them.
+  - Scheduling is batch verb routes, so a bulk change is one undo entry:
+    `POST /v1/cards:suspend`, `:unsuspend`, `:bury`, `:unbury`, `:forget`,
+    `:set-due-date`, `:change-deck`, `:reposition`, `:set-flag`, `:set-ease`.
+- **`/v1/tags`** - Tags. `GET` (with optional `prefix`), `PATCH /v1/tags/{tag}`
+  to rename and `DELETE` to remove — both apply to the tag *and its children*,
+  like Anki. Plus `POST /v1/tags:bulk-add`, `:bulk-remove` and `:clear-unused`.
 - **`/v1/media`** - Media files. `GET /v1/media/{filename}` streams raw bytes
   with a real `Content-Type`; `POST /v1/media` takes base64 `data` or a `url`
   (local `path` is off by default, see `media_allow_local_path` in config) and
