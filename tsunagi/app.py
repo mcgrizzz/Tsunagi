@@ -26,6 +26,7 @@ from .http.v1.decks import router as decks_router
 from .http.v1.media import router as media_router
 from .http.v1.models import router as models_router
 from .http.v1.notes import router as notes_router
+from .http.v1.reviews import router as reviews_router
 from .http.v1.tags import router as tags_router
 from .shared.errors import register_exception_handlers
 
@@ -84,6 +85,7 @@ app.include_router(notes_router)
 app.include_router(cards_router)
 app.include_router(tags_router)
 app.include_router(deck_configs_router)
+app.include_router(reviews_router)
 app.include_router(media_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 

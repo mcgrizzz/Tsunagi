@@ -11,8 +11,8 @@ GitHub is stale (2023) and disagrees with it. Counts here come from the
 | | |
 | --- | --- |
 | Actions upstream | **122** |
-| Implemented | **86** |
-| Planned (M6) | **33** |
+| Implemented | **92** |
+| Planned (M6) | **27** |
 | Out of scope | **3** |
 
 `GET /actions` returns the live list. `tests/test_parity_doc.py` checks this
@@ -200,10 +200,10 @@ work.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `cardReviews` | M6 | M6 - lands with the native /v1/reviews read. |
-| `getCollectionStatsHTML` | M6 | M6 - lands with the native /v1/reviews read. |
-| `getLatestReviewID` | M6 | M6 - lands with the native /v1/reviews read. |
-| `getNumCardsReviewedByDay` | M6 | M6 - lands with the native /v1/reviews read. |
-| `getNumCardsReviewedToday` | M6 | M6 - lands with the native /v1/reviews read. |
-| `getReviewsOfCards` | M6 | M6 - lands with the native /v1/reviews read. |
+| `cardReviews` | implemented | Arrays in revlog column order. Deviation: canonical resolves the deck with `decks.id()`, which creates a missing deck; we resolve by name and report nothing. |
+| `getCollectionStatsHTML` | implemented | Anki's own stats report. |
+| `getLatestReviewID` | implemented | Same by-name deck resolution as `cardReviews`; 0 when the deck does not exist. |
+| `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. |
+| `getNumCardsReviewedToday` | implemented | Counted from the scheduler's day cutoff. |
+| `getReviewsOfCards` | implemented | Map of card id to reviews; every requested card gets an entry. |
 | `insertReviews` | out-of-scope | Writes revlog rows straight to the database, bypassing the scheduler. |

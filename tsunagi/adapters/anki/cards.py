@@ -180,42 +180,6 @@ def notes_of_cards(col: Collection, card_ids: Sequence[int]) -> List[int]:
 
 
 @as_query_op
-def card_intervals(col: Collection, card_ids: Sequence[int],
-                   complete: bool = False) -> List[Any]:
-    """
-    Review intervals from the revlog. Revlog has no native resource yet (a
-    /v1/reviews read is a later milestone), so this reads col.db directly.
-    """
-    out: List[Any] = []
-    for cid in card_ids:
-        if col.find_cards(f"cid:{cid} is:new"):
-            out.append(0)
-            continue
-        ivls = col.db.list("select ivl from revlog where cid = ?", cid)
-        out.append(ivls if complete else ivls[-1])
-    return out
-
-
-@as_query_op
-def cards_are_due(col: Collection, card_ids: Sequence[int]) -> List[bool]:
-    """AnkiConnect's areDue, including its revlog-based learning-card branch."""
-    import time as _time
-
-    out: List[bool] = []
-    for cid in card_ids:
-        if col.find_cards(f"cid:{cid} is:new"):
-            out.append(True)
-            continue
-        date, ivl = col.db.all(
-            "select id/1000.0, ivl from revlog where cid = ?", cid)[-1]
-        if ivl >= -1200:
-            out.append(bool(col.find_cards(f"cid:{cid} is:due")))
-        else:
-            out.append(date - ivl <= _time.time())
-    return out
-
-
-@as_query_op
 def cards_mod_times(col: Collection, card_ids: Sequence[int]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for cid in card_ids:
