@@ -15,6 +15,9 @@ from .config import DEFAULTS
 
 PersistFn = Callable[[Dict[str, Any]], None]
 
+# Browser-extension origin schemes covered by the "http://localhost" entry
+EXTENSION_ORIGINS = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
+
 
 class Settings:
     def __init__(self, config: Dict[str, Any], persist: Optional[PersistFn] = None):
@@ -56,8 +59,22 @@ class Settings:
         self.update(cors_allowlist=allowlist)
 
     def is_origin_allowed(self, origin: str) -> bool:
+        """
+        Mirrors AnkiConnect's allowOrigin: "*" allows everything, exact
+        matches win, and the "http://localhost" entry additionally allows
+        127.0.0.1 origins and browser extensions (this is why Yomitan works
+        against a stock AnkiConnect install with no setup).
+        """
         allowlist = self.get("cors_allowlist", [])
-        return origin in allowlist or "*" in allowlist
+        if "*" in allowlist or origin in allowlist:
+            return True
+        if "http://localhost" in allowlist:
+            return (
+                origin in ("http://127.0.0.1", "https://127.0.0.1")
+                or origin.startswith(("http://127.0.0.1:", "https://127.0.0.1:"))
+                or origin.startswith(EXTENSION_ORIGINS)
+            )
+        return False
 
 
 # Module singleton. Seeded with safe defaults (auth off, empty allowlist,

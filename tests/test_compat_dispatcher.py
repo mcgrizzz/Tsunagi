@@ -115,6 +115,39 @@ class TestMulti:
         assert body["error"]
 
 
+class TestBrowserOrigins:
+    """
+    Regression: Yomitan never calls requestPermission - it goes straight to
+    deckNames with version 2 from a chrome-extension:// origin. With
+    AnkiConnect's default allowlist that must just work.
+    """
+
+    YOMITAN = "chrome-extension://likgccmbimhjbgkjambclfkhldnlhbnn"
+
+    def test_extension_origin_works_out_of_the_box(self, client, fake_col):
+        resp = client.post("/", json={"action": "deckNames", "version": 2},
+                           headers={"Origin": self.YOMITAN})
+        assert resp.status_code == 200
+        assert resp.json() == ["Default"]  # version 2 -> bare result
+
+    def test_unknown_web_origin_is_403(self, client, reset_settings):
+        resp = client.post("/", json={"action": "version"},
+                           headers={"Origin": "https://evil.test"})
+        assert resp.status_code == 403
+
+    def test_unknown_origin_may_still_request_permission(self, client, reset_settings, monkeypatch):
+        # The dialog would otherwise need real Qt; assert the request reaches
+        # the dispatcher instead of being 403'd at the origin check.
+        monkeypatch.setattr(
+            "tsunagi.http.compat.ankiconnect._default_ask", lambda origin: False
+        )
+        reset_settings.configure({**DEFAULTS, "cors_allowlist": []}, persist=None)
+        resp = client.post("/", json={"action": "requestPermission", "version": 6},
+                           headers={"Origin": "https://site.test"})
+        assert resp.status_code == 200
+        assert resp.json() == {"result": {"permission": "denied"}, "error": None}
+
+
 class TestRegistry:
     def test_duplicate_registration_raises(self):
         with pytest.raises(ValueError):

@@ -40,6 +40,22 @@ class TestSettings:
         s.update(cors_allowlist=["*"])
         assert s.is_origin_allowed("https://anything.test")
 
+    def test_localhost_entry_covers_extensions_and_loopback(self):
+        # AnkiConnect semantics: the "http://localhost" entry also allows
+        # 127.0.0.1 origins and browser extensions (this is what makes
+        # Yomitan work with no setup).
+        s = Settings({"cors_allowlist": ["http://localhost"]})
+        assert s.is_origin_allowed("chrome-extension://likgccmbimhjbgkjambclfkhldnlhbnn")
+        assert s.is_origin_allowed("moz-extension://abc")
+        assert s.is_origin_allowed("safari-web-extension://abc")
+        assert s.is_origin_allowed("http://127.0.0.1")
+        assert s.is_origin_allowed("http://127.0.0.1:8080")
+        assert not s.is_origin_allowed("https://evil.test")
+
+    def test_extensions_blocked_without_localhost_entry(self):
+        s = Settings({"cors_allowlist": ["https://a.test"]})
+        assert not s.is_origin_allowed("chrome-extension://abc")
+
     def test_snapshot_is_a_copy(self):
         s = Settings({"a": 1})
         snap = s.snapshot()

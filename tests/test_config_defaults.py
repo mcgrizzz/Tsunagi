@@ -36,7 +36,19 @@ class TestMigrate:
         cfg["config_version"] = 1
         cfg, changed = _migrate(cfg)
         assert changed
-        assert cfg["config_version"] == 2
+        assert cfg["config_version"] == 3
+
+    def test_v2_install_gains_localhost_allowlist(self):
+        # Pre-v3 installs have an empty allowlist, which blocks browser
+        # extensions (Yomitan); the migration adds AnkiConnect's default.
+        cfg, changed = _migrate({**DEFAULTS, "cors_allowlist": [], "config_version": 2})
+        assert changed
+        assert cfg["cors_allowlist"] == ["http://localhost"]
+
+    def test_migration_keeps_user_origins(self):
+        cfg, _ = _migrate({**DEFAULTS, "cors_allowlist": ["https://mine.test"],
+                           "config_version": 2})
+        assert cfg["cors_allowlist"] == ["http://localhost", "https://mine.test"]
 
     def test_user_values_preserved(self):
         cfg, _ = _migrate({"prefer_port": 8888, "api_key": "mine"})

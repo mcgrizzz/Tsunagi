@@ -10,7 +10,11 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from tsunagi.adapters.settings import Settings
-from tsunagi.http.compat.ankiconnect import API_KEY_ERROR, handle_ankiconnect_rpc
+from tsunagi.http.compat.ankiconnect import (
+    API_KEY_ERROR,
+    handle_ankiconnect_rpc,
+    origin_allowed_for,
+)
 from tsunagi.http.compat.registry import registry
 
 ORIGIN = "https://allowed.test"
@@ -85,20 +89,25 @@ class TestKeyGate:
 
 
 class TestOriginGate:
-    def test_unknown_origin_canonical_error(self):
-        s = Settings({"api_key": "", "cors_allowlist": []})
-        resp = rpc("testEcho", s, origin=OTHER)
-        assert resp["error"] == API_KEY_ERROR
+    """
+    Origin enforcement is HTTP-layer (403), matching AnkiConnect - see
+    origin_allowed_for. The dispatcher itself no longer inspects origins
+    except for requestPermission.
+    """
 
-    def test_allowed_origin_dispatches(self):
-        s = Settings({"api_key": "", "cors_allowlist": [ORIGIN]})
-        resp = rpc("testEcho", s, origin=ORIGIN)
-        assert resp["error"] is None
+    def test_no_origin_allowed(self):
+        assert origin_allowed_for("testEcho", None, Settings({"cors_allowlist": []}))
 
-    def test_key_does_not_override_unknown_origin(self):
-        s = Settings({"api_key": "k", "cors_allowlist": []})
-        resp = rpc("testEcho", s, origin=OTHER, key="k")
-        assert resp["error"] == API_KEY_ERROR
+    def test_unknown_origin_blocked(self):
+        assert not origin_allowed_for("testEcho", OTHER, Settings({"cors_allowlist": []}))
+
+    def test_allowed_origin_passes(self):
+        s = Settings({"cors_allowlist": [ORIGIN]})
+        assert origin_allowed_for("testEcho", ORIGIN, s)
+
+    def test_request_permission_always_passes(self):
+        s = Settings({"cors_allowlist": []})
+        assert origin_allowed_for("requestPermission", OTHER, s)
 
 
 class TestEnvelopeOverHttp:

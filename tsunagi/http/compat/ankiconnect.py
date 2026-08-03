@@ -9,8 +9,13 @@ Wire semantics verified against AnkiConnect's source:
 - `multi` re-dispatches each entry of params["actions"] as a full raw request
   (own version default 4, own key check); one failure doesn't abort the rest;
   nested multi is allowed. The list is wrapped per the OUTER version.
-- requestPermission is exempt from the key/origin gates but its result is
-  still version-formatted.
+- requestPermission is exempt from the key gate but its result is still
+  version-formatted.
+
+Origin enforcement lives in the HTTP layer (app.py: origin_allowed_for -> 403
+with an empty body, as AnkiConnect does), not here, so that multi sub-actions
+aren't re-checked and a blocked origin gets the same wire response
+AnkiConnect gives.
 
 NOTE: action handlers are registered by importing the action modules
 (compat/actions/). That side-effect import lives in app.py, not here, so this
@@ -107,15 +112,14 @@ def handle_ankiconnect_rpc(
     if action == "requestPermission":
         return _success(version, _request_permission(origin, settings, ask_permission))
 
-    # Key + origin gate. Runs per invocation, so multi sub-actions are each
-    # gated with their own key (matches AnkiConnect).
+    # Key gate. Runs per invocation, so multi sub-actions are each gated with
+    # their own key (matches AnkiConnect).
     api_key: str = settings.get("api_key", "")
     key_ok = (not api_key) or (
         isinstance(key, str)
         and secrets.compare_digest(key.encode(), api_key.encode())
     )
-    origin_ok = origin is None or settings.is_origin_allowed(origin)
-    if not (key_ok and origin_ok):
+    if not key_ok:
         return _error(API_KEY_ERROR)
 
     # multi: dispatcher-level, recursive. Each sub-entry is a full raw request.
@@ -146,6 +150,20 @@ def handle_ankiconnect_rpc(
         # Server error - log internally, return a generic string to the client
         print("[tsunagi] compat action failed:\n" + traceback.format_exc())
         return _error(ACTION_FAILED)
+
+
+def origin_allowed_for(action: str, origin: Optional[str], settings: Any = None) -> bool:
+    """
+    AnkiConnect's rule: a request with no Origin (non-browser client) is fine,
+    an allowlisted origin is fine, and requestPermission is always let through
+    so a browser client can ask for access.
+    """
+    if origin is None:
+        return True
+    if action == "requestPermission":
+        return True
+    settings = settings if settings is not None else _default_settings()
+    return settings.is_origin_allowed(origin)
 
 
 def get_available_actions() -> Dict[str, list[str]]:
