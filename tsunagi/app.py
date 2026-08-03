@@ -3,7 +3,7 @@ import sys
 import threading
 import traceback
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
@@ -11,15 +11,11 @@ from pydantic import BaseModel, Field
 from .adapters.config import ADDON_PACKAGE, choose_port, load_config
 from .adapters.settings import settings
 from .http.compat import (
-    models as _compat_models,  # noqa: F401  (side-effect import: registers action handlers)
+    actions as _compat_actions,  # noqa: F401  (side-effect import: registers action handlers)
 )
-from .http.compat.ankiconnect import (
-    AnkiConnectRequest,
-    AnkiConnectResponse,
-    get_available_actions,
-    handle_ankiconnect_rpc,
-)
+from .http.compat.ankiconnect import get_available_actions, handle_ankiconnect_rpc
 from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
+from .http.v1.decks import router as decks_router
 from .http.v1.models import router as models_router
 from .shared.errors import register_exception_handlers
 
@@ -38,6 +34,10 @@ app = FastAPI(
             "description": "Note types (models) and their fields and templates. Models define the structure of cards in Anki."
         },
         {
+            "name": "Decks",
+            "description": "Deck hierarchy (nested names use '::'). Filtered (dynamic) decks appear in reads; mutations operate on normal decks."
+        },
+        {
             "name": "Health",
             "description": "API health and status checks"
         },
@@ -49,6 +49,7 @@ app = FastAPI(
 )
 
 app.include_router(models_router)
+app.include_router(decks_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 
 # Auth inner, CORS outermost (added last runs first) so auth 401s still carry
@@ -76,13 +77,13 @@ def root_landing_page():
 # Root POST endpoint - AnkiConnect compatibility
 @app.post(
     "/",
-    response_model=AnkiConnectResponse,
+    response_model=None,  # replies are bare values (version<=4) or envelopes - shape varies
     summary="AnkiConnect RPC endpoint",
     description="AnkiConnect-compatible POST endpoint at root. Send action and params in JSON body.",
     tags=["AnkiConnect Compatibility"],
     operation_id="ankiConnectRpc"
 )
-def ankiconnect_rpc_endpoint(body: AnkiConnectRequest, request: Request) -> AnkiConnectResponse:
+def ankiconnect_rpc_endpoint(body: Dict[str, Any], request: Request) -> Any:
     """
     Handle AnkiConnect-style RPC requests at the root path.
 

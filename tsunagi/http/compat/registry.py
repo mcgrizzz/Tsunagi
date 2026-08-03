@@ -1,15 +1,18 @@
 """
 Action registry for AnkiConnect compatibility layer.
 
-This module provides a registry pattern for mapping AnkiConnect action names
-to handler functions. Handlers receive AnkiConnect parameters and return
-results in AnkiConnect format.
+Maps AnkiConnect action names to handler functions. Handlers either take the
+raw params dict, or - when registered with a pydantic params model - the
+validated model instance.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple, Type
 
-ActionHandler = Callable[[Dict[str, Any]], Any]
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
+
+ActionHandler = Callable[[Any], Any]
 
 
 class AnkiConnectRegistry:
@@ -17,41 +20,39 @@ class AnkiConnectRegistry:
     Registry for AnkiConnect action handlers.
 
     Example usage:
-        registry = AnkiConnectRegistry()
+        @registry.register("deckNames")
+        def ac_deckNames(params: Dict[str, Any]) -> List[str]:
+            ...
 
-        @registry.register("findModelsById")
-        def find_models_by_id(params: Dict[str, Any]) -> List[Optional[Dict[str, Any]]]:
-            model_ids = params.get("modelIds", [])
-            # ... implementation
-            return results
+        class ModelFieldNamesParams(BaseModel):
+            modelName: str
 
-        # Later, handle a request:
-        result = registry.handle("findModelsById", {"modelIds": [123, 456]})
+        @registry.register("modelFieldNames", params=ModelFieldNamesParams)
+        def ac_modelFieldNames(p: ModelFieldNamesParams) -> List[str]:
+            ...  # receives the validated model instance
     """
 
     def __init__(self):
-        self._handlers: Dict[str, ActionHandler] = {}
+        self._handlers: Dict[str, Tuple[ActionHandler, Optional[Type[BaseModel]]]] = {}
 
-    def register(self, action_name: str) -> Callable[[ActionHandler], ActionHandler]:
+    def register(
+        self,
+        action_name: str,
+        params: Optional[Type[BaseModel]] = None,
+    ) -> Callable[[ActionHandler], ActionHandler]:
         """
         Decorator to register an action handler.
 
         Args:
-            action_name: The AnkiConnect action name (e.g., "findModelsById")
-
-        Returns:
-            Decorator function
-
-        Example:
-            @registry.register("createModel")
-            def create_model(params: Dict[str, Any]) -> int:
-                # ...
-                return model_id
+            action_name: The AnkiConnect action name (e.g., "deckNames")
+            params: Optional pydantic model; when given, incoming params are
+                validated against it and the handler receives the instance.
+                Validation failure surfaces as the action's error string.
         """
         def decorator(func: ActionHandler) -> ActionHandler:
             if action_name in self._handlers:
                 raise ValueError(f"Action '{action_name}' is already registered")
-            self._handlers[action_name] = func
+            self._handlers[action_name] = (func, params)
             return func
         return decorator
 
@@ -59,24 +60,20 @@ class AnkiConnectRegistry:
         """
         Execute a handler for the given action.
 
-        Args:
-            action_name: The AnkiConnect action name
-            params: Parameters for the action (optional)
-
-        Returns:
-            Result from the handler
-
         Raises:
-            ValueError: If action is not registered
+            ValueError: unknown action, or params failed validation
         """
         if action_name not in self._handlers:
-            available = ", ".join(sorted(self._handlers.keys()))
-            raise ValueError(
-                f"Unknown action: '{action_name}'. "
-                f"Available actions: {available if available else 'none'}"
-            )
+            from .errors import UNSUPPORTED_ACTION
+            raise ValueError(UNSUPPORTED_ACTION)
 
-        handler = self._handlers[action_name]
+        handler, model = self._handlers[action_name]
+        if model is not None:
+            try:
+                parsed = model.parse_obj(params or {})
+            except PydanticValidationError as e:
+                raise ValueError(str(e)) from e
+            return handler(parsed)
         return handler(params or {})
 
     def is_registered(self, action_name: str) -> bool:
