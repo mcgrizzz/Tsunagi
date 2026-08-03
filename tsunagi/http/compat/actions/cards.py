@@ -12,8 +12,6 @@ from pydantic import BaseModel
 
 from ....adapters.anki.cards import (
     card_ease_factors,
-    card_intervals,
-    cards_are_due,
     cards_mod_times,
     cards_suspended,
     forget_cards,
@@ -25,6 +23,7 @@ from ....adapters.anki.cards import (
     suspend_cards,
     unsuspend_cards,
 )
+from ....adapters.anki.reviews import card_intervals, cards_are_due
 from ..errors import CARD_NOT_FOUND
 from ..registry import registry
 

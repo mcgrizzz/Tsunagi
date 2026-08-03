@@ -61,6 +61,40 @@ def col(tmp_path):
 
 
 @pytest.fixture()
+def answer_cards(col):
+    """
+    Answer queued cards through the real scheduler.
+
+    The only honest way to get review history: real revlog rows, real
+    intervals, and - with FSRS on - real memory state computed by Anki rather
+    than values we made up. Returns how many it actually got through.
+    """
+    def answer(count=1, rating="good"):
+        from anki.cards import Card
+        from anki.scheduler.v3 import CardAnswer
+
+        # build_answer takes the protobuf enum, which is 0-based - revlog.ease
+        # ends up as rating + 1. Passing the button number straight in silently
+        # answers one grade too high, so go through the names.
+        ratings = {"again": CardAnswer.AGAIN, "hard": CardAnswer.HARD,
+                   "good": CardAnswer.GOOD, "easy": CardAnswer.EASY}
+        done = 0
+        for _ in range(count):
+            queued = col.sched.get_queued_cards(fetch_limit=1)
+            if not queued.cards:
+                break
+            top = queued.cards[0]
+            card = Card(col, backend_card=top.card)
+            card.start_timer()
+            col.sched.answer_card(col.sched.build_answer(
+                card=card, states=top.states, rating=ratings[rating]))
+            done += 1
+        return done
+
+    return answer
+
+
+@pytest.fixture()
 def reset_settings():
     """Pin the live settings singleton to defaults for the test's duration."""
     from tsunagi.adapters.config import DEFAULTS
