@@ -76,6 +76,18 @@ class TestReads:
         lean = seeded.get("/v1/notes", params={"select": "id,model_name", "shape": "object"}).json()
         assert "cards" not in lean["items"][0]
 
+    def test_limit_counts_returned_items_not_rows_scanned(self, client):
+        # Contract: `limit` bounds the RESULTS. It is never a bound on how
+        # much of the collection is examined - matches buried past the first
+        # `limit` rows must still be found (see the completeness guarantee).
+        for i in range(20):
+            add(client, front=("犬" if i % 7 == 0 else "other") + str(i))
+        body = client.get("/v1/notes", params={
+            "where": "fields[].value~=犬", "limit": 2}).json()
+        assert len(body["items"]) == 2               # exactly the page asked for
+        assert all("犬" in n["fields"][0]["value"] for n in body["items"])
+        assert body["next_cursor"] is not None       # a third match remains
+
     def test_get_post_parity(self, seeded):
         get_body = seeded.get("/v1/notes", params={"search": "tag:vocab", "select": "id"}).json()
         post_body = seeded.post("/v1/notes/query",
