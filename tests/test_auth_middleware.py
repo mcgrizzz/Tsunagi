@@ -62,8 +62,9 @@ class TestAuthOn:
     def test_options_exempt(self, keyed_client):
         assert keyed_client.options("/v1/thing").status_code != 401
 
-    def test_health_is_protected(self, keyed_client):
-        assert keyed_client.get("/v1/health").status_code == 401
+    def test_health_exempt(self, keyed_client):
+        # Liveness probe stays reachable so clients can test the connection
+        assert keyed_client.get("/v1/health").status_code == 200
 
     def test_compat_root_post_exempt(self, keyed_client):
         # POST / delegates key checking to the dispatcher's body "key" field

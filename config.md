@@ -23,7 +23,8 @@ unless you know exactly what exposing Anki on your network means.
   - AnkiConnect endpoint (`POST /`): send a top-level `"key"` field in the
     JSON body (AnkiConnect convention). Missing/wrong key returns the
     canonical `"valid api key must be provided"` error.
-  - The docs pages (`/docs`, `/openapi.json`) stay reachable without a key.
+  - The docs pages (`/docs`, `/openapi.json`) and the liveness probe
+    (`/v1/health`) stay reachable without a key.
 
 ### `cors_allowlist`
 Website origins (e.g. `"https://example.com"`) allowed to call Tsunagi from a
