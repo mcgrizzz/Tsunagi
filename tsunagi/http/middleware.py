@@ -15,12 +15,13 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
 # Paths reachable without an API key:
-# - "/"     : GET redirects to docs; POST is the AnkiConnect RPC, which checks
-#             the AnkiConnect-style top-level "key" body field in the
-#             dispatcher instead of headers.
-# - docs    : opened in a browser, where custom headers can't be sent. The
-#             schema leaks structure, not data, on a loopback-bound server.
-AUTH_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"}
+# - "/"        : GET redirects to docs; POST is the AnkiConnect RPC, which
+#                checks the AnkiConnect-style top-level "key" body field in
+#                the dispatcher instead of headers.
+# - docs       : opened in a browser, where custom headers can't be sent. The
+#                schema leaks structure, not data, on a loopback-bound server.
+# - /v1/health : liveness probe; leaks nothing an open port doesn't already.
+AUTH_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect", "/v1/health"}
 
 
 class ApiKeyAuthMiddleware:
