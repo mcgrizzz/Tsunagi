@@ -1,23 +1,27 @@
-from typing import Any, Generic, List, Optional, Sequence, TypeVar, Union, Mapping
-from pydantic import BaseModel, ConfigDict
-from pydantic.fields import Field
+from typing import Generic, List, Optional, Sequence, TypeVar, Union
+
+from pydantic import BaseModel, Field
+from pydantic.generics import GenericModel
 
 # Scalars we may return when shape=scalar or auto-flatten
 Scalar = Union[str, int, float, bool, None]
 
 # Free-form projected object (when select=... returns dicts)
 class ProjectedObject(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    class Config:
+        extra = "allow"
 
-# Generic paginated envelope; covariant + Sequence fixes list invariance issues
+# Generic paginated envelope; covariant + Sequence fixes list invariance issues.
+# Must be GenericModel (not BaseModel + Generic): parametrizing a plain
+# BaseModel leaks typing's __orig_class__ into __dict__/.dict() output.
 T = TypeVar("T", covariant=True)
 
-class Paginated(BaseModel, Generic[T]):
+class Paginated(GenericModel, Generic[T]):
     items: Sequence[T]
     next_cursor: Optional[str] = None
     stats: dict
 
-class MutationResult(BaseModel, Generic[T]):
+class MutationResult(GenericModel, Generic[T]):
     result: T
     stats: dict
 

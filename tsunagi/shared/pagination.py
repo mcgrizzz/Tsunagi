@@ -1,5 +1,6 @@
-import base64, json
-from typing import Callable, Iterable, List, Tuple, TypeVar, Optional
+import base64
+import json
+from typing import Callable, Iterable, List, Optional, Tuple, TypeVar
 
 T = TypeVar("T")
 

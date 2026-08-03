@@ -1,12 +1,23 @@
 # tsunagi/shared/filtering.py
 from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import lru_cache, partial
 from itertools import chain
-from typing import Any, Callable, Iterable, Iterator, List, Mapping, Sequence, Tuple, Dict
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Tuple,
+)
+
 from lark import Lark, Transformer, v_args
-from lark.visitors import Discard
 from lark.exceptions import UnexpectedInput
+from lark.visitors import Discard
 
 # Grammar for ONE clause. Multiple ?where=... params → AND.
 # Examples:
@@ -41,9 +52,10 @@ OP    : "==" | "!=" | "~=" | ">=" | "<=" | ">" | "<"
 LBRACK: "["
 RBRACK: "]"
 
-TRUE  : /true/i
-FALSE : /false/i
-NULL  : /null/i
+// Priority 2 so these beat NAME; \b stops them matching prefixes (e.g. "truely")
+TRUE.2  : /true\b/i
+FALSE.2 : /false\b/i
+NULL.2  : /null\b/i
 
 NAME : /[A-Za-z_][A-Za-z0-9_]*/
 %import common.SIGNED_NUMBER
@@ -62,7 +74,8 @@ class WhereParseError(ValueError): ...
 
 @v_args(inline=True)
 class _WhereTransformer(Transformer):
-    def ARR(self, _): return Discard
+    # NOTE: ARR ("[]") must NOT be discarded - path() relies on it to mark
+    # array traversal in the compiled accessor tokens.
     def DOT(self, _): return Discard
     def LBRACK(self, _): return Discard
     def RBRACK(self, _): return Discard
@@ -112,9 +125,18 @@ def parse_where(clause_text: str) -> Clause:
         return out
     except UnexpectedInput as e:
         ctx = e.get_context(clause_text)
-        raise WhereParseError(f"Malformed where clause {clause_text!r}:\n{ctx}") from None
+        raise WhereParseError(
+            f"Malformed where clause {clause_text!r}:\n{ctx}\n\n"
+            f"Valid examples:\n"
+            f"  - id==123\n"
+            f"  - name~=\"Basic\"\n"
+            f"  - type>=0\n"
+            f"  - id in [1,2,3]\n"
+            f"  - flds[].name==\"Front\"\n"
+            f"  - name not in [\"Cloze\",\"Basic\"]"
+        ) from None
     except Exception as e:
-        raise WhereParseError(f"Malformed where clause {clause_text!r}: {e}")
+        raise WhereParseError(f"Malformed where clause {clause_text!r}: {e}") from e
 
 # ----- Accessors (compiled & cached) -----
 

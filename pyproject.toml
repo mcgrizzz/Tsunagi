@@ -1,0 +1,30 @@
+[project]
+name = "tsunagi"
+version = "0.0.1"
+description = "HTTP API for Anki with advanced querying and pagination"
+requires-python = ">=3.9"
+
+# Runtime deps are vendored by tools/build_addon.py (tools/requirements.lock.txt
+# is the single source of truth); tests run against the vendored lib/shared.
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "httpx<0.28"]  # starlette 0.36 TestClient breaks on httpx 0.28
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The repo root is itself the addon package (__init__.py imports aqt);
+# importlib mode stops pytest from importing it as a parent package.
+addopts = "--import-mode=importlib"
+
+[tool.ruff]
+target-version = "py39"
+extend-exclude = ["lib", ".wheelhouse", "dist"]
+
+[tool.ruff.lint]
+# Lean ruleset: real defects (F, B, E4/E9 syntax+imports) + import order (I).
+# Style rules (E1/E5/E7) are deliberately excluded to avoid mass reformatting.
+select = ["E4", "E9", "F", "B", "I"]
+ignore = ["E401"]  # existing compact style uses `import a, b`
+
+[tool.ruff.lint.flake8-bugbear]
+# fastapi's Query/Body/Path in defaults is the framework idiom, not a bug
+extend-immutable-calls = ["fastapi.Query", "fastapi.Body", "fastapi.Path"]
