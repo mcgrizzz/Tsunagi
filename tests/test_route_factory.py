@@ -20,6 +20,7 @@ from tsunagi.shared.errors import ValidationError as TsunagiValidationError
 from tsunagi.shared.planning import (
     IndexSpec,
     MutationCaps,
+    SearchSpec,
     SourceCaps,
     SubresourceMutations,
 )
@@ -46,7 +47,7 @@ class FakeStore:
     def fetch_all(self):
         return copy.deepcopy(self.rows)
 
-    def fetch_by_ids(self, ids):
+    def fetch_by_ids(self, ids, wants=None):
         return [copy.deepcopy(r) for r in self.rows if r["id"] in set(ids)]
 
     def fetch_id_name(self):
@@ -226,6 +227,75 @@ class TestQueries:
         resp = TestClient(app, raise_server_exceptions=False).get("/v1/boom")
         assert resp.status_code == 500
         assert "secret internals" not in resp.text
+
+
+class TestSearchParam:
+    """The search tier over the HTTP surface, incl. GET/POST parity."""
+
+    @pytest.fixture()
+    def search_client(self, store):
+        def find_ids(query):
+            # Trivial stand-in for Anki search: "type0" -> the type==0 rows
+            rows = store.rows if query != "type0" else [r for r in store.rows if r["type"] == 0]
+            return [r["id"] for r in rows]
+
+        caps = SourceCaps(
+            indices=[IndexSpec(path=("id",), fetch_values=store.fetch_by_ids, coerce=_int_or_none)],
+            search=SearchSpec(find_ids=find_ids, hydrate=store.fetch_by_ids),
+        )
+        app = FastAPI()
+        app.include_router(create_resource_routes(
+            path="/v1/things", caps=caps, response_model=None,
+            id_getter=make_id_getter("id"),
+            resource_name="thing", resource_plural="things", tag="Things",
+        ))
+        return TestClient(app)
+
+    def test_search_filters(self, search_client):
+        body = search_client.get("/v1/things", params={"search": "type0"}).json()
+        assert [r["id"] for r in body["items"]] == [1, 3]
+
+    def test_bare_list_uses_scan(self, search_client):
+        # No fetch_all on these caps: a plain GET still works via the scan tier
+        body = search_client.get("/v1/things").json()
+        assert [r["id"] for r in body["items"]] == [1, 2, 3]
+
+    def test_get_post_parity(self, search_client):
+        get_body = search_client.get(
+            "/v1/things", params={"search": "type0", "select": "id,name", "shape": "object"}
+        ).json()
+        post_body = search_client.post(
+            "/v1/things/query",
+            json={"search": "type0", "select": "id,name", "shape": "object"},
+        ).json()
+        assert get_body["items"] == post_body["items"]
+
+    def test_unsupported_search_is_400(self, client):
+        # `client` fixture has no SearchSpec
+        assert client.get("/v1/things", params={"search": "x"}).status_code == 400
+
+    def test_short_page_still_has_cursor(self, search_client):
+        # Documented contract: on search-backed resources `where` filters the
+        # page AFTER id-level pagination, so a page can be empty while more
+        # pages remain. Clients must iterate until next_cursor is null.
+        body = search_client.get(
+            "/v1/things", params={"limit": 1, "where": "name==Cloze"}
+        ).json()
+        assert body["items"] == []
+        assert body["next_cursor"] is not None
+
+    def test_cursor_walks_every_row(self, search_client):
+        seen, cursor = [], None
+        while True:
+            params = {"limit": 1}
+            if cursor:
+                params["cursor"] = cursor
+            body = search_client.get("/v1/things", params=params).json()
+            seen += [r["id"] for r in body["items"]]
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert seen == [1, 2, 3]
 
 
 class TestAvailabilityErrors:

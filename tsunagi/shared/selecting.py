@@ -223,6 +223,26 @@ def maybe_flatten(projected_rows: List[Dict[str, Any]], nodes: Sequence[SelectNo
         return values
     return projected_rows
 
+def referenced_top_fields(select_text: Optional[str]) -> Optional[Set[str]]:
+    """
+    Every top-level field name the select touches, including array bases
+    ('flds[].name' -> 'flds'). Returns None only when there is no select,
+    meaning "the whole record".
+
+    Unlike selected_top_fields (which answers "can a columns fetcher serve
+    this?" and bails on arrays), this answers "which fields must be built?"
+    so fetchers can skip expensive ones.
+    """
+    if not select_text:
+        return None
+    tops: Set[str] = set()
+    for n in parse_select_csv(select_text):
+        if isinstance(n, SelectScalar):
+            tops.add(n.path[0])
+        else:
+            tops.add(n.base[0])
+    return tops
+
 # So we can do data-fetching optimization later
 def selected_top_fields(select_text: Optional[str]) -> Optional[Set[str]]:
     """

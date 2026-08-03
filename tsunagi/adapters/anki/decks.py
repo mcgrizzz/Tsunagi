@@ -20,7 +20,8 @@ def list_decks(col: Collection) -> List[DeckInfo]:
     return [DeckInfo.parse_obj(d) for d in col.decks.all()]
 
 @as_query_op
-def get_decks_by_ids(col: Collection, ids: Sequence[int]) -> List[DeckInfo]:
+def get_decks_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[DeckInfo]:
+    # `wants` accepted for the fetcher contract; decks have no expensive fields.
     out: List[DeckInfo] = []
     for did in ids:
         d = col.decks.get(did, default=False)
@@ -29,7 +30,7 @@ def get_decks_by_ids(col: Collection, ids: Sequence[int]) -> List[DeckInfo]:
     return out
 
 @as_query_op
-def get_decks_by_names(col: Collection, names: Sequence[str]) -> List[DeckInfo]:
+def get_decks_by_names(col: Collection, names: Sequence[str], wants=None) -> List[DeckInfo]:
     out: List[DeckInfo] = []
     for name in names:
         d = col.decks.by_name(name)

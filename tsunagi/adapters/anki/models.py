@@ -28,7 +28,9 @@ def list_models(col: Collection) -> List[ModelInfo]:
     return [ModelInfo.parse_obj(m) for m in col.models.all()] # 1 query + 3*each notetype This is worst case since it runs on all notetypes
 
 @as_query_op
-def get_models_by_ids(col: Collection, ids: Sequence[int]) -> List[ModelInfo]: #3*each notetype
+def get_models_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[ModelInfo]: #3*each notetype
+    # `wants` (requested top-level fields) is accepted for the fetcher
+    # contract; a model has no field expensive enough to skip.
     mm = col.models
     out: List[ModelInfo] = []
     for mid in ids:
@@ -38,7 +40,7 @@ def get_models_by_ids(col: Collection, ids: Sequence[int]) -> List[ModelInfo]: #
     return out
 
 @as_query_op
-def get_models_by_names(col: Collection, names: Sequence[str]) -> List[ModelInfo]: #1 + #3*each notetype
+def get_models_by_names(col: Collection, names: Sequence[str], wants=None) -> List[ModelInfo]: #1 + #3*each notetype
     mm = col.models
     name_to_id: Dict[str, int] = {}
     for nt in mm.all_names_and_ids():

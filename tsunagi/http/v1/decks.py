@@ -27,8 +27,8 @@ caps = SourceCaps(
         ),
         IndexSpec(
             path=("name",),
-            fetch_values=lambda xs: get_decks_by_names(
-                [str(x) for x in xs if x is not None]
+            fetch_values=lambda xs, wants=None: get_decks_by_names(
+                [str(x) for x in xs if x is not None], wants
             ),
         ),
     ],

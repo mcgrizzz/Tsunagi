@@ -63,8 +63,8 @@ caps = SourceCaps(
         # Same as above but 1 total extra query
         IndexSpec(
             path=("name",),
-            fetch_values=lambda xs: get_models_by_names(
-                [str(x) for x in xs if x is not None]
+            fetch_values=lambda xs, wants=None: get_models_by_names(
+                [str(x) for x in xs if x is not None], wants
             ),
         ),
     ],

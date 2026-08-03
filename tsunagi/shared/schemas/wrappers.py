@@ -34,6 +34,7 @@ class DeletionResult(BaseModel):
 class QueryRequest(BaseModel):
     select: Optional[str] = None
     where: Optional[List[str]] = None
+    search: Optional[str] = None   # Anki search string (search-backed resources)
     shape: Optional[str] = "auto"
     limit: int = Field(default=1000, ge=1, le=5000)
     cursor: Optional[str] = None

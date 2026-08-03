@@ -10,21 +10,30 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
 )
 
 from .filtering import parse_where  # we'll read ops & tokens directly
+from .pagination import paginate_keyset
 from .schemas.wrappers import Scalar
 from .selecting import selected_top_fields
 
 Row = Union[Mapping[str, Any], Any]
 
+# Set of top-level field names the caller asked for (via select/where), or None
+# for "the whole record". Fetchers use it to skip expensive fields.
+Wants = Optional[Set[str]]
+
 # Query operations
 FetchAllFn       = Callable[[], List[Row]]
-FetchValuesFn    = Callable[[Sequence[Any]], List[Row]]
+FetchValuesFn    = Callable[[Sequence[Any], Wants], List[Row]]
 FetchColumnsFn   = Callable[[], List[Row]]
 CoerceFn         = Callable[[Any], Optional[Any]]
+SearchIdsFn      = Callable[[str], List[int]]
+# (limit, cursor, wants) -> (rows, next_cursor)
+PageFn           = Callable[[int, Optional[str], Wants], Tuple[List[Row], Optional[str]]]
 
 # Mutation operations
 CreateFn         = Callable[[Dict[str, Any]], Row]                    # (data) -> result (for top-level create)
@@ -42,8 +51,18 @@ SubresourceReorderFn = Callable[[int, List[Any]], Row]               # (parent_i
 @dataclass(frozen=True)
 class IndexSpec:
     path: Tuple[str, ...]                  # e.g. ("id",) or ("nid",) or ("cid",)
-    fetch_values: FetchValuesFn            # called with [values] for == / in filters
+    fetch_values: FetchValuesFn            # called with ([values], wants) for == / in filters
     coerce: Optional[CoerceFn] = None #Force the index into the correct type, returning None on invalid value
+
+@dataclass(frozen=True)
+class SearchSpec:
+    """
+    Backend search (Anki's own query language). Two-phase on purpose: ids are
+    cheap to enumerate, so we page them first and hydrate only the page -
+    a 100k-note collection never materializes.
+    """
+    find_ids: SearchIdsFn                  # (query) -> ids
+    hydrate: FetchValuesFn                 # normally the SAME fn as IndexSpec(("id",)).fetch_values
 
 # Subresource Mutation Capabilities
 @dataclass
@@ -69,15 +88,19 @@ class MutationCaps:
 # Source Capabilities
 @dataclass
 class SourceCaps:
-    fetch_all: FetchAllFn                                                    # required
+    # Optional: resources backed by search (notes) deliberately supply none, so
+    # materializing every row is unreachable.
+    fetch_all: Optional[FetchAllFn] = None
     indices: Optional[List[IndexSpec]] = None                                # optional list of indices
     columns_fetchers: Optional[Dict[FrozenSet[str], FetchColumnsFn]] = None # optional: exact top-level sets → fetcher
+    search: Optional[SearchSpec] = None                                      # optional: backend search
     mutations: Optional[MutationCaps] = None                                 # optional: mutation operations
 
 @dataclass
 class Plan:
-    mode: str                     # 'index' | 'columns' | 'full'
-    fetch: FetchAllFn
+    mode: str                                  # 'search'|'scan'|'index'|'columns'|'full'
+    fetch: Optional[FetchAllFn] = None         # materialize-everything tiers
+    fetch_page: Optional[PageFn] = None        # pre-paginated tiers (search/scan)
 
 def _dedupe_indices(xs):
     seen = {}
@@ -89,11 +112,34 @@ def _dedupe_indices(xs):
     return out
 
 
+def _search_page(
+    spec: SearchSpec,
+    query: str,
+    limit: int,
+    cursor: Optional[str],
+    wants: Wants,
+) -> Tuple[List[Row], Optional[str]]:
+    ids = sorted({int(i) for i in spec.find_ids(query)})
+    page_ids, next_cursor = paginate_keyset(ids, limit, cursor, key_fn=lambda i: i)
+    return spec.hydrate(page_ids, wants), next_cursor
+
+
 def make_plan(
     select_text: Optional[str],
     where_params: Optional[List[str]],
     caps: SourceCaps,
+    search: Optional[str] = None,
 ) -> Plan:
+    # 0) SEARCH FIRST — a correctness constraint, not a speed heuristic: the
+    # other tiers can't evaluate Anki search syntax, so letting one of them win
+    # would silently drop the search terms.
+    if search is not None:
+        if caps.search is None:
+            raise ValueError("search is not supported for this resource")
+        spec, q = caps.search, search
+        return Plan("search", fetch_page=lambda limit, cursor, wants:
+                    _search_page(spec, q, limit, cursor, wants))
+
     # 1) INDEX FIRST — ex: User wants to grab models by id
     if caps.indices and where_params:
         for idx in caps.indices:                 
@@ -121,7 +167,8 @@ def make_plan(
                 if not scalars:
                     continue
 
-                return Plan("index", fetch=lambda idx=idx, vals=scalars: idx.fetch_values(vals))
+                return Plan("index", fetch=lambda wants=None, idx=idx, vals=scalars:
+                            idx.fetch_values(vals, wants))
 
     # 2) COLUMNS FAST PATH — ex: User only wants (id,name) from models we have an alternate route to fetch that
     if caps.columns_fetchers:
@@ -138,4 +185,14 @@ def make_plan(
                     return Plan("columns", fetcher)
 
     # 3) FALLBACK
-    return Plan("full", caps.fetch_all)
+    if caps.fetch_all is not None:
+        return Plan("full", caps.fetch_all)
+
+    # 4) SCAN — search-backed resources with no fetch_all: a bare listing is
+    # the same path as a search, with the empty query (= whole collection).
+    if caps.search is not None:
+        spec = caps.search
+        return Plan("scan", fetch_page=lambda limit, cursor, wants:
+                    _search_page(spec, "", limit, cursor, wants))
+
+    raise ValueError("resource has no way to enumerate rows")
