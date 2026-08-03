@@ -158,7 +158,7 @@ class TestReplaceTags:
         assert rpc(seeded, "replaceTags", {
             "notes": [self.a], "tag_to_replace": "verb",
             "replace_with_tag": "action"}) == {"result": None, "error": None}
-        assert info(seeded, self.a)["tags"] == ["verb::transitive", "action"]
+        assert info(seeded, self.a)["tags"] == ["action", "verb::transitive"]
 
     def test_leaves_other_notes_alone(self, seeded):
         rpc(seeded, "replaceTags", {"notes": [self.a], "tag_to_replace": "noun",
@@ -184,9 +184,10 @@ class TestRemoveEmptyNotes:
         # "empty note type". Destroys no content - use_count 0 means no notes.
         add(client, "犬")                      # Basic is now in use
         before = rpc(client, "modelNames")["result"]
-        assert set(before) == {"Basic", "Cloze"}
+        assert {"Basic", "Cloze"} <= set(before)   # six stock notetypes
 
         assert rpc(client, "removeEmptyNotes") == {"result": None, "error": None}
+        # Every notetype nothing uses is gone; only the one holding the note stays.
         assert rpc(client, "modelNames")["result"] == ["Basic"]
 
     def test_keeps_notes(self, client):

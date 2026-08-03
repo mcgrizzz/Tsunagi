@@ -96,12 +96,17 @@ class TestDueAndIntervals:
         client, cids = cards
         assert rpc(client, "getIntervals", {"cards": cids})["result"] == [0, 0]
 
-    def test_intervals_from_revlog(self, cards, fake_col):
+    def test_intervals_from_revlog(self, cards, col):
         client, cids = cards
-        card = fake_col.get_card(cids[0])
+        card = col.get_card(cids[0])
         card.type, card.queue = 2, 2       # no longer new
-        fake_col._revlog += [(1700000000000, card.id, 1),
-                             (1700000100000, card.id, 4)]
+        col.update_card(card)
+        # getIntervals reads the revlog directly, so write real rows.
+        for ms, ivl in ((1700000000000, 1), (1700000100000, 4)):
+            col.db.execute(
+                "insert into revlog (id, cid, usn, ease, ivl, lastIvl, factor,"
+                " time, type) values (?, ?, -1, 3, ?, 0, 2500, 1000, 1)",
+                ms, card.id, ivl)
         assert rpc(client, "getIntervals", {"cards": [card.id]})["result"] == [4]
         assert rpc(client, "getIntervals",
                    {"cards": [card.id], "complete": True})["result"] == [[1, 4]]
@@ -124,8 +129,12 @@ class TestCardsInfo:
                                  "Back": {"value": "dog", "order": 1}}
         assert info["modelName"] == "Basic"
         assert info["deckName"] == "Default"
-        assert info["question"] == "犬"
-        assert info["nextReviews"] == ["<1m", "<10m", "1d", "4d"]
+        # Anki's rendered question carries the notetype's <style> block.
+        assert "犬" in info["question"] and "<style>" in info["question"]
+        # Anki formats these for display, wrapping numbers in directional
+        # isolates, so assert the shape rather than the exact text.
+        assert len(info["nextReviews"]) == 4
+        assert all(isinstance(s, str) and s for s in info["nextReviews"])
 
     def test_missing_card_is_an_empty_object(self, cards):
         client, cids = cards

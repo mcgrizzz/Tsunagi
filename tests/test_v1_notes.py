@@ -51,14 +51,18 @@ class TestReads:
         assert len(seeded.get("/v1/notes", params={"search": "deck:Default"}).json()["items"]) == 2
 
     def test_malformed_search_is_400(self, seeded):
-        assert seeded.get("/v1/notes", params={"search": "zzz:nope"}).status_code == 400
+        # zzz:nope is legal to Anki and simply matches nothing; an unbalanced
+        # quote is what the parser refuses.
+        assert seeded.get("/v1/notes", params={"search": '"unbalanced'}).status_code == 400
 
-    def test_id_index_avoids_search(self, seeded, fake_col):
+    def test_id_index_avoids_search(self, seeded, col):
         nid = seeded.get("/v1/notes").json()["items"][0]["id"]
-        before = fake_col.find_notes_calls
+        calls = []
+        original = col.find_notes
+        col.find_notes = lambda q, **kw: calls.append(q) or original(q, **kw)
         body = seeded.get("/v1/notes", params={"where": f"id=={nid}"}).json()
         assert [n["id"] for n in body["items"]] == [nid]
-        assert fake_col.find_notes_calls == before  # index tier, no search
+        assert calls == []                     # index tier, no search
 
     def test_where_on_nested_fields(self, seeded):
         body = seeded.get("/v1/notes", params={"where": "fields[].value==犬"}).json()
@@ -112,9 +116,11 @@ class TestCreate:
         assert [f["value"] for f in resp.json()["result"]["fields"]] == ["鳥", "bird"]
 
     def test_create_by_ids(self, client):
+        mid = client.get("/v1/models", params={
+            "where": "name==Basic", "select": "id", "shape": "scalar"}).json()["items"][0]
         resp = client.post("/v1/notes", json={
-            "modelId": 1001, "deckId": 1, "fields": {"Front": "鳥"}})
-        assert resp.status_code == 201
+            "modelId": mid, "deckId": 1, "fields": {"Front": "鳥"}})
+        assert resp.status_code == 201, resp.text
 
     def test_unknown_field_is_400(self, client):
         resp = client.post("/v1/notes", json={
@@ -194,10 +200,12 @@ class TestChangeModel:
         assert note["tags"] == ["keep"]        # tags survive the retype
 
     def test_change_model_by_id(self, client):
+        cloze_id = client.get("/v1/models", params={
+            "where": "name==Cloze", "select": "id", "shape": "scalar"}).json()["items"][0]
         nid = add(client).json()["result"]["id"]
         note = client.patch(f"/v1/notes/{nid}", json={
-            "modelId": 1002, "fields": {"Text": "{{c1::猫}}"}}).json()["result"]
-        assert note["model_id"] == 1002
+            "modelId": cloze_id, "fields": {"Text": "{{c1::猫}}"}}).json()["result"]
+        assert note["model_id"] == cloze_id
 
     def test_change_model_without_fields_is_400(self, client):
         # The resize blanks every field, so a bare model change would erase
@@ -223,11 +231,11 @@ class TestChangeModel:
 
 
 class TestDelete:
-    def test_delete_removes_note_and_cards(self, client, fake_col):
+    def test_delete_removes_note_and_cards(self, client, col):
         nid = add(client).json()["result"]["id"]
         assert client.delete(f"/v1/notes/{nid}").json()["success"] is True
         assert client.get("/v1/notes").json()["items"] == []
-        assert not [c for c in fake_col._cards.values() if c.nid == nid]
+        assert col.card_ids_of_note(nid) == []
 
     def test_delete_missing_is_404(self, client):
         assert client.delete("/v1/notes/999999").status_code == 404
@@ -278,8 +286,8 @@ class TestCheck:
         assert [r["index"] for r in results] == [0, 1]
         assert [r["can_add"] for r in results] == [True, False]
 
-    def test_check_adds_nothing(self, client, fake_col):
-        before = len(fake_col._notes)
+    def test_check_adds_nothing(self, client, col):
+        before = col.note_count()
         self.check(client, [{"modelName": "Basic", "deckName": "Default",
                              "fields": {"Front": "新しい"}}])
-        assert len(fake_col._notes) == before
+        assert col.note_count() == before

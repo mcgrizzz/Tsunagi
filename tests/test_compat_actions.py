@@ -45,10 +45,14 @@ class TestDeckActions:
 
 class TestModelActions:
     def test_model_names(self, client):
-        assert rpc(client, "modelNames")["result"] == ["Basic", "Cloze"]
+        names = rpc(client, "modelNames")["result"]
+        # A real collection ships six stock notetypes.
+        assert {"Basic", "Cloze"} <= set(names)
 
     def test_model_names_and_ids(self, client):
-        assert rpc(client, "modelNamesAndIds")["result"] == {"Basic": 1001, "Cloze": 1002}
+        by_name = rpc(client, "modelNamesAndIds")["result"]
+        assert {"Basic", "Cloze"} <= set(by_name)
+        assert all(isinstance(v, int) for v in by_name.values())
 
     def test_model_field_names(self, client):
         resp = rpc(client, "modelFieldNames", {"modelName": "Basic"})
@@ -72,7 +76,8 @@ class TestModelActions:
         assert resp == {"result": None, "error": MODEL_NOT_FOUND.format("Nope")}
 
     def test_find_models_by_id(self, client):
-        resp = rpc(client, "findModelsById", {"modelIds": [1002]})
+        cloze_id = rpc(client, "modelNamesAndIds")["result"]["Cloze"]
+        resp = rpc(client, "findModelsById", {"modelIds": [cloze_id]})
         assert resp["error"] is None
         assert resp["result"][0]["name"] == "Cloze"
 

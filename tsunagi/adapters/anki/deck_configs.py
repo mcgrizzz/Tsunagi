@@ -20,6 +20,24 @@ from ..ops import as_collection_op, as_query_op
 DEFAULT_CONFIG_ID = 1
 
 
+def _config(col: Collection, config_id: int) -> Optional[Dict[str, Any]]:
+    """
+    A config by id, or None if there is no such config.
+
+    DeckManager.get_config() cannot be trusted to report absence: it catches
+    NotFoundError and returns None, but the backend's get_deck_config_legacy()
+    doesn't raise - it falls back to the DEFAULT config. So an unknown id came
+    back as config 1, and every existence check here silently passed. PATCH on
+    a bogus id merged into the default preset; DELETE got past the guard and
+    blew up inside remove_config. Same trap as DeckManager.get(default=True),
+    which decks.py already documents.
+    """
+    conf = col.decks.get_config(int(config_id))
+    if conf is None or int(conf.get("id", 0)) != int(config_id):
+        return None
+    return conf
+
+
 def _merge(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
     """Recursive merge, so PATCH {"new": {"perDay": 40}} keeps the other new/* keys."""
     out = copy.deepcopy(base)
@@ -41,7 +59,7 @@ def get_deck_configs_by_ids(col: Collection, ids: Sequence[int],
                             wants=None) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for cid in ids:
-        conf = col.decks.get_config(int(cid))
+        conf = _config(col, int(cid))
         if conf:
             out.append(conf)
     return out
@@ -64,7 +82,7 @@ def create_deck_config(col: Collection, data: Dict[str, Any]) -> Dict[str, Any]:
     clone_from = data.get("clone_from_id", data.get("cloneFromId"))
     source: Optional[Dict[str, Any]] = None
     if clone_from is not None:
-        source = col.decks.get_config(int(clone_from))
+        source = _config(col, int(clone_from))
         if source is None:
             raise ResourceNotFoundError("deck config", int(clone_from))
 
@@ -75,7 +93,7 @@ def create_deck_config(col: Collection, data: Dict[str, Any]) -> Dict[str, Any]:
 @as_collection_op
 def patch_deck_config(col: Collection, config_id: int,
                       updates: Dict[str, Any]) -> Dict[str, Any]:
-    conf = col.decks.get_config(int(config_id))
+    conf = _config(col, int(config_id))
     if conf is None:
         raise ResourceNotFoundError("deck config", int(config_id))
     merged = _merge(conf, updates)
@@ -95,7 +113,7 @@ def replace_deck_config(col: Collection, conf: Dict[str, Any]) -> bool:
         config_id = int(conf["id"])
     except (KeyError, TypeError, ValueError):
         return False
-    if col.decks.get_config(config_id) is None:
+    if _config(col, config_id) is None:
         return False
     payload = dict(conf)
     payload["id"] = config_id
@@ -107,7 +125,7 @@ def replace_deck_config(col: Collection, conf: Dict[str, Any]) -> bool:
 def delete_deck_config(col: Collection, config_id: int) -> bool:
     if int(config_id) == DEFAULT_CONFIG_ID:
         raise ValidationError("Cannot delete the default deck config")
-    if col.decks.get_config(int(config_id)) is None:
+    if _config(col, int(config_id)) is None:
         raise ResourceNotFoundError("deck config", int(config_id))
     # Anki reassigns every deck using it back to the default.
     col.decks.remove_config(int(config_id))

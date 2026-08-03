@@ -160,6 +160,10 @@ def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckIn
 
     if "name" in updates:
         col.decks.rename(deck, updates["name"])
+        # rename() renames in the backend and does NOT touch the dict we hold,
+        # which still carries the old name - saving it below would write the
+        # rename straight back out again. Re-read before touching anything else.
+        deck = col.decks.get(deck_id, default=False)
 
     copy_if_present(updates, deck, ["desc", "collapsed", "browserCollapsed", "conf"])
     col.decks.save(deck)

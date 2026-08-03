@@ -42,6 +42,12 @@ class DeckInfo(BaseModel):
 
     # Due counts. Not stored on the deck - they come from the scheduler's due
     # tree, so they're only computed when select/where asks for one of them.
+    #
+    # Anki's own asymmetry, passed through rather than papered over: the three
+    # due counts INCLUDE subdecks (a parent shows what its children owe, which
+    # is what the deck list displays), while total_in_deck counts only the
+    # cards sitting directly in that deck. So a parent with all its cards in
+    # children reports new_count=2, total_in_deck=0.
     new_count: Optional[int] = None
     learn_count: Optional[int] = None
     review_count: Optional[int] = None

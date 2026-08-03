@@ -10,8 +10,8 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"fake image data"
 B64 = base64.b64encode(PNG).decode()
 
 
-def seed(fake_col, name, data=b"x"):
-    with open(os.path.join(fake_col.media.dir(), name), "wb") as fh:
+def seed(col, name, data=b"x"):
+    with open(os.path.join(col.media.dir(), name), "wb") as fh:
         fh.write(data)
 
 
@@ -19,25 +19,25 @@ class TestList:
     def test_empty(self, client):
         assert client.get("/v1/media").json()["items"] == []
 
-    def test_sorted_with_metadata(self, client, fake_col):
-        seed(fake_col, "b.mp3", b"aa")
-        seed(fake_col, "a.png", b"bbb")
+    def test_sorted_with_metadata(self, client, col):
+        seed(col, "b.mp3", b"aa")
+        seed(col, "a.png", b"bbb")
         items = client.get("/v1/media").json()["items"]
         assert [i["filename"] for i in items] == ["a.png", "b.mp3"]
         assert items[0]["size"] == 3
         assert items[0]["mtime"] > 0
 
-    def test_prefix_and_suffix_filters(self, client, fake_col):
+    def test_prefix_and_suffix_filters(self, client, col):
         for name in ("dog.png", "dog.mp3", "cat.png"):
-            seed(fake_col, name)
+            seed(col, name)
         assert [i["filename"] for i in client.get(
             "/v1/media", params={"prefix": "dog"}).json()["items"]] == ["dog.mp3", "dog.png"]
         assert [i["filename"] for i in client.get(
             "/v1/media", params={"suffix": ".png"}).json()["items"]] == ["cat.png", "dog.png"]
 
-    def test_cursor_walks_every_file(self, client, fake_col):
+    def test_cursor_walks_every_file(self, client, col):
         for name in ("a.png", "b.png", "c.png"):
-            seed(fake_col, name)
+            seed(col, name)
         seen, cursor = [], None
         while True:
             params = {"limit": 1}
@@ -52,20 +52,20 @@ class TestList:
 
 
 class TestDownload:
-    def test_raw_bytes_and_content_type(self, client, fake_col):
-        seed(fake_col, "dog.png", PNG)
+    def test_raw_bytes_and_content_type(self, client, col):
+        seed(col, "dog.png", PNG)
         resp = client.get("/v1/media/dog.png")
         assert resp.status_code == 200
         assert resp.content == PNG
         assert resp.headers["content-type"] == "image/png"
         assert resp.headers["content-disposition"].startswith("inline")
 
-    def test_audio_content_type(self, client, fake_col):
-        seed(fake_col, "word.mp3", b"id3")
+    def test_audio_content_type(self, client, col):
+        seed(col, "word.mp3", b"id3")
         assert client.get("/v1/media/word.mp3").headers["content-type"] == "audio/mpeg"
 
-    def test_unknown_extension_is_octet_stream(self, client, fake_col):
-        seed(fake_col, "blob.zzz", b"x")
+    def test_unknown_extension_is_octet_stream(self, client, col):
+        seed(col, "blob.zzz", b"x")
         assert client.get("/v1/media/blob.zzz").headers["content-type"] == "application/octet-stream"
 
     def test_missing_is_404(self, client):
@@ -73,13 +73,13 @@ class TestDownload:
 
 
 class TestUpload:
-    def test_base64_upload(self, client, fake_col):
+    def test_base64_upload(self, client, col):
         resp = client.post("/v1/media", json={"filename": "dog.png", "data": B64})
         assert resp.status_code == 201
         body = resp.json()
         assert body == {"filename": "dog.png", "requested_filename": "dog.png",
                         "renamed": False, "size": len(PNG)}
-        assert fake_col.media.have("dog.png")
+        assert col.media.have("dog.png")
 
     def test_identical_content_keeps_name(self, client):
         client.post("/v1/media", json={"filename": "dog.png", "data": B64})
@@ -139,10 +139,10 @@ class TestUpload:
 
 
 class TestDelete:
-    def test_delete(self, client, fake_col):
-        seed(fake_col, "dog.png", PNG)
+    def test_delete(self, client, col):
+        seed(col, "dog.png", PNG)
         assert client.delete("/v1/media/dog.png").json()["success"] is True
-        assert not fake_col.media.have("dog.png")
+        assert not col.media.have("dog.png")
 
     def test_delete_missing_is_404(self, client):
         assert client.delete("/v1/media/nope.png").status_code == 404
@@ -164,12 +164,12 @@ class TestFilenameSecurity:
     def test_traversal_rejected_on_upload(self, client, name):
         assert client.post("/v1/media", json={"filename": name, "data": B64}).status_code == 400
 
-    def test_symlink_escape_rejected(self, client, fake_col, tmp_path):
+    def test_symlink_escape_rejected(self, client, col, tmp_path):
         # Name-level rules can't catch a symlink INSIDE the media folder
         # pointing outside it; the realpath containment check must.
         secret = tmp_path / "secret.txt"
         secret.write_text("classified")
-        link = os.path.join(fake_col.media.dir(), "innocent.txt")
+        link = os.path.join(col.media.dir(), "innocent.txt")
         try:
             os.symlink(secret, link)
         except (OSError, NotImplementedError):

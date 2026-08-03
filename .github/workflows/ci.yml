@@ -11,8 +11,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported (Anki 23.10 bundles 3.9) and newest
-        python-version: ["3.9", "3.13"]
+        # Oldest supported (Anki 23.10 bundles 3.9) and newest. The anki pin
+        # rides along: the floor leg proves we call nothing newer than our
+        # declared minimum, the current leg that we still work on what users
+        # actually run. anki >=25 requires Python 3.10+, so 3.9 must take 23.10.
+        include:
+          - python-version: "3.9"
+            anki-version: "==23.10"
+          - python-version: "3.13"
+            anki-version: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -27,7 +34,10 @@ jobs:
           key: wheelhouse-${{ hashFiles('tools/requirements.lock.txt') }}
 
       - name: Install dev tools
-        run: python -m pip install pytest ruff "httpx<0.28"
+        # anki is test-only: the suite runs against a real headless collection.
+        # It is deliberately NOT in tools/requirements.lock.txt, so it can never
+        # be vendored into the artifact.
+        run: python -m pip install pytest ruff "httpx<0.28" "anki${{ matrix.anki-version }}"
 
       - name: Build addon (vendors lib/shared)
         run: python tools/build_addon.py
