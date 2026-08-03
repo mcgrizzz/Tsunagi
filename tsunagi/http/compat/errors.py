@@ -6,6 +6,27 @@ reword them. Verified against AnkiConnect's source.
 API_KEY_ERROR = "valid api key must be provided"
 UNSUPPORTED_ACTION = "unsupported action"
 MODEL_NOT_FOUND = "model was not found: {}"
+DECK_NOT_FOUND = "deck was not found: {}"
+NOTE_NOT_FOUND = "Note was not found: {}"
+
+# createNote outcomes
+NOTE_EMPTY = "cannot create note because it is empty"
+# Yomitan's "already added" badge substring-matches this exact string
+NOTE_DUPLICATE = "cannot create note because it is a duplicate"
+NOTE_UNKNOWN_REASON = "cannot create note for unknown reason"
+EMPTY_QUESTION = "The field values you have provided would make an empty question on all cards."
+
+# Note option validation (canonical rejects non-bools rather than coercing)
+OPTION_ALLOW_DUPLICATE_BOOL = 'option parameter "allowDuplicate" must be boolean'
+OPTION_CHECK_CHILDREN_BOOL = 'option parameter "duplicateScopeOptions.checkChildren" must be boolean'
+OPTION_CHECK_ALL_MODELS_BOOL = 'option parameter "duplicateScopeOptions.checkAllModels" must be boolean'
+
+# notesInfo
+NOTES_INFO_NO_INPUT = 'Must provide either "notes" or a "query"'
+
+# media
+MEDIA_NO_SOURCE = 'You must provide a "data", "path", or "url" field.'
+MEDIA_DOWNLOAD_FAILED = "{} download failed with return code {}"
 
 # Our safe generic for unexpected exceptions. Deliberate divergence:
 # AnkiConnect returns str(e) (leaking internals); we log server-side instead.

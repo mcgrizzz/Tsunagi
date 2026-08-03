@@ -153,6 +153,17 @@ def find_note_ids(col: Collection, query: str) -> List[int]:
 
 
 @as_query_op
+def find_card_ids(col: Collection, query: str) -> List[int]:
+    """Anki search -> card ids (guiBrowse's return value)."""
+    try:
+        return [int(i) for i in col.find_cards(query)]
+    except Exception as e:
+        if type(e).__name__ in ("SearchError", "InvalidInput"):
+            raise ValueError(f"Invalid Anki search: {e}") from e
+        raise
+
+
+@as_query_op
 def get_notes_by_ids(col: Collection, ids: Sequence[int],
                      wants: Optional[Set[str]] = None) -> List[NoteInfo]:
     model_names = _model_names(col)
@@ -261,3 +272,213 @@ def delete_notes(col: Collection, ids: Sequence[int]) -> int:
     """Batch by design: one undoable op. Compat's deleteNotes reuses this."""
     res = col.remove_notes([int(i) for i in ids])
     return int(getattr(res, "count", 0) or 0)
+
+
+# ====================
+# AnkiConnect-shaped entry points
+#
+# These exist so the compat layer is a translation over the same internals
+# the native API uses, rather than a second path into Anki. They carry
+# AnkiConnect's quirks (case-insensitive field names, scoped duplicate
+# checks, media-before-dedup) which the native API deliberately does not.
+# ====================
+
+def _ac_options(options: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Parse a note spec's `options`, reproducing canonical's strict bool checks
+    (`1` is rejected, not coerced) and its exact messages.
+    """
+    from ...http.compat.errors import (
+        OPTION_ALLOW_DUPLICATE_BOOL,
+        OPTION_CHECK_ALL_MODELS_BOOL,
+        OPTION_CHECK_CHILDREN_BOOL,
+    )
+
+    out = {"allow_duplicate": False, "scope": None, "scope_deck": None,
+           "check_children": False, "check_all_models": False}
+    if "allowDuplicate" in options:
+        if not isinstance(options["allowDuplicate"], bool):
+            raise ValueError(OPTION_ALLOW_DUPLICATE_BOOL)
+        out["allow_duplicate"] = options["allowDuplicate"]
+    if "duplicateScope" in options:
+        out["scope"] = options["duplicateScope"]  # not type-validated by canonical
+    dso = options.get("duplicateScopeOptions") or {}
+    if "deckName" in dso:
+        out["scope_deck"] = dso["deckName"]
+    if "checkChildren" in dso:
+        if not isinstance(dso["checkChildren"], bool):
+            raise ValueError(OPTION_CHECK_CHILDREN_BOOL)
+        out["check_children"] = dso["checkChildren"]
+    if "checkAllModels" in dso:
+        if not isinstance(dso["checkAllModels"], bool):
+            raise ValueError(OPTION_CHECK_ALL_MODELS_BOOL)
+        out["check_all_models"] = dso["checkAllModels"]
+    return out
+
+
+def _ac_apply_fields(note: Any, fields: Dict[str, str]) -> None:
+    """Case-insensitive, first match wins, unknown names silently dropped."""
+    lowered = {name.lower(): name for name in note.keys()}
+    for name, value in fields.items():
+        target = lowered.get(name.lower())
+        if target is not None:
+            note[target] = value
+
+
+def _ac_duplicate_state(col: Collection, note: Any, deck: Dict[str, Any],
+                        opts: Dict[str, Any]) -> int:
+    """
+    AnkiConnect's isNoteDuplicateOrEmptyInScope: 1 empty, 2 duplicate, 0 ok.
+
+    The default branch delegates to Anki (matching canonical's use of
+    dupeOrEmpty), so cloze/HTML handling comes along for free. The manual
+    branch is a literal port with deliberately different semantics clients
+    depend on: raw .strip() emptiness with no HTML stripping, and csum-only
+    matching with no exact-text comparison.
+    """
+    from anki.utils import field_checksum
+
+    if opts["scope"] != "deck" and not opts["check_all_models"]:
+        state = fields_check_impl(col, note)
+        return state if state in (EMPTY, DUPLICATE) else NORMAL
+
+    val = note.fields[0] if note.fields else ""
+    if not val.strip():
+        return EMPTY
+    csum = field_checksum(val)
+
+    dids = None
+    if opts["scope"] == "deck":
+        did = int(deck["id"])
+        if opts["scope_deck"] is not None:
+            other = col.decks.by_name(opts["scope_deck"])
+            if other is None:
+                return NORMAL  # invalid deck, so it cannot be a duplicate
+            did = int(other["id"])
+        dids = {did}
+        if opts["check_children"]:
+            for _name, child_id in col.decks.children(did):
+                dids.add(int(child_id))
+
+    query = "select id from notes where csum = ?"
+    args: List[Any] = [csum]
+    if note.id:
+        query += " and id != ?"
+        args.append(note.id)
+    if not opts["check_all_models"]:
+        query += " and mid = ?"
+        args.append(note.mid)
+
+    for nid in col.db.list(query, *args):
+        if dids is None:
+            return DUPLICATE
+        for did2 in col.db.list("select did from cards where nid = ?", nid):
+            if int(did2) in dids:
+                return DUPLICATE
+    return NORMAL
+
+
+def _ac_prepare(col: Collection, deck_name: str, model_name: str,
+                fields: Dict[str, str], tags: Sequence[str], options: Dict[str, Any]):
+    """Shared front half of createNote: resolve, fill, and check."""
+    from ...http.compat.errors import DECK_NOT_FOUND, MODEL_NOT_FOUND
+
+    model = col.models.by_name(model_name)
+    if model is None:
+        raise ValueError(MODEL_NOT_FOUND.format(model_name))
+    deck = col.decks.by_name(deck_name)
+    if deck is None:
+        raise ValueError(DECK_NOT_FOUND.format(deck_name))
+
+    opts = _ac_options(options or {})
+    note = col.new_note(model)
+    _ac_apply_fields(note, fields)
+    note.tags = list(tags or [])
+    return note, model, deck, opts
+
+
+def _ac_finish_check(col: Collection, note: Any, deck: Dict[str, Any],
+                     opts: Dict[str, Any]) -> None:
+    from ...http.compat.errors import NOTE_DUPLICATE, NOTE_EMPTY
+
+    state = _ac_duplicate_state(col, note, deck, opts)
+    if state == EMPTY:
+        raise ValueError(NOTE_EMPTY)
+    if state == DUPLICATE and not opts["allow_duplicate"]:
+        raise ValueError(NOTE_DUPLICATE)
+
+
+def _ac_write_media(col: Collection, note: Any, media: Sequence[Dict[str, Any]]) -> None:
+    """
+    Store attachments and append their markup. Runs before the duplicate
+    check (canonical order), so markup in the first field affects dedup.
+    """
+    for item in media:
+        if item.get("error"):
+            for field in item.get("fields") or []:
+                if field in note:
+                    note[field] += item["error"]
+            continue
+        data = item.get("data")
+        if data is None:
+            continue  # skipHash matched: store nothing, append nothing
+        if item.get("delete_existing"):
+            col.media.trash_files([item["filename"]])
+        stored = col.media.write_data(item["filename"], data)
+        for field in item.get("fields") or []:
+            if field in note:
+                note[field] += item["markup"].format(stored)
+
+
+@as_collection_op
+def ac_add_note(col: Collection, deck_name: str, model_name: str,
+                fields: Dict[str, str], tags: Sequence[str],
+                options: Dict[str, Any], media: Sequence[Dict[str, Any]]) -> int:
+    from ...http.compat.errors import EMPTY_QUESTION
+
+    note, _model, deck, opts = _ac_prepare(col, deck_name, model_name, fields, tags, options)
+    _ac_write_media(col, note, media)
+    _ac_finish_check(col, note, deck, opts)
+
+    res = col.add_note(note, int(deck["id"]))
+    if int(getattr(res, "count", 1) or 0) < 1:
+        raise ValueError(EMPTY_QUESTION)
+    return int(note.id)
+
+
+@as_query_op
+def ac_check_note(col: Collection, deck_name: str, model_name: str,
+                  fields: Dict[str, str], options: Dict[str, Any]) -> bool:
+    """Probe for canAddNotes: raises the canonical string, never writes."""
+    note, _model, deck, opts = _ac_prepare(col, deck_name, model_name, fields, [], options)
+    _ac_finish_check(col, note, deck, opts)
+    return True
+
+
+@as_collection_op
+def ac_update_note_fields(col: Collection, note_id: int, fields: Dict[str, str],
+                          media: Sequence[Dict[str, Any]]) -> None:
+    from ...http.compat.errors import NOTE_NOT_FOUND
+
+    try:
+        note = col.get_note(int(note_id))
+    except Exception as e:
+        if type(e).__name__ == "NotFoundError":
+            raise ValueError(NOTE_NOT_FOUND.format(note_id)) from e
+        raise
+
+    # Exact-case here, unlike createNote. Canonical asymmetry.
+    for name, value in fields.items():
+        if name in note:
+            note[name] = value
+    _ac_write_media(col, note, media)
+    col.update_note(note)
+
+
+def profile_name() -> str:
+    """Current profile name (notesInfo reports it)."""
+    try:
+        from aqt import mw
+        return mw.pm.name
+    except Exception:
+        return ""

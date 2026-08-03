@@ -11,8 +11,8 @@ from pydantic import BaseModel
 
 from ....adapters.anki.models import (
     get_model_names_and_ids,
-    get_models_by_ids,
     get_models_by_names,
+    get_raw_models,
 )
 from ..errors import MODEL_NOT_FOUND
 from ..registry import registry
@@ -48,25 +48,29 @@ def ac_modelFieldNames(p: ModelFieldNamesParams) -> List[str]:
     return [f.name for f in models[0].fields]
 
 
+# findModelsBy* return Anki's raw schema11 dict, exactly as AnkiConnect does.
+# Routing them through ModelInfo would silently drop any schema11 key our
+# schema doesn't model - the v1 API is where the curated shape belongs.
+
 @registry.register("findModelsByName", params=FindModelsByNameParams)
 def ac_findModelsByName(p: FindModelsByNameParams) -> List[Dict[str, Any]]:
-    by_name = {m.name: m for m in get_models_by_names(p.modelNames)}
+    found = get_raw_models(names=p.modelNames)
     out: List[Dict[str, Any]] = []
     for name in p.modelNames:  # input order; raise at FIRST missing (as AnkiConnect)
-        m = by_name.get(name)
+        m = found.get(name)
         if m is None:
             raise ValueError(MODEL_NOT_FOUND.format(name))
-        out.append(m.dict(by_alias=True))
+        out.append(m)
     return out
 
 
 @registry.register("findModelsById", params=FindModelsByIdParams)
 def ac_findModelsById(p: FindModelsByIdParams) -> List[Dict[str, Any]]:
-    by_id = {int(m.id): m for m in get_models_by_ids(p.modelIds)}
+    found = get_raw_models(ids=[int(i) for i in p.modelIds])
     out: List[Dict[str, Any]] = []
     for mid in p.modelIds:
-        m = by_id.get(int(mid))
+        m = found.get(int(mid))
         if m is None:
             raise ValueError(MODEL_NOT_FOUND.format(mid))
-        out.append(m.dict(by_alias=True))
+        out.append(m)
     return out

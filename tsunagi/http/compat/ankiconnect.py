@@ -66,7 +66,9 @@ def _request_permission(
     """
     granted = {
         "permission": "granted",
-        "requireApiKey": bool(settings.get("api_key", "")),
+        # Canonical spells this with a lowercase k ("requireApikey"); clients
+        # read that exact key, so don't "fix" the casing.
+        "requireApikey": bool(settings.get("api_key", "")),
         "version": 6,
     }
     if not origin:  # local / non-browser client

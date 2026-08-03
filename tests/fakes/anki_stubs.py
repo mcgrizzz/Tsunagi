@@ -15,8 +15,25 @@ Tests assign a FakeCollection to `mw.col` (see the fake_col fixture) - the
 `mw` object itself must stay the same instance forever because ops.py does
 `from aqt import mw` once at import time.
 """
+import hashlib
+import re
 import sys
 import types
+
+
+def strip_html_media(text):
+    """
+    Anki strips HTML but PRESERVES media filenames, which is why adding an
+    image to a note's first field changes its duplicate status. A fake that
+    dropped the filename would hide that behavior.
+    """
+    text = re.sub(r"""<img[^>]*src=["']?([^"'>\s]+)["']?[^>]*>""", r" \1 ", text or "")
+    return re.sub(r"<[^>]+>", "", text)
+
+
+def field_checksum(data):
+    """Anki's: 32-bit int from the first 8 hex digits of sha1(stripped)."""
+    return int(hashlib.sha1(strip_html_media(data).encode("utf-8")).hexdigest()[:8], 16)
 
 
 class _TaskMan:
@@ -28,6 +45,8 @@ class _FakeMainWindow:
     def __init__(self):
         self.col = None
         self.taskman = _TaskMan()
+        # notesInfo reports the profile name
+        self.pm = types.SimpleNamespace(name="User 1")
 
 
 mw = _FakeMainWindow()
@@ -124,6 +143,11 @@ def install() -> None:
     anki_err_mod.SearchError = SearchError
     anki_mod.errors = anki_err_mod
 
+    anki_utils_mod = types.ModuleType("anki.utils")
+    anki_utils_mod.strip_html_media = strip_html_media
+    anki_utils_mod.field_checksum = field_checksum
+    anki_mod.utils = anki_utils_mod
+
     aqt_mod = types.ModuleType("aqt")
     aqt_mod.mw = mw
     aqt_ops_mod = types.ModuleType("aqt.operations")
@@ -134,5 +158,6 @@ def install() -> None:
     sys.modules["anki"] = anki_mod
     sys.modules["anki.collection"] = anki_col_mod
     sys.modules["anki.errors"] = anki_err_mod
+    sys.modules["anki.utils"] = anki_utils_mod
     sys.modules["aqt"] = aqt_mod
     sys.modules["aqt.operations"] = aqt_ops_mod
