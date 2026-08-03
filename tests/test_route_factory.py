@@ -289,6 +289,16 @@ class TestSearchParam:
         ).json()
         assert [r["id"] for r in body["items"]] == [1, 3]
 
+    def test_a_match_anywhere_is_always_returned(self, search_client, store):
+        # Hard guarantee: if a matching row exists ANYWHERE, it comes back -
+        # no partial scans, no client-side retry loops. Bury the match far
+        # past any batch boundary.
+        for i in range(4, 400):
+            store.rows.append({"id": i, "name": f"filler{i}", "type": 9, "fields": []})
+        store.rows.append({"id": 9999, "name": "needle", "type": 7, "fields": []})
+        body = search_client.get("/v1/things", params={"limit": 1, "where": "name==needle"}).json()
+        assert [r["id"] for r in body["items"]] == [9999]
+
     def test_no_matches_returns_empty_without_cursor(self, search_client):
         body = search_client.get(
             "/v1/things", params={"where": "name==Nonexistent"}
