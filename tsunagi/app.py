@@ -21,10 +21,12 @@ from .http.compat.ankiconnect import (
 )
 from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
 from .http.v1.cards import router as cards_router
+from .http.v1.deck_configs import router as deck_configs_router
 from .http.v1.decks import router as decks_router
 from .http.v1.media import router as media_router
 from .http.v1.models import router as models_router
 from .http.v1.notes import router as notes_router
+from .http.v1.tags import router as tags_router
 from .shared.errors import register_exception_handlers
 
 
@@ -54,6 +56,14 @@ app = FastAPI(
             "description": "Cards generated from notes by a model's templates. Reads support Anki search syntax; scheduling changes are batch verb routes (POST /v1/cards:suspend and friends)."
         },
         {
+            "name": "Tags",
+            "description": "Tags across the collection. Nesting uses '::', and operations apply to a tag and its children together, like Anki's own."
+        },
+        {
+            "name": "Deck Configs",
+            "description": "Deck options groups (scheduling limits and intervals). Returned as Anki's config dicts verbatim so newer keys survive a round trip."
+        },
+        {
             "name": "Media",
             "description": "Files in the collection's media folder. Downloads stream raw bytes; uploads report the name Anki actually stored."
         },
@@ -72,6 +82,8 @@ app.include_router(models_router)
 app.include_router(decks_router)
 app.include_router(notes_router)
 app.include_router(cards_router)
+app.include_router(tags_router)
+app.include_router(deck_configs_router)
 app.include_router(media_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 
