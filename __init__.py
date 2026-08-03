@@ -47,3 +47,47 @@ else:
     # so the port is free for a restart or profile switch.
     gui_hooks.profile_did_open.append(_on_profile_open)
     gui_hooks.profile_will_close.append(_on_profile_close)
+
+
+def reload_addon() -> str:
+    """
+    Dev helper: restart the HTTP server on the code currently on disk, without
+    restarting Anki. From Anki's debug console (Ctrl+Shift+;):
+
+        import tsunagi; tsunagi.reload_addon()
+
+    Pair it with `python tools/dev_sync.py`, which copies the source into the
+    installed add-on folder.
+
+    Only this add-on's own package is purged. The vendored libraries in
+    lib/shared stay loaded on purpose: re-importing pydantic mid-session would
+    give every schema a new base class and break `isinstance` against models
+    Anki already holds. Editing lib/ or this file still needs a restart.
+    """
+    import sys
+
+    if mw is None:
+        return "not running inside Anki"
+
+    from .tsunagi.app import stop_server
+
+    if not stop_server():
+        return ("previous server thread is still alive, so the port is likely "
+                "still held - restart Anki instead of reloading")
+
+    pkg = __name__ + ".tsunagi"
+    purged = [n for n in list(sys.modules) if n == pkg or n.startswith(pkg + ".")]
+    for name in purged:
+        del sys.modules[name]
+
+    try:
+        from .tsunagi.app import start_server
+        start_server(mw)
+    except Exception:
+        return "reload failed:\n" + traceback.format_exc()
+
+    from .tsunagi.app import server_url
+    url = server_url()
+    if url is None:
+        return f"purged {len(purged)} modules but the server did not start - see the console"
+    return f"reloaded {len(purged)} modules; listening on {url}"
