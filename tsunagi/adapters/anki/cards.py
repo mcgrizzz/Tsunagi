@@ -243,48 +243,75 @@ def cards_suspended(col: Collection, card_ids: Sequence[int]) -> List[Optional[b
 # Scheduling mutations
 # ====================
 
-def _count(changes: Any, fallback: int) -> int:
-    return int(getattr(changes, "count", fallback))
+def _count(changes: Any) -> int:
+    """
+    Cards the op reports changing. Anki returns OpChangesWithCount for some
+    scheduler ops and a bare OpChanges for others; callers of the latter must
+    supply their own count via _matching. Falling back to "however many ids
+    you sent" would claim work that never happened.
+    """
+    return int(getattr(changes, "count", 0))
+
+
+def _matching(col: Collection, card_ids: Sequence[int], query: str = "") -> int:
+    """
+    How many of `card_ids` match `query` (empty query = merely exist).
+
+    One search for the whole batch, so `affected` means the same thing on
+    every verb: cards the call actually changed.
+    """
+    wanted = {int(c) for c in card_ids}
+    if not wanted:
+        return 0
+    return len(wanted & {int(i) for i in col.find_cards(query)})
 
 
 @as_collection_op
 def suspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return _count(col.sched.suspend_cards(list(card_ids)), len(card_ids))
+    return _count(col.sched.suspend_cards(list(card_ids)))
 
 
 @as_collection_op
 def unsuspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return _count(col.sched.unsuspend_cards(list(card_ids)), len(card_ids))
+    # Anki's unsuspend returns a bare OpChanges, so count the cards that were
+    # actually suspended before we touched them.
+    affected = _matching(col, card_ids, "is:suspended")
+    col.sched.unsuspend_cards(list(card_ids))
+    return affected
 
 
 @as_collection_op
 def bury_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return _count(col.sched.bury_cards(list(card_ids), manual=True), len(card_ids))
+    return _count(col.sched.bury_cards(list(card_ids), manual=True))
 
 
 @as_collection_op
 def unbury_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return _count(col.sched.unbury_cards(list(card_ids)), len(card_ids))
+    affected = _matching(col, card_ids, "is:buried")
+    col.sched.unbury_cards(list(card_ids))
+    return affected
 
 
 @as_collection_op
 def forget_cards(col: Collection, card_ids: Sequence[int], *,
                  restore_position: bool = False, reset_counts: bool = False) -> int:
+    affected = _matching(col, card_ids)
     col.sched.schedule_cards_as_new(
         list(card_ids), restore_position=restore_position, reset_counts=reset_counts)
-    return len(card_ids)
+    return affected
 
 
 @as_collection_op
 def set_due_date(col: Collection, card_ids: Sequence[int], days: str,
                  config_key: Optional[str] = None) -> int:
+    affected = _matching(col, card_ids)
     try:
         col.sched.set_due_date(list(card_ids), days, config_key)
     except Exception as e:
         if type(e).__name__ in ("InvalidInput", "ValueError"):
             raise ValidationError(f"invalid due date '{days}': {e}") from e
         raise
-    return len(card_ids)
+    return affected
 
 
 @as_collection_op
@@ -300,7 +327,7 @@ def change_deck(col: Collection, card_ids: Sequence[int],
         deck_id = int(deck["id"])
     elif col.decks.get(int(deck_id), default=False) is None:
         raise ResourceNotFoundError("deck", int(deck_id))
-    return _count(col.set_deck(list(card_ids), int(deck_id)), len(card_ids))
+    return _count(col.set_deck(list(card_ids), int(deck_id)))
 
 
 @as_collection_op
@@ -309,14 +336,14 @@ def reposition_cards(col: Collection, card_ids: Sequence[int], *,
                      randomize: bool = False, shift_existing: bool = False) -> int:
     return _count(col.sched.reposition_new_cards(
         list(card_ids), starting_from, step_size, randomize, shift_existing,
-    ), len(card_ids))
+    ))
 
 
 @as_collection_op
 def set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> int:
     if not 0 <= int(flag) <= 7:
         raise ValidationError("flag must be between 0 and 7")
-    return _count(col.set_user_flag_for_cards(int(flag), list(card_ids)), len(card_ids))
+    return _count(col.set_user_flag_for_cards(int(flag), list(card_ids)))
 
 
 @as_collection_op
@@ -350,5 +377,6 @@ def relearn_cards(col: Collection, card_ids: Sequence[int]) -> int:
     ids = ",".join(str(int(c)) for c in card_ids)
     if not ids:
         return 0
+    affected = _matching(col, card_ids)
     col.db.execute(f"update cards set type=3, queue=1 where id in ({ids})")
-    return len(card_ids)
+    return affected
