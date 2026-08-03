@@ -51,7 +51,8 @@ ARR  : "[]"
 DOT  : "."
 LP   : "("
 RP   : ")"
-NAME : /[A-Za-z_][A-Za-z0-9_]*/
+// Unicode-aware: Anki field names are routinely non-ASCII (select=単語)
+NAME : /[^\W\d]\w*/
 
 %import common.WS
 %ignore WS

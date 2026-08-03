@@ -84,6 +84,16 @@ class TestProjectScalars:
         }
 
 
+class TestUnicodeNames:
+    def test_unicode_field_name(self):
+        nodes = parse_select_csv("単語")
+        assert project_scalars({"単語": "犬"}, nodes) == {"単語": "犬"}
+
+    def test_unicode_array_pluck(self):
+        nodes = parse_select_csv("フィールド[].名前")
+        assert project_scalars({"フィールド": [{"名前": "表"}]}, nodes) == {"フィールド": ["表"]}
+
+
 class TestMaybeFlatten:
     def test_auto_flattens_single_scalar_field(self):
         nodes = parse_select_csv("name")

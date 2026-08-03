@@ -57,7 +57,10 @@ TRUE.2  : /true\b/i
 FALSE.2 : /false\b/i
 NULL.2  : /null\b/i
 
-NAME : /[A-Za-z_][A-Za-z0-9_]*/
+// Unicode-aware: Anki field names and values are routinely non-ASCII
+// (e.g. select=単語, where=fields[].value==犬). \w is unicode by default in
+// Python; excluding a leading digit keeps numbers matching SIGNED_NUMBER.
+NAME : /[^\W\d]\w*/
 %import common.SIGNED_NUMBER
 %import common.WS
 %import common.ESCAPED_STRING -> STRING
