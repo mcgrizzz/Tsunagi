@@ -30,6 +30,11 @@ else:
             start_server(mw)   # pass mw so app can read/write config via addonManager
         except Exception:
             print("[tsunagi] boot failed:\n" + traceback.format_exc())
+        try:
+            from .tsunagi.adapters.dialogs import offer_ankiconnect_import
+            offer_ankiconnect_import()   # one-time; no-op if AnkiConnect absent
+        except Exception:
+            print("[tsunagi] ankiconnect import offer failed:\n" + traceback.format_exc())
 
     def _on_profile_close() -> None:
         try:

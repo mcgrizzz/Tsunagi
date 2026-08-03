@@ -5,16 +5,21 @@ import traceback
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 
-from .adapters.config import choose_port, load_config
+from .adapters.config import ADDON_PACKAGE, choose_port, load_config
+from .adapters.settings import settings
+from .http.compat import (
+    models as _compat_models,  # noqa: F401  (side-effect import: registers action handlers)
+)
 from .http.compat.ankiconnect import (
     AnkiConnectRequest,
     AnkiConnectResponse,
     get_available_actions,
     handle_ankiconnect_rpc,
 )
+from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
 from .http.v1.models import router as models_router
 from .shared.errors import register_exception_handlers
 
@@ -46,6 +51,11 @@ app = FastAPI(
 app.include_router(models_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 
+# Auth inner, CORS outermost (added last runs first) so auth 401s still carry
+# CORS headers for allowed origins and disallowed origins never reach auth.
+app.add_middleware(ApiKeyAuthMiddleware, settings=settings)
+app.add_middleware(DynamicCORSMiddleware, settings=settings)
+
 # Root GET endpoint - Tsunagi landing page
 @app.get(
     "/",
@@ -72,7 +82,7 @@ def root_landing_page():
     tags=["AnkiConnect Compatibility"],
     operation_id="ankiConnectRpc"
 )
-def ankiconnect_rpc_endpoint(request: AnkiConnectRequest) -> AnkiConnectResponse:
+def ankiconnect_rpc_endpoint(body: AnkiConnectRequest, request: Request) -> AnkiConnectResponse:
     """
     Handle AnkiConnect-style RPC requests at the root path.
 
@@ -87,7 +97,7 @@ def ankiconnect_rpc_endpoint(request: AnkiConnectRequest) -> AnkiConnectResponse
             "version": 6
         }
     """
-    return handle_ankiconnect_rpc(request)
+    return handle_ankiconnect_rpc(body, origin=request.headers.get("origin"))
 
 # Actions listing endpoint
 @app.get(
@@ -155,6 +165,14 @@ def start_server(mw) -> None:
 
         from .adapters import ops
         ops.OP_TIMEOUT = float(cfg.get("op_timeout_seconds", 15))
+
+        def _persist(c: dict) -> None:
+            # settings.update() may run on request threads; hop to the main
+            # thread for addonManager writes. Fire-and-forget is fine - the
+            # in-memory settings are already updated.
+            mw.taskman.run_on_main(lambda: mw.addonManager.writeConfig(ADDON_PACKAGE, dict(c)))
+
+        settings.configure(cfg, persist=_persist)
 
         host = cfg["host"]
         port = choose_port(cfg)
