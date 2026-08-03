@@ -3,9 +3,14 @@
 Copy the add-on source into Anki's installed add-on folder, so a running Anki
 can pick it up without a reinstall.
 
-    python tools/dev_sync.py
-    # then in Anki's debug console (Ctrl+Shift+;):
-    #     import tsunagi; tsunagi.reload_addon()
+    python tools/dev_sync.py --watch    # leave running: save a file, done
+
+With `dev_watch_seconds` set in the add-on config, Anki notices the copy and
+restarts its server on its own, so --watch means editing a file is the entire
+workflow. Without it, sync is one command and the reload is one line in Anki's
+debug console (Ctrl+Shift+;):
+
+    import tsunagi; tsunagi.reload_addon()
 
 The vendored libraries in lib/ are skipped by default - they only change when
 the lockfile does, and copying ~1 MB every iteration is wasted work. Pass
@@ -19,6 +24,7 @@ import argparse
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -72,12 +78,54 @@ def copy_tree(src: Path, dest: Path) -> int:
     return sum(1 for _ in dest.rglob("*.py"))
 
 
+def source_stamp() -> tuple:
+    """(file count, newest mtime) across the source we copy."""
+    newest = 0.0
+    count = 0
+    for path in (ROOT / SOURCE_TREE).rglob("*.py"):
+        try:
+            newest = max(newest, path.stat().st_mtime)
+            count += 1
+        except OSError:
+            pass
+    for name in SOURCE_FILES:
+        src = ROOT / name
+        if src.is_file():
+            newest = max(newest, src.stat().st_mtime)
+    return count, newest
+
+
+def sync(dest: Path, full: bool, verbose: bool = True) -> None:
+    count = copy_tree(ROOT / SOURCE_TREE, dest / SOURCE_TREE)
+    if verbose:
+        print(f"   {SOURCE_TREE}/  ({count} modules)")
+
+    for name in SOURCE_FILES:
+        src = ROOT / name
+        if src.is_file():
+            shutil.copy2(src, dest / name)
+            if verbose:
+                print(f"   {name}")
+
+    if full:
+        lib = ROOT / "lib"
+        if not lib.is_dir():
+            sys.exit("lib/ not built - run tools/build_addon.py first")
+        copy_tree(lib, dest / "lib")
+        if verbose:
+            print("   lib/")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dest", help="installed add-on folder (default: auto-detect)")
     ap.add_argument("--full", action="store_true",
                     help="also copy lib/ (only needed after a dependency rebuild)")
+    ap.add_argument("--watch", action="store_true",
+                    help="stay running and re-sync whenever the source changes")
+    ap.add_argument("--interval", type=float, default=1.0,
+                    help="seconds between checks when watching (default 1)")
     args = ap.parse_args()
 
     dest = find_dest(args.dest)
@@ -87,25 +135,30 @@ def main() -> int:
         print("warning: no lib/shared at the destination - install the built "
               ".ankiaddon once, or re-run with --full")
 
-    count = copy_tree(ROOT / SOURCE_TREE, dest / SOURCE_TREE)
-    print(f"   {SOURCE_TREE}/  ({count} modules)")
+    sync(dest, args.full)
 
-    for name in SOURCE_FILES:
-        src = ROOT / name
-        if src.is_file():
-            shutil.copy2(src, dest / name)
-            print(f"   {name}")
+    if not args.watch:
+        print("\nIn Anki's debug console (Ctrl+Shift+;):")
+        print("    import tsunagi; tsunagi.reload_addon()")
+        print("...or set dev_watch_seconds in the add-on config and Anki will "
+              "reload itself.")
+        print("\nEditing __init__.py or lib/ still needs a full Anki restart.")
+        return 0
 
-    if args.full:
-        lib = ROOT / "lib"
-        if not lib.is_dir():
-            sys.exit("lib/ not built - run tools/build_addon.py first")
-        copy_tree(lib, dest / "lib")
-        print("   lib/")
-
-    print("\nIn Anki's debug console (Ctrl+Shift+;):")
-    print("    import tsunagi; tsunagi.reload_addon()")
-    print("\nEditing __init__.py or lib/ still needs a full Anki restart.")
+    print(f"\nwatching {ROOT / SOURCE_TREE} (Ctrl+C to stop)")
+    print("set dev_watch_seconds in the add-on config so Anki reloads itself too")
+    stamp = source_stamp()
+    try:
+        while True:
+            time.sleep(args.interval)
+            current = source_stamp()
+            if current == stamp:
+                continue
+            stamp = current
+            sync(dest, args.full, verbose=False)
+            print(f"  synced {time.strftime('%H:%M:%S')}  ({current[0]} modules)")
+    except KeyboardInterrupt:
+        print("\nstopped")
     return 0
 
 

@@ -11,5 +11,6 @@
     "media_fetch_timeout_seconds": 30,
     "media_allow_local_path": false,
     "ankiconnect_import_offered": false,
+    "dev_watch_seconds": 0,
     "config_version": 3
 }
