@@ -41,6 +41,14 @@ class ValidationError(Exception):
         super().__init__(message)
 
 
+class DuplicateNoteError(Exception):
+    """Raised when adding a note that duplicates an existing one"""
+    def __init__(self, note_ids: list):
+        self.note_ids = note_ids
+        self.status_code = 409
+        super().__init__(f"Note duplicates existing note(s): {note_ids}")
+
+
 class AnkiBusyError(Exception):
     """Raised when a cross-thread operation times out (Anki busy/blocked)"""
     def __init__(self, message: str = "Anki is busy; operation timed out"):
@@ -115,7 +123,7 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
     """
     def to_http_exception(exc: Exception) -> HTTPException:
         if isinstance(exc, (ResourceNotFoundError, SubresourceNotFoundError, ValidationError,
-                            AnkiBusyError, CollectionUnavailableError)):
+                            DuplicateNoteError, AnkiBusyError, CollectionUnavailableError)):
             return HTTPException(status_code=exc.status_code, detail=str(exc))
         if isinstance(exc, ValueError):
             return HTTPException(status_code=400, detail=str(exc))

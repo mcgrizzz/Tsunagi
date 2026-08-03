@@ -41,6 +41,28 @@ class OpChanges:
     pass
 
 
+class NotFoundError(Exception):
+    pass
+
+
+class SearchError(Exception):
+    pass
+
+
+class SearchNode:
+    """Minimal stand-in; only FakeCollection.build_search_string reads these."""
+
+    class Dupe:
+        def __init__(self, notetype_id=None, first_field=None):
+            self.notetype_id = notetype_id
+            self.first_field = first_field
+
+    def __init__(self, dupe=None, deck=None, nids=None):
+        self.dupe = dupe
+        self.deck = deck
+        self.nids = nids
+
+
 class QueryOp:
     def __init__(self, *, parent, op, success):
         self._op = op
@@ -94,7 +116,13 @@ def install() -> None:
     anki_col_mod = types.ModuleType("anki.collection")
     anki_col_mod.Collection = Collection
     anki_col_mod.OpChanges = OpChanges
+    anki_col_mod.SearchNode = SearchNode
     anki_mod.collection = anki_col_mod
+
+    anki_err_mod = types.ModuleType("anki.errors")
+    anki_err_mod.NotFoundError = NotFoundError
+    anki_err_mod.SearchError = SearchError
+    anki_mod.errors = anki_err_mod
 
     aqt_mod = types.ModuleType("aqt")
     aqt_mod.mw = mw
@@ -105,5 +133,6 @@ def install() -> None:
 
     sys.modules["anki"] = anki_mod
     sys.modules["anki.collection"] = anki_col_mod
+    sys.modules["anki.errors"] = anki_err_mod
     sys.modules["aqt"] = aqt_mod
     sys.modules["aqt.operations"] = aqt_ops_mod

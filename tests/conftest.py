@@ -29,11 +29,16 @@ install()
 @pytest.fixture()
 def fake_col():
     """Fresh seeded FakeCollection assigned to the fake mw.col."""
+    import shutil
+
     from fakes.collection import FakeCollection
 
     mw.col = FakeCollection()
-    yield mw.col
-    mw.col = None
+    try:
+        yield mw.col
+    finally:
+        shutil.rmtree(mw.col.media.dir(), ignore_errors=True)
+        mw.col = None
 
 
 @pytest.fixture()
