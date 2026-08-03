@@ -18,6 +18,11 @@ TIER1 = {
     "deckNames", "deckNamesAndIds", "createDeck",
     "modelNames", "modelNamesAndIds", "modelFieldNames",
     "findModelsByName", "findModelsById",
+    # M4: notes, media, gui
+    "addNote", "addNotes", "canAddNotes", "canAddNotesWithErrorDetail",
+    "updateNoteFields", "notesInfo", "findNotes", "deleteNotes",
+    "storeMediaFile", "retrieveMediaFile", "getMediaFilesNames", "deleteMediaFile",
+    "guiBrowse",
 }
 
 
@@ -39,7 +44,7 @@ class TestVersionSemantics:
 
     def test_request_permission_bare_at_v4(self, client):
         body = client.post("/", json={"action": "requestPermission"}).json()
-        assert body == {"permission": "granted", "requireApiKey": False, "version": 6}
+        assert body == {"permission": "granted", "requireApikey": False, "version": 6}
 
 
 class TestErrors:

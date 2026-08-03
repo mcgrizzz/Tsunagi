@@ -55,6 +55,28 @@ def get_models_by_names(col: Collection, names: Sequence[str], wants=None) -> Li
     return out
 
 @as_query_op
+def get_raw_models(col: Collection, ids: Sequence[int] = (),
+                   names: Sequence[str] = ()) -> Dict[Any, Dict[str, Any]]:
+    """
+    Raw schema11 notetype dicts, keyed by whichever lookup was used.
+
+    The compat findModelsBy* actions must return Anki's dict verbatim;
+    routing them through ModelInfo would silently drop any schema11 key the
+    schema doesn't model.
+    """
+    mm = col.models
+    out: Dict[Any, Dict[str, Any]] = {}
+    for mid in ids:
+        m = mm.get(int(mid))
+        if m:
+            out[int(mid)] = m
+    for name in names:
+        m = mm.by_name(name)
+        if m:
+            out[name] = m
+    return out
+
+@as_query_op
 def get_model_names_and_ids(col: Collection) -> List[Mapping[str, Any]]: #1 query
     res: List[Mapping[str, Any]] = []
     for nt in col.models.all_names_and_ids():

@@ -37,14 +37,14 @@ class TestRequestPermission:
     def test_no_origin_granted_without_dialog(self):
         calls = []
         resp = rpc("requestPermission", Settings({"api_key": ""}), ask=lambda o: calls.append(o))
-        assert resp["result"] == {"permission": "granted", "requireApiKey": False, "version": 6}
+        assert resp["result"] == {"permission": "granted", "requireApikey": False, "version": 6}
         assert calls == []
 
     def test_allowed_origin_granted_without_dialog(self):
         calls = []
         s = Settings({"api_key": "k", "cors_allowlist": [ORIGIN]})
         resp = rpc("requestPermission", s, origin=ORIGIN, ask=lambda o: calls.append(o))
-        assert resp["result"] == {"permission": "granted", "requireApiKey": True, "version": 6}
+        assert resp["result"] == {"permission": "granted", "requireApikey": True, "version": 6}
         assert calls == []
 
     def test_unknown_origin_accept_persists(self):

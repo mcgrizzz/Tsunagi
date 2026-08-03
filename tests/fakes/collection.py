@@ -200,6 +200,15 @@ class FakeDeckManager:
     def save(self, deck):
         self._store[deck["id"]] = copy.deepcopy(deck)
 
+    def children(self, did):
+        """(name, id) of descendants, EXCLUDING did itself (like Anki)."""
+        parent = self._store.get(did)
+        if parent is None:
+            return []
+        prefix = parent["name"] + "::"
+        return [(d["name"], d["id"]) for d in self._store.values()
+                if d["name"].startswith(prefix)]
+
 
 class FakeMediaManager:
     """
@@ -286,8 +295,10 @@ class FakeNote:
         return self._nt
 
     def fields_check(self):
+        from fakes.anki_stubs import strip_html_media
+
         first = self.fields[0] if self.fields else ""
-        stripped = re.sub(r"<[^>]+>", "", first).strip()
+        stripped = strip_html_media(first).strip()
         if not stripped:
             return 1  # EMPTY
         if int(self._nt.get("type", 0)) == 1 and "{{c" not in "".join(self.fields):
@@ -296,9 +307,44 @@ class FakeNote:
             if other.id == self.id or other.mid != self.mid:
                 continue
             other_first = other.fields[0] if other.fields else ""
-            if re.sub(r"<[^>]+>", "", other_first).strip() == stripped:
+            if strip_html_media(other_first).strip() == stripped:
                 return 2  # DUPLICATE
         return 0  # NORMAL
+
+
+class FakeDb:
+    """
+    Shim for the handful of raw SQL statements AnkiConnect's scoped
+    duplicate check issues. Dispatches on the exact statement text: an
+    unrecognized query raises rather than silently returning nothing.
+    """
+
+    def __init__(self, col):
+        self._col = col
+
+    def list(self, sql, *args):
+        from fakes.anki_stubs import field_checksum
+
+        norm = " ".join(sql.split())
+        if norm.startswith("select id from notes where csum = ?"):
+            csum = args[0]
+            rest = list(args[1:])
+            exclude_id = rest.pop(0) if " and id != ?" in norm else None
+            mid = rest.pop(0) if " and mid = ?" in norm else None
+            out = []
+            for note in self._col._notes.values():
+                first = note.fields[0] if note.fields else ""
+                if field_checksum(first) != csum:
+                    continue
+                if exclude_id is not None and note.id == exclude_id:
+                    continue
+                if mid is not None and note.mid != mid:
+                    continue
+                out.append(note.id)
+            return sorted(out)
+        if norm == "select did from cards where nid = ?":
+            return [c["did"] for c in self._col._cards.values() if c["nid"] == args[0]]
+        raise AssertionError(f"FakeDb: unhandled SQL {norm!r}")
 
 
 class FakeCollection:
@@ -306,6 +352,7 @@ class FakeCollection:
         self.models = FakeModelManager(seed=seed)
         self.decks = FakeDeckManager(seed=seed)
         self.media = FakeMediaManager()
+        self.db = FakeDb(self)
         self._notes = {}
         self._cards = {}
         self._next_note_id = 7000
