@@ -20,6 +20,7 @@ from .http.compat.ankiconnect import (
     origin_allowed_for,
 )
 from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
+from .http.v1.cards import router as cards_router
 from .http.v1.decks import router as decks_router
 from .http.v1.media import router as media_router
 from .http.v1.models import router as models_router
@@ -49,6 +50,10 @@ app = FastAPI(
             "description": "Notes hold the content; cards are generated from them. Supports Anki search syntax via the `search` parameter."
         },
         {
+            "name": "Cards",
+            "description": "Cards generated from notes by a model's templates. Reads support Anki search syntax; scheduling changes are batch verb routes (POST /v1/cards:suspend and friends)."
+        },
+        {
             "name": "Media",
             "description": "Files in the collection's media folder. Downloads stream raw bytes; uploads report the name Anki actually stored."
         },
@@ -66,6 +71,7 @@ app = FastAPI(
 app.include_router(models_router)
 app.include_router(decks_router)
 app.include_router(notes_router)
+app.include_router(cards_router)
 app.include_router(media_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 

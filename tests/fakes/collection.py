@@ -561,6 +561,23 @@ class FakeScheduler:
         return build("", 0)
 
 
+class FakeBackend:
+    """
+    The two private backend calls cardsInfo's `nextReviews` needs. Kept
+    deliberately thin: the adapter treats any failure here as "field absent",
+    and that fallback is what protects us if a future Anki moves them.
+    """
+
+    def __init__(self, col):
+        self._col = col
+
+    def get_scheduling_states(self, card_id):
+        return SimpleNamespace(card_id=card_id)
+
+    def describe_next_states(self, states):
+        return ["<1m", "<10m", "1d", "4d"]
+
+
 class FakeTagManager:
     def __init__(self, col):
         self._col = col
@@ -690,6 +707,7 @@ class FakeCollection:
         self.db = FakeDb(self)
         self.tags = FakeTagManager(self)
         self.sched = FakeScheduler(self)
+        self._backend = FakeBackend(self)
         self._notes = {}
         self._cards = {}
         self._revlog = []          # (id_ms, cid, ivl) rows
