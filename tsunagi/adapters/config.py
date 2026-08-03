@@ -16,6 +16,9 @@ DEFAULTS = {
     "cors_allowlist": ["http://localhost"],
     "log_level": "warning",
     "op_timeout_seconds": 15,
+    "media_max_bytes": 67108864,          # 64 MiB
+    "media_fetch_timeout_seconds": 30,
+    "media_allow_local_path": False,      # server-side file reads: off by default
     "ankiconnect_import_offered": False,
     "config_version": 3,
 }

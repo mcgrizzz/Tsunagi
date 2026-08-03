@@ -49,6 +49,21 @@ Uvicorn log level (`critical`, `error`, `warning`, `info`, `debug`).
 How long a request may wait for Anki (busy with a dialog, sync, etc.) before
 returning HTTP 503 instead of hanging.
 
+### `media_max_bytes`
+Largest file accepted by a media upload (default 64 MiB). Applies to base64
+uploads, URL downloads, and local files alike.
+
+### `media_fetch_timeout_seconds`
+Timeout for downloading media from a URL (default 30).
+
+### `media_allow_local_path`
+When `true`, media uploads may name a file **on this computer** for the server
+to read (`{"path": "C:/pictures/dog.png"}`), which is how AnkiConnect's
+`storeMediaFile` behaves. Off by default: with it on, anything that can reach
+the API can make Anki read any file your user account can read. Turn it on
+only if you use local scripts that pass file paths. Base64 `data` and `url`
+uploads work either way.
+
 ### `ankiconnect_import_offered` / `config_version`
 Internal bookkeeping - don't edit. (`ankiconnect_import_offered` records that
 the one-time "import settings from AnkiConnect" dialog was shown; set it back
