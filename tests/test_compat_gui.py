@@ -94,7 +94,40 @@ class TestGuiBrowse:
         assert browser.sorted_by == (3, "desc")
 
 
-def test_module_imports_without_qt():
-    # No aqt.dialogs / aqt.qt installed here: all Qt imports are function-local
-    import tsunagi.http.compat.actions.gui as gui
-    assert hasattr(gui, "ac_guiBrowse")
+def test_modules_import_without_qt():
+    # No aqt.dialogs / aqt.qt installed here: every Qt import is function-local,
+    # which is what lets the addon load before Anki has a main window.
+    import tsunagi.adapters.anki.gui as adapter
+    import tsunagi.http.compat.actions.gui as compat
+    import tsunagi.http.v1.gui as routes
+
+    assert hasattr(compat, "ac_guiBrowse")
+    assert hasattr(adapter, "open_browser") and hasattr(adapter, "current_card")
+    assert hasattr(routes, "router")
+
+
+def test_every_gui_action_is_registered():
+    from tsunagi.http.compat.registry import registry
+
+    expected = {
+        "guiBrowse", "guiSelectCard", "guiSelectNote", "guiSelectedNotes",
+        "guiEditNote", "guiAddCards", "guiAddNoteSetData", "guiCurrentCard",
+        "guiStartCardTimer", "guiShowQuestion", "guiShowAnswer", "guiAnswerCard",
+        "guiUndo", "guiDeckOverview", "guiDeckBrowser", "guiDeckReview",
+        "guiImportFile", "guiExitAnki", "guiCheckDatabase", "guiReviewActive",
+        "guiPlayAudio",
+    }
+    assert expected <= set(registry._handlers)
+
+
+def test_native_gui_routes_are_mounted():
+    """
+    The GUI needs a live main window to *do* anything, but /v1 must still
+    expose it - a native client should never have to fall back to the shim.
+    """
+    from tsunagi.app import app
+
+    paths = {r.path for r in app.routes}
+    assert {"/v1/gui:browse", "/v1/gui:add-cards", "/v1/gui:answer-card",
+            "/v1/gui:deck-review", "/v1/gui/current-card",
+            "/v1/gui/selected-notes"} <= paths

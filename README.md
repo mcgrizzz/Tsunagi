@@ -263,6 +263,19 @@ Every resource below supports the query parameters above, plus
   returns the filename Anki **actually** stored — it renames on collision.
   Filter the listing with `prefix`/`suffix`; media is a flat namespace, not a
   DSL-queryable resource.
+- **`/v1/reviews`** - Review history from the revlog, read-only and
+  keyset-paginated on the review timestamp. `?search=` takes Anki query syntax
+  and means "reviews of the cards this matches"; `where=card_id==...` uses an
+  index instead. Writing rows is deliberately absent — the scheduler owns the
+  revlog.
+- **`/v1/gui:*`** - Drives the running app: `:browse`, `:select-card`,
+  `:edit-note`, `:add-cards` (prefill the Add dialog — what asbplayer's "Open
+  in Anki" needs), `:set-add-note-data`, `:show-question`, `:show-answer`,
+  `:answer-card`, `:play-audio`, `:start-card-timer`, `:undo`, `:deck-browser`,
+  `:deck-overview`, `:deck-review`, `:import-file`, `:exit`, plus
+  `GET /v1/gui/current-card` and `GET /v1/gui/selected-notes`.
+- **`/v1/collection:*` and `/v1/profiles`** - `:sync`, `:export`, `:import`,
+  `:reload`, `:check-database`; `GET /v1/profiles` and `POST /v1/profiles:load`.
 - **GET `/v1/health`** - Simple health check (never requires an API key).
 
 ### AnkiConnect compatibility
@@ -277,10 +290,14 @@ One practical difference worth knowing: every mutation goes through Anki's
 browser is open with the note selected** — a case that fails against
 AnkiConnect's legacy `startEditing()`/`stopEditing()` approach.
 
-`GET /actions` lists the implemented actions. **86 of AnkiConnect's 122** are
-in place — see [docs/ankiconnect_parity.md](docs/ankiconnect_parity.md) for the
-full table, the handful of deliberate behavioural deviations, and the two
-places AnkiConnect's own documentation disagrees with its code.
+`GET /actions` lists the implemented actions. **119 of AnkiConnect's 122** are
+in place — the three left out write to the database behind the scheduler's back
+— see [docs/ankiconnect_parity.md](docs/ankiconnect_parity.md) for the full
+table, the handful of deliberate behavioural deviations, and the two places
+AnkiConnect's own documentation disagrees with its code.
+
+**`/v1` is a superset.** Every action has a native equivalent, including the
+GUI ones, so nothing requires the shim. It exists for tools you don't control.
 
 **GET/POST parity**
 

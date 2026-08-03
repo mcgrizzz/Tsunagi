@@ -11,8 +11,8 @@ GitHub is stale (2023) and disagrees with it. Counts here come from the
 | | |
 | --- | --- |
 | Actions upstream | **122** |
-| Implemented | **99** |
-| Planned (M6) | **20** |
+| Implemented | **119** |
+| Planned (M6) | **0** |
 | Out of scope | **3** |
 
 `GET /actions` returns the live list. `tests/test_parity_doc.py` checks this
@@ -174,27 +174,27 @@ work.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `guiAddCards` | M6 | M6 - drives Anki's windows. |
-| `guiAddNoteSetData` | M6 | M6 - drives Anki's windows. |
-| `guiAnswerCard` | M6 | M6 - drives Anki's windows. |
+| `guiAddCards` | implemented | Manual verification only (needs a live main window). |
+| `guiAddNoteSetData` | implemented | Manual verification only (needs a live main window). |
+| `guiAnswerCard` | implemented | Manual verification only (needs a live main window). |
 | `guiBrowse` | implemented |  |
-| `guiCheckDatabase` | M6 | M6 - drives Anki's windows. |
-| `guiCurrentCard` | M6 | M6 - drives Anki's windows. |
-| `guiDeckBrowser` | M6 | M6 - drives Anki's windows. |
-| `guiDeckOverview` | M6 | M6 - drives Anki's windows. |
-| `guiDeckReview` | M6 | M6 - drives Anki's windows. |
-| `guiEditNote` | M6 | M6 - drives Anki's windows. |
-| `guiExitAnki` | M6 | M6 - drives Anki's windows. |
-| `guiImportFile` | M6 | M6 - drives Anki's windows. |
-| `guiPlayAudio` | M6 | M6 - drives Anki's windows. |
-| `guiReviewActive` | M6 | M6 - drives Anki's windows. Not in the upstream README. |
-| `guiSelectCard` | M6 | M6 - drives Anki's windows. |
-| `guiSelectNote` | M6 | M6 - drives Anki's windows. Not in the upstream README. |
-| `guiSelectedNotes` | M6 | M6 - drives Anki's windows. |
-| `guiShowAnswer` | M6 | M6 - drives Anki's windows. |
-| `guiShowQuestion` | M6 | M6 - drives Anki's windows. |
-| `guiStartCardTimer` | M6 | M6 - drives Anki's windows. |
-| `guiUndo` | M6 | M6 - drives Anki's windows. |
+| `guiCheckDatabase` | implemented | Native equivalent is `POST /v1/collection:check-database`. |
+| `guiCurrentCard` | implemented | Native `GET /v1/gui/current-card` reports null when no review is active; this raises, as canonical does. |
+| `guiDeckBrowser` | implemented | Manual verification only (needs a live main window). |
+| `guiDeckOverview` | implemented | Manual verification only (needs a live main window). |
+| `guiDeckReview` | implemented | Manual verification only (needs a live main window). |
+| `guiEditNote` | implemented | Deviation: opens the Browser focused on the note. Canonical ships its own standalone editor dialog, which is its UX rather than its protocol. |
+| `guiExitAnki` | implemented | Manual verification only (needs a live main window). |
+| `guiImportFile` | implemented | Manual verification only (needs a live main window). |
+| `guiPlayAudio` | implemented | Manual verification only (needs a live main window). |
+| `guiReviewActive` | implemented | Manual verification only (needs a live main window). |
+| `guiSelectCard` | implemented | Manual verification only (needs a live main window). |
+| `guiSelectNote` | implemented | Compat-only: canonical's own deprecated alias for `guiSelectCard` (it selects a card despite the name). |
+| `guiSelectedNotes` | implemented | Manual verification only (needs a live main window). |
+| `guiShowAnswer` | implemented | Manual verification only (needs a live main window). |
+| `guiShowQuestion` | implemented | Manual verification only (needs a live main window). |
+| `guiStartCardTimer` | implemented | Manual verification only (needs a live main window). |
+| `guiUndo` | implemented | Manual verification only (needs a live main window). |
 
 ### Statistic Actions
 
