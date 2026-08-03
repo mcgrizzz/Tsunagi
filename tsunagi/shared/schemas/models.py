@@ -127,6 +127,10 @@ class ModelCreate(BaseModel):
     templates: List[TemplateCreate] = Field(alias="tmpls")
     css: Optional[str] = None
     sort_field: Optional[int] = Field(alias="sortf", default=0)
+    # 0 standard, 1 cloze. Fixed at creation - ModelPatch deliberately can't
+    # change it. Without this key, normalize_field_names dropped it and cloze
+    # note types were impossible to create.
+    type: Optional[int] = None
 
 
 class FindReplaceRequest(BaseModel):
