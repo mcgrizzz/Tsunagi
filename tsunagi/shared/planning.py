@@ -127,8 +127,14 @@ def make_plan(
     if caps.columns_fetchers:
         tops = selected_top_fields(select_text)
         if tops:
+            # The where predicate runs on these rows too, so every top-level
+            # field a clause touches must also be present in the fetched
+            # columns - otherwise filters silently match nothing.
+            needed = set(tops)
+            for w in (where_params or []):
+                needed.add(parse_where(w).tokens[0])
             for fs, fetcher in caps.columns_fetchers.items():
-                if tops.issubset(fs):
+                if needed.issubset(fs):
                     return Plan("columns", fetcher)
 
     # 3) FALLBACK

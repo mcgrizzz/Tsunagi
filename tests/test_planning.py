@@ -71,6 +71,17 @@ class TestColumnsTier:
         plan = make_plan("id,css", None, make_caps([]))
         assert plan.mode == "full"
 
+    def test_where_needing_uncovered_field_falls_through(self):
+        # Regression: select=id,name picked the columns fetcher even when the
+        # where clause needed a field (fields[].name) the columns rows lack,
+        # so the predicate silently matched nothing.
+        plan = make_plan("id,name", ["fields[].name==Front"], make_caps([]))
+        assert plan.mode == "full"
+
+    def test_where_on_covered_field_keeps_columns(self):
+        plan = make_plan("id,name", ["name~=Basic"], make_caps([]))
+        assert plan.mode == "columns"
+
 
 class TestFullTier:
     def test_no_hints_full_scan(self):

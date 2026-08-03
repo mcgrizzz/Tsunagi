@@ -201,6 +201,14 @@ class TestQueries:
         resp = client.get("/v1/things", params={"where": "id==1", "select": "fields["})
         assert resp.status_code == 400
 
+    def test_nested_where_with_columns_covered_select(self, client):
+        # Regression: this combination hit the {id,name} columns fetcher whose
+        # rows lack "fields", so the filter returned [] despite matches.
+        body = client.get("/v1/things", params={
+            "select": "id,name", "where": "fields[].name==Front", "shape": "object",
+        }).json()
+        assert [r["id"] for r in body["items"]] == [1, 3]
+
     def test_row_without_id_is_400_not_500(self, store, client):
         # Regression (P2): HTTPException(400) from make_id_getter must not be
         # swallowed into a 500 by the generic handler.
