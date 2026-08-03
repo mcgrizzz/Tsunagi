@@ -176,9 +176,13 @@ def start_server(mw) -> None:
         _log(f"listening on http://{host}:{port}")
     except Exception as e:
         _log(f"[fatal] start_server failed:\n{traceback.format_exc()}")
+        msg = f"Tsunagi failed to start: {e}"
         try:
+            from aqt.qt import QTimer
             from aqt.utils import tooltip
-            tooltip(f"Tsunagi failed to start: {e}", period=5000)
+            # Delay past Anki's own startup tooltips (sync etc.) so the
+            # warning is actually visible, and keep it up longer.
+            QTimer.singleShot(3000, lambda: tooltip(msg, period=8000))
         except Exception:
             pass  # headless / no Qt available
 
