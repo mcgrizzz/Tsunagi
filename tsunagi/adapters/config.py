@@ -1,5 +1,6 @@
-import secrets, socket
-from typing import Tuple
+import secrets
+import socket
+
 from aqt import mw
 
 DEFAULTS = {
@@ -9,7 +10,8 @@ DEFAULTS = {
     "prefer_port": 7777,
     "token": "", 
     "cors_allowlist": [],
-    "log_level": "warning", 
+    "log_level": "warning",
+    "op_timeout_seconds": 15,
     "config_version": 1,
 }
 
@@ -41,7 +43,6 @@ def choose_port(cfg: dict) -> int:
         if _bindable(host, explicit): return explicit
         raise RuntimeError(f"Configured port {explicit} is busy")
     if _bindable(host, prefer): return prefer
-
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((host, 0)); port = s.getsockname()[1]; s.close()
-    return port
+    # No silent ephemeral fallback: clients are configured for the preferred
+    # port, so a random one just hides the conflict.
+    raise RuntimeError(f"Port {prefer} is busy (another server or addon using it?)")
