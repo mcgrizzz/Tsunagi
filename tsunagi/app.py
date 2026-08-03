@@ -3,10 +3,11 @@ import sys
 import threading
 import traceback
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from .adapters.config import ADDON_PACKAGE, choose_port, load_config
 from .adapters.settings import settings
@@ -99,7 +100,7 @@ def root_landing_page():
     tags=["AnkiConnect Compatibility"],
     operation_id="ankiConnectRpc"
 )
-def ankiconnect_rpc_endpoint(body: Dict[str, Any], request: Request) -> Any:
+async def ankiconnect_rpc_endpoint(request: Request) -> Any:
     """
     Handle AnkiConnect-style RPC requests at the root path.
 
@@ -114,12 +115,27 @@ def ankiconnect_rpc_endpoint(body: Dict[str, Any], request: Request) -> Any:
             "version": 6
         }
     """
+    # The body is parsed by hand rather than declared as a typed parameter:
+    # AnkiConnect clients check only `error` and then read `result`, so a
+    # FastAPI 422 body ({"detail": ...}) sails past their guard and crashes
+    # them on the next property access. Every reply from this endpoint must
+    # be an envelope.
+    try:
+        body = await request.json()
+    except Exception:
+        return {"result": None, "error": "request body is not valid JSON"}
+    if not isinstance(body, dict):
+        return {"result": None, "error": "request body must be a JSON object"}
+
     origin = request.headers.get("origin")
     if not origin_allowed_for(body.get("action", ""), origin):
         # Same wire response AnkiConnect gives a disallowed origin
         from fastapi import Response
         return Response(status_code=403)
-    return handle_ankiconnect_rpc(body, origin=origin)
+
+    # Anki work happens off the event loop: the handlers block on QueryOp /
+    # CollectionOp round-trips to Anki's threads.
+    return await run_in_threadpool(handle_ankiconnect_rpc, body, origin=origin)
 
 # Actions listing endpoint
 @app.get(

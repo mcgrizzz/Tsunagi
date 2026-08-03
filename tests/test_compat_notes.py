@@ -226,6 +226,25 @@ class TestUpdateNoteFields:
         resp = rpc(client, "updateNoteFields", {"note": {"id": 999999, "fields": {"Back": "x"}}})
         assert resp["error"] == NOTE_NOT_FOUND.format(999999)
 
+    def test_attaches_audio_to_existing_note(self, client, fake_col):
+        # asbplayer's "update last card with audio" flow
+        nid = rpc(client, "addNote", {"note": note_spec()})["result"]
+        resp = rpc(client, "updateNoteFields", {"note": {
+            "id": nid, "fields": {"Back": "dog"},
+            "audio": {"filename": "word.mp3", "data": B64, "fields": ["Back"]}}})
+        assert resp == {"result": None, "error": None}
+        (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
+        assert info["fields"]["Back"]["value"] == "dog[sound:word.mp3]"
+        assert fake_col.media.have("word.mp3")
+
+    def test_attaches_picture_to_existing_note(self, client):
+        nid = rpc(client, "addNote", {"note": note_spec()})["result"]
+        rpc(client, "updateNoteFields", {"note": {
+            "id": nid, "fields": {},
+            "picture": {"filename": "pic.png", "data": B64, "fields": ["Back"]}}})
+        (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
+        assert info["fields"]["Back"]["value"].endswith('<img src="pic.png">')
+
 
 class TestNotesInfo:
     def test_exact_key_set(self, client):
@@ -270,6 +289,40 @@ class TestFindAndDeleteNotes:
         nid = rpc(client, "addNote", {"note": note_spec()})["result"]
         assert rpc(client, "deleteNotes", {"notes": [nid]}) == {"result": None, "error": None}
         assert rpc(client, "findNotes", {"query": "犬"})["result"] == []
+
+
+class TestTags:
+    """asbplayer calls addTags right after updateNoteFields when tags are set."""
+
+    def test_add_tags(self, client):
+        nid = rpc(client, "addNote", {"note": note_spec()})["result"]
+        assert rpc(client, "addTags", {"notes": [nid], "tags": "mined asbplayer"}) == \
+            {"result": None, "error": None}
+        (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
+        assert info["tags"] == ["mined", "asbplayer"]
+
+    def test_add_tags_is_idempotent(self, client):
+        nid = rpc(client, "addNote", {"note": note_spec(tags=["mined"])})["result"]
+        rpc(client, "addTags", {"notes": [nid], "tags": "mined"})
+        (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
+        assert info["tags"] == ["mined"]
+
+    def test_remove_tags(self, client):
+        nid = rpc(client, "addNote", {"note": note_spec(tags=["a", "b"])})["result"]
+        rpc(client, "removeTags", {"notes": [nid], "tags": "a"})
+        (info,) = rpc(client, "notesInfo", {"notes": [nid]})["result"]
+        assert info["tags"] == ["b"]
+
+    def test_get_tags(self, client):
+        rpc(client, "addNote", {"note": note_spec(front="犬", tags=["vocab"])})
+        rpc(client, "addNote", {"note": note_spec(front="猫", tags=["verb"])})
+        assert rpc(client, "getTags", {})["result"] == ["verb", "vocab"]
+
+    def test_notes_mod_time(self, client):
+        nid = rpc(client, "addNote", {"note": note_spec()})["result"]
+        (entry,) = rpc(client, "notesModTime", {"notes": [nid]})["result"]
+        assert entry["noteId"] == nid
+        assert isinstance(entry["mod"], int)
 
 
 class TestNoteMedia:

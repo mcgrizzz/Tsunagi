@@ -22,11 +22,15 @@ from ....adapters.anki.notes import (
     ac_add_note,
     ac_check_note,
     ac_update_note_fields,
+    add_tags,
+    all_tags,
     delete_notes,
     find_card_ids,
     find_note_ids,
     get_notes_by_ids,
+    notes_mod_times,
     profile_name,
+    remove_tags,
 )
 from ..errors import NOTES_INFO_NO_INPUT
 from ..registry import registry
@@ -257,3 +261,30 @@ def ac_findCards(p: FindNotesParams) -> List[int]:
 def ac_deleteNotes(p: DeleteNotesParams) -> None:
     delete_notes(p.notes)
     return None
+
+
+class TagsParams(BaseModel):
+    notes: List[int]
+    tags: str          # space-separated, per AnkiConnect
+
+
+@registry.register("addTags", params=TagsParams)
+def ac_addTags(p: TagsParams) -> None:
+    add_tags(p.notes, p.tags)
+    return None
+
+
+@registry.register("removeTags", params=TagsParams)
+def ac_removeTags(p: TagsParams) -> None:
+    remove_tags(p.notes, p.tags)
+    return None
+
+
+@registry.register("getTags")
+def ac_getTags(params: Dict[str, Any]) -> List[str]:
+    return all_tags()
+
+
+@registry.register("notesModTime", params=DeleteNotesParams)
+def ac_notesModTime(p: DeleteNotesParams) -> List[Dict[str, Any]]:
+    return notes_mod_times(p.notes)

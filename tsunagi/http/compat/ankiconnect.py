@@ -27,6 +27,7 @@ import secrets
 import traceback
 from typing import Any, Callable, Dict, Optional
 
+from ...shared.errors import ValidationError as TsunagiValidationError
 from .errors import (  # noqa: F401  (API_KEY_ERROR re-exported)
     ACTION_FAILED,
     API_KEY_ERROR,
@@ -145,9 +146,11 @@ def handle_ankiconnect_rpc(
 
     try:
         return _success(version, registry.handle(action, params))
-    except ValueError as ve:
-        # Client error - invalid parameters / canonical lookup failures
-        return _error(str(ve))
+    except (ValueError, TsunagiValidationError) as e:
+        # Client error - invalid parameters, canonical lookup failures, or an
+        # adapter rejecting input (e.g. an unusable media filename). These
+        # carry a useful message, so don't hide them behind ACTION_FAILED.
+        return _error(str(e))
     except Exception:
         # Server error - log internally, return a generic string to the client
         print("[tsunagi] compat action failed:\n" + traceback.format_exc())
