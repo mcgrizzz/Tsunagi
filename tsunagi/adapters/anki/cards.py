@@ -41,6 +41,19 @@ def _next_reviews(col: Collection, card_id: int) -> Optional[List[str]]:
         return None
 
 
+def _memory_state(card: Any) -> Optional[Dict[str, float]]:
+    """
+    FSRS memory state as plain numbers. Anki hands back a protobuf message,
+    and `decay`/`last_review_time` landed after `memory_state`, so every FSRS
+    attribute is read defensively: on an older build the field reports null
+    rather than raising.
+    """
+    state = getattr(card, "memory_state", None)
+    if state is None:
+        return None
+    return {"stability": float(state.stability), "difficulty": float(state.difficulty)}
+
+
 def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
                wants: Optional[Set[str]] = None) -> CardInfo:
     want_note = wants is None or bool(NOTE_WANTS & wants)
@@ -80,6 +93,12 @@ def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
         lapses=int(card.lapses),
         left=int(card.left),
         flags=int(getattr(card, "flags", 0) or 0),
+        original_position=getattr(card, "original_position", None),
+        custom_data=getattr(card, "custom_data", "") or "",
+        memory_state=_memory_state(card),
+        desired_retention=getattr(card, "desired_retention", None),
+        decay=getattr(card, "decay", None),
+        last_review_time=getattr(card, "last_review_time", None),
         suspended=int(card.queue) == QUEUE_SUSPENDED,
         buried=int(card.queue) in BURIED_QUEUES,
         flag=int(getattr(card, "flags", 0) or 0) & 0b111,

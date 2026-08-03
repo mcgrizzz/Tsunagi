@@ -179,6 +179,49 @@ class TestPatch:
         assert client.patch("/v1/notes/999999", json={"tags": []}).status_code == 404
 
 
+class TestChangeModel:
+    """Retyping a note - the native home for AnkiConnect's updateNoteModel."""
+
+    def test_change_model_by_name(self, client):
+        nid = add(client, tags=["keep"]).json()["result"]["id"]
+        resp = client.patch(f"/v1/notes/{nid}", json={
+            "modelName": "Cloze", "fields": {"Text": "{{c1::犬}}"}})
+        assert resp.status_code == 200
+        note = resp.json()["result"]
+        assert note["model_name"] == "Cloze"
+        assert [f["name"] for f in note["fields"]] == ["Text", "Back Extra"]
+        assert note["fields"][0]["value"] == "{{c1::犬}}"
+        assert note["tags"] == ["keep"]        # tags survive the retype
+
+    def test_change_model_by_id(self, client):
+        nid = add(client).json()["result"]["id"]
+        note = client.patch(f"/v1/notes/{nid}", json={
+            "modelId": 1002, "fields": {"Text": "{{c1::猫}}"}}).json()["result"]
+        assert note["model_id"] == 1002
+
+    def test_change_model_without_fields_is_400(self, client):
+        # The resize blanks every field, so a bare model change would erase
+        # the note. Refuse rather than silently destroy content.
+        nid = add(client).json()["result"]["id"]
+        resp = client.patch(f"/v1/notes/{nid}", json={"modelName": "Cloze"})
+        assert resp.status_code == 400
+        assert "erase" in resp.json()["detail"]
+        note = client.get("/v1/notes", params={"where": f"id=={nid}"}).json()["items"][0]
+        assert note["fields"][0]["value"] == "犬"   # untouched
+
+    def test_unknown_model_is_400(self, client):
+        nid = add(client).json()["result"]["id"]
+        resp = client.patch(f"/v1/notes/{nid}",
+                            json={"modelName": "Nope", "fields": {"Front": "x"}})
+        assert resp.status_code == 400
+
+    def test_fields_not_on_the_new_model_are_400(self, client):
+        nid = add(client).json()["result"]["id"]
+        resp = client.patch(f"/v1/notes/{nid}",
+                            json={"modelName": "Cloze", "fields": {"Front": "x"}})
+        assert resp.status_code == 400
+
+
 class TestDelete:
     def test_delete_removes_note_and_cards(self, client, fake_col):
         nid = add(client).json()["result"]["id"]

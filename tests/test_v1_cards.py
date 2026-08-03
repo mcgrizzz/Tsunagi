@@ -95,6 +95,50 @@ class TestReads:
             "select": "due", "shape": "scalar"}).json()["items"]
         assert dues == sorted(dues) and all(0 < d < 1000 for d in dues)
 
+    def test_fsrs_state_is_null_before_review(self, seeded):
+        card = seeded.get("/v1/cards", params={
+            "select": "id,memory_state,desired_retention,decay,last_review_time",
+            "shape": "object"}).json()["items"][0]
+        assert card["memory_state"] is None
+        assert card["decay"] is None
+
+    def test_fsrs_state_is_reported(self, seeded, fake_col):
+        # FSRS shipped in 23.10, our floor, and is the default since 24.11 -
+        # memory state is part of a card, not an optional extra.
+        from types import SimpleNamespace
+        cid = ids(seeded)[0]
+        card = fake_col.get_card(cid)
+        card.memory_state = SimpleNamespace(stability=42.5, difficulty=5.25)
+        card.desired_retention = 0.9
+        card.decay = 0.2
+        card.last_review_time = 1700000000
+
+        row = seeded.get("/v1/cards", params={
+            "where": f"id=={cid}", "shape": "object"}).json()["items"][0]
+        assert row["memory_state"] == {"stability": 42.5, "difficulty": 5.25}
+        assert row["desired_retention"] == 0.9
+        assert row["decay"] == 0.2
+        assert row["last_review_time"] == 1700000000
+
+    def test_fsrs_fields_degrade_on_older_anki(self, seeded, fake_col):
+        # decay and last_review_time postdate memory_state, so a build without
+        # them must report null rather than raising.
+        cid = ids(seeded)[0]
+        card = fake_col.get_card(cid)
+        del card.decay
+        del card.last_review_time
+        row = seeded.get("/v1/cards", params={
+            "where": f"id=={cid}", "shape": "object"}).json()["items"][0]
+        assert row["decay"] is None and row["last_review_time"] is None
+
+    def test_custom_data_passes_through_unparsed(self, seeded, fake_col):
+        cid = ids(seeded)[0]
+        fake_col.get_card(cid).custom_data = '{"v":"3","seed":42}'
+        row = seeded.get("/v1/cards", params={
+            "where": f"id=={cid}", "select": "custom_data",
+            "shape": "scalar"}).json()["items"][0]
+        assert row == '{"v":"3","seed":42}'   # a string, not a decoded object
+
     def test_get_post_parity(self, seeded):
         get_body = seeded.get("/v1/cards", params={"search": "deck:JP", "select": "id"}).json()
         post_body = seeded.post("/v1/cards/query",

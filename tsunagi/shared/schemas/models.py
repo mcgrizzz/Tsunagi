@@ -129,6 +129,26 @@ class ModelCreate(BaseModel):
     sort_field: Optional[int] = Field(alias="sortf", default=0)
 
 
+class FindReplaceRequest(BaseModel):
+    """Literal (non-regex) replace across template sides and styling."""
+    class Config:
+        allow_population_by_field_name = True
+
+    find: str
+    replace: str
+    # Omit to sweep every model.
+    model_name: Optional[str] = Field(alias="modelName", default=None)
+    front: bool = True
+    back: bool = True
+    css: bool = True
+
+
+class FindReplaceResult(BaseModel):
+    """`affected` counts models that actually contained the text."""
+    affected: int
+    stats: dict
+
+
 class ModelPatch(BaseModel):
     """Schema for patching a model - all fields optional"""
     class Config:
