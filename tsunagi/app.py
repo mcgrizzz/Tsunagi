@@ -13,7 +13,11 @@ from .adapters.settings import settings
 from .http.compat import (
     actions as _compat_actions,  # noqa: F401  (side-effect import: registers action handlers)
 )
-from .http.compat.ankiconnect import get_available_actions, handle_ankiconnect_rpc
+from .http.compat.ankiconnect import (
+    get_available_actions,
+    handle_ankiconnect_rpc,
+    origin_allowed_for,
+)
 from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
 from .http.v1.decks import router as decks_router
 from .http.v1.models import router as models_router
@@ -98,7 +102,12 @@ def ankiconnect_rpc_endpoint(body: Dict[str, Any], request: Request) -> Any:
             "version": 6
         }
     """
-    return handle_ankiconnect_rpc(body, origin=request.headers.get("origin"))
+    origin = request.headers.get("origin")
+    if not origin_allowed_for(body.get("action", ""), origin):
+        # Same wire response AnkiConnect gives a disallowed origin
+        from fastapi import Response
+        return Response(status_code=403)
+    return handle_ankiconnect_rpc(body, origin=origin)
 
 # Actions listing endpoint
 @app.get(

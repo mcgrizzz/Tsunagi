@@ -4,9 +4,9 @@
     "port": 0,
     "prefer_port": 7777,
     "api_key": "",
-    "cors_allowlist": [],
+    "cors_allowlist": ["http://localhost"],
     "log_level": "warning",
     "op_timeout_seconds": 15,
     "ankiconnect_import_offered": false,
-    "config_version": 2
+    "config_version": 3
 }

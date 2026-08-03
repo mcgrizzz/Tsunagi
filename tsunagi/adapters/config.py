@@ -11,11 +11,13 @@ DEFAULTS = {
     "port": 0,
     "prefer_port": 7777,
     "api_key": "",
-    "cors_allowlist": [],
+    # AnkiConnect's default. The "http://localhost" entry also covers
+    # 127.0.0.1 origins and browser extensions (see Settings.is_origin_allowed).
+    "cors_allowlist": ["http://localhost"],
     "log_level": "warning",
     "op_timeout_seconds": 15,
     "ankiconnect_import_offered": False,
-    "config_version": 2,
+    "config_version": 3,
 }
 
 def _migrate(cfg: dict) -> Tuple[dict, bool]:
@@ -30,8 +32,14 @@ def _migrate(cfg: dict) -> Tuple[dict, bool]:
         if k not in cfg:
             cfg[k] = v
             changed = True
-    if cfg.get("config_version", 1) < 2:
-        cfg["config_version"] = 2
+    # v3 introduced the AnkiConnect-compatible default allowlist. Installs
+    # created before it have an empty list, which blocks browser extensions
+    # (Yomitan) - add the entry once so they behave like a fresh install.
+    if cfg.get("config_version", 1) < 3:
+        allowlist = cfg.get("cors_allowlist") or []
+        if "http://localhost" not in allowlist:
+            cfg["cors_allowlist"] = ["http://localhost", *allowlist]
+        cfg["config_version"] = 3
         changed = True
     return cfg, changed
 
