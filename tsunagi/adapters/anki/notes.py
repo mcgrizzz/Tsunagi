@@ -153,17 +153,6 @@ def find_note_ids(col: Collection, query: str) -> List[int]:
 
 
 @as_query_op
-def find_card_ids(col: Collection, query: str) -> List[int]:
-    """Anki search -> card ids (guiBrowse's return value)."""
-    try:
-        return [int(i) for i in col.find_cards(query)]
-    except Exception as e:
-        if type(e).__name__ in ("SearchError", "InvalidInput"):
-            raise ValueError(f"Invalid Anki search: {e}") from e
-        raise
-
-
-@as_query_op
 def get_notes_by_ids(col: Collection, ids: Sequence[int],
                      wants: Optional[Set[str]] = None) -> List[NoteInfo]:
     model_names = _model_names(col)

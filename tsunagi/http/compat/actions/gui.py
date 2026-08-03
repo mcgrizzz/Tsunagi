@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from ....adapters.anki.notes import find_card_ids
+from ....adapters.anki.cards import find_card_ids
 from ....adapters.ops import call_on_main
 from ..registry import registry
 
