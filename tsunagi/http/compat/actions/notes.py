@@ -19,6 +19,11 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel
 
 from ....adapters.anki.cards import find_card_ids
+from ....adapters.anki.compat_only import (
+    remove_unused_note_types,
+    replace_tag_everywhere,
+    replace_tag_on_notes,
+)
 from ....adapters.anki.notes import (
     ac_add_note,
     ac_check_note,
@@ -27,10 +32,16 @@ from ....adapters.anki.notes import (
     find_note_ids,
     get_notes_by_ids,
     notes_mod_times,
+    patch_note,
     profile_name,
 )
-from ....adapters.anki.tags import add_tags, all_tags, remove_tags
-from ..errors import NOTES_INFO_NO_INPUT
+from ....adapters.anki.tags import add_tags, all_tags, clear_unused_tags, remove_tags
+from ..errors import (
+    NOTE_NOT_FOUND,
+    NOTE_UPDATE_NO_INPUT,
+    NOTES_INFO_NO_INPUT,
+    TAGS_MUST_BE_LIST,
+)
 from ..registry import registry
 
 
@@ -286,3 +297,127 @@ def ac_getTags(params: Dict[str, Any]) -> List[str]:
 @registry.register("notesModTime", params=DeleteNotesParams)
 def ac_notesModTime(p: DeleteNotesParams) -> List[Dict[str, Any]]:
     return notes_mod_times(p.notes)
+
+
+class NoteUpdateAnyParams(BaseModel):
+    """updateNote's payload: presence of a key is what dispatches."""
+    class Config:
+        extra = "allow"
+
+    id: int
+    fields: Optional[Dict[str, str]] = None
+    tags: Optional[List[str]] = None
+    audio: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
+    video: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
+    picture: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
+
+
+class UpdateNoteParams(BaseModel):
+    note: NoteUpdateAnyParams
+
+
+class UpdateNoteModelSpec(BaseModel):
+    id: int
+    modelName: str
+    fields: Dict[str, str]
+    tags: List[str] = []
+
+
+class UpdateNoteModelParams(BaseModel):
+    note: UpdateNoteModelSpec
+
+
+class NoteIdParams(BaseModel):
+    note: int
+
+
+class UpdateNoteTagsParams(BaseModel):
+    note: int
+    tags: Any
+
+
+class ReplaceTagsParams(BaseModel):
+    notes: List[int]
+    tag_to_replace: str
+    replace_with_tag: str
+
+
+class ReplaceTagsAllParams(BaseModel):
+    tag_to_replace: str
+    replace_with_tag: str
+
+
+@registry.register("canAddNote", params=AddNoteParams)
+def ac_canAddNote(p: AddNoteParams) -> bool:
+    can_add, _ = _can_add(p.note)
+    return can_add
+
+
+@registry.register("canAddNoteWithErrorDetail", params=AddNoteParams)
+def ac_canAddNoteWithErrorDetail(p: AddNoteParams) -> Dict[str, Any]:
+    can_add, error = _can_add(p.note)
+    # Success carries no "error" key at all.
+    return {"canAdd": True} if can_add else {"canAdd": False, "error": error}
+
+
+@registry.register("updateNote", params=UpdateNoteParams)
+def ac_updateNote(p: UpdateNoteParams) -> None:
+    spec = p.note
+    updated = False
+    if spec.fields is not None:
+        ac_update_note_fields(spec.id, spec.fields, _resolve_media(spec))
+        updated = True
+    if spec.tags is not None:
+        _set_note_tags(spec.id, spec.tags)
+        updated = True
+    if not updated:
+        raise ValueError(NOTE_UPDATE_NO_INPUT)
+
+
+@registry.register("updateNoteModel", params=UpdateNoteModelParams)
+def ac_updateNoteModel(p: UpdateNoteModelParams) -> None:
+    spec = p.note
+    patch_note(spec.id, {"modelName": spec.modelName,
+                         "fields": spec.fields, "tags": spec.tags})
+
+
+def _set_note_tags(note_id: int, tags: Any) -> None:
+    if isinstance(tags, str):
+        tags = [tags]
+    if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+        raise ValueError(TAGS_MUST_BE_LIST)
+    patch_note(note_id, {"tags": tags})
+
+
+@registry.register("updateNoteTags", params=UpdateNoteTagsParams)
+def ac_updateNoteTags(p: UpdateNoteTagsParams) -> None:
+    _set_note_tags(p.note, p.tags)
+
+
+@registry.register("getNoteTags", params=NoteIdParams)
+def ac_getNoteTags(p: NoteIdParams) -> List[str]:
+    notes = get_notes_by_ids([p.note], {"tags"})
+    if not notes:
+        raise ValueError(NOTE_NOT_FOUND.format(p.note))
+    return list(notes[0].tags)
+
+
+@registry.register("clearUnusedTags")
+def ac_clearUnusedTags(params: Dict[str, Any]) -> None:
+    # Returns None; the native POST /v1/tags:clear-unused reports a count.
+    clear_unused_tags()
+
+
+@registry.register("replaceTags", params=ReplaceTagsParams)
+def ac_replaceTags(p: ReplaceTagsParams) -> None:
+    replace_tag_on_notes(p.notes, p.tag_to_replace, p.replace_with_tag)
+
+
+@registry.register("replaceTagsInAllNotes", params=ReplaceTagsAllParams)
+def ac_replaceTagsInAllNotes(p: ReplaceTagsAllParams) -> None:
+    replace_tag_everywhere(p.tag_to_replace, p.replace_with_tag)
+
+
+@registry.register("removeEmptyNotes")
+def ac_removeEmptyNotes(params: Dict[str, Any]) -> None:
+    remove_unused_note_types()

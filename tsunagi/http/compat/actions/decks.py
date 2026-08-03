@@ -23,15 +23,20 @@ from ....adapters.anki.decks import (
     delete_deck,
     get_deck_names_and_ids,
     get_deck_stats,
+    get_decks_by_ids,
     get_decks_by_names,
     patch_deck,
 )
-from ..errors import DECKS_NEED_CARDS_TOO
+from ..errors import DECK_NOT_FOUND, DECKS_NEED_CARDS_TOO
 from ..registry import registry
 
 
 class CreateDeckParams(BaseModel):
     deck: str
+
+
+class DeckIdParams(BaseModel):
+    deckId: int
 
 
 class CardsParams(BaseModel):
@@ -88,6 +93,14 @@ def ac_deckNamesAndIds(params: Dict[str, Any]) -> Dict[str, int]:
 def ac_createDeck(p: CreateDeckParams) -> int:
     # Existing name returns the existing id without error; "::" creates parents.
     return create_deck_if_missing(p.deck)
+
+
+@registry.register("deckNameFromId", params=DeckIdParams)
+def ac_deckNameFromId(p: DeckIdParams) -> str:
+    decks = get_decks_by_ids([p.deckId])
+    if not decks:
+        raise ValueError(DECK_NOT_FOUND.format(p.deckId))
+    return decks[0].name
 
 
 @registry.register("getDecks", params=CardsParams)
