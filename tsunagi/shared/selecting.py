@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from glom import glom
-from glom.core import T, Coalesce
+from glom.core import Coalesce, T
 from lark import Lark, Transformer, v_args
-from lark.visitors import Discard
 from lark.exceptions import UnexpectedInput
-from .schemas.wrappers import Scalar
+from lark.visitors import Discard
 
+from .schemas.wrappers import Scalar
 
 # GRAMMAR NOTES
 # - ":" = alias (rename output key):  name:alias, arr[]:alias, arr[].child:alias
@@ -132,9 +133,18 @@ def parse_select_csv(select_text: str) -> List[SelectNode]:
         return list(nodes)
     except UnexpectedInput as e:
         ctx = e.get_context(select_text)
-        raise SelectParseError(f"Malformed select:\n{ctx}") from None
+        raise SelectParseError(
+            f"Malformed select:\n{ctx}\n\n"
+            f"Valid examples:\n"
+            f"  - id,name,type (scalar fields)\n"
+            f"  - flds[] (array copy)\n"
+            f"  - flds[].name (pluck field from array)\n"
+            f"  - flds[].(name,ord) (multi-pluck)\n"
+            f"  - flds[].(name:label,ord:index) (with aliases)\n"
+            f"  - name:displayName (field alias)"
+        ) from None
     except Exception as e:
-        raise SelectParseError(f"Malformed select: {e}")
+        raise SelectParseError(f"Malformed select: {e}") from e
 
 def _as_iterable_list(base_path: Tuple[str, ...]):
     """
@@ -185,7 +195,7 @@ def project_scalars(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Dict
     try:
         return glom(obj, spec, default=None)
     except Exception as e:
-        raise SelectValidationError(f"Projection failed: {e}")
+        raise SelectValidationError(f"Projection failed: {e}") from e
 
 def _is_scalar(value: Any) -> bool:
     return isinstance(value, Scalar)
