@@ -2,20 +2,34 @@ from __future__ import annotations
 
 import threading
 from functools import wraps
-from typing import Any, Callable, ParamSpec, TypeVar, Concatenate, cast
+from typing import Any, Callable, Concatenate, Optional, ParamSpec, TypeVar, cast
 
-from aqt import mw
-from aqt.operations import QueryOp, CollectionOp
 from anki.collection import Collection
+from aqt import mw
+from aqt.operations import CollectionOp, QueryOp
+
+from ..shared.errors import AnkiBusyError, CollectionUnavailableError
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
-def call_on_main(fn: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:
+# Default wait for cross-thread operations; overridden from config
+# ("op_timeout_seconds") at server start.
+OP_TIMEOUT: float = 15.0
+
+def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], what: str) -> Any:
+    if not done.wait(OP_TIMEOUT if timeout is None else timeout):
+        raise AnkiBusyError(f"{what} timed out; Anki may be busy or blocked by a dialog")
+    if "exc" in box:
+        raise box["exc"]
+    return box.get("result")
+
+def call_on_main(fn: Callable[P, R], /, *args: P.args, timeout: Optional[float] = None, **kwargs: P.kwargs) -> R:
     """
     Run `fn(*args, **kwargs)` on Anki's UI thread and return its result.
     - If already on the UI thread, runs inline.
-    - Waits indefinitely (no timeout).
+    - Raises AnkiBusyError if the UI thread doesn't respond within `timeout`
+      (default: OP_TIMEOUT).
     - Propagates the original exception from the UI thread.
     """
     if threading.current_thread() is threading.main_thread():
@@ -33,11 +47,7 @@ def call_on_main(fn: Callable[P, R], /, *args: P.args, **kwargs: P.kwargs) -> R:
             done.set()
 
     mw.taskman.run_on_main(_call)
-    done.wait()  # wait indefinitely
-
-    if "exc" in box:
-        raise box["exc"]  # type: ignore[misc]
-    return box["result"]  # type: ignore[no-any-return]
+    return cast(R, _wait(done, box, timeout, "Main-thread call"))
 
 def on_main(func: Callable[P, R]) -> Callable[P, R]:
     """
@@ -57,16 +67,22 @@ def query_op_call(
     fn: Callable[Concatenate[Collection, P], R],
     /,
     *args: P.args,
+    timeout: Optional[float] = None,
     **kwargs: P.kwargs,
 ) -> R:
     """
     Run 'fn(col, *args, **kwargs)' via QueryOp in a worker thread.
-    Blocks caller until done. No progress UI.
+    Blocks caller until done (raises AnkiBusyError on timeout). No progress UI.
     """
     done = threading.Event()
     box: dict[str, Any] = {}
 
     def start_on_main() -> None:
+        if mw.col is None:
+            box.setdefault("exc", CollectionUnavailableError())
+            done.set()
+            return
+
         def _success(res: Any) -> None:
             box.setdefault("result", res)
             done.set()
@@ -92,10 +108,7 @@ def query_op_call(
     else:
         mw.taskman.run_on_main(start_on_main)
 
-    done.wait()  # block indefinitely
-    if "exc" in box:
-        raise box["exc"]  # type: ignore[misc]
-    return cast(R, box.get("result"))
+    return cast(R, _wait(done, box, timeout, "Read operation"))
 
 def as_query_op(
     func: Callable[Concatenate[Collection, P], R],
@@ -111,16 +124,22 @@ def collection_op_call(
     fn: Callable[Concatenate[Collection, P], R],
     /,
     *args: P.args,
+    timeout: Optional[float] = None,
     **kwargs: P.kwargs,
 ) -> R:
     """
     Run 'fn(col, *args, **kwargs)' via CollectionOp in a worker thread.
-    Blocks caller until done. No progress UI.
+    Blocks caller until done (raises AnkiBusyError on timeout). No progress UI.
     """
     done = threading.Event()
     box: dict[str, Any] = {}
 
     def start_on_main() -> None:
+        if mw.col is None:
+            box.setdefault("exc", CollectionUnavailableError())
+            done.set()
+            return
+
         def _success(res: Any) -> None:
             # Extract the actual value from ResultWithChanges if present
             if hasattr(res, 'value'):
@@ -170,10 +189,7 @@ def collection_op_call(
     else:
         mw.taskman.run_on_main(start_on_main)
 
-    done.wait()
-    if "exc" in box:
-        raise box["exc"]  # type: ignore[misc]
-    return cast(R, box.get("result"))
+    return cast(R, _wait(done, box, timeout, "Write operation"))
 
 
 def as_collection_op(
