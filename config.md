@@ -64,6 +64,16 @@ the API can make Anki read any file your user account can read. Turn it on
 only if you use local scripts that pass file paths. Base64 `data` and `url`
 uploads work either way.
 
+### `dev_watch_seconds`
+**For working on Tsunagi itself.** When greater than zero, Anki polls the
+add-on's own source files that often and restarts the HTTP server when they
+change, so `python tools/dev_sync.py --watch` is the whole edit-test loop - no
+reinstall, no restart. Leave it at `0` unless you are editing the add-on: it
+costs a directory scan per interval and reloads on any file change.
+
+Reloading swaps only Tsunagi's own modules. Changes to `__init__.py` or to the
+bundled libraries in `lib/` still need Anki restarted.
+
 ### `ankiconnect_import_offered` / `config_version`
 Internal bookkeeping - don't edit. (`ankiconnect_import_offered` records that
 the one-time "import settings from AnkiConnect" dialog was shown; set it back

@@ -20,6 +20,9 @@ DEFAULTS = {
     "media_fetch_timeout_seconds": 30,
     "media_allow_local_path": False,      # server-side file reads: off by default
     "ankiconnect_import_offered": False,
+    # Dev only: poll the add-on's own source every N seconds and restart the
+    # server when it changes. 0 disables it (and it stays 0 for real users).
+    "dev_watch_seconds": 0,
     "config_version": 3,
 }
 
