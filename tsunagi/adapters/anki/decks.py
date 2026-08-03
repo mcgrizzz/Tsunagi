@@ -82,6 +82,28 @@ def get_decks_by_names(col: Collection, names: Sequence[str], wants=None) -> Lis
     return out
 
 @as_query_op
+def get_deck_stats(col: Collection, names: Sequence[str]) -> Dict[int, Dict[str, Any]]:
+    """
+    Due counts for named decks - AnkiConnect's getDeckStats.
+
+    Unknown names are skipped. Canonical resolves them with decks.id(), which
+    CREATES the deck; a stats read must not mutate the collection.
+    """
+    stats = _deck_stats(col)
+    out: Dict[int, Dict[str, Any]] = {}
+    for name in names:
+        deck = col.decks.by_name(name)
+        if deck is None:
+            continue
+        did = int(deck["id"])
+        counts = stats.get(did)
+        if counts is None:
+            continue
+        out[did] = {"deck_id": did, "name": deck["name"], **counts}
+    return out
+
+
+@as_query_op
 def get_deck_names_and_ids(col: Collection, wants=None) -> List[Mapping[str, Any]]:
     res: List[Mapping[str, Any]] = []
     for nt in col.decks.all_names_and_ids(skip_empty_default=False, include_filtered=True):

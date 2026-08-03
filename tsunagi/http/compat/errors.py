@@ -8,6 +8,11 @@ UNSUPPORTED_ACTION = "unsupported action"
 MODEL_NOT_FOUND = "model was not found: {}"
 DECK_NOT_FOUND = "deck was not found: {}"
 NOTE_NOT_FOUND = "Note was not found: {}"
+CARD_NOT_FOUND = "Card was not found: {}"
+
+# deleteDecks refuses without cardsToo - the wording is canonical's
+DECKS_NEED_CARDS_TOO = ("Since Anki 2.1.28 it's not possible "
+                        "to delete decks without deleting cards as well")
 
 # createNote outcomes
 NOTE_EMPTY = "cannot create note because it is empty"
