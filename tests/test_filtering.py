@@ -61,6 +61,29 @@ class TestParseWhere:
             parse_where("totally (broken")
 
 
+class TestUnicode:
+    """Anki field names and values are routinely non-ASCII."""
+
+    def test_bare_unicode_value(self):
+        pred = build_predicate(["name==犬"])
+        assert pred({"name": "犬"})
+        assert not pred({"name": "猫"})
+
+    def test_unicode_field_name(self):
+        pred = build_predicate(["単語==犬"])
+        assert pred({"単語": "犬"})
+
+    def test_unicode_in_nested_path(self):
+        pred = build_predicate(["fields[].value==犬"])
+        assert pred({"fields": [{"value": "犬"}]})
+        assert not pred({"fields": [{"value": "猫"}]})
+
+    def test_digits_still_parse_as_numbers(self):
+        pred = build_predicate(["id==123"])
+        assert pred({"id": 123})
+        assert not pred({"id": "123"})
+
+
 class TestBuildPredicate:
     ROWS = [
         {"id": 1, "name": "Basic", "type": 0, "fields": [{"name": "Front"}, {"name": "Back"}]},
