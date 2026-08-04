@@ -368,7 +368,7 @@ replay, and a client that falls behind gets a `reset` with
 
 | Event | Payload (plus `seq`, `ts` epoch ms) | Meaning |
 |---|---|---|
-| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...], "label": "Update Note"}` | A completed operation; `changes` lists the true OpChanges flags and `label` (when known) is the localized name of the operation. `origin` is `"api"` for changes made through Tsunagi, `"ui"` when an Anki window acted on its own behalf, and `null` when Anki didn't attribute the operation to any window (many of its actions don't). |
+| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...], "label": "Update Note", "note_ids": [...]}` | A completed operation; `changes` lists the true OpChanges flags and `label` (when known) is the localized name of the operation. `origin` is `"api"` for changes made through Tsunagi, `"ui"` when an Anki window acted on its own behalf, and `null` when Anki didn't attribute the operation to any window (many of its actions don't). API-origin ops also carry the ids the route knows — currently `note_ids` on note update/delete (this covers the AnkiConnect shim too, e.g. `updateNoteFields`). |
 | `review` | `{"card_id", "ease"}` | A card answered in Anki's reviewer. Fires just before the matching `op`. |
 | `sync` | `{"phase": "started"\|"finished"}` | Sync lifecycle; a finished sync is followed by a `reset`. |
 | `reset` | optionally `{"reason": "lagged"}` | Everything may have changed — refetch what you care about. |
@@ -404,9 +404,15 @@ curl --get "http://127.0.0.1:7777/v1/notes" --data-urlencode 'search=edited:1'
 curl --get "http://127.0.0.1:7777/v1/notes" --data-urlencode 'search=added:1'
 ```
 
-— or simply refetch whatever your app is displaying. The `review` event is
-the exception: it comes from a richer hook and carries the `card_id`
-directly.
+— or simply refetch whatever your app is displaying. Two exceptions carry
+identity directly: `review` (a richer hook provides the `card_id`), and
+API-origin `op` events, where Tsunagi itself knows what its route touched
+(`note_ids` on note update/delete). So in a pipeline where every writer
+goes through Tsunagi — e.g. one tool adds a note, another attaches media to
+it by id — a watcher can match `op {origin:"api", note_ids:[...]}` against
+the ids it cares about without any requery. Note creation carries no id on
+the event (the id exists only after the op; the creator gets it from the
+API response) — watchers who need creations use the refetch pattern above.
 
 What you won't see: media writes and import/export run outside Anki's
 change-tracking (no `op` fires), raw database edits by other addons are

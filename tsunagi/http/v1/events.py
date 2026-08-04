@@ -37,8 +37,11 @@ Event types (each `data:` line is one JSON object with `seq` and `ts` epoch ms):
 - `op` - a completed operation: `{"origin": "api"|"ui"|null, "changes": [...],
   "label": "Update Note"}` where `changes` lists the true OpChanges flags
   (card, note, deck, tag, notetype, config, study_queues, ...) and `label`
-  (when known) is the localized name of the operation. Anki's change events
-  carry no record ids - treat `op` as an invalidation signal and requery,
+  (when known) is the localized name of the operation. API-origin ops
+  additionally carry the ids the route knows - currently `note_ids` on note
+  update and delete (creation returns its id in the API response instead).
+  UI-origin ops structurally cannot carry ids - Anki's change events have
+  none - so for those treat `op` as an invalidation signal and requery,
   e.g. `GET /v1/notes?search=edited:1`.
 - `review` - a card answered in Anki's reviewer: `{"card_id", "ease"}`.
   Fires just before the matching `op`.

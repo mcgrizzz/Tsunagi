@@ -7,8 +7,8 @@ import pytest
 from anki.collection import OpChanges
 
 from tsunagi.adapters.events import (
-    API_INITIATOR,
     MAX_QUEUED,
+    ApiOp,
     EventBroker,
     broker,
     dispatch_op,
@@ -148,11 +148,27 @@ class TestDispatchOp:
 
     def test_api_origin(self):
         token = broker.subscribe()
-        dispatch_op(op_changes(card=True, study_queues=True), API_INITIATOR)
+        dispatch_op(op_changes(card=True, study_queues=True), ApiOp())
         event = broker.drain(token)[0]
         assert event["type"] == "op"
         assert event["origin"] == "api"
         assert sorted(event["changes"]) == ["card", "study_queues"]
+
+    def test_api_details_are_merged_into_the_event(self):
+        token = broker.subscribe()
+        dispatch_op(op_changes(note=True), ApiOp({"note_ids": [42, 43]}))
+        event = broker.drain(token)[0]
+        assert event["origin"] == "api"
+        assert event["note_ids"] == [42, 43]
+
+    def test_api_details_cannot_clobber_core_keys(self):
+        token = broker.subscribe()
+        dispatch_op(op_changes(note=True),
+                    ApiOp({"origin": "spoofed", "changes": [], "seq": -1}))
+        event = broker.drain(token)[0]
+        assert event["origin"] == "api"
+        assert event["changes"] == ["note"]
+        assert event["seq"] > 0
 
     def test_ui_origin(self):
         token = broker.subscribe()
@@ -178,9 +194,8 @@ class TestDispatchOp:
 
 
 class TestApiInitiatorTagging:
-    def test_collection_op_call_tags_the_api_sentinel(self, col, monkeypatch):
-        # Every Tsunagi mutation must pass API_INITIATOR so its op event
-        # carries origin "api" (the fake CollectionOp records the kwarg).
+    @pytest.fixture()
+    def recorded_ops(self, monkeypatch):
         from tsunagi.adapters import ops
         created = []
         real = ops.CollectionOp
@@ -191,8 +206,22 @@ class TestApiInitiatorTagging:
             return op
 
         monkeypatch.setattr(ops, "CollectionOp", recording)
+        return created
+
+    def test_collection_op_call_tags_an_api_op(self, col, recorded_ops):
+        # Every Tsunagi mutation must pass an ApiOp initiator so its op
+        # event carries origin "api" (the fake CollectionOp records it).
+        from tsunagi.adapters import ops
         assert ops.collection_op_call(lambda c: 42) == 42
-        assert created[0].initiator is API_INITIATOR
+        assert isinstance(recorded_ops[0].initiator, ApiOp)
+        assert recorded_ops[0].initiator.details == {}
+
+    def test_adapter_event_details_reach_the_initiator(self, col, recorded_ops):
+        # delete on ids that don't exist still runs the op - the plumbing is
+        # what's under test: the decorator's event_details land on the ApiOp.
+        from tsunagi.adapters.anki.notes import delete_notes
+        assert delete_notes([123, 456]) == 0
+        assert recorded_ops[0].initiator.details == {"note_ids": [123, 456]}
 
 
 class TestPublishHelpers:

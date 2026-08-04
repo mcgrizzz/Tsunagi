@@ -257,7 +257,7 @@ def _change_notetype(col: Collection, note: Any, req: NotePatch) -> None:
     note.fields = [""] * len(notetype["flds"])
 
 
-@as_collection_op
+@as_collection_op(event_details=lambda note_id, updates: {"note_ids": [int(note_id)]})
 def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteInfo:
     req = NotePatch.parse_obj(updates)
     if req.tags is not None and (req.add_tags or req.remove_tags):
@@ -289,7 +289,7 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
     return _note_info(col, note, _model_names(col))
 
 
-@as_collection_op
+@as_collection_op(event_details=lambda ids: {"note_ids": [int(i) for i in ids]})
 def delete_notes(col: Collection, ids: Sequence[int]) -> int:
     """Batch by design: one undoable op. Compat's deleteNotes reuses this."""
     res = col.remove_notes([int(i) for i in ids])
