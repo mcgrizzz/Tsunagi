@@ -145,6 +145,26 @@ class TestJobRoutes:
         assert "before the computation started" in body["error"]
         assert body["result"] is None
 
+    def test_abort_during_backend_work_discards_the_result(self, client, monkeypatch):
+        # The other side of the same guarantee: Anki's revlog-load phase never
+        # checks the abort flag and training clears it, so the backend can
+        # finish despite an acknowledged abort. The contract is that a 200
+        # from :abort means the job ends aborted - so a result that arrives
+        # anyway is discarded (these computations are pure reads).
+        from tsunagi.http.v1 import fsrs as fsrs_router
+
+        def compute_that_misses_the_abort(col, req):
+            active = next(iter(jobs._jobs.values()))
+            jobs.mark_abort_requested(active.id)  # abort lands mid-computation
+            return {"params": [1.0], "fsrs_items": 1, "health_check_passed": None}
+
+        monkeypatch.setattr(fsrs_router.f, "compute_params", compute_that_misses_the_abort)
+        job_id = submit_compute(client).json()["job_id"]
+        body = poll(client, job_id).json()
+        assert body["status"] == "aborted"
+        assert "discarded" in body["error"]
+        assert body["result"] is None
+
 
 @pytest.mark.skipif(not HAS_SIMULATOR, reason="simulator is 26.08-only")
 class TestSimulator:
