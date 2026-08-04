@@ -268,6 +268,12 @@ Every resource below supports the query parameters above, plus
   - Scheduling is batch verb routes, so a bulk change is one undo entry:
     `POST /v1/cards:suspend`, `:unsuspend`, `:bury`, `:unbury`, `:forget`,
     `:set-due-date`, `:change-deck`, `:reposition`, `:set-flag`, `:set-ease`.
+  - **`POST /v1/cards:answer`** answers cards through the real scheduler as if
+    the button (`ease` 1-4) had been pressed in the reviewer — works on a card
+    in any state (answering a suspended card unsuspends it).
+  - **`POST /v1/cards:set-values`** writes raw card columns with no validation
+    — the escape hatch AnkiConnect calls `setSpecificValueOfCard`. Scheduling
+    and linkage columns require `force: true`.
   - **`POST /v1/cards:set-memory-state`** overwrites per-card FSRS state
     (stability/difficulty, desired retention, decay) — how FSRS helper tools
     reschedule. A normal undoable write through the scheduler, but off by
@@ -283,11 +289,13 @@ Every resource below supports the query parameters above, plus
   returns the filename Anki **actually** stored — it renames on collision.
   Filter the listing with `prefix`/`suffix`; media is a flat namespace, not a
   DSL-queryable resource.
-- **`/v1/reviews`** - Review history from the revlog, read-only and
-  keyset-paginated on the review timestamp. `?search=` takes Anki query syntax
-  and means "reviews of the cards this matches"; `where=card_id==...` uses an
-  index instead. Writing rows is deliberately absent — the scheduler owns the
-  revlog.
+- **`/v1/reviews`** - Review history from the revlog, keyset-paginated on the
+  review timestamp. `?search=` takes Anki query syntax and means "reviews of
+  the cards this matches"; `where=card_id==...` uses an index instead.
+  `POST /v1/reviews` inserts raw rows for history imports (AnkiConnect's
+  `insertReviews`) — the rows use the same fields `GET` returns, land in one
+  transaction, and, being a write behind the scheduler's back, clear the undo
+  history and emit no event.
 - **`/v1/fsrs:*` and `/v1/jobs`** - FSRS computations, beyond anything
   AnkiConnect exposes. `POST /v1/fsrs:compute-params` (optimize from review
   history) and `:evaluate-params` (log loss / RMSE of given parameters) can run
@@ -328,10 +336,10 @@ One practical difference worth knowing: every mutation goes through Anki's
 browser is open with the note selected** — a case that fails against
 AnkiConnect's legacy `startEditing()`/`stopEditing()` approach.
 
-`GET /actions` lists the implemented actions. **119 of AnkiConnect's 122** are
-in place — the three left out write to the database behind the scheduler's back
-— see [docs/ankiconnect_parity.md](docs/ankiconnect_parity.md) for the full
-table, the handful of deliberate behavioural deviations, and the two places
+`GET /actions` lists the implemented actions. **All 122 of AnkiConnect's
+actions** are in place — see
+[docs/ankiconnect_parity.md](docs/ankiconnect_parity.md) for the full table,
+the handful of deliberate behavioural deviations, and the two places
 AnkiConnect's own documentation disagrees with its code.
 
 **`/v1` is a superset.** Every action has a native equivalent, including the
@@ -415,10 +423,13 @@ the event (the id exists only after the op; the creator gets it from the
 API response) — watchers who need creations use the refetch pattern above.
 
 What you won't see: media writes and import/export run outside Anki's
-change-tracking (no `op` fires), raw database edits by other addons are
-invisible, some of Anki 23.10's own dialogs (e.g. deck options) don't route
-through change-tracking either, and Tsunagi routes whose backend call
-reports no change details are dropped as indistinguishable from no-ops.
+change-tracking (no `op` fires), raw database edits are invisible (other
+addons' — and Tsunagi's own `insertReviews`/`POST /v1/reviews`), some of Anki
+23.10's own dialogs (e.g. deck options) don't route through change-tracking
+either, and Tsunagi routes whose backend call reports no change details are
+dropped as indistinguishable from no-ops. Answering cards through the API
+*does* fire — an `op {origin:"api", card_ids:[...]}` with `card` and
+`study_queues` flags.
 
 ## Roadmap
 

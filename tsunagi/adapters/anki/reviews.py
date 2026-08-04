@@ -1,16 +1,18 @@
 """
 Review history (the revlog).
 
-Read-only by design: the revlog is a record of reviews that happened, and the
-scheduler is the only thing that should append to it. Everything that used to
-read `col.db` from a compat handler goes through here instead.
+Reads, plus one write: insert_reviews, AnkiConnect's insertReviews. The
+scheduler is normally the only thing that appends to the revlog, and inserting
+rows behind its back discards the undo history and cached study queues (Anki's
+own dbproxy behaviour) - the write exists for history imports, not for
+recording reviews.
 """
 from typing import Any, Dict, List, Optional, Sequence, Set
 
 from anki.collection import Collection
 
 from ...shared.schemas.reviews import ReviewInfo
-from ..ops import as_query_op
+from ..ops import as_collection_op, as_query_op
 
 # Column order is fixed once here so every query below builds the same row.
 COLUMNS = ("id", "cid", "usn", "ease", "ivl", "lastIvl", "factor", "time", "type")
@@ -84,6 +86,41 @@ def find_review_ids(col: Collection, query: str) -> List[int]:
         return []
     return [int(i) for i in col.db.list(
         f"select id from revlog where cid in {_in_clause(card_ids)} order by id")]
+
+
+# ====================
+# The one write
+# ====================
+
+@as_collection_op
+def insert_reviews(col: Collection, rows: Sequence[Sequence[Any]]) -> int:
+    """
+    Insert raw revlog rows, each 9 ints in COLUMNS order (canonical's
+    insertReviews tuple order). Parameterized and transactional where
+    canonical string-interpolates a single INSERT - all rows land or none do,
+    and the commit bumps the collection's modified time so the rows sync.
+    """
+    clean: List[List[int]] = []
+    for i, row in enumerate(rows):
+        if not isinstance(row, (list, tuple)) or len(row) != len(COLUMNS):
+            raise ValueError(
+                f"review {i} must have {len(COLUMNS)} values in the order "
+                f"({', '.join(COLUMNS)})")
+        try:
+            clean.append([int(v) for v in row])
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"review {i} has a non-integer value: {e}") from e
+    if not clean:
+        return 0
+
+    def _insert() -> None:
+        sql = ("insert into revlog(" + ",".join(COLUMNS) + ") values ("
+               + ",".join("?" * len(COLUMNS)) + ")")
+        for row in clean:
+            col.db.execute(sql, *row)
+
+    col.db.transact(_insert)
+    return len(clean)
 
 
 # ====================

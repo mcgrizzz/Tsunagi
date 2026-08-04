@@ -148,6 +148,31 @@ class SetMemoryStateRequest(BaseModel):
     cards: List[MemoryStateEntry]
 
 
+class AnswerEntry(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
+    card_id: int = Field(alias="cardId")
+    # The answer button: 1 again, 2 hard, 3 good, 4 easy.
+    ease: int = Field(ge=1, le=4)
+
+
+class AnswerRequest(BaseModel):
+    answers: List[AnswerEntry]
+
+
+class SetCardValuesRequest(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
+    card_id: int = Field(alias="cardId")
+    # Raw card columns, written as-is. Values must fit the column's type.
+    values: dict
+    # Scheduling/linkage columns (did, id, ivl, lapses, left, mod, nid, odid,
+    # odue, ord, queue, reps, type, usn) are refused unless this is true.
+    force: bool = False
+
+
 # ----------------- Verb response -----------------
 
 

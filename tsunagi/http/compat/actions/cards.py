@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 from ....adapters.anki.cards import (
+    RISKY_CARD_COLUMNS,
+    answer_cards,
     card_ease_factors,
     cards_mod_times,
     cards_suspended,
@@ -18,6 +20,7 @@ from ....adapters.anki.cards import (
     get_cards_by_ids,
     notes_of_cards,
     relearn_cards,
+    set_card_values,
     set_due_date,
     set_ease_factors,
     suspend_cards,
@@ -189,3 +192,65 @@ def ac_relearnCards(p: CardsParams) -> None:
 def ac_setDueDate(p: SetDueDateParams) -> bool:
     set_due_date(p.cards, p.days)
     return True
+
+
+class AnswerCardsParams(BaseModel):
+    # Entries stay raw dicts: a missing cardId/ease key must surface as
+    # canonical's KeyError string, not a pydantic validation message.
+    answers: List[Dict[str, Any]]
+
+
+@registry.register("answerCards", params=AnswerCardsParams)
+def ac_answerCards(p: AnswerCardsParams) -> List[bool]:
+    """
+    Per-card success bools; a missing card is False, an invalid ease raises.
+
+    DEVIATION: a malformed entry (missing cardId/ease) is rejected before any
+    card is answered, where canonical would apply the answers preceding it.
+    An invalid *ease* behaves exactly like canonical - same anki exception,
+    raised mid-batch with the earlier answers kept.
+    """
+    entries = []
+    for a in p.answers:
+        try:
+            entries.append({"card_id": a["cardId"], "ease": a["ease"]})
+        except KeyError as e:
+            # Canonical's KeyError surfaces as its str ("'cardId'"); ours must
+            # be a ValueError to carry the message past the dispatcher's
+            # leak-nothing default.
+            raise ValueError(str(e)) from e
+    try:
+        return answer_cards(entries)
+    except Exception as e:
+        if str(e) == "invalid ease":   # anki's own message, a client error
+            raise ValueError("invalid ease") from e
+        raise
+
+
+@registry.register("setSpecificValueOfCard")
+def ac_setSpecificValueOfCard(params: Dict[str, Any]) -> Any:
+    """
+    Canonical's return ladder, quirks and all: every input problem is a bare
+    False, success is [True], and a failure while writing is [[False, "err"]].
+    Raw params on purpose - the False branches need type checks, not
+    validation errors.
+    """
+    card = params.get("card")
+    keys = params.get("keys")
+    new_values = params.get("newValues")
+    if isinstance(card, list):
+        return False
+    if not isinstance(keys, list) or not isinstance(new_values, list):
+        return False
+    if len(new_values) != len(keys):
+        return False
+    # Canonical tests `warning_check is False` - literally. A null or 0 slips
+    # past the guard there, so it does here too.
+    if params.get("warning_check", False) is False:
+        if any(key in RISKY_CARD_COLUMNS for key in keys):
+            return False
+    try:
+        set_card_values(card, dict(zip(keys, new_values)))
+        return [True]
+    except Exception as e:
+        return [[False, str(e)]]

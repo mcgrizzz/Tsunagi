@@ -183,3 +183,100 @@ class TestRescheduling:
         (info,) = rpc(client, "cardsInfo", {"cards": [cids[0]]})["result"]
         # The one action with no Anki API: a raw UPDATE to type=3, queue=1.
         assert (info["type"], info["queue"]) == (3, 1)
+
+
+class TestAnswerCards:
+    def test_parallel_bools(self, cards):
+        client, cids = cards
+        result = rpc(client, "answerCards", {"answers": [
+            {"cardId": cids[0], "ease": 3},
+            {"cardId": MISSING, "ease": 3}]})["result"]
+        assert result == [True, False]
+
+    def test_the_card_is_really_answered(self, cards):
+        client, cids = cards
+        rpc(client, "answerCards", {"answers": [{"cardId": cids[0], "ease": 2}]})
+        info = rpc(client, "cardsInfo", {"cards": [cids[0]]})["result"][0]
+        assert info["reps"] == 1
+        # And the revlog row records which button was pressed.
+        reviews = rpc(client, "getReviewsOfCards", {"cards": [cids[0]]})["result"]
+        assert [r["ease"] for r in reviews[str(cids[0])]] == [2]
+
+    def test_invalid_ease_is_canonicals_error(self, cards):
+        client, cids = cards
+        resp = rpc(client, "answerCards",
+                   {"answers": [{"cardId": cids[0], "ease": 9}]})
+        assert resp["result"] is None
+        assert resp["error"] == "invalid ease"   # anki's own message, verbatim
+
+    def test_missing_key_is_a_keyerror_string(self, cards):
+        client, cids = cards
+        resp = rpc(client, "answerCards", {"answers": [{"ease": 3}]})
+        assert resp["result"] is None
+        assert resp["error"] == "'cardId'"
+
+
+class TestSetSpecificValueOfCard:
+    def test_card_as_list_is_bare_false(self, cards):
+        client, cids = cards
+        resp = rpc(client, "setSpecificValueOfCard",
+                   {"card": [cids[0]], "keys": ["factor"], "newValues": [2600]})
+        assert resp == {"result": False, "error": None}
+
+    def test_non_list_keys_is_bare_false(self, cards):
+        client, cids = cards
+        assert rpc(client, "setSpecificValueOfCard",
+                   {"card": cids[0], "keys": "factor", "newValues": [2600]}
+                   )["result"] is False
+        assert rpc(client, "setSpecificValueOfCard",
+                   {"card": cids[0], "keys": ["factor"], "newValues": 2600}
+                   )["result"] is False
+
+    def test_length_mismatch_is_bare_false(self, cards):
+        client, cids = cards
+        assert rpc(client, "setSpecificValueOfCard",
+                   {"card": cids[0], "keys": ["factor", "flags"],
+                    "newValues": [2600]})["result"] is False
+
+    def test_risky_key_without_warning_check_is_bare_false(self, cards):
+        client, cids = cards
+        assert rpc(client, "setSpecificValueOfCard",
+                   {"card": cids[0], "keys": ["reps"], "newValues": [5]}
+                   )["result"] is False
+        assert rpc(client, "cardsInfo", {"cards": [cids[0]]}
+                   )["result"][0]["reps"] == 0    # nothing was written
+
+    def test_risky_key_with_warning_check_writes(self, cards):
+        client, cids = cards
+        result = rpc(client, "setSpecificValueOfCard",
+                     {"card": cids[0], "keys": ["reps"], "newValues": [5],
+                      "warning_check": True})["result"]
+        assert result == [True]
+        assert rpc(client, "cardsInfo", {"cards": [cids[0]]}
+                   )["result"][0]["reps"] == 5
+
+    def test_null_warning_check_slips_the_guard(self, cards):
+        # Canonical tests `warning_check is False` - a JSON null passes it.
+        client, cids = cards
+        result = rpc(client, "setSpecificValueOfCard",
+                     {"card": cids[0], "keys": ["reps"], "newValues": [7],
+                      "warning_check": None})["result"]
+        assert result == [True]
+
+    def test_plain_key_writes_without_the_flag(self, cards):
+        client, cids = cards
+        result = rpc(client, "setSpecificValueOfCard",
+                     {"card": cids[0], "keys": ["factor"], "newValues": [2600]}
+                     )["result"]
+        assert result == [True]
+        assert rpc(client, "getEaseFactors", {"cards": [cids[0]]}
+                   )["result"] == [2600]
+
+    def test_missing_card_is_nested_false_with_message(self, cards):
+        client, _ = cards
+        result = rpc(client, "setSpecificValueOfCard",
+                     {"card": MISSING, "keys": ["factor"], "newValues": [2600]}
+                     )["result"]
+        assert len(result) == 1
+        assert result[0][0] is False
+        assert isinstance(result[0][1], str) and result[0][1]

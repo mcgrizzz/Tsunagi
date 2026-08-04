@@ -223,6 +223,12 @@ class TestApiInitiatorTagging:
         assert delete_notes([123, 456]) == 0
         assert recorded_ops[0].initiator.details == {"note_ids": [123, 456]}
 
+    def test_answer_cards_carries_card_ids(self, col, recorded_ops):
+        # Missing ids report False but the op still ran - and tagged itself.
+        from tsunagi.adapters.anki.cards import answer_cards
+        assert answer_cards([{"card_id": 123, "ease": 3}]) == [False]
+        assert recorded_ops[0].initiator.details == {"card_ids": [123]}
+
 
 class TestPublishHelpers:
     def test_review(self):
