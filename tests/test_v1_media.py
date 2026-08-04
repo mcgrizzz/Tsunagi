@@ -120,7 +120,7 @@ class TestUpload:
         assert "media_allow_local_path" in resp.json()["detail"]
 
     def test_local_path_when_enabled(self, client, reset_settings, tmp_path):
-        reset_settings.update(media_allow_local_path=True)
+        reset_settings.update(gates={"media_allow_local_path": True})
         f = tmp_path / "local.png"
         f.write_bytes(PNG)
         body = client.post("/v1/media", json={"path": str(f)}).json()

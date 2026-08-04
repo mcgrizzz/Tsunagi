@@ -18,12 +18,18 @@ DEFAULTS = {
     "op_timeout_seconds": 15,
     "media_max_bytes": 67108864,          # 64 MiB
     "media_fetch_timeout_seconds": 30,
-    "media_allow_local_path": False,      # server-side file reads: off by default
+    # Opt-in switches for routes that are off by default. Grouped so a future
+    # settings UI can enumerate them; read live via settings.get(), so toggling
+    # takes effect without a restart.
+    "gates": {
+        "media_allow_local_path": False,      # server-side file reads
+        "cards_set_memory_state": False,      # writing FSRS memory state
+    },
     "ankiconnect_import_offered": False,
     # Dev only: poll the add-on's own source every N seconds and restart the
     # server when it changes. 0 disables it (and it stays 0 for real users).
     "dev_watch_seconds": 0,
-    "config_version": 3,
+    "config_version": 4,
 }
 
 def _migrate(cfg: dict) -> Tuple[dict, bool]:
@@ -36,7 +42,8 @@ def _migrate(cfg: dict) -> Tuple[dict, bool]:
         changed = True
     for k, v in DEFAULTS.items():
         if k not in cfg:
-            cfg[k] = v
+            # Copy containers so a user config never shares state with DEFAULTS.
+            cfg[k] = v.copy() if isinstance(v, (dict, list)) else v
             changed = True
     # v3 introduced the AnkiConnect-compatible default allowlist. Installs
     # created before it have an empty list, which blocks browser extensions
@@ -46,6 +53,16 @@ def _migrate(cfg: dict) -> Tuple[dict, bool]:
         if "http://localhost" not in allowlist:
             cfg["cors_allowlist"] = ["http://localhost", *allowlist]
         cfg["config_version"] = 3
+        changed = True
+    # v4 grouped the opt-in switches under "gates". Carry the old flat
+    # media_allow_local_path value across; the flat key is dead afterwards.
+    if cfg.get("config_version", 1) < 4:
+        gates = dict(DEFAULTS["gates"])
+        gates.update(cfg.get("gates") or {})
+        if "media_allow_local_path" in cfg:
+            gates["media_allow_local_path"] = bool(cfg.pop("media_allow_local_path"))
+        cfg["gates"] = gates
+        cfg["config_version"] = 4
         changed = True
     return cfg, changed
 

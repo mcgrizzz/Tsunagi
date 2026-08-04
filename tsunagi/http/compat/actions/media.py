@@ -54,9 +54,9 @@ def ac_storeMediaFile(p: StoreMediaFileParams) -> Optional[str]:
     if p.data:
         data = base64.b64decode(p.data)
     elif p.path:
-        if not settings.get("media_allow_local_path", False):
+        if not settings.gate_enabled("media_allow_local_path"):
             raise ValueError(
-                "local 'path' uploads are disabled; enable media_allow_local_path in the Tsunagi config"
+                "local 'path' uploads are disabled; enable gates.media_allow_local_path in the Tsunagi config"
             )
         with open(p.path, "rb") as fh:
             data = fh.read()
