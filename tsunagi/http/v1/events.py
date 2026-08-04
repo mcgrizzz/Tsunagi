@@ -34,9 +34,12 @@ Streams collection events as Server-Sent Events (`text/event-stream`).
 
 Event types (each `data:` line is one JSON object with `seq` and `ts` epoch ms):
 
-- `op` - a completed operation: `{"origin": "api"|"ui"|null, "changes": [...]}`
-  where `changes` lists the true OpChanges flags (card, note, deck, tag,
-  notetype, config, study_queues, ...).
+- `op` - a completed operation: `{"origin": "api"|"ui"|null, "changes": [...],
+  "label": "Update Note"}` where `changes` lists the true OpChanges flags
+  (card, note, deck, tag, notetype, config, study_queues, ...) and `label`
+  (when known) is the localized name of the operation. Anki's change events
+  carry no record ids - treat `op` as an invalidation signal and requery,
+  e.g. `GET /v1/notes?search=edited:1`.
 - `review` - a card answered in Anki's reviewer: `{"card_id", "ease"}`.
   Fires just before the matching `op`.
 - `sync` - `{"phase": "started"|"finished"}`; a finished sync is followed by
