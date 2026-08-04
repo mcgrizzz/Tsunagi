@@ -78,9 +78,21 @@ def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
             raise _AbortedBeforeStart("aborted before the computation started")
         return run(col)
 
+    def on_success(result):
+        # Anki's abort flag is unreliable around these computations (cleared
+        # twice per run, and the revlog-load phase never checks it), so an
+        # acknowledged abort could otherwise still end in `done` - a coin-flip
+        # contract. These jobs are pure reads, so honoring the abort by
+        # discarding the result misreports nothing about the collection.
+        if jobs.abort_requested(job.id):
+            jobs.fail(job.id, "aborted; the computation had already finished "
+                              "and its result was discarded", aborted=True)
+        else:
+            jobs.finish(job.id, result)
+
     query_op_run_async(
         op,
-        on_success=lambda result: jobs.finish(job.id, result),
+        on_success=on_success,
         on_failure=lambda exc: jobs.fail(
             job.id, anki_error_detail(exc),
             aborted=(isinstance(exc, _AbortedBeforeStart)
@@ -155,10 +167,11 @@ def get_job(job_id: str) -> JobInfo:
     "/v1/jobs/{job_id}:abort",
     response_model=JobInfo,
     summary="Abort a job",
-    description="Asks Anki to abort the computation. The abort flag is global "
-                "to the backend; with one job at a time that means this job. "
-                "The job turns `aborted` when the backend acknowledges - poll "
-                "to observe it. 409 if the job already ended.",
+    description="A 200 here guarantees the job ends `aborted` - poll to "
+                "observe it. Anki is asked to stop the computation; if it "
+                "finishes anyway (its abort flag has blind spots), the result "
+                "is discarded - these computations write nothing, so nothing "
+                "is lost but the numbers. 409 if the job already ended.",
     tags=["FSRS"],
     operation_id="abortJob",
 )

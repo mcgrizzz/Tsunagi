@@ -287,8 +287,11 @@ Every resource below supports the query parameters above, plus
   for minutes on a real collection, so they answer **202 with a job id**:
   poll `GET /v1/jobs/{id}` for `status` (`queued → running → done|failed|aborted`),
   best-effort `progress {current, total}`, and the `result`; cancel with
-  `POST /v1/jobs/{id}:abort`. One job runs at a time (Anki's progress and abort
-  are global) — a second submit gets a 409. Jobs live in memory only.
+  `POST /v1/jobs/{id}:abort` — a 200 there guarantees the job ends `aborted`
+  (Anki's own abort flag has blind spots, so if the computation finishes
+  underneath, the result is discarded; these are pure reads, nothing is
+  written). One job runs at a time (Anki's progress and abort are global) — a
+  second submit gets a 409. Jobs live in memory only.
   `POST /v1/fsrs:simulate`, `:simulate-workload` and `:optimal-retention` wrap
   Anki's FSRS simulator and answer synchronously; they need a newer Anki than
   23.10 (501 there), as do compute/evaluate options beyond `search`/`params`.
