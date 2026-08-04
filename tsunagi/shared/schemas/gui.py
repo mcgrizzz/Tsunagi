@@ -55,8 +55,10 @@ class AddCardsRequest(BaseModel):
 
 
 class AddCardsResult(BaseModel):
-    # The id the editor is holding. The note is NOT added - the user still
-    # confirms in the dialog.
+    # The id the editor is holding, which is 0 for a prefilled note: nothing
+    # has been added yet, and Anki does not assign an id until the user
+    # confirms the dialog. AnkiConnect returns the same 0 despite its docs
+    # promising "the note id of the note that was created".
     note_id: Optional[int] = None
     stats: Dict[str, Any] = Field(default_factory=dict)
 

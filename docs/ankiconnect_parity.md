@@ -182,7 +182,7 @@ work.
 | `guiCurrentCard` | implemented | Native `GET /v1/gui/current-card` reports null when no review is active; this raises, as canonical does. |
 | `guiDeckBrowser` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckOverview` | implemented | Manual verification only (needs a live main window). |
-| `guiDeckReview` | implemented | Manual verification only (needs a live main window). |
+| `guiDeckReview` | implemented | Goes straight to the reviewer. Canonical routes through the overview first, which races the reviewer and can leave you on the deck page. |
 | `guiEditNote` | implemented | Deviation: opens the Browser focused on the note. Canonical ships its own standalone editor dialog, which is its UX rather than its protocol. |
 | `guiExitAnki` | implemented | Manual verification only (needs a live main window). |
 | `guiImportFile` | implemented | Manual verification only (needs a live main window). |
