@@ -56,13 +56,25 @@ uploads, URL downloads, and local files alike.
 ### `media_fetch_timeout_seconds`
 Timeout for downloading media from a URL (default 30).
 
-### `media_allow_local_path`
-When `true`, media uploads may name a file **on this computer** for the server
-to read (`{"path": "C:/pictures/dog.png"}`), which is how AnkiConnect's
-`storeMediaFile` behaves. Off by default: with it on, anything that can reach
-the API can make Anki read any file your user account can read. Turn it on
-only if you use local scripts that pass file paths. Base64 `data` and `url`
-uploads work either way.
+### `gates`
+Opt-in switches for capabilities that are **off by default** because most
+setups don't want them exposed. Unlike the settings above, gates are read on
+every request, so toggling one takes effect without restarting Anki. (Older
+configs had `media_allow_local_path` as a top-level key; it was moved in here
+automatically, and the old flat key is ignored.)
+
+- `media_allow_local_path` — when `true`, media uploads may name a file **on
+  this computer** for the server to read (`{"path": "C:/pictures/dog.png"}`),
+  which is how AnkiConnect's `storeMediaFile` behaves. With it on, anything
+  that can reach the API can make Anki read any file your user account can
+  read. Turn it on only if you use local scripts that pass file paths. Base64
+  `data` and `url` uploads work either way.
+- `cards_set_memory_state` — when `true`, `POST /v1/cards:set-memory-state`
+  may overwrite cards' FSRS memory state (stability/difficulty), desired
+  retention and decay. This rewrites what the scheduler knows about a card,
+  which is how FSRS helper add-ons reschedule — but a buggy or malicious
+  client could quietly wreck your scheduling, so it stays off unless you use
+  a tool that needs it.
 
 ### `dev_watch_seconds`
 **For working on Tsunagi itself.** When greater than zero, Anki polls the

@@ -98,9 +98,9 @@ def _resolve_upload(body: MediaUpload) -> tuple:
             raise ValidationError("'data' is not valid base64") from e
         name = body.filename
     elif body.path is not None:
-        if not settings.get("media_allow_local_path", False):
+        if not settings.gate_enabled("media_allow_local_path"):
             raise ValidationError(
-                "local 'path' uploads are disabled; enable media_allow_local_path in the config"
+                "local 'path' uploads are disabled; enable gates.media_allow_local_path in the config"
             )
         if not os.path.isfile(body.path):
             raise ValidationError(f"no such file: {body.path}")

@@ -36,7 +36,7 @@ class TestMigrate:
         cfg["config_version"] = 1
         cfg, changed = _migrate(cfg)
         assert changed
-        assert cfg["config_version"] == 3
+        assert cfg["config_version"] == 4
 
     def test_v2_install_gains_localhost_allowlist(self):
         # Pre-v3 installs have an empty allowlist, which blocks browser
@@ -54,3 +54,22 @@ class TestMigrate:
         cfg, _ = _migrate({"prefer_port": 8888, "api_key": "mine"})
         assert cfg["prefer_port"] == 8888
         assert cfg["api_key"] == "mine"
+
+    def test_v3_flat_media_gate_moves_into_gates(self):
+        # v4 grouped the opt-in switches; a user who had enabled local-path
+        # uploads must stay enabled, and the dead flat key must go away.
+        old = {k: v for k, v in DEFAULTS.items() if k != "gates"}
+        old.update(media_allow_local_path=True, config_version=3)
+        cfg, changed = _migrate(old)
+        assert changed
+        assert "media_allow_local_path" not in cfg
+        assert cfg["gates"]["media_allow_local_path"] is True
+        assert cfg["gates"]["cards_set_memory_state"] is False
+        assert cfg["config_version"] == 4
+
+    def test_migration_does_not_alias_defaults(self):
+        # A migrated config must own its nested containers - mutating them
+        # must never write through into the shared DEFAULTS dict.
+        cfg, _ = _migrate({})
+        cfg["gates"]["media_allow_local_path"] = True
+        assert DEFAULTS["gates"]["media_allow_local_path"] is False

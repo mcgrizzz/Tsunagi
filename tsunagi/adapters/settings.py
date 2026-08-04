@@ -51,6 +51,11 @@ class Settings:
         if persist:
             persist(cfg)  # writeConfig outside the lock
 
+    def gate_enabled(self, name: str) -> bool:
+        """True if the opt-in gate `name` (a key under "gates") is enabled."""
+        gates = self.get("gates") or {}
+        return bool(gates.get(name, False))
+
     def add_cors_origin(self, origin: str) -> None:
         allowlist = list(self.get("cors_allowlist", []))
         if origin in allowlist:

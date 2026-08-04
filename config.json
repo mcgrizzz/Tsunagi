@@ -9,8 +9,11 @@
     "op_timeout_seconds": 15,
     "media_max_bytes": 67108864,
     "media_fetch_timeout_seconds": 30,
-    "media_allow_local_path": false,
+    "gates": {
+        "media_allow_local_path": false,
+        "cards_set_memory_state": false
+    },
     "ankiconnect_import_offered": false,
     "dev_watch_seconds": 0,
-    "config_version": 3
+    "config_version": 4
 }

@@ -144,8 +144,8 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                 if media.data:
                     data = base64.b64decode(media.data)
                 elif media.path:
-                    if not settings.get("media_allow_local_path", False):
-                        raise ValueError("local 'path' uploads are disabled (media_allow_local_path)")
+                    if not settings.gate_enabled("media_allow_local_path"):
+                        raise ValueError("local 'path' uploads are disabled (gates.media_allow_local_path)")
                     with open(media.path, "rb") as fh:
                         data = fh.read()
                 elif media.url:

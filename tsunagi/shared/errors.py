@@ -63,6 +63,23 @@ class CollectionUnavailableError(Exception):
         super().__init__(message)
 
 
+class UnsupportedAnkiVersionError(Exception):
+    """Raised when the running Anki lacks an API a route depends on"""
+    def __init__(self, feature: str, minimum: str = ""):
+        self.status_code = 501
+        detail = f" (requires Anki {minimum}+)" if minimum else ""
+        super().__init__(
+            f"{feature} is not supported by this Anki version{detail}"
+        )
+
+
+class JobConflictError(Exception):
+    """Raised when a job request conflicts with the job's or store's state"""
+    def __init__(self, message: str):
+        self.status_code = 409
+        super().__init__(message)
+
+
 def register_exception_handlers(app: Any) -> None:
     """
     Map availability errors raised outside handle_mutation_errors (e.g. from
@@ -146,7 +163,8 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
     """
     def to_http_exception(exc: Exception) -> HTTPException:
         if isinstance(exc, (ResourceNotFoundError, SubresourceNotFoundError, ValidationError,
-                            DuplicateNoteError, AnkiBusyError, CollectionUnavailableError)):
+                            DuplicateNoteError, AnkiBusyError, CollectionUnavailableError,
+                            UnsupportedAnkiVersionError, JobConflictError)):
             return HTTPException(status_code=exc.status_code, detail=str(exc))
         if type(exc).__name__ in ANKI_CLIENT_ERRORS:
             # Anki's own message explains the problem far better than we could
