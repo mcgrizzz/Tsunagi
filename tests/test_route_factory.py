@@ -174,6 +174,20 @@ class TestQueries:
         body = client.get("/v1/things", params=[("where", "id in [1,2]"), ("where", "type==1")]).json()
         assert [r["id"] for r in body["items"]] == [2]
 
+    def test_index_prefilter_is_a_superset(self, client):
+        # coerce drops "abc" from the index prefilter, which only ever
+        # NARROWS the prefetch - the dropped value could match no row, and
+        # the full where predicate still runs on what came back.
+        body = client.get("/v1/things", params={"where": 'id in [1, "abc"]'}).json()
+        assert [r["id"] for r in body["items"]] == [1]
+
+    def test_index_clause_with_no_usable_values_falls_through(self, client):
+        # Every value uncoercible -> the index tier declines; the fallback
+        # tier's post-filter reports the honest empty result, not an error.
+        resp = client.get("/v1/things", params={"where": 'id in ["abc"]'})
+        assert resp.status_code == 200
+        assert resp.json()["items"] == []
+
     def test_select_projection(self, client):
         body = client.get("/v1/things", params={"select": "id,name", "shape": "object"}).json()
         assert body["items"][0] == {"id": 1, "name": "Basic"}
@@ -258,6 +272,13 @@ class TestSearchParam:
     def test_search_filters(self, search_client):
         body = search_client.get("/v1/things", params={"search": "type0"}).json()
         assert [r["id"] for r in body["items"]] == [1, 3]
+
+    def test_search_is_a_prefilter_where_still_applies(self, search_client):
+        # search enumerates candidate ids (a superset); the full where
+        # predicate then runs on every hydrated row.
+        body = search_client.get(
+            "/v1/things", params=[("search", "type0"), ("where", "id==3")]).json()
+        assert [r["id"] for r in body["items"]] == [3]
 
     def test_bare_list_uses_scan(self, search_client):
         # No fetch_all on these caps: a plain GET still works via the scan tier

@@ -114,6 +114,67 @@ def _dedupe_indices(xs):
     return out
 
 
+def _index_values(idx: IndexSpec, clause: Any) -> List[Scalar]:
+    """
+    The values a where clause contributes to this index - coerced and deduped,
+    empty when the clause can't drive it (wrong path, wrong op, or nothing
+    usable after coercion). Dropping an uncoercible value only NARROWS the
+    prefetch: it could never have matched a real row, and the full where
+    predicate still runs on whatever the index returns.
+    """
+    if tuple(clause.tokens) != idx.path:
+        return []
+    if clause.op == "==":
+        vals = [clause.value]
+    elif clause.op == "in" and isinstance(clause.value, list):
+        vals = list(clause.value)
+    else:
+        return []
+
+    scalars: List[Scalar] = [v for v in vals
+                             if isinstance(v, (str, int, float, bool)) or v is None]
+    if idx.coerce is not None:
+        coerced: List[Scalar] = []
+        for v in scalars:
+            nv = idx.coerce(v)
+            if nv is not None:
+                coerced.append(nv)
+        scalars = coerced
+    return _dedupe_indices(scalars)
+
+
+def _index_plan(caps: SourceCaps, where_params: Optional[List[str]]) -> Optional[Plan]:
+    """The first (index, clause) pair with usable values wins."""
+    if not (caps.indices and where_params):
+        return None
+    for idx in caps.indices:
+        for w in where_params:
+            scalars = _index_values(idx, parse_where(w))
+            if scalars:
+                return Plan("index", fetch=lambda wants=None, idx=idx, vals=scalars:
+                            idx.fetch_values(vals, wants))
+    return None
+
+
+def _columns_plan(caps: SourceCaps, select_text: Optional[str],
+                  where_params: Optional[List[str]]) -> Optional[Plan]:
+    if not caps.columns_fetchers:
+        return None
+    tops = selected_top_fields(select_text)
+    if not tops:
+        return None
+    # The where predicate runs on these rows too, so every top-level
+    # field a clause touches must also be present in the fetched
+    # columns - otherwise filters silently match nothing.
+    needed = set(tops)
+    for w in (where_params or []):
+        needed.add(parse_where(w).tokens[0])
+    for fs, fetcher in caps.columns_fetchers.items():
+        if needed.issubset(fs):
+            return Plan("columns", fetcher)
+    return None
+
+
 def make_plan(
     select_text: Optional[str],
     where_params: Optional[List[str]],
@@ -130,48 +191,14 @@ def make_plan(
         return Plan("search", find_ids=lambda: spec.find_ids(q), hydrate=spec.hydrate)
 
     # 1) INDEX FIRST — ex: User wants to grab models by id
-    if caps.indices and where_params:
-        for idx in caps.indices:                 
-            for w in where_params:               
-                c = parse_where(w)
-                if tuple(c.tokens) != idx.path:
-                    continue
-                if c.op == "==":
-                    vals = [c.value]
-                elif c.op == "in" and isinstance(c.value, list):
-                    vals = list(c.value)
-                else:
-                    continue
-
-                scalars: List[Scalar] = [v for v in vals if isinstance(v, (str, int, float, bool)) or v is None]
-                if idx.coerce is not None:
-                    coerced: List[Scalar] = []
-                    for v in scalars:
-                        nv = idx.coerce(v)
-                        if nv is not None:
-                            coerced.append(nv)
-                    scalars = coerced
-
-                scalars = _dedupe_indices(scalars)
-                if not scalars:
-                    continue
-
-                return Plan("index", fetch=lambda wants=None, idx=idx, vals=scalars:
-                            idx.fetch_values(vals, wants))
+    plan = _index_plan(caps, where_params)
+    if plan is not None:
+        return plan
 
     # 2) COLUMNS FAST PATH — ex: User only wants (id,name) from models we have an alternate route to fetch that
-    if caps.columns_fetchers:
-        tops = selected_top_fields(select_text)
-        if tops:
-            # The where predicate runs on these rows too, so every top-level
-            # field a clause touches must also be present in the fetched
-            # columns - otherwise filters silently match nothing.
-            needed = set(tops)
-            for w in (where_params or []):
-                needed.add(parse_where(w).tokens[0])
-            for fs, fetcher in caps.columns_fetchers.items():
-                if needed.issubset(fs):
-                    return Plan("columns", fetcher)
+    plan = _columns_plan(caps, select_text, where_params)
+    if plan is not None:
+        return plan
 
     # 3) FALLBACK
     if caps.fetch_all is not None:

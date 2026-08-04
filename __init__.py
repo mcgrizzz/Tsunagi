@@ -18,6 +18,38 @@ def _add_shared():
 # call this early
 _add_shared()
 
+def _log_vendor_conflicts() -> None:
+    """
+    A module we vendor that is ALREADY imported from somewhere else (another
+    addon's bundled copy, or Anki's own environment) keeps winning for the
+    whole session - sys.modules beats sys.path, so our lib/shared pin never
+    loads. That can't be fixed from here, but it CAN be the first line of a
+    bug report instead of a mystery: say exactly which module and whose file.
+    """
+    try:
+        shared = LIB / "shared"
+        if not shared.is_dir():
+            return
+        prefix = str(shared)
+        clashes = []
+        for child in sorted(shared.iterdir()):
+            name = child.name[:-3] if child.name.endswith(".py") else child.name
+            if not name.isidentifier():
+                continue
+            mod = sys.modules.get(name)
+            file = getattr(mod, "__file__", None) if mod is not None else None
+            if file and not file.startswith(prefix):
+                clashes.append(f"{name} ({file})")
+        if clashes:
+            print("[tsunagi] vendored modules already imported from elsewhere, "
+                  "their versions win: " + "; ".join(clashes))
+    except Exception:
+        pass
+
+# Catches copies loaded by addons that imported before us; runs again at
+# profile open, when every addon has been imported, to catch the rest.
+_log_vendor_conflicts()
+
 try:
     from aqt import gui_hooks, mw
 except ImportError:
@@ -25,6 +57,7 @@ except ImportError:
     mw = None
 else:
     def _on_profile_open() -> None:
+        _log_vendor_conflicts()   # all addons are imported by now
         try:
             from .tsunagi.app import start_server
             start_server(mw)   # pass mw so app can read/write config via addonManager
