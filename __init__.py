@@ -59,7 +59,11 @@ else:
     # dispatch pointed at the live module across reload_addon()'s purge.
     def _on_op_executed(changes, handler=None) -> None:
         try:
-            from .tsunagi.adapters.events import dispatch_op
+            from .tsunagi.adapters.events import broker, dispatch_op
+            # Nobody listening -> do nothing, not even the label fetch. The
+            # editor fires one Update Note op per keystroke, so this runs hot.
+            if not broker.has_subscribers():
+                return
             # OpChanges carries flags but no identity; the undo label ("Update
             # Note", "Answer Card", ...) names the op that just completed and
             # is current by the time this hook fires.

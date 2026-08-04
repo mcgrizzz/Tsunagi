@@ -82,6 +82,13 @@ class TestBroker:
         store.publish("sync", phase="started")
         assert store.drain(token) == []
 
+    def test_has_subscribers(self, store):
+        assert store.has_subscribers() is False
+        token = store.subscribe()
+        assert store.has_subscribers() is True
+        store.unsubscribe(token)
+        assert store.has_subscribers() is False
+
     def test_drain_flag(self, store):
         assert store.is_draining() is False
         store.begin_drain()
