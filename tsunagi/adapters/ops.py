@@ -18,6 +18,27 @@ R = TypeVar("R")
 # ("op_timeout_seconds") at server start.
 OP_TIMEOUT: float = 15.0
 
+
+class ValueWithChanges:
+    """
+    Return this from a collection-op adapter to carry a caller-facing value
+    AND the backend's real OpChanges. CollectionOp hands `.changes` to
+    operation_did_execute - which is what makes Anki's open windows (the
+    browser especially) repaint after an API mutation, and what puts the true
+    flags on the event stream - while `_success` unwraps `.value` for the
+    caller. Without it the op reports a fabricated blank OpChanges: no
+    repaint, no event.
+
+    Wrapper protos (OpChangesWithCount/WithId/...) are unwrapped to the inner
+    OpChanges here, because aqt passes `.changes` to the hook verbatim and
+    col.op_made_changes() expects the bare message.
+    """
+    __slots__ = ("value", "changes")
+
+    def __init__(self, value: Any, changes: Any) -> None:
+        self.value = value
+        self.changes = getattr(changes, "changes", changes)
+
 def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], what: str) -> Any:
     if not done.wait(OP_TIMEOUT if timeout is None else timeout):
         raise AnkiBusyError(f"{what} timed out; Anki may be busy or blocked by a dialog")

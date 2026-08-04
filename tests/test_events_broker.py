@@ -193,21 +193,22 @@ class TestDispatchOp:
             assert "label" not in event
 
 
+@pytest.fixture()
+def recorded_ops(monkeypatch):
+    from tsunagi.adapters import ops
+    created = []
+    real = ops.CollectionOp
+
+    def recording(**kwargs):
+        op = real(**kwargs)
+        created.append(op)
+        return op
+
+    monkeypatch.setattr(ops, "CollectionOp", recording)
+    return created
+
+
 class TestApiInitiatorTagging:
-    @pytest.fixture()
-    def recorded_ops(self, monkeypatch):
-        from tsunagi.adapters import ops
-        created = []
-        real = ops.CollectionOp
-
-        def recording(**kwargs):
-            op = real(**kwargs)
-            created.append(op)
-            return op
-
-        monkeypatch.setattr(ops, "CollectionOp", recording)
-        return created
-
     def test_collection_op_call_tags_an_api_op(self, col, recorded_ops):
         # Every Tsunagi mutation must pass an ApiOp initiator so its op
         # event carries origin "api" (the fake CollectionOp records it).
@@ -243,3 +244,51 @@ class TestPublishHelpers:
         token = broker.subscribe()
         publish_sync("finished")
         assert broker.drain(token)[0]["phase"] == "finished"
+
+
+class TestRealChangesPropagation:
+    """
+    Mutation adapters return ValueWithChanges so the op reports the backend's
+    REAL OpChanges - the difference between Anki's browser repainting (and an
+    event firing) after an API write, and a fabricated blank that reports
+    nothing changed.
+    """
+
+    def _card_id(self, col):
+        note = col.new_note(col.models.by_name("Basic"))
+        note["Front"] = "x"
+        col.add_note(note, 1)
+        return int(col.card_ids_of_note(note.id)[0])
+
+    def test_value_with_changes_unwraps_wrapper_protos(self):
+        from anki.collection import OpChanges, OpChangesWithCount
+
+        from tsunagi.adapters.ops import ValueWithChanges
+        wrapped = OpChangesWithCount(count=3)
+        wrapped.changes.card = True
+        v = ValueWithChanges([True], wrapped)
+        assert isinstance(v.changes, OpChanges)
+        assert v.changes.card is True
+
+    def test_suspend_reports_card_and_queue_changes(self, col, recorded_ops):
+        from tsunagi.adapters.anki.cards import suspend_cards
+        cid = self._card_id(col)
+        assert suspend_cards([cid]) == 1          # caller value unchanged
+        changes = recorded_ops[-1].result.changes
+        assert changes.card is True
+        assert changes.study_queues is True
+
+    def test_delete_notes_reports_note_changes(self, col, recorded_ops):
+        from tsunagi.adapters.anki.notes import delete_notes
+        cid = self._card_id(col)
+        nid = int(col.db.scalar("select nid from cards where id = ?", cid))
+        assert delete_notes([nid]) == 1
+        assert recorded_ops[-1].result.changes.note is True
+
+    def test_noop_still_reports_blank(self, col, recorded_ops):
+        # A batch where nothing was written keeps the blank-changes shape, so
+        # the event stream correctly stays silent.
+        from tsunagi.adapters.anki.cards import set_ease_factors
+        assert set_ease_factors([{"id": 999999, "factor": 2500}]) == [False]
+        changes = recorded_ops[-1].result.changes
+        assert not any(getattr(changes, f.name) for f in changes.DESCRIPTOR.fields)

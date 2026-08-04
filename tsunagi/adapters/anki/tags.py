@@ -11,7 +11,7 @@ from typing import List, Sequence
 from anki.collection import Collection
 
 from ...shared.errors import ValidationError
-from ..ops import as_collection_op, as_query_op
+from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 
 def _count(res: object) -> int:
@@ -26,12 +26,14 @@ def all_tags(col: Collection) -> List[str]:
 @as_collection_op
 def add_tags(col: Collection, note_ids: Sequence[int], tags: str) -> int:
     """Add space-separated tags to notes (one undoable op)."""
-    return _count(col.tags.bulk_add([int(i) for i in note_ids], tags))
+    res = col.tags.bulk_add([int(i) for i in note_ids], tags)
+    return ValueWithChanges(_count(res), res)
 
 
 @as_collection_op
 def remove_tags(col: Collection, note_ids: Sequence[int], tags: str) -> int:
-    return _count(col.tags.bulk_remove([int(i) for i in note_ids], tags))
+    res = col.tags.bulk_remove([int(i) for i in note_ids], tags)
+    return ValueWithChanges(_count(res), res)
 
 
 @as_collection_op
@@ -39,7 +41,8 @@ def rename_tag(col: Collection, old: str, new: str) -> int:
     """Rename a tag and its children across every note. Returns notes changed."""
     if not old.strip() or not new.strip():
         raise ValidationError("both the old and new tag name are required")
-    return _count(col.tags.rename(old, new))
+    res = col.tags.rename(old, new)
+    return ValueWithChanges(_count(res), res)
 
 
 @as_collection_op
@@ -47,10 +50,12 @@ def delete_tags(col: Collection, tags: str) -> int:
     """Remove space-separated tags (and their children) from every note."""
     if not tags.strip():
         raise ValidationError("at least one tag is required")
-    return _count(col.tags.remove(tags))
+    res = col.tags.remove(tags)
+    return ValueWithChanges(_count(res), res)
 
 
 @as_collection_op
 def clear_unused_tags(col: Collection) -> int:
     """Drop tags left in the tag list that no note references any more."""
-    return _count(col.tags.clear_unused_tags())
+    res = col.tags.clear_unused_tags()
+    return ValueWithChanges(_count(res), res)

@@ -80,6 +80,7 @@ class CollectionOp:
                 raise
             self._failure(e)
         else:
+            self.result = res  # recorded so tests can assert the op's changes
             if self._success is not None:
                 self._success(res)
 

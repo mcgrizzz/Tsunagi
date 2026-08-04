@@ -13,7 +13,7 @@ from ...shared.helpers import (
     validate_required_keys,
 )
 from ...shared.schemas.decks import DeckCreate, DeckInfo, DeckPatch
-from ..ops import as_collection_op, as_query_op
+from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 # NOTE: DeckManager.get() defaults to default=True, which silently returns the
 # DEFAULT deck for missing ids. Every lookup here must pass default=False.
@@ -73,7 +73,7 @@ def _read_desired_retention(col: Collection, deck_id: int) -> Optional[float]:
     return None
 
 
-def _write_desired_retention(col: Collection, deck_id: int, value: Optional[Any]) -> None:
+def _write_desired_retention(col: Collection, deck_id: int, value: Optional[Any]) -> Any:
     if not _retention_supported():
         raise UnsupportedAnkiVersionError("per-deck desired retention")
     deck = col._backend.get_deck(int(deck_id))
@@ -83,7 +83,7 @@ def _write_desired_retention(col: Collection, deck_id: int, value: Optional[Any]
         deck.normal.ClearField("desired_retention")
     else:
         deck.normal.desired_retention = float(value)
-    col._backend.update_deck(deck)
+    return col._backend.update_deck(deck)
 
 
 def _deck_info(col: Collection, d: Mapping[str, Any],
@@ -175,11 +175,14 @@ def create_deck(col: Collection, data: Dict[str, Any]) -> DeckInfo:
         raise ValueError(f"Deck name '{name}' already exists")
 
     out = col.decks.add_normal_deck_with_name(name)
+    changes = out
     deck = col.decks.get(int(out.id), default=False)
     if "desc" in data and data["desc"] is not None:
         deck["desc"] = data["desc"]
-        col.decks.save(deck)
-    return DeckInfo.parse_obj(deck)
+        # update_dict, not the legacy save(): same write, but it returns the
+        # OpChanges the op needs to report.
+        changes = col.decks.update_dict(deck)
+    return ValueWithChanges(DeckInfo.parse_obj(deck), changes)
 
 
 @as_collection_op
@@ -191,7 +194,8 @@ def create_deck_if_missing(col: Collection, name: str) -> int:
     existing = col.decks.by_name(name)
     if existing is not None:
         return int(existing["id"])
-    return int(col.decks.add_normal_deck_with_name(name).id)
+    out = col.decks.add_normal_deck_with_name(name)
+    return ValueWithChanges(int(out.id), out)
 
 
 @as_collection_op
@@ -210,24 +214,26 @@ def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckIn
 
     updates = normalize_field_names(updates, DeckPatch)
 
+    changes = None
     if "name" in updates:
-        col.decks.rename(deck, updates["name"])
+        changes = col.decks.rename(deck, updates["name"])
         # rename() renames in the backend and does NOT touch the dict we hold,
         # which still carries the old name - saving it below would write the
         # rename straight back out again. Re-read before touching anything else.
         deck = col.decks.get(deck_id, default=False)
 
     copy_if_present(updates, deck, ["desc", "collapsed", "browserCollapsed", "conf"])
-    col.decks.save(deck)
+    # update_dict, not the legacy save(): same write, but it returns OpChanges.
+    changes = col.decks.update_dict(deck)
 
     # After save() on purpose: saving the schema11 dict rewrites the proto's
     # desired_retention from the dict's truncated integer percent, so writing
     # first would immediately mangle the value (0.837 -> 0.83).
     if retention_sent:
-        _write_desired_retention(col, deck_id, retention_value)
+        changes = _write_desired_retention(col, deck_id, retention_value)
 
     info = _deck_info(col, col.decks.get(deck_id, default=False), None)
-    return info
+    return ValueWithChanges(info, changes) if changes is not None else info
 
 
 @as_collection_op
@@ -240,5 +246,5 @@ def delete_deck(col: Collection, deck_id: int) -> bool:
         raise ResourceNotFoundError("Deck", deck_id)
     if deck_id == 1:
         raise ValidationError("Cannot delete the default deck")
-    col.decks.remove([deck_id])
-    return True
+    changes = col.decks.remove([deck_id])
+    return ValueWithChanges(True, changes)
