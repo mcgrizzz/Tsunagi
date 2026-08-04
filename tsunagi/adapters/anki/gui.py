@@ -124,8 +124,12 @@ def edit_note(note_id: int) -> bool:
 def add_cards(note: Optional[Dict[str, Any]] = None,
               media: Optional[List[Dict[str, Any]]] = None) -> int:
     """
-    Open the Add Cards dialog, optionally prefilled. Returns the note id the
-    editor is holding - the note is NOT added; the user still confirms.
+    Open the Add Cards dialog, optionally prefilled.
+
+    Returns the id the editor is holding, which is 0 for a note that has not
+    been added - Anki assigns an id on add, not on construction. Canonical
+    returns the same 0; its comment about being "sure of the note id" predates
+    that change.
 
     This is what asbplayer's "Open in Anki" calls.
     """
@@ -371,7 +375,12 @@ def deck_review(name: str) -> bool:
         if deck is None:
             return False
         mw.col.decks.select(deck["id"])
-        mw.onOverview()
+        # Straight into the reviewer, which is what Anki's own "Study Now"
+        # button does. Canonical routes through the overview first
+        # (guiDeckOverview, then moveToState) and that races: the overview's
+        # web view finishes loading after the reviewer has been shown and
+        # repaints over it, so you land on the deck page with mw.state already
+        # "review" - and have to call it twice to actually start studying.
         mw.moveToState("review")
         return True
     return call_on_main(_go)
