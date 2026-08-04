@@ -434,3 +434,67 @@ def relearn_cards(col: Collection, card_ids: Sequence[int]) -> int:
     affected = _matching(col, card_ids)
     col.db.execute(f"update cards set type=3, queue=1 where id in ({ids})")
     return affected
+
+
+class _ValueWithChanges:
+    """
+    Lets an adapter return a value AND the op's real OpChanges: ops.py passes
+    anything with `.changes` through to the operation_did_execute hook (so the
+    event stream sees the true flags instead of a fabricated blank) and
+    unwraps `.value` for the caller.
+    """
+    def __init__(self, value: Any, changes: Any) -> None:
+        self.value = value
+        self.changes = changes
+
+
+@as_collection_op(event_details=lambda answers: {
+    "card_ids": [int(a["card_id"]) for a in answers]})
+def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
+    """
+    Answer cards through the scheduler, AnkiConnect's answerCards. Entries are
+    {"card_id", "ease"} with ease 1-4; a missing card reports False and an
+    invalid ease raises mid-batch with earlier answers kept, both matching
+    canonical. Works on a card in any state - the v3 scheduler derives the
+    state from the card itself, and answering a suspended card unsuspends it.
+    """
+    out: List[bool] = []
+    changes: Any = None
+    for entry in answers:
+        try:
+            card = col.get_card(int(entry["card_id"]))
+        except Exception as e:
+            if type(e).__name__ == "NotFoundError":
+                out.append(False)
+                continue
+            raise
+        # answerCard reads time_taken(), which explodes on the None a fresh
+        # Card starts with - canonical starts the timer too.
+        card.start_timer()
+        changes = col.sched.answerCard(card, int(entry["ease"]))
+        out.append(True)
+    return _ValueWithChanges(out, changes) if changes is not None else out
+
+
+@as_collection_op(event_details=lambda card_id, values: {
+    "card_ids": [int(card_id)]})
+def set_card_values(col: Collection, card_id: int, values: Dict[str, Any]) -> Any:
+    """
+    Raw card-column write, AnkiConnect's setSpecificValueOfCard: setattr each
+    key on the card object and save. No validation beyond what the card proto
+    itself enforces - which columns need an explicit opt-in is wire-layer
+    policy (RISKY_CARD_COLUMNS), not enforced here.
+    """
+    card = col.get_card(int(card_id))  # NotFoundError propagates
+    for key, value in values.items():
+        setattr(card, key, value)
+    changes = col.update_card(card, skip_undo_entry=True)
+    return _ValueWithChanges(True, changes)
+
+
+# Columns canonical's setSpecificValueOfCard refuses without warning_check:
+# scheduling state and row linkage, where a bad write corrupts the card.
+RISKY_CARD_COLUMNS = frozenset({
+    "did", "id", "ivl", "lapses", "left", "mod", "nid",
+    "odid", "odue", "ord", "queue", "reps", "type", "usn",
+})

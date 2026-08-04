@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import List
+
 from pydantic import BaseModel, Field
 
 # ----------------- Response Schemas -----------------
@@ -19,9 +21,9 @@ class ReviewInfo(BaseModel):
     One revlog row, with human-readable names (Anki wire names as aliases).
 
     The revlog is append-only history: every row is a fact about a review that
-    happened, so this resource is read-only. Writing rows directly is how
-    AnkiConnect's insertReviews works, and it bypasses the scheduler - which is
-    why that action is out of scope.
+    happened, so it is normally the scheduler's to write. The one exception is
+    POST /v1/reviews (AnkiConnect's insertReviews), which inserts rows for
+    history imports - and reuses this model, so rows round-trip read<->write.
     """
     class Config:
         extra = "ignore"
@@ -45,3 +47,18 @@ class ReviewInfo(BaseModel):
     # How long the answer took, in milliseconds.
     time_ms: int = Field(alias="time", default=0)
     type: int = REVIEW_LEARN
+
+
+# ----------------- Request Schemas -----------------
+
+
+class InsertReviewsRequest(BaseModel):
+    # Same shape GET /v1/reviews returns (aliases accepted), so a row read
+    # from one collection can be posted into another unchanged. Only `id` and
+    # `card_id` are required; everything else has the column's natural default.
+    reviews: List[ReviewInfo]
+
+
+class InsertReviewsResult(BaseModel):
+    inserted: int
+    stats: dict

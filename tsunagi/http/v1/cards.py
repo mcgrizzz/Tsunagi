@@ -4,6 +4,8 @@ from typing import Any, Callable, List
 from fastapi import Body
 
 from ...adapters.anki.cards import (
+    RISKY_CARD_COLUMNS,
+    answer_cards,
     bury_cards,
     change_deck,
     find_card_ids,
@@ -11,6 +13,7 @@ from ...adapters.anki.cards import (
     get_cards_by_ids,
     get_cards_of_notes,
     reposition_cards,
+    set_card_values,
     set_due_date,
     set_ease_factors,
     set_flag,
@@ -20,15 +23,21 @@ from ...adapters.anki.cards import (
     unsuspend_cards,
 )
 from ...adapters.settings import settings
-from ...shared.errors import ValidationError, handle_mutation_errors
+from ...shared.errors import (
+    ResourceNotFoundError,
+    ValidationError,
+    handle_mutation_errors,
+)
 from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.cards import (
+    AnswerRequest,
     CardIds,
     ChangeDeckRequest,
     ForgetRequest,
     RepositionRequest,
     SchedulingResult,
+    SetCardValuesRequest,
     SetDueDateRequest,
     SetEaseRequest,
     SetFlagRequest,
@@ -189,3 +198,36 @@ def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResul
     results: List[bool] = set_memory_states(
         [e.dict(exclude_unset=True) for e in body.cards])
     return _result(sum(1 for ok in results if ok), start)
+
+
+@_verb("answer", "Answer cards",
+       "Answers each card through the scheduler as if the button (`ease` 1-4: "
+       "again/hard/good/easy) had been pressed in the reviewer. Works on a "
+       "card in any state - answering a suspended card unsuspends it. A "
+       "missing card is skipped; `affected` counts the cards answered.")
+def answer(body: AnswerRequest = Body(...)) -> SchedulingResult:
+    start = time.perf_counter()
+    results: List[bool] = answer_cards(
+        [{"card_id": e.card_id, "ease": e.ease} for e in body.answers])
+    return _result(sum(1 for ok in results if ok), start)
+
+
+@_verb("set-values", "Set raw card columns",
+       "Writes card columns as-is, with no validation beyond the column's "
+       "type - the escape hatch AnkiConnect calls setSpecificValueOfCard. "
+       "Scheduling and linkage columns (did, id, ivl, lapses, left, mod, nid, "
+       "odid, odue, ord, queue, reps, type, usn) corrupt the card when "
+       "written badly, so they require `force: true`.")
+def set_values(body: SetCardValuesRequest = Body(...)) -> SchedulingResult:
+    risky = sorted(set(body.values) & RISKY_CARD_COLUMNS)
+    if risky and not body.force:
+        raise ValidationError(
+            f"columns {', '.join(risky)} need force=true to overwrite")
+    start = time.perf_counter()
+    try:
+        set_card_values(body.card_id, body.values)
+    except Exception as e:
+        if type(e).__name__ == "NotFoundError":
+            raise ResourceNotFoundError("card", body.card_id) from e
+        raise
+    return _result(1, start)

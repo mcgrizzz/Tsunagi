@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from ....adapters.anki.reviews import (
     card_review_map,
     collection_stats_html,
+    insert_reviews,
     latest_review_id,
     reviews_by_day,
     reviews_of_deck,
@@ -66,3 +67,20 @@ def ac_getLatestReviewID(p: DeckParams) -> int:
 @registry.register("getReviewsOfCards", params=GetReviewsOfCardsParams)
 def ac_getReviewsOfCards(p: GetReviewsOfCardsParams) -> Dict[int, List[Dict[str, Any]]]:
     return card_review_map(p.cards)
+
+
+class InsertReviewsParams(BaseModel):
+    # 9-tuples in canonical's order: [reviewTime, cardID, usn, buttonPressed,
+    # newInterval, previousInterval, newFactor, reviewDuration, reviewType].
+    reviews: List[List[int]]
+
+
+@registry.register("insertReviews", params=InsertReviewsParams)
+def ac_insertReviews(p: InsertReviewsParams) -> None:
+    """
+    Returns null, like canonical. Under the hood the rows go in parameterized
+    and transactional instead of string-interpolated, so a malformed row's
+    error message is ours rather than sqlite's - but a malformed row is an
+    error either way, and good rows produce identical revlog entries.
+    """
+    insert_reviews(p.reviews)

@@ -161,11 +161,8 @@ class TestPageHydratesAPage:
         assert caps.fetch_all is None
 
 
-class TestReadOnly:
-    """The scheduler owns the revlog; there is no way in through this resource."""
-
-    def test_no_create_route(self, reviewed):
-        assert reviewed.post("/v1/reviews", json={"card_id": 1}).status_code == 405
+class TestNoDelete:
+    """History can be imported (POST) but never removed through this resource."""
 
     def test_no_delete_route(self, reviewed):
         rid = reviewed.get("/v1/reviews").json()["items"][0]["id"]
@@ -187,3 +184,55 @@ class TestFsrs:
         assert card["memory_state"] is not None
         assert card["memory_state"]["stability"] > 0
         assert card["memory_state"]["difficulty"] > 0
+
+
+class TestInsert:
+    def _card_id(self, client):
+        add_note(client, "犬")
+        return client.get("/v1/cards").json()["items"][0]["id"]
+
+    def test_rows_round_trip(self, client):
+        cid = self._card_id(client)
+        rows = [
+            {"id": 1700000000000, "card_id": cid, "usn": -1, "ease": 3,
+             "interval": 1, "last_interval": 0, "factor": 2500,
+             "time_ms": 4000, "type": 1},
+            {"id": 1700000000001, "card_id": cid, "ease": 4},
+        ]
+        body = client.post("/v1/reviews", json={"reviews": rows}).json()
+        assert body["inserted"] == 2
+        got = client.get("/v1/reviews").json()["items"]
+        assert [(r["id"], r["ease"], r["factor"]) for r in got] == [
+            (1700000000000, 3, 2500), (1700000000001, 4, 0)]
+
+    def test_wire_aliases_accepted(self, client):
+        cid = self._card_id(client)
+        body = client.post("/v1/reviews", json={"reviews": [
+            {"id": 1700000000000, "cid": cid, "ivl": 3, "lastIvl": 1,
+             "time": 2500, "ease": 2}]}).json()
+        assert body["inserted"] == 1
+        row = client.get("/v1/reviews").json()["items"][0]
+        assert (row["card_id"], row["interval"], row["time_ms"]) == (cid, 3, 2500)
+
+    def test_empty_list_inserts_nothing(self, client):
+        assert client.post("/v1/reviews", json={"reviews": []}).json()["inserted"] == 0
+
+    def test_duplicate_id_fails_and_rolls_back(self, client):
+        cid = self._card_id(client)
+        client.post("/v1/reviews", json={"reviews": [
+            {"id": 1700000000000, "card_id": cid}]})
+        resp = client.post("/v1/reviews", json={"reviews": [
+            {"id": 1700000000001, "card_id": cid},
+            {"id": 1700000000000, "card_id": cid}]})  # dupe of the first insert
+        assert resp.status_code >= 400
+        # All-or-nothing: the good row didn't land either.
+        ids = [r["id"] for r in client.get("/v1/reviews").json()["items"]]
+        assert ids == [1700000000000]
+
+    def test_missing_required_field_is_422(self, client):
+        resp = client.post("/v1/reviews", json={"reviews": [{"ease": 3}]})
+        assert resp.status_code == 422
+
+    def test_in_openapi(self, client):
+        spec = client.get("/openapi.json").json()
+        assert spec["paths"]["/v1/reviews"]["post"]["operationId"] == "createReviews"

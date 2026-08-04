@@ -446,3 +446,66 @@ class TestRetrievability:
         # Only the answered card has been scored; recall is ~certain today.
         assert len(values) == 1
         assert values[0] == pytest.approx(1.0, abs=0.05)
+
+
+class TestAnswer:
+    def test_answer_advances_the_card(self, seeded):
+        cid = ids(seeded)[0]
+        body = seeded.post("/v1/cards:answer",
+                           json={"answers": [{"card_id": cid, "ease": 3}]}).json()
+        assert body["affected"] == 1
+        card = seeded.get("/v1/cards", params={"where": f"id=={cid}"}).json()["items"][0]
+        assert card["reps"] == 1 and card["type"] != 0     # no longer new
+        reviews = seeded.get("/v1/reviews",
+                             params={"where": f"card_id=={cid}"}).json()["items"]
+        assert [r["ease"] for r in reviews] == [3]         # a real revlog row
+
+    def test_missing_card_is_skipped(self, seeded):
+        cid = ids(seeded)[0]
+        body = seeded.post("/v1/cards:answer", json={"answers": [
+            {"card_id": cid, "ease": 3}, {"card_id": 999999, "ease": 3}]}).json()
+        assert body["affected"] == 1
+
+    def test_ease_out_of_range_is_422(self, seeded):
+        resp = seeded.post("/v1/cards:answer",
+                           json={"answers": [{"card_id": ids(seeded)[0], "ease": 5}]})
+        assert resp.status_code == 422  # pydantic bound, before the adapter
+
+    def test_answering_a_suspended_card_unsuspends_it(self, seeded):
+        cid = ids(seeded)[0]
+        seeded.post("/v1/cards:suspend", json={"card_ids": [cid]})
+        body = seeded.post("/v1/cards:answer",
+                           json={"answers": [{"card_id": cid, "ease": 3}]}).json()
+        assert body["affected"] == 1
+        card = seeded.get("/v1/cards", params={"where": f"id=={cid}"}).json()["items"][0]
+        assert card["suspended"] is False
+
+
+class TestSetValues:
+    def test_plain_column_write(self, seeded):
+        cid = ids(seeded)[0]
+        body = seeded.post("/v1/cards:set-values",
+                           json={"card_id": cid, "values": {"factor": 2600}}).json()
+        assert body["affected"] == 1
+        assert seeded.get("/v1/cards", params={"where": f"id=={cid}"}
+                          ).json()["items"][0]["factor"] == 2600
+
+    def test_risky_column_needs_force(self, seeded):
+        cid = ids(seeded)[0]
+        resp = seeded.post("/v1/cards:set-values",
+                           json={"card_id": cid, "values": {"reps": 5}})
+        assert resp.status_code == 400
+        assert "force" in resp.json()["detail"]
+
+    def test_force_writes_the_risky_column(self, seeded):
+        cid = ids(seeded)[0]
+        body = seeded.post("/v1/cards:set-values", json={
+            "card_id": cid, "values": {"reps": 5}, "force": True}).json()
+        assert body["affected"] == 1
+        assert seeded.get("/v1/cards", params={"where": f"id=={cid}"}
+                          ).json()["items"][0]["reps"] == 5
+
+    def test_missing_card_is_404(self, seeded):
+        resp = seeded.post("/v1/cards:set-values",
+                           json={"card_id": 999999, "values": {"factor": 2600}})
+        assert resp.status_code == 404

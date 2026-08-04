@@ -11,9 +11,9 @@ GitHub is stale (2023) and disagrees with it. Counts here come from the
 | | |
 | --- | --- |
 | Actions upstream | **122** |
-| Implemented | **119** |
+| Implemented | **122** |
 | Planned (M6) | **0** |
-| Out of scope | **3** |
+| Out of scope | **0** |
 
 `GET /actions` returns the live list. `tests/test_parity_doc.py` checks this
 file against the registry in both directions, so an action that is registered
@@ -42,15 +42,15 @@ means there are no notes to lose.
 - **out-of-scope** — deliberately not implemented; the reason is in the row.
 
 Where Tsunagi deviates from canonical behaviour, the row says so. Every
-deviation is one of two kinds: a read that refuses to mutate the collection, or
+deviation is one of three kinds: a read that refuses to mutate the collection,
 a canonical bug whose faithful reproduction would only destroy the caller's
-work.
+work, or malformed input rejected up front instead of after partial writes.
 
 ### Card Actions
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `answerCards` | out-of-scope | Drives the reviewer. Use POST /v1/cards:set-due-date or :forget to reschedule. |
+| `answerCards` | implemented | Real scheduler answers via POST /v1/cards:answer. Deviation: a malformed entry (missing cardId/ease) is rejected before any card is answered; canonical applies the answers preceding it. Invalid ease behaves identically (same anki exception, earlier answers kept). |
 | `areDue` | implemented |  |
 | `areSuspended` | implemented |  |
 | `cardsInfo` | implemented |  |
@@ -63,7 +63,7 @@ work.
 | `relearnCards` | implemented | The one action with no Anki API; a raw UPDATE, wrapped in a CollectionOp. |
 | `setDueDate` | implemented |  |
 | `setEaseFactors` | implemented |  |
-| `setSpecificValueOfCard` | out-of-scope | Raw column writes with no validation; canonical guards it behind a warning flag. |
+| `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Native: POST /v1/cards:set-values. |
 | `suspend` | implemented | Returns false when every card is already in the target state. |
 | `suspended` | implemented |  |
 | `unsuspend` | implemented | Returns null, matching canonical. |
@@ -206,4 +206,4 @@ work.
 | `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. |
 | `getNumCardsReviewedToday` | implemented | Counted from the scheduler's day cutoff. |
 | `getReviewsOfCards` | implemented | Map of card id to reviews; every requested card gets an entry. |
-| `insertReviews` | out-of-scope | Writes revlog rows straight to the database, bypassing the scheduler. |
+| `insertReviews` | implemented | Parameterized + transactional under the hood (canonical string-interpolates); identical rows land, but a malformed row's error string is ours, not sqlite's. Native: POST /v1/reviews. |

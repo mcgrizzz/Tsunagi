@@ -133,3 +133,34 @@ class TestGetReviewsOfCards:
 
     def test_empty_input(self, reviewed):
         assert rpc(reviewed, "getReviewsOfCards", {"cards": []})["result"] == {}
+
+
+class TestInsertReviews:
+    def test_returns_null_and_rows_land(self, reviewed):
+        cid = rpc(reviewed, "findCards", {"query": "deck:Other"})["result"][0]
+        resp = rpc(reviewed, "insertReviews", {"reviews": [
+            [1700000000000, cid, -1, 3, 1, 0, 2500, 4000, 1],
+            [1700000000001, cid, -1, 4, 3, 1, 2500, 2000, 1]]})
+        assert resp == {"result": None, "error": None}
+        got = rpc(reviewed, "getReviewsOfCards", {"cards": [cid]})["result"]
+        rows = got[str(cid)]
+        assert [(r["id"], r["ease"], r["time"]) for r in rows] == [
+            (1700000000000, 3, 4000), (1700000000001, 4, 2000)]
+
+    def test_empty_list_is_a_null_noop(self, reviewed):
+        assert rpc(reviewed, "insertReviews", {"reviews": []}) == {
+            "result": None, "error": None}
+
+    def test_wrong_length_row_is_an_error(self, reviewed):
+        cid = rpc(reviewed, "findCards", {"query": "deck:Other"})["result"][0]
+        resp = rpc(reviewed, "insertReviews", {"reviews": [
+            [1700000000000, cid, -1, 3, 1, 0, 2500, 4000]]})  # 8 of 9
+        assert resp["result"] is None
+        assert "9" in resp["error"]
+
+    def test_duplicate_review_id_is_an_error(self, reviewed):
+        cid = rpc(reviewed, "findCards", {"query": "deck:Other"})["result"][0]
+        row = [1700000000000, cid, -1, 3, 1, 0, 2500, 4000, 1]
+        assert rpc(reviewed, "insertReviews", {"reviews": [row]})["error"] is None
+        resp = rpc(reviewed, "insertReviews", {"reviews": [row]})
+        assert resp["result"] is None and resp["error"]
