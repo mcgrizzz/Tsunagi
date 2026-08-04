@@ -87,6 +87,7 @@ gradually without ripping anything out — see
     - [Query Parameters](#query-parameters)
     - [Response Format](#response-format)
     - [Endpoints](#endpoints)
+  - [Event stream](#event-stream)
   - [Roadmap](#roadmap)
   - [Contributing](#contributing)
   - [Maintainers](#maintainers)
@@ -357,10 +358,48 @@ curl -X POST "http://127.0.0.1:7777/v1/models/query" \
       }'
 ```
 
+## Event stream
+
+`GET /v1/events` streams live collection events as Server-Sent Events
+(`text/event-stream`) — no extra dependencies, works with `curl -N` and the
+browser `EventSource` API. Delivery is live-only and best-effort: there is no
+replay, and a client that falls behind gets a `reset` with
+`"reason": "lagged"` after older events are dropped.
+
+| Event | Payload (plus `seq`, `ts` epoch ms) | Meaning |
+|---|---|---|
+| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...]}` | A completed operation; `changes` lists the true OpChanges flags, `origin` is `"api"` for changes made through Tsunagi. |
+| `review` | `{"card_id", "ease"}` | A card answered in Anki's reviewer. Fires just before the matching `op`. |
+| `sync` | `{"phase": "started"\|"finished"}` | Sync lifecycle; a finished sync is followed by a `reset`. |
+| `reset` | optionally `{"reason": "lagged"}` | Everything may have changed — refetch what you care about. |
+| `close` | `{"reason": "shutdown"\|"timeout"\|"max_events"}` | Final frame before the stream ends. |
+
+```bash
+# Watch everything (Ctrl+C to stop); heartbeat comments every 15s
+curl -N "http://127.0.0.1:7777/v1/events"
+
+# Scripting: return after the next event or 30 seconds, whichever first
+curl -N "http://127.0.0.1:7777/v1/events?max_events=1&timeout=30"
+```
+
+```js
+// EventSource can't send headers, so this route also accepts ?api_key=.
+// The page's origin must be in cors_allowlist.
+const es = new EventSource("http://127.0.0.1:7777/v1/events?api_key=...");
+es.addEventListener("review", (e) => console.log(JSON.parse(e.data)));
+es.addEventListener("op", (e) => console.log(JSON.parse(e.data)));
+```
+
+What you won't see: media writes and import/export run outside Anki's
+change-tracking (no `op` fires), raw database edits by other addons are
+invisible, some of Anki 23.10's own dialogs (e.g. deck options) don't route
+through change-tracking either, and Tsunagi routes whose backend call
+reports no change details are dropped as indistinguishable from no-ops.
+
 ## Roadmap
 
 - Anki Connect parity + shim
-- Event stream (watch changes) /or websocket so you can listen for Card Added events, Card reviewed etc.
+- Event stream (SSE at `GET /v1/events`) — shipped, see above
 
 If you want a specific endpoint or behavior, please open an issue.
 

@@ -98,14 +98,17 @@ def test_modules_import_without_qt():
     # No aqt.dialogs / aqt.qt installed here: every Qt import is function-local,
     # which is what lets the addon load before Anki has a main window.
     import tsunagi.adapters.anki.gui as adapter
+    import tsunagi.adapters.events as events
     import tsunagi.adapters.settings_dialog as settings_dialog
     import tsunagi.http.compat.actions.gui as compat
+    import tsunagi.http.v1.events as events_routes
     import tsunagi.http.v1.gui as routes
 
     assert hasattr(compat, "ac_guiBrowse")
     assert hasattr(adapter, "open_browser") and hasattr(adapter, "current_card")
     assert hasattr(routes, "router")
     assert hasattr(settings_dialog, "open_settings")
+    assert hasattr(events, "broker") and hasattr(events_routes, "router")
 
 
 def test_every_gui_action_is_registered():
