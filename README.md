@@ -105,8 +105,8 @@ Then install the produced file in Anki. Tsunagi runs **inside Anki** and starts 
 
 Settings live in a dialog (Tools → Tsunagi Settings, or the add-on's Config
 button): server host/port, API key, CORS allowlist, media limits, and the
-opt-in gates for routes that are off by default. Live keys (API key, CORS,
-media limits, gates) apply on save; server keys need an Anki restart. The
+opt-in gates for routes that are off by default. Everything applies on save —
+server-level keys by restarting the embedded server automatically. The
 underlying JSON keys are documented in `config.md`.
 
 ### Dependencies

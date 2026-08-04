@@ -239,11 +239,12 @@ def start_server(mw) -> None:
         def _on_config_updated(new_cfg: dict) -> None:
             # Anki calls this (main thread) when the user saves the raw JSON
             # config editor - kept as the fallback path for direct meta.json
-            # edits; the settings dialog calls apply_config itself. Refresh
-            # the live singleton so per-request keys (gates, api_key,
-            # cors_allowlist, media_*) apply immediately; server-level keys
-            # (host/port/op_timeout_seconds/log_level/enabled) still need a
-            # restart. write=False: Anki already wrote the edited dict.
+            # edits; the settings dialog calls apply_config itself (and also
+            # restarts the server for server-level keys, which this path does
+            # not - here host/port/op_timeout_seconds/log_level/enabled still
+            # need an Anki restart). Per-request keys (gates, api_key,
+            # cors_allowlist, media_*) apply immediately either way.
+            # write=False: Anki already wrote the edited dict.
             apply_config(mw, new_cfg, write=False)
 
         mw.addonManager.setConfigUpdatedAction(ADDON_PACKAGE, _on_config_updated)
