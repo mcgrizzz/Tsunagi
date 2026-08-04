@@ -52,6 +52,50 @@ else:
     gui_hooks.profile_did_open.append(_on_profile_open)
     gui_hooks.profile_will_close.append(_on_profile_close)
 
+    # Event-stream feeders. Every callback body is fully wrapped: a raising
+    # subscriber is REMOVED from the hook by Anki's generated code (and the
+    # exception propagates into Anki), so one bad publish would otherwise
+    # silence the stream for the whole session. Function-local imports keep
+    # dispatch pointed at the live module across reload_addon()'s purge.
+    def _on_op_executed(changes, handler=None) -> None:
+        try:
+            from .tsunagi.adapters.events import dispatch_op
+            dispatch_op(changes, handler)
+        except Exception:
+            pass
+
+    def _on_card_answered(reviewer, card, ease) -> None:
+        try:
+            from .tsunagi.adapters.events import publish_review
+            publish_review(card.id, ease)
+        except Exception:
+            pass
+
+    def _on_sync_start() -> None:
+        try:
+            from .tsunagi.adapters.events import publish_sync
+            publish_sync("started")
+        except Exception:
+            pass
+
+    def _on_sync_finish() -> None:
+        try:
+            from .tsunagi.adapters.events import publish_sync
+            publish_sync("finished")
+        except Exception:
+            pass
+
+    # hasattr-guarded: hook availability on older Anki isn't verifiable from
+    # here, and a missing hook should cost a feature, not the boot.
+    for _hook_name, _callback in (
+        ("operation_did_execute", _on_op_executed),
+        ("reviewer_did_answer_card", _on_card_answered),
+        ("sync_will_start", _on_sync_start),
+        ("sync_did_finish", _on_sync_finish),
+    ):
+        if hasattr(gui_hooks, _hook_name):
+            getattr(gui_hooks, _hook_name).append(_callback)
+
     def _open_settings():
         # Function-local import so reload_addon()'s module purge is enough to
         # pick up new dialog code - no re-registration needed.

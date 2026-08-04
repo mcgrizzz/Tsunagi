@@ -25,6 +25,10 @@ def make_client(settings: Settings) -> TestClient:
     def thing():
         return {"ok": True}
 
+    @app.get("/v1/events")
+    def events():
+        return {"ok": True}
+
     app.add_middleware(ApiKeyAuthMiddleware, settings=settings)
     return TestClient(app)
 
@@ -74,3 +78,27 @@ class TestAuthOn:
         assert keyed_client.get("/").status_code == 200
         assert keyed_client.get("/openapi.json").status_code == 200
         assert keyed_client.get("/docs").status_code == 200
+
+
+class TestEventsQueryParamKey:
+    # Browser EventSource can't send headers, so /v1/events - and only
+    # /v1/events - also accepts the key as ?api_key=.
+
+    def test_query_key_passes_on_events(self, keyed_client):
+        assert keyed_client.get("/v1/events?api_key=sekrit").status_code == 200
+
+    def test_wrong_query_key_is_401(self, keyed_client):
+        assert keyed_client.get("/v1/events?api_key=nope").status_code == 401
+
+    def test_query_key_rejected_elsewhere(self, keyed_client):
+        assert keyed_client.get("/v1/thing?api_key=sekrit").status_code == 401
+
+    def test_header_still_works_on_events(self, keyed_client):
+        resp = keyed_client.get("/v1/events", headers={"X-Api-Key": "sekrit"})
+        assert resp.status_code == 200
+
+    def test_header_wins_over_query_param(self, keyed_client):
+        # A provided header is authoritative; the query param is a fallback.
+        resp = keyed_client.get("/v1/events?api_key=sekrit",
+                                headers={"X-Api-Key": "nope"})
+        assert resp.status_code == 401

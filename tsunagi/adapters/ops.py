@@ -9,6 +9,7 @@ from aqt import mw
 from aqt.operations import CollectionOp, QueryOp
 
 from ..shared.errors import AnkiBusyError, CollectionUnavailableError
+from .events import API_INITIATOR
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -212,7 +213,12 @@ def collection_op_call(
             op.failure(_failure)  # type: ignore[attr-defined]
         except AttributeError:
             pass
-        op.run_in_background()
+        # Tag the op so operation_did_execute subscribers (the event stream)
+        # can attribute the change to the API rather than Anki's own UI.
+        try:
+            op.run_in_background(initiator=API_INITIATOR)
+        except TypeError:
+            op.run_in_background()  # older signature without initiator
 
     if threading.current_thread() is threading.main_thread():
         start_on_main()

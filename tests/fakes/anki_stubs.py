@@ -71,7 +71,8 @@ class CollectionOp:
     def failure(self, cb):
         self._failure = cb
 
-    def run_in_background(self):
+    def run_in_background(self, *, initiator=None):
+        self.initiator = initiator  # recorded so tests can assert tagging
         try:
             res = self._op(mw.col)
         except Exception as e:

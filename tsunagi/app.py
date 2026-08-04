@@ -24,6 +24,7 @@ from .http.v1.cards import router as cards_router
 from .http.v1.collection import router as collection_router
 from .http.v1.deck_configs import router as deck_configs_router
 from .http.v1.decks import router as decks_router
+from .http.v1.events import router as events_router
 from .http.v1.fsrs import router as fsrs_router
 from .http.v1.gui import router as gui_router
 from .http.v1.media import router as media_router
@@ -76,6 +77,10 @@ app = FastAPI(
             "description": "FSRS parameter optimization, evaluation and simulation. Optimize/evaluate run as async jobs (submit, then poll /v1/jobs/{id}); the simulator answers synchronously and needs a newer Anki than 23.10."
         },
         {
+            "name": "Events",
+            "description": "Live collection events as Server-Sent Events: operations, reviews, sync, and full-refresh signals."
+        },
+        {
             "name": "Health",
             "description": "API health and status checks"
         },
@@ -97,6 +102,7 @@ app.include_router(fsrs_router)
 app.include_router(collection_router)
 app.include_router(gui_router)
 app.include_router(media_router)
+app.include_router(events_router)
 register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
 
 # Auth inner, CORS outermost (added last runs first) so auth 401s still carry
@@ -252,11 +258,18 @@ def start_server(mw) -> None:
         host = cfg["host"]
         port = choose_port(cfg)
 
+        from .adapters.events import broker
+        broker.end_drain()  # accept event streams again after a stop/start
+
         import uvicorn
         server = uvicorn.Server(uvicorn.Config(
             app, host=host, port=port, loop="asyncio",
             http="h11", access_log=False,
             log_level=cfg.get("log_level", "warning"),
+            # Backstop for shutdown: in-flight responses (an open event
+            # stream) would otherwise be waited on forever. The drain flag
+            # in stop_server closes streams first; this catches stragglers.
+            timeout_graceful_shutdown=3,
         ))
         t = threading.Thread(target=_serve, args=(server,),
                              daemon=True, name="tsunagi-http")
@@ -297,6 +310,12 @@ def stop_server() -> bool:
     if not st.started:
         return True
     try:
+        # Close open event streams BEFORE signaling uvicorn: its graceful
+        # shutdown waits on in-flight responses, and an SSE stream is
+        # in-flight for its whole life. Generators poll this flag and exit
+        # within ~0.5s, well inside the join below.
+        from .adapters.events import broker
+        broker.begin_drain()
         if st.server is not None:
             st.server.should_exit = True
         if st.thread is not None:

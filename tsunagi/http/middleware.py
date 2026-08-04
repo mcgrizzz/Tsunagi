@@ -44,6 +44,14 @@ class ApiKeyAuthMiddleware:
             auth = headers.get("authorization", "")
             if auth.lower().startswith("bearer "):
                 provided = auth[7:].strip()
+        if provided is None and scope["path"] == "/v1/events":
+            # The event stream is consumed by browser EventSource, which -
+            # like the docs pages above - cannot send custom headers. For
+            # this one path the key is also accepted as a query parameter.
+            from urllib.parse import parse_qs
+            values = parse_qs(scope.get("query_string", b"").decode()).get("api_key")
+            if values:
+                provided = values[0]
         if provided is not None and secrets.compare_digest(provided.encode(), api_key.encode()):
             return await self.app(scope, receive, send)
 
