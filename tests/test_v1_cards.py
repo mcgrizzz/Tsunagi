@@ -336,3 +336,113 @@ class TestChangeDeck:
     def test_neither_target_is_400(self, seeded):
         assert seeded.post("/v1/cards:change-deck",
                            json={"card_ids": ids(seeded)[:1]}).status_code == 400
+
+
+class TestSetMemoryState:
+    """POST /v1/cards:set-memory-state - opt-in via gates.cards_set_memory_state."""
+
+    def _enable(self, reset_settings):
+        reset_settings.update(gates={"cards_set_memory_state": True})
+
+    def _write(self, client, entry):
+        return client.post("/v1/cards:set-memory-state", json={"cards": [entry]})
+
+    def _row(self, client, cid):
+        return client.get("/v1/cards", params={
+            "where": f"id=={cid}", "shape": "object"}).json()["items"][0]
+
+    def test_disabled_by_default(self, seeded):
+        cid = ids(seeded)[0]
+        resp = self._write(seeded, {
+            "id": cid, "memory_state": {"stability": 9.0, "difficulty": 3.0}})
+        assert resp.status_code == 400
+        assert "gates.cards_set_memory_state" in resp.json()["detail"]
+        assert self._row(seeded, cid)["memory_state"] is None
+
+    def test_write_round_trip(self, seeded, reset_settings):
+        self._enable(reset_settings)
+        cid = ids(seeded)[0]
+        body = self._write(seeded, {
+            "id": cid,
+            "memory_state": {"stability": 99.5, "difficulty": 3.3},
+            "desired_retention": 0.8,
+        }).json()
+        assert body["affected"] == 1
+        row = self._row(seeded, cid)
+        assert row["memory_state"] == pytest.approx(
+            {"stability": 99.5, "difficulty": 3.3})
+        assert row["desired_retention"] == pytest.approx(0.8)
+
+    def test_null_clears_and_omitted_leaves_alone(self, seeded, reset_settings):
+        self._enable(reset_settings)
+        cid = ids(seeded)[0]
+        self._write(seeded, {
+            "id": cid,
+            "memory_state": {"stability": 5.0, "difficulty": 5.0},
+            "desired_retention": 0.85,
+        })
+        # Clearing memory_state must not touch the omitted desired_retention.
+        assert self._write(seeded, {
+            "id": cid, "memory_state": None}).json()["affected"] == 1
+        row = self._row(seeded, cid)
+        assert row["memory_state"] is None
+        assert row["desired_retention"] == pytest.approx(0.85)
+
+    def test_missing_card_doesnt_fail_the_batch(self, seeded, reset_settings):
+        self._enable(reset_settings)
+        cid = ids(seeded)[0]
+        body = seeded.post("/v1/cards:set-memory-state", json={"cards": [
+            {"id": cid, "desired_retention": 0.7},
+            {"id": 999999999, "desired_retention": 0.7},
+        ]}).json()
+        assert body["affected"] == 1
+
+    def test_entry_with_nothing_to_write_counts_zero(self, seeded, reset_settings):
+        self._enable(reset_settings)
+        cid = ids(seeded)[0]
+        assert self._write(seeded, {"id": cid}).json()["affected"] == 0
+
+    def test_decay_by_version(self, seeded, reset_settings, col):
+        # Per-card decay postdates the 23.10 floor: on a build without it the
+        # whole batch is refused up front (501); where it exists it round-trips.
+        self._enable(reset_settings)
+        cid = ids(seeded)[0]
+        resp = self._write(seeded, {"id": cid, "decay": 0.2})
+        if hasattr(col.get_card(cid), "decay"):
+            assert resp.status_code == 200
+            assert self._row(seeded, cid)["decay"] == pytest.approx(0.2)
+        else:
+            assert resp.status_code == 501
+            assert "Anki version" in resp.json()["detail"]
+            assert self._row(seeded, cid)["memory_state"] is None
+
+
+class TestRetrievability:
+    """The want-gated FSRS recall probability, via col.card_stats_data."""
+
+    def _rows(self, client):
+        return client.get("/v1/cards", params={
+            "select": "id,retrievability", "shape": "object"}).json()["items"]
+
+    def test_no_backend_call_unless_selected(self, seeded, col):
+        calls = []
+        original = col.card_stats_data
+        col.card_stats_data = lambda cid: calls.append(cid) or original(cid)
+
+        seeded.get("/v1/cards", params={"select": "id,due,queue"})
+        assert calls == []                      # cheap select stays cheap
+
+        self._rows(seeded)
+        assert len(calls) == 3                  # one per card, only when asked
+
+    def test_null_before_any_review(self, seeded):
+        assert all(r["retrievability"] is None for r in self._rows(seeded))
+
+    def test_reported_after_a_real_fsrs_review(self, seeded, col, answer_cards):
+        col.set_config("fsrs", True)
+        assert answer_cards(1) == 1
+        values = [r["retrievability"] for r in self._rows(seeded)
+                  if r["retrievability"] is not None]
+        # Only the answered card has been scored; recall is ~certain today.
+        assert len(values) == 1
+        assert values[0] == pytest.approx(1.0, abs=0.05)

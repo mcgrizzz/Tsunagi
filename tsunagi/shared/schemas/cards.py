@@ -75,6 +75,10 @@ class CardInfo(BaseModel):
     question: Optional[str] = None
     answer: Optional[str] = None
     next_reviews: Optional[List[str]] = None
+    # FSRS recall probability right now, via col.card_stats_data - a backend
+    # call per card, so want-gated like the renderer fields. Null when FSRS
+    # hasn't scored the card (never reviewed, or FSRS off).
+    retrievability: Optional[float] = None
 
 
 # ----------------- Scheduling verb requests -----------------
@@ -126,6 +130,22 @@ class EaseEntry(BaseModel):
 
 class SetEaseRequest(BaseModel):
     cards: List[EaseEntry]
+
+
+class MemoryStateEntry(BaseModel):
+    """
+    Per-card FSRS state write. An omitted field is left unchanged; an explicit
+    null clears it. The route preserves that distinction by handing the
+    adapter dicts built with exclude_unset.
+    """
+    id: int
+    memory_state: Optional[FsrsMemoryState] = None
+    desired_retention: Optional[float] = None
+    decay: Optional[float] = None  # per-card decay postdates 23.10 -> 501 there
+
+
+class SetMemoryStateRequest(BaseModel):
+    cards: List[MemoryStateEntry]
 
 
 # ----------------- Verb response -----------------

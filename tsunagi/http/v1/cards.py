@@ -14,11 +14,13 @@ from ...adapters.anki.cards import (
     set_due_date,
     set_ease_factors,
     set_flag,
+    set_memory_states,
     suspend_cards,
     unbury_cards,
     unsuspend_cards,
 )
-from ...shared.errors import handle_mutation_errors
+from ...adapters.settings import settings
+from ...shared.errors import ValidationError, handle_mutation_errors
 from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.cards import (
@@ -30,6 +32,7 @@ from ...shared.schemas.cards import (
     SetDueDateRequest,
     SetEaseRequest,
     SetFlagRequest,
+    SetMemoryStateRequest,
 )
 from ...shared.schemas.wrappers import Paginated
 
@@ -169,4 +172,20 @@ def flag(body: SetFlagRequest = Body(...)) -> SchedulingResult:
 def ease(body: SetEaseRequest = Body(...)) -> SchedulingResult:
     start = time.perf_counter()
     results: List[bool] = set_ease_factors([e.dict() for e in body.cards])
+    return _result(sum(1 for ok in results if ok), start)
+
+
+@_verb("set-memory-state", "Set FSRS memory state",
+       "Overwrites per-card FSRS state (stability/difficulty, desired retention, "
+       "decay) - how FSRS helper tools reschedule. An omitted field is left "
+       "unchanged; an explicit null clears it. Off by default: requires the "
+       "`gates.cards_set_memory_state` config gate.")
+def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResult:
+    if not settings.gate_enabled("cards_set_memory_state"):
+        raise ValidationError(
+            "cards:set-memory-state is disabled; enable gates.cards_set_memory_state in the config"
+        )
+    start = time.perf_counter()
+    results: List[bool] = set_memory_states(
+        [e.dict(exclude_unset=True) for e in body.cards])
     return _result(sum(1 for ok in results if ok), start)
