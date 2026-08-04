@@ -60,7 +60,16 @@ else:
     def _on_op_executed(changes, handler=None) -> None:
         try:
             from .tsunagi.adapters.events import dispatch_op
-            dispatch_op(changes, handler)
+            # OpChanges carries flags but no identity; the undo label ("Update
+            # Note", "Answer Card", ...) names the op that just completed and
+            # is current by the time this hook fires.
+            label = None
+            try:
+                if mw.col is not None:
+                    label = mw.col.undo_status().undo or None
+            except Exception:
+                label = None
+            dispatch_op(changes, handler, label=label)
         except Exception:
             pass
 

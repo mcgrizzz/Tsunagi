@@ -118,7 +118,7 @@ def _changed_flags(changes: Any) -> List[str]:
             if f.name != "kind" and getattr(changes, f.name, False)]
 
 
-def dispatch_op(changes: Any, handler: Any) -> None:
+def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None:
     """
     Route an operation_did_execute fire to the right event:
     - every flag true + no handler is Anki's synthesized "everything may have
@@ -126,6 +126,9 @@ def dispatch_op(changes: Any, handler: Any) -> None:
     - no flags true -> dropped (indistinguishable from a no-op; Tsunagi ops
       whose backend call returns no OpChanges land here)
     - otherwise -> `op`, with origin "api" for Tsunagi's own mutations.
+    `label` is the (localized) name of the operation that just completed,
+    read from Anki's undo status by the hook callback - OpChanges itself
+    carries no identity, only the flags.
     """
     flags = _changed_flags(changes)
     if not flags:
@@ -140,7 +143,10 @@ def dispatch_op(changes: Any, handler: Any) -> None:
         origin = None
     else:
         origin = "ui"
-    broker.publish("op", origin=origin, changes=flags)
+    payload: dict = {"origin": origin, "changes": flags}
+    if label:
+        payload["label"] = label
+    broker.publish("op", **payload)
 
 
 def publish_review(card_id: int, ease: int) -> None:

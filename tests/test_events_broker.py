@@ -157,6 +157,18 @@ class TestDispatchOp:
         dispatch_op(op_changes(deck=True), None)
         assert broker.drain(token)[0]["origin"] is None
 
+    def test_label_is_carried_when_known(self):
+        token = broker.subscribe()
+        dispatch_op(op_changes(note=True), object(), label="Update Note")
+        assert broker.drain(token)[0]["label"] == "Update Note"
+
+    def test_label_is_omitted_when_unknown(self):
+        token = broker.subscribe()
+        dispatch_op(op_changes(note=True), object())
+        dispatch_op(op_changes(note=True), object(), label="")
+        for event in broker.drain(token):
+            assert "label" not in event
+
 
 class TestApiInitiatorTagging:
     def test_collection_op_call_tags_the_api_sentinel(self, col, monkeypatch):

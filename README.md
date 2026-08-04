@@ -368,7 +368,7 @@ replay, and a client that falls behind gets a `reset` with
 
 | Event | Payload (plus `seq`, `ts` epoch ms) | Meaning |
 |---|---|---|
-| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...]}` | A completed operation; `changes` lists the true OpChanges flags. `origin` is `"api"` for changes made through Tsunagi, `"ui"` when an Anki window acted on its own behalf, and `null` when Anki didn't attribute the operation to any window (many of its actions don't). |
+| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...], "label": "Update Note"}` | A completed operation; `changes` lists the true OpChanges flags and `label` (when known) is the localized name of the operation. `origin` is `"api"` for changes made through Tsunagi, `"ui"` when an Anki window acted on its own behalf, and `null` when Anki didn't attribute the operation to any window (many of its actions don't). |
 | `review` | `{"card_id", "ease"}` | A card answered in Anki's reviewer. Fires just before the matching `op`. |
 | `sync` | `{"phase": "started"\|"finished"}` | Sync lifecycle; a finished sync is followed by a `reset`. |
 | `reset` | optionally `{"reason": "lagged"}` | Everything may have changed — refetch what you care about. |
@@ -389,6 +389,21 @@ const es = new EventSource("http://127.0.0.1:7777/v1/events?api_key=...");
 es.addEventListener("review", (e) => console.log(JSON.parse(e.data)));
 es.addEventListener("op", (e) => console.log(JSON.parse(e.data)));
 ```
+
+**Events are invalidation signals, not change records.** Anki's change
+events carry which *kinds* of thing changed, never record ids (its own UI
+requeries on them too). The pattern is notify + refetch: on an `op` with
+`"note"` in `changes`, ask the API what changed —
+
+```bash
+# Notes edited today / added today (Anki search syntax)
+curl --get "http://127.0.0.1:7777/v1/notes" --data-urlencode 'search=edited:1'
+curl --get "http://127.0.0.1:7777/v1/notes" --data-urlencode 'search=added:1'
+```
+
+— or simply refetch whatever your app is displaying. The `review` event is
+the exception: it comes from a richer hook and carries the `card_id`
+directly.
 
 What you won't see: media writes and import/export run outside Anki's
 change-tracking (no `op` fires), raw database edits by other addons are
