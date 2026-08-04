@@ -368,11 +368,11 @@ replay, and a client that falls behind gets a `reset` with
 
 | Event | Payload (plus `seq`, `ts` epoch ms) | Meaning |
 |---|---|---|
-| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...]}` | A completed operation; `changes` lists the true OpChanges flags, `origin` is `"api"` for changes made through Tsunagi. |
+| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...]}` | A completed operation; `changes` lists the true OpChanges flags. `origin` is `"api"` for changes made through Tsunagi, `"ui"` when an Anki window acted on its own behalf, and `null` when Anki didn't attribute the operation to any window (many of its actions don't). |
 | `review` | `{"card_id", "ease"}` | A card answered in Anki's reviewer. Fires just before the matching `op`. |
 | `sync` | `{"phase": "started"\|"finished"}` | Sync lifecycle; a finished sync is followed by a `reset`. |
 | `reset` | optionally `{"reason": "lagged"}` | Everything may have changed — refetch what you care about. |
-| `close` | `{"reason": "shutdown"\|"timeout"\|"max_events"}` | Final frame before the stream ends. |
+| `close` | `{"reason": "shutdown"\|"timeout"\|"max_events"\|"auth"}` | Final frame before the stream ends. `auth` means the API key changed after this stream connected — reconnect with the current key. |
 
 ```bash
 # Watch everything (Ctrl+C to stop); heartbeat comments every 15s
