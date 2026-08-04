@@ -118,6 +118,49 @@ class TestPagination:
         assert len(body["items"]) == 2 and body["next_cursor"] is not None
 
 
+class TestPageHydratesAPage:
+    """
+    Regression: /v1/reviews shipped with a `fetch_all`, which put the planner
+    on the "full" tier - it built a ReviewInfo for every row in the revlog to
+    return a page of five. On a real collection (120k reviews) a bare listing
+    took 1.2 SECONDS. Cards and notes supply no fetch_all for exactly this
+    reason; reviews must not either.
+    """
+
+    def _parses_during(self, client, monkeypatch, url):
+        from tsunagi.shared.schemas import reviews as schema
+
+        count = {"n": 0}
+        original = schema.ReviewInfo.parse_obj
+
+        def counting(obj):
+            count["n"] += 1
+            return original(obj)
+
+        monkeypatch.setattr(schema.ReviewInfo, "parse_obj", counting)
+        client.get(url)
+        return count["n"]
+
+    def test_bare_listing_hydrates_only_the_page(self, client, col, answer_cards,
+                                                 monkeypatch):
+        deck_id = client.post("/v1/decks", json={"name": "JP"}).json()["result"]["id"]
+        for i in range(12):
+            add_note(client, f"q{i}", deck="JP")
+        col.decks.select(deck_id)
+        assert answer_cards(12) == 12
+
+        parsed = self._parses_during(client, monkeypatch, "/v1/reviews?limit=3")
+        assert parsed == 3, (
+            f"hydrated {parsed} rows to return 3 - the planner is materializing "
+            "the whole revlog again"
+        )
+
+    def test_caps_expose_no_fetch_all(self):
+        from tsunagi.http.v1.reviews import caps
+
+        assert caps.fetch_all is None
+
+
 class TestReadOnly:
     """The scheduler owns the revlog; there is no way in through this resource."""
 

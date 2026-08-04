@@ -30,8 +30,15 @@ def _in_clause(values: Sequence[int]) -> str:
 
 
 @as_query_op
-def list_reviews(col: Collection, wants: Optional[Set[str]] = None) -> List[ReviewInfo]:
-    return _rows(col)
+def all_review_ids(col: Collection) -> List[int]:
+    """
+    Every revlog id, in review order.
+
+    Ids only, deliberately: a mature collection has hundreds of thousands of
+    reviews, and the planner hydrates one page of them at a time. Reading a
+    single integer column is what keeps a bare listing cheap.
+    """
+    return [int(i) for i in col.db.list("select id from revlog order by id")]
 
 
 @as_query_op
@@ -58,7 +65,13 @@ def find_review_ids(col: Collection, query: str) -> List[int]:
     Anki's search language is about cards and notes, not reviews, so `search`
     means "reviews of the cards this matches" - which is what makes
     `?search=deck:JP` work and gives cardReviews a native home.
+
+    An empty query is the whole collection, and routing that through
+    find_cards() only to build a huge IN clause would be pure waste - read the
+    revlog directly instead.
     """
+    if not query or not query.strip():
+        return [int(i) for i in col.db.list("select id from revlog order by id")]
     try:
         card_ids = col.find_cards(query)
     except Exception as e:
