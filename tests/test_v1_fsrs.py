@@ -124,6 +124,27 @@ class TestJobRoutes:
         assert resp.status_code == 409
         assert "already" in resp.json()["detail"]
 
+    def test_abort_that_beats_the_backend_wins(self, client, monkeypatch):
+        # Anki's rust ThrottlingProgressHandler clears the global want_abort
+        # flag when a computation starts, so an abort raised between submit
+        # and backend entry would be silently erased. The op wrapper must
+        # honor the recorded intent itself. Reproduce the race by landing the
+        # abort after the job exists but before the op runs.
+        from tsunagi.http.v1 import fsrs as fsrs_router
+        real = fsrs_router.query_op_run_async
+
+        def abort_then_run(fn, *, on_success, on_failure):
+            active = next(iter(jobs._jobs.values()))
+            jobs.mark_abort_requested(active.id)
+            real(fn, on_success=on_success, on_failure=on_failure)
+
+        monkeypatch.setattr(fsrs_router, "query_op_run_async", abort_then_run)
+        job_id = submit_compute(client).json()["job_id"]
+        body = poll(client, job_id).json()
+        assert body["status"] == "aborted"
+        assert "before the computation started" in body["error"]
+        assert body["result"] is None
+
 
 @pytest.mark.skipif(not HAS_SIMULATOR, reason="simulator is 26.08-only")
 class TestSimulator:

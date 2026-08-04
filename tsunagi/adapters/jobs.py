@@ -32,6 +32,10 @@ class Job:
     status: str = "queued"
     result: Optional[Any] = None
     error: Optional[str] = None
+    # Abort intent, tracked here because Anki's backend flag is lossy: the
+    # rust ThrottlingProgressHandler CLEARS want_abort when a computation
+    # starts, so an abort raised before the op reaches the backend vanishes.
+    abort_requested: bool = False
 
 
 class JobStore:
@@ -74,6 +78,17 @@ class JobStore:
             if job is not None:
                 job.status = "aborted" if aborted else "failed"
                 job.error = error
+
+    def mark_abort_requested(self, job_id: str) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job.abort_requested = True
+
+    def abort_requested(self, job_id: str) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return job is not None and job.abort_requested
 
     def get(self, job_id: str) -> Optional[Job]:
         with self._lock:

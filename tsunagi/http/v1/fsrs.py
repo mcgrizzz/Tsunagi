@@ -58,6 +58,10 @@ def _verb(path: str, summary: str, description: str,
     return decorate
 
 
+class _AbortedBeforeStart(Exception):
+    """The abort beat the computation to the backend - honored, not raced."""
+
+
 def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
     """
     Create the job, then fire the computation without waiting on it. The op
@@ -67,6 +71,11 @@ def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
 
     def op(col):
         jobs.mark_running(job.id)
+        # Anki's backend clears its global abort flag when a computation
+        # starts, so an abort raised between submit and here would be lost.
+        # Honor it ourselves before entering the backend.
+        if jobs.abort_requested(job.id):
+            raise _AbortedBeforeStart("aborted before the computation started")
         return run(col)
 
     query_op_run_async(
@@ -74,7 +83,8 @@ def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
         on_success=lambda result: jobs.finish(job.id, result),
         on_failure=lambda exc: jobs.fail(
             job.id, anki_error_detail(exc),
-            aborted=type(exc).__name__ == "Interrupted"),
+            aborted=(isinstance(exc, _AbortedBeforeStart)
+                     or type(exc).__name__ == "Interrupted")),
     )
     current = jobs.get(job.id)
     return JobSubmitted(
@@ -129,7 +139,15 @@ def get_job(job_id: str) -> JobInfo:
     snap = jobs.snapshot(job_id)
     if snap is None:
         raise ResourceNotFoundError("job", job_id)
-    progress = f.read_progress() if snap["status"] == "running" else None
+    progress = None
+    if snap["status"] == "running":
+        # The backend's abort flag is one-shot AND cleared when a computation
+        # starts, so a single :abort can lose a race with the op's startup.
+        # While an abort is pending, every poll re-raises the flag - the
+        # client is polling to see the abort land anyway.
+        if jobs.abort_requested(job_id):
+            f.request_abort()
+        progress = f.read_progress()
     return JobInfo(progress=progress, stats=_stats(start), **snap)
 
 
@@ -152,6 +170,7 @@ def abort_job(job_id: str) -> JobInfo:
         raise ResourceNotFoundError("job", job_id)
     if snap["status"] not in ("queued", "running"):
         raise JobConflictError(f"job {job_id} is already {snap['status']}")
+    jobs.mark_abort_requested(job_id)
     f.request_abort()
     return JobInfo(progress=None, stats=_stats(start), **jobs.snapshot(job_id))
 
