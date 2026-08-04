@@ -392,8 +392,11 @@ es.addEventListener("op", (e) => console.log(JSON.parse(e.data)));
 
 **Events are invalidation signals, not change records.** Anki's change
 events carry which *kinds* of thing changed, never record ids (its own UI
-requeries on them too). The pattern is notify + refetch: on an `op` with
-`"note"` in `changes`, ask the API what changed —
+requeries on them too). They can also be chatty: Anki's editor commits an
+"Update Note" operation for roughly every keystroke, so a client should
+debounce — wait for a moment of quiet before refetching. The pattern is
+notify + refetch: on an `op` with `"note"` in `changes`, ask the API what
+changed —
 
 ```bash
 # Notes edited today / added today (Anki search syntax)

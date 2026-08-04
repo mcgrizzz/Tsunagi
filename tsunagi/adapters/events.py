@@ -55,6 +55,13 @@ class EventBroker:
         with self._lock:
             self._subscribers.pop(token, None)
 
+    def has_subscribers(self) -> bool:
+        """Hook callbacks (Qt main thread) check this first so a session
+        with no stream open pays one lock acquisition per op and nothing
+        else - not even the undo_status() label fetch."""
+        with self._lock:
+            return bool(self._subscribers)
+
     def publish(self, type: str, **payload: Any) -> None:
         """Fan an event out to every subscriber. Non-blocking; Qt-main safe."""
         with self._lock:
