@@ -49,6 +49,16 @@ class TestLifecycle:
         # Terminal-state writes on unknown ids are silently ignored.
         store.finish("nope", {})
         store.fail("nope", "x")
+        store.mark_abort_requested("nope")
+        assert store.abort_requested("nope") is False
+
+    def test_abort_intent_is_recorded(self, store):
+        job = store.create("compute_params")
+        assert store.abort_requested(job.id) is False
+        store.mark_abort_requested(job.id)
+        assert store.abort_requested(job.id) is True
+        # Intent is internal bookkeeping - not part of the wire snapshot.
+        assert "abort_requested" not in store.snapshot(job.id)
 
 
 class TestSingleSlot:
