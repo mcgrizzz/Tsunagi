@@ -11,7 +11,7 @@ from __future__ import annotations
 import threading
 from typing import Any, Callable, Dict, Optional
 
-from .config import DEFAULTS
+from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 
 PersistFn = Callable[[Dict[str, Any]], None]
 
@@ -86,3 +86,27 @@ class Settings:
 # nothing persisted); start_server fills it with the real config before the
 # server accepts requests.
 settings = Settings(DEFAULTS)
+
+
+def make_persist(mw: Any) -> PersistFn:
+    """
+    The one real persist callback: settings.update() may run on request
+    threads, so hop to the main thread for addonManager writes.
+    Fire-and-forget is fine - the in-memory settings are already updated.
+    """
+    def _persist(c: Dict[str, Any]) -> None:
+        mw.taskman.run_on_main(lambda: mw.addonManager.writeConfig(ADDON_PACKAGE, dict(c)))
+    return _persist
+
+
+def apply_config(mw: Any, new_cfg: Dict[str, Any], *, write: bool) -> Dict[str, Any]:
+    """
+    Migrate `new_cfg`, persist it, and make it the live config. Shared by the
+    config-editor callback (write=False - Anki already wrote the edited dict)
+    and the settings dialog (write=True - nothing wrote yet). Main thread.
+    """
+    migrated, changed = _migrate(dict(new_cfg))
+    if write or changed:
+        mw.addonManager.writeConfig(ADDON_PACKAGE, migrated)
+    settings.configure(migrated, persist=make_persist(mw))
+    return migrated

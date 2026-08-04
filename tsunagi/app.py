@@ -9,8 +9,8 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from .adapters.config import ADDON_PACKAGE, _migrate, choose_port, load_config
-from .adapters.settings import settings
+from .adapters.config import ADDON_PACKAGE, choose_port, load_config
+from .adapters.settings import apply_config, make_persist, settings
 from .http.compat import (
     actions as _compat_actions,  # noqa: F401  (side-effect import: registers action handlers)
 )
@@ -234,24 +234,17 @@ def start_server(mw) -> None:
         from .adapters import ops
         ops.OP_TIMEOUT = float(cfg.get("op_timeout_seconds", 15))
 
-        def _persist(c: dict) -> None:
-            # settings.update() may run on request threads; hop to the main
-            # thread for addonManager writes. Fire-and-forget is fine - the
-            # in-memory settings are already updated.
-            mw.taskman.run_on_main(lambda: mw.addonManager.writeConfig(ADDON_PACKAGE, dict(c)))
-
-        settings.configure(cfg, persist=_persist)
+        settings.configure(cfg, persist=make_persist(mw))
 
         def _on_config_updated(new_cfg: dict) -> None:
-            # Anki calls this (main thread) when the user saves the addon
-            # config editor. Refresh the live singleton so per-request keys
-            # (gates, api_key, cors_allowlist, media_*) apply immediately;
-            # server-level keys (host/port/op_timeout_seconds/log_level/
-            # enabled) still need a restart.
-            migrated, changed = _migrate(dict(new_cfg))
-            if changed:
-                mw.addonManager.writeConfig(ADDON_PACKAGE, migrated)
-            settings.configure(migrated, persist=_persist)
+            # Anki calls this (main thread) when the user saves the raw JSON
+            # config editor - kept as the fallback path for direct meta.json
+            # edits; the settings dialog calls apply_config itself. Refresh
+            # the live singleton so per-request keys (gates, api_key,
+            # cors_allowlist, media_*) apply immediately; server-level keys
+            # (host/port/op_timeout_seconds/log_level/enabled) still need a
+            # restart. write=False: Anki already wrote the edited dict.
+            apply_config(mw, new_cfg, write=False)
 
         mw.addonManager.setConfigUpdatedAction(ADDON_PACKAGE, _on_config_updated)
 

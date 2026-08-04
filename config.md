@@ -1,10 +1,15 @@
 # Tsunagi Configuration
 
+The usual way to change these settings is the **settings dialog**: the Config
+button on the add-on, or Tools → Tsunagi Settings. This page documents the
+underlying keys, which you can still edit as JSON in `meta.json` if you
+prefer.
+
 Server-level settings (`enabled`, `host`, `port`, `prefer_port`, `log_level`,
 `op_timeout_seconds`, `dev_watch_seconds`) take effect after restarting Anki
 (or switching profiles). Everything the server reads per request — `api_key`,
 `cors_allowlist`, the `media_*` limits and `gates` — applies as soon as you
-save this config editor.
+save it.
 
 ### `enabled`
 Set to `false` to stop Tsunagi from starting its server.

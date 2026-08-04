@@ -52,6 +52,26 @@ else:
     gui_hooks.profile_did_open.append(_on_profile_open)
     gui_hooks.profile_will_close.append(_on_profile_close)
 
+    def _open_settings():
+        # Function-local import so reload_addon()'s module purge is enough to
+        # pick up new dialog code - no re-registration needed.
+        try:
+            from .tsunagi.adapters.settings_dialog import open_settings
+            open_settings(mw)
+        except Exception:
+            print("[tsunagi] settings dialog failed:\n" + traceback.format_exc())
+            return False  # literal False: Anki falls back to the JSON editor
+
+    # Registered at import time (not profile_did_open) so the dialog works
+    # even when the server is disabled or failed to start. Returning None
+    # from the config action suppresses Anki's raw JSON editor.
+    mw.addonManager.setConfigAction(__name__, _open_settings)
+
+    from aqt.qt import QAction
+    _settings_action = QAction("Tsunagi Settings...", mw)
+    _settings_action.triggered.connect(_open_settings)
+    mw.form.menuTools.addAction(_settings_action)
+
 
 _watch_timer = None
 _watch_stamp = None
