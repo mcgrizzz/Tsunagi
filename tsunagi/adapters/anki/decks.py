@@ -2,7 +2,11 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 from anki.collection import Collection
 
-from ...shared.errors import ResourceNotFoundError, ValidationError
+from ...shared.errors import (
+    ResourceNotFoundError,
+    UnsupportedAnkiVersionError,
+    ValidationError,
+)
 from ...shared.helpers import (
     copy_if_present,
     normalize_field_names,
@@ -43,7 +47,48 @@ def _deck_stats(col: Collection) -> Dict[int, Dict[str, int]]:
     return out
 
 
-def _deck_info(d: Mapping[str, Any], stats: Optional[Dict[int, Dict[str, int]]]) -> DeckInfo:
+def _retention_supported() -> bool:
+    # Per-deck desired retention postdates 23.10; the proto descriptor is the
+    # cheap, import-safe check.
+    try:
+        from anki import decks_pb2
+        return "desired_retention" in decks_pb2.Deck.Normal.DESCRIPTOR.fields_by_name
+    except Exception:
+        return False
+
+
+def _read_desired_retention(col: Collection, deck_id: int) -> Optional[float]:
+    """
+    From the deck protobuf, not the schema11 dict: the dict carries the value
+    as int(fraction*100), so 0.85 reads back as 85 and 0.837 as 83.
+    """
+    if not _retention_supported():
+        return None
+    try:
+        deck = col._backend.get_deck(int(deck_id))
+        if deck.WhichOneof("kind") == "normal" and deck.normal.HasField("desired_retention"):
+            return float(deck.normal.desired_retention)
+    except Exception:
+        pass  # missing deck, filtered deck, or a proto surprise -> null
+    return None
+
+
+def _write_desired_retention(col: Collection, deck_id: int, value: Optional[Any]) -> None:
+    if not _retention_supported():
+        raise UnsupportedAnkiVersionError("per-deck desired retention")
+    deck = col._backend.get_deck(int(deck_id))
+    if deck.WhichOneof("kind") != "normal":
+        raise ValidationError("desired_retention applies to normal decks, not filtered ones")
+    if value is None:
+        deck.normal.ClearField("desired_retention")
+    else:
+        deck.normal.desired_retention = float(value)
+    col._backend.update_deck(deck)
+
+
+def _deck_info(col: Collection, d: Mapping[str, Any],
+               stats: Optional[Dict[int, Dict[str, int]]],
+               wants: Optional[Set[str]] = None) -> DeckInfo:
     info = DeckInfo.parse_obj(d)
     if stats is not None:
         # A deck missing from the tree has nothing due, not unknown counts.
@@ -53,6 +98,8 @@ def _deck_info(d: Mapping[str, Any], stats: Optional[Dict[int, Dict[str, int]]])
         counts = stats.get(int(info.id)) or ZERO_COUNTS
         for k, v in counts.items():
             setattr(info, k, v)
+    if wants is None or "desired_retention" in wants:
+        info.desired_retention = _read_desired_retention(col, int(info.id))
     return info
 
 
@@ -65,7 +112,7 @@ def _stats_if_wanted(col: Collection, wants: Optional[Set[str]]) -> Optional[Dic
 @as_query_op
 def list_decks(col: Collection, wants=None) -> List[DeckInfo]:
     stats = _stats_if_wanted(col, wants)
-    return [_deck_info(d, stats) for d in col.decks.all()]
+    return [_deck_info(col, d, stats, wants) for d in col.decks.all()]
 
 @as_query_op
 def get_decks_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[DeckInfo]:
@@ -74,7 +121,7 @@ def get_decks_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[De
     for did in ids:
         d = col.decks.get(did, default=False)
         if d:
-            out.append(_deck_info(d, stats))
+            out.append(_deck_info(col, d, stats, wants))
     return out
 
 @as_query_op
@@ -84,7 +131,7 @@ def get_decks_by_names(col: Collection, names: Sequence[str], wants=None) -> Lis
     for name in names:
         d = col.decks.by_name(name)
         if d:
-            out.append(_deck_info(d, stats))
+            out.append(_deck_info(col, d, stats, wants))
     return out
 
 @as_query_op
@@ -156,6 +203,11 @@ def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckIn
     if not deck:
         raise ResourceNotFoundError("Deck", deck_id)
 
+    # Read the retention intent off the raw body: normalize_field_names drops
+    # explicit nulls (exclude_none), but here null means "clear the override".
+    retention_sent = any(k in updates for k in ("desiredRetention", "desired_retention"))
+    retention_value = updates.get("desiredRetention", updates.get("desired_retention"))
+
     updates = normalize_field_names(updates, DeckPatch)
 
     if "name" in updates:
@@ -168,7 +220,14 @@ def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckIn
     copy_if_present(updates, deck, ["desc", "collapsed", "browserCollapsed", "conf"])
     col.decks.save(deck)
 
-    return DeckInfo.parse_obj(col.decks.get(deck_id, default=False))
+    # After save() on purpose: saving the schema11 dict rewrites the proto's
+    # desired_retention from the dict's truncated integer percent, so writing
+    # first would immediately mangle the value (0.837 -> 0.83).
+    if retention_sent:
+        _write_desired_retention(col, deck_id, retention_value)
+
+    info = _deck_info(col, col.decks.get(deck_id, default=False), None)
+    return info
 
 
 @as_collection_op

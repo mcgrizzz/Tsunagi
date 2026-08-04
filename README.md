@@ -234,11 +234,15 @@ Every resource below supports the query parameters above, plus
   Filtered (dynamic) decks appear in reads. Due counts (`new_count`,
   `learn_count`, `review_count`, `total_in_deck`) come from the scheduler, so
   they're only computed when your `select`/`where` mentions one — and then it's
-  one call for the whole page, not one per deck.
+  one call for the whole page, not one per deck. `desired_retention` (the
+  per-deck FSRS override, newer Anki than 23.10; 501 there) reads and patches
+  as a fraction (`0.85`); explicit `null` clears the override.
 - **`/v1/deck-configs`** - Deck options groups. Returned as Anki's config dicts
   verbatim (newer scheduler keys survive a read-modify-write), so `select` and
   `where` reach into `new`/`rev`/`lapse`. `PATCH` merges recursively. Assign one
-  to a deck with `PATCH /v1/decks/{id} {"config_id": ...}`.
+  to a deck with `PATCH /v1/decks/{id} {"config_id": ...}`. The FSRS per-preset
+  knobs are ordinary keys here: `desiredRetention` on every supported version,
+  `fsrsParams5`/`fsrsParams6`/`weightSearch` where the running Anki has them.
 - **`/v1/notes`** - Notes. Supports `search`. `fields` come back as
   `[{name, value, ord}]` (so `where=fields[].name==Front` works); writes accept
   that array *or* a plain `{"Front": "犬"}` map. `cards` is only computed when
@@ -249,17 +253,26 @@ Every resource below supports the query parameters above, plus
   generated from notes by a model's templates, so there is no `POST` or
   `DELETE`. `due` is passed through raw — it means a queue position, a day
   number or a timestamp depending on `queue`. The note-derived fields
-  (`model_name`, `css`, `fields`, `question`, `answer`) are only built when your
-  `select`/`where` asks for them.
+  (`model_name`, `css`, `fields`, `question`, `answer`) and `retrievability`
+  (FSRS's recall probability right now — a backend call per card) are only
+  built when your `select`/`where` asks for them. The FSRS columns
+  (`memory_state`, `desired_retention`, `decay`, `last_review_time`) are always
+  present, null until FSRS has seen the card.
   - Scheduling is batch verb routes, so a bulk change is one undo entry:
     `POST /v1/cards:suspend`, `:unsuspend`, `:bury`, `:unbury`, `:forget`,
     `:set-due-date`, `:change-deck`, `:reposition`, `:set-flag`, `:set-ease`.
+  - **`POST /v1/cards:set-memory-state`** overwrites per-card FSRS state
+    (stability/difficulty, desired retention, decay) — how FSRS helper tools
+    reschedule. A normal undoable write through the scheduler, but off by
+    default: enable `gates.cards_set_memory_state` in the config. Omitted
+    fields are left alone; explicit `null` clears. `decay` needs a newer Anki
+    than 23.10 (501 there).
 - **`/v1/tags`** - Tags. `GET` (with optional `prefix`), `PATCH /v1/tags/{tag}`
   to rename and `DELETE` to remove — both apply to the tag *and its children*,
   like Anki. Plus `POST /v1/tags:bulk-add`, `:bulk-remove` and `:clear-unused`.
 - **`/v1/media`** - Media files. `GET /v1/media/{filename}` streams raw bytes
   with a real `Content-Type`; `POST /v1/media` takes base64 `data` or a `url`
-  (local `path` is off by default, see `media_allow_local_path` in config) and
+  (local `path` is off by default, see `gates.media_allow_local_path` in config) and
   returns the filename Anki **actually** stored — it renames on collision.
   Filter the listing with `prefix`/`suffix`; media is a flat namespace, not a
   DSL-queryable resource.
@@ -268,6 +281,21 @@ Every resource below supports the query parameters above, plus
   and means "reviews of the cards this matches"; `where=card_id==...` uses an
   index instead. Writing rows is deliberately absent — the scheduler owns the
   revlog.
+- **`/v1/fsrs:*` and `/v1/jobs`** - FSRS computations, beyond anything
+  AnkiConnect exposes. `POST /v1/fsrs:compute-params` (optimize from review
+  history) and `:evaluate-params` (log loss / RMSE of given parameters) can run
+  for minutes on a real collection, so they answer **202 with a job id**:
+  poll `GET /v1/jobs/{id}` for `status` (`queued → running → done|failed|aborted`),
+  best-effort `progress {current, total}`, and the `result`; cancel with
+  `POST /v1/jobs/{id}:abort`. One job runs at a time (Anki's progress and abort
+  are global) — a second submit gets a 409. Jobs live in memory only.
+  `POST /v1/fsrs:simulate`, `:simulate-workload` and `:optimal-retention` wrap
+  Anki's FSRS simulator and answer synchronously; they need a newer Anki than
+  23.10 (501 there), as do compute/evaluate options beyond `search`/`params`.
+  Anki's own sparse-history behaviour is surfaced as-is: 23.10 fails the job
+  with "Insufficient review history", newer Anki reports `done` with empty
+  `params`. While an optimization runs, Anki holds the collection lock — other
+  API calls may 503 until it finishes.
 - **`/v1/gui:*`** - Drives the running app: `:browse`, `:select-card`,
   `:edit-note`, `:add-cards` (prefill the Add dialog — what asbplayer's "Open
   in Anki" needs), `:set-add-note-data`, `:show-question`, `:show-answer`,
