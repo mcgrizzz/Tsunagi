@@ -22,6 +22,8 @@ class Field(NamedTuple):
     section: str
     kind: str  # "bool" | "text" | "int" | "mib" | "choice" | "cors_list"
     label: str
+    # Only read at server startup; saving such a change makes the dialog
+    # restart the embedded server so it still applies immediately.
     restart: bool = False
     tooltip: str = ""
     minimum: int = 0
@@ -172,6 +174,35 @@ def gate_rows(cfg: Dict[str, Any]) -> List[Tuple[str, str, str, bool]]:
 _GEOM_KEY = "tsunagiSettings"
 
 
+def _restart_server(mw: Any, *, enabled: bool) -> None:
+    """
+    Apply server-level keys live: stop uvicorn and start it again on the
+    just-saved config (start_server re-reads everything, including log_level
+    and op_timeout_seconds). The one case that still needs an Anki restart is
+    a server thread that won't die - its port may still be held.
+    """
+    from aqt.utils import showWarning, tooltip
+
+    from ..app import server_url, start_server, stop_server
+
+    if not stop_server():
+        showWarning("The previous Tsunagi server thread is still shutting "
+                    "down, so its port may still be held. Restart Anki to "
+                    "apply the server settings.")
+        return
+    start_server(mw)  # no-op (with a log line) when enabled is off
+    url = server_url()
+    if url:
+        tooltip(f"Tsunagi server restarted on {url}")
+    elif not enabled:
+        tooltip("Tsunagi server stopped")
+    else:
+        # start_server caught the failure and will show its own delayed
+        # tooltip with the reason; give immediate feedback too.
+        showWarning("The Tsunagi server did not restart - see the console "
+                    "for details.")
+
+
 def open_settings(mw: Any) -> None:
     from aqt.qt import (
         QCheckBox,
@@ -190,11 +221,10 @@ def open_settings(mw: Any) -> None:
         disable_help_button,
         restoreGeom,
         saveGeom,
-        showInfo,
         showWarning,
     )
 
-    # Persisted truth, not the live singleton: restart-bound keys the running
+    # Persisted truth, not the live singleton: server-level keys the running
     # server hasn't picked up yet must display as saved.
     cfg, _ = _migrate(dict(mw.addonManager.getConfig(ADDON_PACKAGE) or {}))
 
@@ -246,7 +276,7 @@ def open_settings(mw: Any) -> None:
         sections[f.section].layout().addRow(label, widget)
         field_widgets[f.key] = (setter, getter)
 
-    note = QLabel("* takes effect after restarting Anki")
+    note = QLabel("* saving restarts the API server to apply these")
     layout.addWidget(note)
 
     gates_box = QGroupBox("Optional capabilities (off by default)")
@@ -285,13 +315,11 @@ def open_settings(mw: Any) -> None:
         if errors:
             showWarning("\n".join(errors), parent=dlg)
             return  # keep the dialog open
-        new_cfg, restart = config_from_form(cfg, values)
+        new_cfg, server_restart = config_from_form(cfg, values)
         apply_config(mw, new_cfg, write=True)
-        if restart:
-            changed = sorted(k for k in RESTART_KEYS if new_cfg.get(k) != cfg.get(k))
-            showInfo("These changes take effect after restarting Anki: "
-                     + ", ".join(changed), parent=dlg)
-        dlg.accept()
+        dlg.accept()  # close before the restart's thread-join can block
+        if server_restart:
+            _restart_server(mw, enabled=bool(new_cfg.get("enabled", True)))
 
     buttons.accepted.connect(on_ok)
     buttons.rejected.connect(dlg.reject)

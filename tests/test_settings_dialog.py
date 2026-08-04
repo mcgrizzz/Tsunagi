@@ -34,9 +34,9 @@ class TestFieldSpec:
         assert {f.key for f in FIELDS} | HIDDEN_KEYS == set(DEFAULTS)
 
     def test_restart_keys_match_config_md_contract(self):
-        # config.md: server-level keys need a restart; everything read
-        # per-request applies on save. dev_watch_seconds is restart-bound too
-        # but hidden from the form.
+        # config.md: server-level keys are only read at server startup, so
+        # the dialog restarts the embedded server when one changes.
+        # dev_watch_seconds is startup-bound too but hidden from the form.
         assert RESTART_KEYS == {"enabled", "host", "port", "prefer_port",
                                 "log_level", "op_timeout_seconds"}
 
