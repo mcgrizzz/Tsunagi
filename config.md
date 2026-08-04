@@ -1,6 +1,10 @@
 # Tsunagi Configuration
 
-Changes take effect after restarting Anki (or switching profiles).
+Server-level settings (`enabled`, `host`, `port`, `prefer_port`, `log_level`,
+`op_timeout_seconds`, `dev_watch_seconds`) take effect after restarting Anki
+(or switching profiles). Everything the server reads per request — `api_key`,
+`cors_allowlist`, the `media_*` limits and `gates` — applies as soon as you
+save this config editor.
 
 ### `enabled`
 Set to `false` to stop Tsunagi from starting its server.
@@ -58,9 +62,9 @@ Timeout for downloading media from a URL (default 30).
 
 ### `gates`
 Opt-in switches for capabilities that are **off by default** because most
-setups don't want them exposed. Unlike the settings above, gates are read on
-every request, so toggling one takes effect without restarting Anki. (Older
-configs had `media_allow_local_path` as a top-level key; it was moved in here
+setups don't want them exposed. Gates are read on every request, so saving
+this editor toggles them without restarting Anki. (Older configs had
+`media_allow_local_path` as a top-level key; it was moved in here
 automatically, and the old flat key is ignored.)
 
 - `media_allow_local_path` — when `true`, media uploads may name a file **on

@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from .adapters.config import ADDON_PACKAGE, choose_port, load_config
+from .adapters.config import ADDON_PACKAGE, _migrate, choose_port, load_config
 from .adapters.settings import settings
 from .http.compat import (
     actions as _compat_actions,  # noqa: F401  (side-effect import: registers action handlers)
@@ -241,6 +241,19 @@ def start_server(mw) -> None:
             mw.taskman.run_on_main(lambda: mw.addonManager.writeConfig(ADDON_PACKAGE, dict(c)))
 
         settings.configure(cfg, persist=_persist)
+
+        def _on_config_updated(new_cfg: dict) -> None:
+            # Anki calls this (main thread) when the user saves the addon
+            # config editor. Refresh the live singleton so per-request keys
+            # (gates, api_key, cors_allowlist, media_*) apply immediately;
+            # server-level keys (host/port/op_timeout_seconds/log_level/
+            # enabled) still need a restart.
+            migrated, changed = _migrate(dict(new_cfg))
+            if changed:
+                mw.addonManager.writeConfig(ADDON_PACKAGE, migrated)
+            settings.configure(migrated, persist=_persist)
+
+        mw.addonManager.setConfigUpdatedAction(ADDON_PACKAGE, _on_config_updated)
 
         host = cfg["host"]
         port = choose_port(cfg)
