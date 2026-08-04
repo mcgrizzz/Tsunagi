@@ -17,7 +17,7 @@ from ...shared.errors import (
     ValidationError,
 )
 from ...shared.schemas.cards import CardInfo
-from ..ops import as_collection_op, as_query_op
+from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 QUEUE_SUSPENDED = -1
 BURIED_QUEUES = (-2, -3)  # sibling-buried, manually buried
@@ -273,7 +273,8 @@ def _matching(col: Collection, card_ids: Sequence[int], query: str = "") -> int:
 
 @as_collection_op
 def suspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return _count(col.sched.suspend_cards(list(card_ids)))
+    changes = col.sched.suspend_cards(list(card_ids))
+    return ValueWithChanges(_count(changes), changes)
 
 
 @as_collection_op
@@ -281,29 +282,30 @@ def unsuspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
     # Anki's unsuspend returns a bare OpChanges, so count the cards that were
     # actually suspended before we touched them.
     affected = _matching(col, card_ids, "is:suspended")
-    col.sched.unsuspend_cards(list(card_ids))
-    return affected
+    changes = col.sched.unsuspend_cards(list(card_ids))
+    return ValueWithChanges(affected, changes)
 
 
 @as_collection_op
 def bury_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return _count(col.sched.bury_cards(list(card_ids), manual=True))
+    changes = col.sched.bury_cards(list(card_ids), manual=True)
+    return ValueWithChanges(_count(changes), changes)
 
 
 @as_collection_op
 def unbury_cards(col: Collection, card_ids: Sequence[int]) -> int:
     affected = _matching(col, card_ids, "is:buried")
-    col.sched.unbury_cards(list(card_ids))
-    return affected
+    changes = col.sched.unbury_cards(list(card_ids))
+    return ValueWithChanges(affected, changes)
 
 
 @as_collection_op
 def forget_cards(col: Collection, card_ids: Sequence[int], *,
                  restore_position: bool = False, reset_counts: bool = False) -> int:
     affected = _matching(col, card_ids)
-    col.sched.schedule_cards_as_new(
+    changes = col.sched.schedule_cards_as_new(
         list(card_ids), restore_position=restore_position, reset_counts=reset_counts)
-    return affected
+    return ValueWithChanges(affected, changes)
 
 
 @as_collection_op
@@ -311,12 +313,12 @@ def set_due_date(col: Collection, card_ids: Sequence[int], days: str,
                  config_key: Optional[str] = None) -> int:
     affected = _matching(col, card_ids)
     try:
-        col.sched.set_due_date(list(card_ids), days, config_key)
+        changes = col.sched.set_due_date(list(card_ids), days, config_key)
     except Exception as e:
         if type(e).__name__ in ("InvalidInput", "ValueError"):
             raise ValidationError(f"invalid due date '{days}': {e}") from e
         raise
-    return affected
+    return ValueWithChanges(affected, changes)
 
 
 @as_collection_op
@@ -332,23 +334,26 @@ def change_deck(col: Collection, card_ids: Sequence[int],
         deck_id = int(deck["id"])
     elif col.decks.get(int(deck_id), default=False) is None:
         raise ResourceNotFoundError("deck", int(deck_id))
-    return _count(col.set_deck(list(card_ids), int(deck_id)))
+    changes = col.set_deck(list(card_ids), int(deck_id))
+    return ValueWithChanges(_count(changes), changes)
 
 
 @as_collection_op
 def reposition_cards(col: Collection, card_ids: Sequence[int], *,
                      starting_from: int = 0, step_size: int = 1,
                      randomize: bool = False, shift_existing: bool = False) -> int:
-    return _count(col.sched.reposition_new_cards(
+    changes = col.sched.reposition_new_cards(
         list(card_ids), starting_from, step_size, randomize, shift_existing,
-    ))
+    )
+    return ValueWithChanges(_count(changes), changes)
 
 
 @as_collection_op
 def set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> int:
     if not 0 <= int(flag) <= 7:
         raise ValidationError("flag must be between 0 and 7")
-    return _count(col.set_user_flag_for_cards(int(flag), list(card_ids)))
+    changes = col.set_user_flag_for_cards(int(flag), list(card_ids))
+    return ValueWithChanges(_count(changes), changes)
 
 
 @as_collection_op
@@ -358,6 +363,7 @@ def set_ease_factors(col: Collection, entries: Sequence[Dict[str, int]]) -> List
     Returns a list aligned with `entries`.
     """
     out: List[bool] = []
+    changes: Any = None
     for entry in entries:
         try:
             card = col.get_card(int(entry["id"]))
@@ -367,9 +373,9 @@ def set_ease_factors(col: Collection, entries: Sequence[Dict[str, int]]) -> List
                 continue
             raise
         card.factor = int(entry["factor"])
-        col.update_card(card)
+        changes = col.update_card(card)
         out.append(True)
-    return out
+    return ValueWithChanges(out, changes) if changes is not None else out
 
 
 @as_collection_op
@@ -393,6 +399,7 @@ def set_memory_states(col: Collection, entries: Sequence[Dict[str, Any]]) -> Lis
         raise UnsupportedAnkiVersionError("per-card decay")
 
     out: List[bool] = []
+    changes: Any = None
     for entry in entries:
         if not any(k in entry for k in writable):
             out.append(False)
@@ -416,9 +423,9 @@ def set_memory_states(col: Collection, entries: Sequence[Dict[str, Any]]) -> Lis
         if "decay" in entry:
             value = entry["decay"]
             card.decay = None if value is None else float(value)
-        col.update_card(card)
+        changes = col.update_card(card)
         out.append(True)
-    return out
+    return ValueWithChanges(out, changes) if changes is not None else out
 
 
 @as_collection_op
@@ -434,18 +441,6 @@ def relearn_cards(col: Collection, card_ids: Sequence[int]) -> int:
     affected = _matching(col, card_ids)
     col.db.execute(f"update cards set type=3, queue=1 where id in ({ids})")
     return affected
-
-
-class _ValueWithChanges:
-    """
-    Lets an adapter return a value AND the op's real OpChanges: ops.py passes
-    anything with `.changes` through to the operation_did_execute hook (so the
-    event stream sees the true flags instead of a fabricated blank) and
-    unwraps `.value` for the caller.
-    """
-    def __init__(self, value: Any, changes: Any) -> None:
-        self.value = value
-        self.changes = changes
 
 
 @as_collection_op(event_details=lambda answers: {
@@ -473,7 +468,7 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
         card.start_timer()
         changes = col.sched.answerCard(card, int(entry["ease"]))
         out.append(True)
-    return _ValueWithChanges(out, changes) if changes is not None else out
+    return ValueWithChanges(out, changes) if changes is not None else out
 
 
 @as_collection_op(event_details=lambda card_id, values: {
@@ -489,7 +484,7 @@ def set_card_values(col: Collection, card_id: int, values: Dict[str, Any]) -> An
     for key, value in values.items():
         setattr(card, key, value)
     changes = col.update_card(card, skip_undo_entry=True)
-    return _ValueWithChanges(True, changes)
+    return ValueWithChanges(True, changes)
 
 
 # Columns canonical's setSpecificValueOfCard refuses without warning_check:

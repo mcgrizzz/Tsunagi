@@ -17,7 +17,7 @@ from ...shared.schemas.notes import (
     NoteInfo,
     NotePatch,
 )
-from ..ops import as_collection_op, as_query_op
+from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 # note.fields_check() states (anki.notes.NoteFieldsCheckResult)
 NORMAL, EMPTY, DUPLICATE, MISSING_CLOZE = 0, 1, 2, 3
@@ -223,8 +223,9 @@ def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
     if state == DUPLICATE and not req.allow_duplicate:
         raise DuplicateNoteError(_duplicate_ids(col, note))
 
-    col.add_note(note, deck_id)
-    return _note_info(col, note, {int(nt["id"]): nt["name"]})
+    changes = col.add_note(note, deck_id)
+    return ValueWithChanges(
+        _note_info(col, note, {int(nt["id"]): nt["name"]}), changes)
 
 
 def _change_notetype(col: Collection, note: Any, req: NotePatch) -> None:
@@ -285,15 +286,15 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
         drop = set(req.remove_tags)
         note.tags = [t for t in note.tags if t not in drop]
 
-    col.update_note(note)
-    return _note_info(col, note, _model_names(col))
+    changes = col.update_note(note)
+    return ValueWithChanges(_note_info(col, note, _model_names(col)), changes)
 
 
 @as_collection_op(event_details=lambda ids: {"note_ids": [int(i) for i in ids]})
 def delete_notes(col: Collection, ids: Sequence[int]) -> int:
     """Batch by design: one undoable op. Compat's deleteNotes reuses this."""
     res = col.remove_notes([int(i) for i in ids])
-    return int(getattr(res, "count", 0) or 0)
+    return ValueWithChanges(int(getattr(res, "count", 0) or 0), res)
 
 
 # ====================
@@ -465,7 +466,7 @@ def ac_add_note(col: Collection, deck_name: str, model_name: str,
     res = col.add_note(note, int(deck["id"]))
     if int(getattr(res, "count", 1) or 0) < 1:
         raise ValueError(EMPTY_QUESTION)
-    return int(note.id)
+    return ValueWithChanges(int(note.id), res)
 
 
 @as_query_op
@@ -494,7 +495,7 @@ def ac_update_note_fields(col: Collection, note_id: int, fields: Dict[str, str],
         if name in note:
             note[name] = value
     _ac_write_media(col, note, media)
-    col.update_note(note)
+    return ValueWithChanges(None, col.update_note(note))
 
 
 @as_query_op

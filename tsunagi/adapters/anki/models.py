@@ -20,7 +20,7 @@ from ...shared.schemas.models import (
     TemplateCreate,
     TemplatePatch,
 )
-from ..ops import as_collection_op, as_query_op
+from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 
 @as_query_op # Read, off the UI thread
@@ -85,16 +85,18 @@ def get_model_names_and_ids(col: Collection, wants=None) -> List[Mapping[str, An
     return res
 
 
-def _saved(mm, model_id: int) -> ModelInfo:
+def _saved(mm, model_id: int, changes=None) -> Any:
     """
-    Re-read a notetype after saving it.
+    Re-read a notetype after saving it, carrying the save's OpChanges when
+    the caller has one (so the op reports real changes, not a blank).
 
     Anki assigns field/template ordinals in the BACKEND on save - new_field()
     and new_template() hand back ord=None, and add_field()/add_template() only
     append. Serializing the in-memory working copy would emit a null ord (and,
     after a removal or reposition, stale ones). One extra read buys the truth.
     """
-    return ModelInfo.parse_obj(mm.get(int(model_id)))
+    info = ModelInfo.parse_obj(mm.get(int(model_id)))
+    return ValueWithChanges(info, changes) if changes is not None else info
 
 
 # requires: name, flds (need a name), tmpls
@@ -157,9 +159,9 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
         mm.add_template(m, t)
 
     # Save the model to collection
-    mm.add(m)
+    changes = mm.add(m)
 
-    return _saved(mm, m["id"])
+    return _saved(mm, m["id"], changes)
 
 
 @as_collection_op
@@ -180,6 +182,7 @@ def find_and_replace_in_models(col: Collection, find_text: str, replace_text: st
         models = mm.all()
 
     updated = 0
+    changes = None
     for m in models:
         hit = False
         if css and find_text in m.get("css", ""):
@@ -193,9 +196,9 @@ def find_and_replace_in_models(col: Collection, find_text: str, replace_text: st
                 hit = True
                 tmpl["afmt"] = tmpl["afmt"].replace(find_text, replace_text)
         if hit:
-            mm.update_dict(m)
+            changes = mm.update_dict(m)
             updated += 1
-    return updated
+    return ValueWithChanges(updated, changes) if changes is not None else updated
 
 
 # ====================
@@ -220,8 +223,8 @@ def patch_model(col: Collection, model_id: int, updates: Dict[str, Any]) -> Mode
     # Apply updates to allowed top-level properties. Note: a notetype's "type"
     # (standard vs cloze) is fixed at creation and intentionally not patchable.
     copy_if_present(updates, m, ["name", "css", "sortf"])
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 @as_collection_op
@@ -236,8 +239,8 @@ def delete_model(col: Collection, model_id: int) -> bool:
     if not m:
         raise ResourceNotFoundError("Model", model_id)
 
-    mm.remove(model_id)
-    return True
+    changes = mm.remove(model_id)
+    return ValueWithChanges(True, changes)
 
 
 # ====================
@@ -269,8 +272,8 @@ def create_field(col: Collection, model_id: int, field_data: Dict[str, Any]) -> 
     ])
 
     mm.add_field(m, field)
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 @as_collection_op
@@ -300,8 +303,8 @@ def patch_field(col: Collection, model_id: int, field_name: str, updates: Dict[s
         "plainText", "collapsed", "excludeFromSearch", "preventDeletion"
     ])
 
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 @as_collection_op
@@ -321,8 +324,8 @@ def delete_field(col: Collection, model_id: int, field_name: str) -> ModelInfo:
 
     field = find_in_subresource(m, "flds", field_name, "name")
     mm.remove_field(m, field)
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 @as_collection_op
@@ -345,8 +348,8 @@ def reorder_fields(col: Collection, model_id: int, order: List[str]) -> ModelInf
         field = find_in_subresource(m, "flds", field_name, "name")
         mm.reposition_field(m, field, new_idx)
 
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 # ====================
@@ -376,8 +379,8 @@ def create_template(col: Collection, model_id: int, template_data: Dict[str, Any
     copy_if_present(template_data, template, ["qfmt", "afmt", "bqfmt", "bafmt"])
 
     mm.add_template(m, template)
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 @as_collection_op
@@ -400,8 +403,8 @@ def patch_template(col: Collection, model_id: int, template_name: str, updates: 
     # Apply property updates
     copy_if_present(updates, template, ["name", "qfmt", "afmt", "bqfmt", "bafmt"])
 
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 @as_collection_op
@@ -421,8 +424,8 @@ def delete_template(col: Collection, model_id: int, template_name: str) -> Model
 
     template = find_in_subresource(m, "tmpls", template_name, "name")
     mm.remove_template(m, template)
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)
 
 
 @as_collection_op
@@ -445,5 +448,5 @@ def reorder_templates(col: Collection, model_id: int, order: List[str]) -> Model
         template = find_in_subresource(m, "tmpls", template_name, "name")
         mm.reposition_template(m, template, new_idx)
 
-    mm.update_dict(m)
-    return _saved(mm, model_id)
+    changes = mm.update_dict(m)
+    return _saved(mm, model_id, changes)

@@ -422,14 +422,15 @@ the ids it cares about without any requery. Note creation carries no id on
 the event (the id exists only after the op; the creator gets it from the
 API response) — watchers who need creations use the refetch pattern above.
 
+Tsunagi mutations report the backend's real change flags, so an API write
+fires the same `op` Anki's own UI would — answering a card, for example, is
+`op {origin:"api", card_ids:[...]}` with `card` and `study_queues` set.
 What you won't see: media writes and import/export run outside Anki's
 change-tracking (no `op` fires), raw database edits are invisible (other
-addons' — and Tsunagi's own `insertReviews`/`POST /v1/reviews`), some of Anki
-23.10's own dialogs (e.g. deck options) don't route through change-tracking
-either, and Tsunagi routes whose backend call reports no change details are
-dropped as indistinguishable from no-ops. Answering cards through the API
-*does* fire — an `op {origin:"api", card_ids:[...]}` with `card` and
-`study_queues` flags.
+addons' — and Tsunagi's own `relearnCards` and `insertReviews`/`POST
+/v1/reviews`), deck-config saves go through a legacy Anki API that reports
+no change details, and some of Anki 23.10's own dialogs (e.g. deck options)
+don't route through change-tracking either.
 
 ## Roadmap
 
