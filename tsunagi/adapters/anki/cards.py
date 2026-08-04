@@ -11,7 +11,11 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 
 from anki.collection import Collection
 
-from ...shared.errors import ResourceNotFoundError, ValidationError
+from ...shared.errors import (
+    ResourceNotFoundError,
+    UnsupportedAnkiVersionError,
+    ValidationError,
+)
 from ...shared.schemas.cards import CardInfo
 from ..ops import as_collection_op, as_query_op
 
@@ -37,6 +41,19 @@ def _next_reviews(col: Collection, card_id: int) -> Optional[List[str]]:
     try:
         states = col._backend.get_scheduling_states(card_id)
         return [str(s) for s in col._backend.describe_next_states(states)]
+    except Exception:
+        return None
+
+
+def _retrievability(col: Collection, card_id: int) -> Optional[float]:
+    # card_stats_data exists on 23.10 through current, but the field is only
+    # populated once FSRS has scored the card - use the protobuf presence bit,
+    # since 0.0 is a legitimate value for a long-lapsed card.
+    try:
+        data = col.card_stats_data(card_id)
+        if data.HasField("fsrs_retrievability"):
+            return float(data.fsrs_retrievability)
+        return None
     except Exception:
         return None
 
@@ -75,6 +92,10 @@ def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
     if wants is None or "next_reviews" in wants:
         next_reviews = _next_reviews(col, int(card.id))
 
+    retrievability = None
+    if wants is None or "retrievability" in wants:
+        retrievability = _retrievability(col, int(card.id))
+
     return CardInfo(
         id=int(card.id),
         nid=int(card.nid),
@@ -109,6 +130,7 @@ def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
         question=question,
         answer=answer,
         next_reviews=next_reviews,
+        retrievability=retrievability,
     )
 
 
@@ -345,6 +367,55 @@ def set_ease_factors(col: Collection, entries: Sequence[Dict[str, int]]) -> List
                 continue
             raise
         card.factor = int(entry["factor"])
+        col.update_card(card)
+        out.append(True)
+    return out
+
+
+@as_collection_op
+def set_memory_states(col: Collection, entries: Sequence[Dict[str, Any]]) -> List[bool]:
+    """
+    Per-card FSRS state write, shaped like set_ease_factors: per-entry success,
+    a missing card doesn't fail the batch. Entry dicts carry only the fields
+    the caller sent (exclude_unset): a present key with None clears the value,
+    an absent key leaves it alone. An entry with nothing to write reports
+    False. Writes go through col.update_card, so this is a normal undoable
+    CollectionOp - not a raw-DB write.
+    """
+    from anki import cards_pb2
+    from anki.cards import FSRSMemoryState
+
+    writable = ("memory_state", "desired_retention", "decay")
+    # Refuse decay wholesale before any write: on a build whose card proto has
+    # no decay column the assignment would be silently dropped on save.
+    if (any("decay" in e for e in entries)
+            and "decay" not in cards_pb2.Card.DESCRIPTOR.fields_by_name):
+        raise UnsupportedAnkiVersionError("per-card decay")
+
+    out: List[bool] = []
+    for entry in entries:
+        if not any(k in entry for k in writable):
+            out.append(False)
+            continue
+        try:
+            card = col.get_card(int(entry["id"]))
+        except Exception as e:
+            if type(e).__name__ == "NotFoundError":
+                out.append(False)
+                continue
+            raise
+        if "memory_state" in entry:
+            state = entry["memory_state"]
+            card.memory_state = None if state is None else FSRSMemoryState(
+                stability=float(state["stability"]),
+                difficulty=float(state["difficulty"]),
+            )
+        if "desired_retention" in entry:
+            value = entry["desired_retention"]
+            card.desired_retention = None if value is None else float(value)
+        if "decay" in entry:
+            value = entry["decay"]
+            card.decay = None if value is None else float(value)
         col.update_card(card)
         out.append(True)
     return out
