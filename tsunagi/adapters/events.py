@@ -22,10 +22,20 @@ from typing import Any, Deque, Dict, List, Optional
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 
-# Passed as CollectionOp's `initiator` for every Tsunagi mutation so op
-# events can carry origin "api". After a dev reload a fresh sentinel exists;
-# an op started pre-reload that lands post-reload maps to "ui" - harmless.
-API_INITIATOR = object()
+class ApiOp:
+    """
+    Passed as CollectionOp's `initiator` for every Tsunagi mutation. Anki
+    delivers it verbatim to operation_did_execute as `handler`, which makes
+    it two things at once: the origin marker ("api") and the carrier for the
+    per-op identity (note ids etc.) that OpChanges structurally lacks -
+    riding through Anki itself, so there is no correlation race between
+    concurrent ops. After a dev reload an in-flight op still holding the old
+    module's class maps to origin "ui" - harmless.
+    """
+    __slots__ = ("details",)
+
+    def __init__(self, details: Optional[Dict[str, Any]] = None) -> None:
+        self.details = dict(details or {})
 
 
 class _Subscriber:
@@ -66,8 +76,10 @@ class EventBroker:
         """Fan an event out to every subscriber. Non-blocking; Qt-main safe."""
         with self._lock:
             self._seq += 1
-            event = {"type": type, "seq": self._seq,
-                     "ts": int(time.time() * 1000), **payload}
+            # Broker-owned keys last so no payload (e.g. attached op details)
+            # can clobber them.
+            event = {**payload, "type": type, "seq": self._seq,
+                     "ts": int(time.time() * 1000)}
             for sub in self._subscribers.values():
                 if len(sub.queue) == sub.queue.maxlen:
                     sub.dropped += 1  # deque drops the oldest on append
@@ -144,7 +156,7 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     if handler is None and len(flags) == total:
         broker.publish("reset")
         return
-    if handler is API_INITIATOR:
+    if isinstance(handler, ApiOp):
         origin: Optional[str] = "api"
     elif handler is None:
         origin = None
@@ -153,6 +165,11 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     payload: dict = {"origin": origin, "changes": flags}
     if label:
         payload["label"] = label
+    if isinstance(handler, ApiOp):
+        # Identity the route attached (note_ids, ...). setdefault so details
+        # can never clobber the core keys.
+        for key, value in handler.details.items():
+            payload.setdefault(key, value)
     broker.publish("op", **payload)
 
 

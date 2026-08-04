@@ -9,7 +9,7 @@ from aqt import mw
 from aqt.operations import CollectionOp, QueryOp
 
 from ..shared.errors import AnkiBusyError, CollectionUnavailableError
-from .events import API_INITIATOR
+from .events import ApiOp
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -156,10 +156,13 @@ def collection_op_call(
     /,
     *args: P.args,
     timeout: Optional[float] = None,
+    event_details: Optional[dict[str, Any]] = None,
     **kwargs: P.kwargs,
 ) -> R:
     """
     Run 'fn(col, *args, **kwargs)' via CollectionOp in a worker thread.
+    `event_details` (note_ids etc.) rides on the op's initiator and surfaces
+    on the event stream's matching `op` event.
     Blocks caller until done (raises AnkiBusyError on timeout). No progress UI.
     """
     done = threading.Event()
@@ -214,9 +217,10 @@ def collection_op_call(
         except AttributeError:
             pass
         # Tag the op so operation_did_execute subscribers (the event stream)
-        # can attribute the change to the API rather than Anki's own UI.
+        # can attribute the change to the API rather than Anki's own UI, and
+        # carry any identity the adapter attached (note_ids etc.).
         try:
-            op.run_in_background(initiator=API_INITIATOR)
+            op.run_in_background(initiator=ApiOp(event_details))
         except TypeError:
             op.run_in_background()  # older signature without initiator
 
@@ -229,11 +233,24 @@ def collection_op_call(
 
 
 def as_collection_op(
-    func: Callable[Concatenate[Collection, P], R],
-) -> Callable[P, R]:
-    """Decorator: run function via CollectionOp (off UI thread), block for result."""
-    @wraps(func)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        return collection_op_call(func, *args, **kwargs)
+    func: Optional[Callable[Concatenate[Collection, P], R]] = None,
+    *,
+    event_details: Optional[Callable[..., dict[str, Any]]] = None,
+) -> Any:
+    """
+    Decorator: run function via CollectionOp (off UI thread), block for result.
+    Bare (`@as_collection_op`) or parameterized: `event_details` is called
+    with the wrapper's arguments (i.e. without `col`) and its dict rides on
+    the op's event-stream record - how note ids get onto `op` events.
+    """
+    def decorate(f: Callable[Concatenate[Collection, P], R]) -> Callable[P, R]:
+        @wraps(f)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            details = event_details(*args, **kwargs) if event_details else None
+            return collection_op_call(f, *args, event_details=details, **kwargs)
 
-    return wrapper  # type: ignore[return-value]
+        return wrapper  # type: ignore[return-value]
+
+    if func is not None:
+        return decorate(func)
+    return decorate
