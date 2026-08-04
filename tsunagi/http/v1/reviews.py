@@ -4,7 +4,6 @@ from ...adapters.anki.reviews import (
     find_review_ids,
     get_reviews_by_ids,
     get_reviews_of_cards,
-    list_reviews,
 )
 from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
@@ -16,7 +15,11 @@ def _int_id(v: Any) -> Any:
 
 
 caps = SourceCaps(
-    fetch_all=list_reviews,
+    # No fetch_all, for the same reason cards and notes have none: it puts the
+    # planner on the "full" tier, which materializes every row to return a
+    # page. A mature revlog is hundreds of thousands of rows, so a bare listing
+    # took over a second to hand back five. The search tier enumerates ids and
+    # hydrates one page.
     indices=[
         IndexSpec(path=("id",), fetch_values=get_reviews_by_ids, coerce=_int_id),
         IndexSpec(path=("card_id",), fetch_values=get_reviews_of_cards, coerce=_int_id),
