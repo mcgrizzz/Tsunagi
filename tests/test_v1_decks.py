@@ -1,6 +1,7 @@
 """
 Full-app tests for the /v1/decks resource over the fake collection.
 """
+import pytest
 
 
 class TestQueries:
@@ -138,3 +139,53 @@ class TestMutations:
 
     def test_delete_default_deck_is_400(self, client):
         assert client.delete("/v1/decks/1").status_code == 400
+
+
+def _retention_supported():
+    # Pure proto import - safe without aqt, and what the adapter itself checks.
+    from anki import decks_pb2
+    return "desired_retention" in decks_pb2.Deck.Normal.DESCRIPTOR.fields_by_name
+
+
+class TestDesiredRetention:
+    """Per-deck FSRS retention override - proto-backed, absent on 23.10."""
+
+    def _make(self, client, name="Retention"):
+        return client.post("/v1/decks", json={"name": name}).json()["result"]["id"]
+
+    def _read(self, client, deck_id):
+        return next(d["desired_retention"] for d in
+                    client.get("/v1/decks").json()["items"] if d["id"] == deck_id)
+
+    def test_null_when_never_set(self, client):
+        assert self._read(client, self._make(client)) is None
+
+    def test_patch_round_trips_or_501(self, client):
+        deck_id = self._make(client)
+        resp = client.patch(f"/v1/decks/{deck_id}",
+                            json={"desired_retention": 0.85})
+        if _retention_supported():
+            assert resp.status_code == 200
+            assert resp.json()["result"]["desired_retention"] == pytest.approx(0.85)
+            assert self._read(client, deck_id) == pytest.approx(0.85)
+        else:
+            assert resp.status_code == 501
+            assert "Anki version" in resp.json()["detail"]
+
+    @pytest.mark.skipif("not _retention_supported()")
+    def test_explicit_null_clears(self, client):
+        deck_id = self._make(client)
+        client.patch(f"/v1/decks/{deck_id}", json={"desired_retention": 0.85})
+        resp = client.patch(f"/v1/decks/{deck_id}",
+                            json={"desired_retention": None})
+        assert resp.status_code == 200
+        assert self._read(client, deck_id) is None
+
+    @pytest.mark.skipif("not _retention_supported()")
+    def test_survives_an_unrelated_patch(self, client):
+        # save() of the schema11 dict must not clobber the proto-only field
+        # (it round-trips at 2-digit precision, which 0.85 survives exactly).
+        deck_id = self._make(client)
+        client.patch(f"/v1/decks/{deck_id}", json={"desired_retention": 0.85})
+        client.patch(f"/v1/decks/{deck_id}", json={"description": "still here?"})
+        assert self._read(client, deck_id) == pytest.approx(0.85)
