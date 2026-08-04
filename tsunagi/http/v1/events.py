@@ -22,6 +22,7 @@ from fastapi import APIRouter, Query
 from starlette.responses import StreamingResponse
 
 from ...adapters.events import broker
+from ...adapters.settings import settings
 
 router = APIRouter()
 
@@ -44,7 +45,13 @@ Event types (each `data:` line is one JSON object with `seq` and `ts` epoch ms):
   `{"reason": "lagged"}` when this client fell behind and events were
   dropped).
 - `close` - final frame before the stream ends:
-  `{"reason": "shutdown"|"timeout"|"max_events"}`.
+  `{"reason": "shutdown"|"timeout"|"max_events"|"auth"}`. `auth` means the
+  API key changed after this stream connected - reconnect with the current
+  key.
+
+`op.origin`: `"api"` is a change made through Tsunagi; `"ui"` is an Anki
+window acting on its own behalf; `null` means Anki did not attribute the
+operation to any window (many of its actions don't).
 
 Delivery is live-only and best-effort - there is no replay. Browser
 `EventSource` cannot send headers, so this route also accepts the API key as
@@ -91,6 +98,11 @@ def stream_events(
 ) -> StreamingResponse:
     async def gen() -> AsyncIterator[str]:
         token = broker.subscribe()
+        # Auth is checked by the middleware once, at connection time - but a
+        # stream lives for hours. If the API key changes underneath us, the
+        # connection was authorized under rules that no longer exist: close
+        # it and make the client reconnect with the current key.
+        key_at_connect: str = settings.get("api_key", "")
         try:
             # retry: sets the client's reconnect delay; the comment line
             # forces the response headers out through buffering proxies.
@@ -106,6 +118,9 @@ def stream_events(
                         return
                 if broker.is_draining():
                     yield _close_frame("shutdown")
+                    return
+                if settings.get("api_key", "") != key_at_connect:
+                    yield _close_frame("auth")
                     return
                 now = time.monotonic()
                 if timeout is not None and now - start >= timeout:
