@@ -1,4 +1,7 @@
-from tsunagi.adapters.settings import Settings
+from types import SimpleNamespace
+
+from tsunagi.adapters.config import DEFAULTS
+from tsunagi.adapters.settings import Settings, apply_config, settings
 
 
 class TestSettings:
@@ -61,3 +64,59 @@ class TestSettings:
         snap = s.snapshot()
         snap["a"] = 99
         assert s.get("a") == 1
+
+
+def fake_mw(writes):
+    """addonManager records writeConfig calls; taskman runs inline."""
+    return SimpleNamespace(
+        addonManager=SimpleNamespace(
+            writeConfig=lambda pkg, cfg: writes.append((pkg, cfg))),
+        taskman=SimpleNamespace(run_on_main=lambda fn: fn()),
+    )
+
+
+class TestApplyConfig:
+    def test_write_true_always_writes_and_configures(self, reset_settings):
+        writes = []
+        cfg = dict(DEFAULTS)
+        cfg["api_key"] = "sekrit"
+        migrated = apply_config(fake_mw(writes), cfg, write=True)
+        assert len(writes) == 1
+        assert writes[0][1]["api_key"] == "sekrit"
+        assert migrated["api_key"] == "sekrit"
+        assert settings.get("api_key") == "sekrit"
+
+    def test_write_false_skips_write_when_nothing_migrated(self, reset_settings):
+        writes = []
+        apply_config(fake_mw(writes), dict(DEFAULTS), write=False)
+        assert writes == []
+        assert settings.get("config_version") == DEFAULTS["config_version"]
+
+    def test_write_false_still_writes_when_migration_changed(self, reset_settings):
+        # A pre-v4 flat media_allow_local_path must be folded into gates and
+        # the corrected dict written back, even on the no-write path.
+        writes = []
+        cfg = dict(DEFAULTS)
+        cfg.pop("gates")
+        cfg["media_allow_local_path"] = True
+        cfg["config_version"] = 3
+        migrated = apply_config(fake_mw(writes), cfg, write=False)
+        assert len(writes) == 1
+        assert migrated["gates"]["media_allow_local_path"] is True
+        assert "media_allow_local_path" not in migrated
+        assert settings.gate_enabled("media_allow_local_path")
+
+    def test_persist_callback_writes_through_addon_manager(self, reset_settings):
+        writes = []
+        apply_config(fake_mw(writes), dict(DEFAULTS), write=True)
+        writes.clear()
+        settings.update(api_key="later")
+        assert len(writes) == 1
+        assert writes[0][1]["api_key"] == "later"
+
+    def test_input_dict_is_not_mutated(self, reset_settings):
+        cfg = dict(DEFAULTS)
+        cfg.pop("gates")
+        before = dict(cfg)
+        apply_config(fake_mw([]), cfg, write=False)
+        assert cfg == before

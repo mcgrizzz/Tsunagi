@@ -103,6 +103,12 @@ python tools/build_addon.py
 
 Then install the produced file in Anki. Tsunagi runs **inside Anki** and starts a local server (default: `http://127.0.0.1:7777`).
 
+Settings live in a dialog (Tools → Tsunagi Settings, or the add-on's Config
+button): server host/port, API key, CORS allowlist, media limits, and the
+opt-in gates for routes that are off by default. Live keys (API key, CORS,
+media limits, gates) apply on save; server keys need an Anki restart. The
+underlying JSON keys are documented in `config.md`.
+
 ### Dependencies
 
 Dependencies are bundled with the addon. All dependencies are pure-Python (Pydantic v1.10.22, FastAPI 0.109.2), requiring no platform-specific native wheels. Requires Anki 23.10 or newer.
