@@ -24,6 +24,7 @@ from .http.v1.cards import router as cards_router
 from .http.v1.collection import router as collection_router
 from .http.v1.deck_configs import router as deck_configs_router
 from .http.v1.decks import router as decks_router
+from .http.v1.fsrs import router as fsrs_router
 from .http.v1.gui import router as gui_router
 from .http.v1.media import router as media_router
 from .http.v1.models import router as models_router
@@ -71,6 +72,10 @@ app = FastAPI(
             "description": "Files in the collection's media folder. Downloads stream raw bytes; uploads report the name Anki actually stored."
         },
         {
+            "name": "FSRS",
+            "description": "FSRS parameter optimization, evaluation and simulation. Optimize/evaluate run as async jobs (submit, then poll /v1/jobs/{id}); the simulator answers synchronously and needs a newer Anki than 23.10."
+        },
+        {
             "name": "Health",
             "description": "API health and status checks"
         },
@@ -88,6 +93,7 @@ app.include_router(cards_router)
 app.include_router(tags_router)
 app.include_router(deck_configs_router)
 app.include_router(reviews_router)
+app.include_router(fsrs_router)
 app.include_router(collection_router)
 app.include_router(gui_router)
 app.include_router(media_router)

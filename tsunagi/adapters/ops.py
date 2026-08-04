@@ -110,6 +110,36 @@ def query_op_call(
 
     return cast(R, _wait(done, box, timeout, "Read operation"))
 
+def query_op_run_async(
+    fn: Callable[[Collection], R],
+    *,
+    on_success: Callable[[R], None],
+    on_failure: Callable[[Exception], None],
+) -> None:
+    """
+    Fire-and-forget QueryOp: start 'fn(col)' in a worker thread and return
+    immediately. Exactly one of the callbacks fires when the op finishes; both
+    run on the Qt main thread, so they must be quick and must not block.
+    Used for work that can outlive OP_TIMEOUT (FSRS optimization) where the
+    caller tracks completion itself (the job store) instead of waiting.
+    """
+    def start_on_main() -> None:
+        if mw.col is None:
+            on_failure(CollectionUnavailableError())
+            return
+        op = QueryOp(parent=mw, op=fn, success=on_success)
+        try:
+            op.failure(on_failure)  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
+        op.run_in_background()
+
+    if threading.current_thread() is threading.main_thread():
+        start_on_main()
+    else:
+        mw.taskman.run_on_main(start_on_main)
+
+
 def as_query_op(
     func: Callable[Concatenate[Collection, P], R],
 ) -> Callable[P, R]:
