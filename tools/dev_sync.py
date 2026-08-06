@@ -72,9 +72,18 @@ def find_dest(explicit=None):
 
 
 def copy_tree(src: Path, dest: Path) -> int:
+    # Stage beside the destination, then swap. The old rmtree-then-copytree
+    # left a window where the package was half-written on disk - an
+    # interrupted sync (Ctrl+C, AV scan, Anki booting mid-copy) stranded a
+    # partial tree, which surfaces in Anki as a boot-time
+    # ModuleNotFoundError for whichever module didn't make it.
+    stage = dest.parent / (dest.name + ".syncing")
+    if stage.exists():
+        shutil.rmtree(stage)
+    shutil.copytree(src, stage, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     if dest.exists():
         shutil.rmtree(dest)
-    shutil.copytree(src, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    os.replace(stage, dest)
     return sum(1 for _ in dest.rglob("*.py"))
 
 
