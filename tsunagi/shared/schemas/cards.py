@@ -179,3 +179,20 @@ class SetCardValuesRequest(BaseModel):
 class SchedulingResult(BaseModel):
     affected: int
     stats: dict
+
+
+class BatchRequest(BaseModel):
+    # Entries stay raw dicts here: each is validated against ITS verb's
+    # request model by the route, keyed on "op".
+    operations: List[dict]
+
+
+class BatchOpResult(BaseModel):
+    op: str
+    affected: int
+
+
+class BatchResult(BaseModel):
+    affected: int
+    results: List[BatchOpResult]
+    stats: dict

@@ -268,6 +268,12 @@ Every resource below supports the query parameters above, plus
   - Scheduling is batch verb routes, so a bulk change is one undo entry:
     `POST /v1/cards:suspend`, `:unsuspend`, `:bury`, `:unbury`, `:forget`,
     `:set-due-date`, `:change-deck`, `:reposition`, `:set-flag`, `:set-ease`.
+  - **`POST /v1/cards:batch`** runs several scheduling verbs in order as a
+    SINGLE undo entry ("Card Batch") — one Ctrl+Z in Anki reverts the whole
+    batch, and watchers see one `op` event carrying every card id involved.
+    Each entry is `{"op": "<verb>", ...that verb's body}`. Validation runs
+    before any write; a mid-run backend error (rare) leaves earlier steps
+    applied — one undo entry, not a transaction.
   - **`POST /v1/cards:answer`** answers cards through the real scheduler as if
     the button (`ease` 1-4) had been pressed in the reviewer — works on a card
     in any state (answering a suspended card unsuspends it).
@@ -425,6 +431,9 @@ API response) — watchers who need creations use the refetch pattern above.
 Tsunagi mutations report the backend's real change flags, so an API write
 fires the same `op` Anki's own UI would — answering a card, for example, is
 `op {origin:"api", card_ids:[...]}` with `card` and `study_queues` set.
+Scheduling verbs carry `card_ids`, deck update/delete carry `deck_ids`, and
+`cards:batch` fires one `op` (label "Card Batch") with the union of its
+card ids.
 What you won't see: media writes and import/export run outside Anki's
 change-tracking (no `op` fires), raw database edits are invisible (other
 addons' — and Tsunagi's own `relearnCards` and `insertReviews`/`POST

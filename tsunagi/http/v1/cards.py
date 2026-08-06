@@ -2,10 +2,13 @@ import time
 from typing import Any, Callable, List
 
 from fastapi import Body
+from pydantic import ValidationError as PydanticValidationError
 
 from ...adapters.anki.cards import (
+    BATCH_VERBS,
     RISKY_CARD_COLUMNS,
     answer_cards,
+    batch_cards,
     bury_cards,
     change_deck,
     find_card_ids,
@@ -32,6 +35,8 @@ from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.cards import (
     AnswerRequest,
+    BatchRequest,
+    BatchResult,
     CardIds,
     ChangeDeckRequest,
     ForgetRequest,
@@ -231,3 +236,47 @@ def set_values(body: SetCardValuesRequest = Body(...)) -> SchedulingResult:
             raise ResourceNotFoundError("card", body.card_id) from e
         raise
     return _result(1, start)
+
+
+@router.post(
+    "/v1/cards:batch",
+    response_model=BatchResult,
+    summary="Run several scheduling verbs as one undoable operation",
+    description=(
+        "Runs the listed scheduling verbs in order as a single undo entry "
+        "(\"Card Batch\") - one Ctrl+Z in Anki reverts the whole batch, and "
+        "the event stream sees one `op` carrying every card id involved. "
+        "Each entry is `{\"op\": \"<verb>\", ...that verb's body}`, where "
+        "`<verb>` is one of: " + ", ".join(sorted(BATCH_VERBS)) + ". "
+        "Everything checkable is validated before any write; a backend error "
+        "mid-run (rare) leaves the earlier steps applied with the undo "
+        "history cleared - the batch is one undo entry, not a transaction. "
+        "`answer`, `set-values` and `set-memory-state` are deliberately not "
+        "batchable."
+    ),
+    tags=["Cards"],
+    operation_id="cardsBatch",
+)
+@handle_mutation_errors("batch")
+def batch(body: BatchRequest = Body(...)) -> BatchResult:
+    start = time.perf_counter()
+    if not body.operations:
+        raise ValidationError("at least one operation is required")
+    parsed = []
+    for i, item in enumerate(body.operations):
+        name = item.get("op")
+        if name not in BATCH_VERBS:
+            raise ValidationError(
+                f"operation {i}: unknown op {name!r}; "
+                f"expected one of {sorted(BATCH_VERBS)}")
+        model = BATCH_VERBS[name][0]
+        try:
+            parsed.append((name, model.parse_obj(item)))
+        except PydanticValidationError as e:
+            raise ValidationError(f"operation {i} ({name}): {e}") from e
+    result = batch_cards(parsed)
+    return BatchResult(
+        affected=result["affected"],
+        results=result["results"],
+        stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
+    )

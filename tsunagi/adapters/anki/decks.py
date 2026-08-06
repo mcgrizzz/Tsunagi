@@ -198,7 +198,7 @@ def create_deck_if_missing(col: Collection, name: str) -> int:
     return ValueWithChanges(int(out.id), out)
 
 
-@as_collection_op
+@as_collection_op(event_details=lambda deck_id, updates: {"deck_ids": [int(deck_id)]})
 def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckInfo:
     """
     PATCH /v1/decks/{id} - rename (children follow) and/or update properties.
@@ -236,7 +236,7 @@ def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckIn
     return ValueWithChanges(info, changes) if changes is not None else info
 
 
-@as_collection_op
+@as_collection_op(event_details=lambda deck_id: {"deck_ids": [int(deck_id)]})
 def delete_deck(col: Collection, deck_id: int) -> bool:
     """
     DELETE /v1/decks/{id} - delete a deck (and its subdecks, per Anki).

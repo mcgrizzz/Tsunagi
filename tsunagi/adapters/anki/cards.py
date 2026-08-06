@@ -16,7 +16,16 @@ from ...shared.errors import (
     UnsupportedAnkiVersionError,
     ValidationError,
 )
-from ...shared.schemas.cards import CardInfo
+from ...shared.schemas.cards import (
+    CardIds,
+    CardInfo,
+    ChangeDeckRequest,
+    ForgetRequest,
+    RepositionRequest,
+    SetDueDateRequest,
+    SetEaseRequest,
+    SetFlagRequest,
+)
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 QUEUE_SUSPENDED = -1
@@ -271,46 +280,78 @@ def _matching(col: Collection, card_ids: Sequence[int], query: str = "") -> int:
     return len(wanted & {int(i) for i in col.find_cards(query)})
 
 
-@as_collection_op
-def suspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
+def _ids_details(card_ids: Sequence[int], *_a: Any, **_k: Any) -> Dict[str, Any]:
+    """event_details for the verbs whose first argument is the card ids."""
+    return {"card_ids": [int(c) for c in card_ids]}
+
+
+def _entry_ids_details(entries: Sequence[Dict[str, Any]], *_a: Any, **_k: Any) -> Dict[str, Any]:
+    return {"card_ids": [int(e["id"]) for e in entries]}
+
+
+# Each verb is a raw `(col, ...) -> (affected, changes)` plus a decorated
+# wrapper: the wrapper is the single-verb op, the raw is what batch_cards
+# runs under its one merged undo entry. One implementation, two entry points.
+
+def _suspend(col: Collection, card_ids: Sequence[int]) -> Any:
     changes = col.sched.suspend_cards(list(card_ids))
-    return ValueWithChanges(_count(changes), changes)
+    return _count(changes), changes
 
 
-@as_collection_op
-def unsuspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
+@as_collection_op(event_details=_ids_details)
+def suspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
+    return ValueWithChanges(*_suspend(col, card_ids))
+
+
+def _unsuspend(col: Collection, card_ids: Sequence[int]) -> Any:
     # Anki's unsuspend returns a bare OpChanges, so count the cards that were
     # actually suspended before we touched them.
     affected = _matching(col, card_ids, "is:suspended")
-    changes = col.sched.unsuspend_cards(list(card_ids))
-    return ValueWithChanges(affected, changes)
+    return affected, col.sched.unsuspend_cards(list(card_ids))
 
 
-@as_collection_op
-def bury_cards(col: Collection, card_ids: Sequence[int]) -> int:
+@as_collection_op(event_details=_ids_details)
+def unsuspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
+    return ValueWithChanges(*_unsuspend(col, card_ids))
+
+
+def _bury(col: Collection, card_ids: Sequence[int]) -> Any:
     changes = col.sched.bury_cards(list(card_ids), manual=True)
-    return ValueWithChanges(_count(changes), changes)
+    return _count(changes), changes
 
 
-@as_collection_op
-def unbury_cards(col: Collection, card_ids: Sequence[int]) -> int:
+@as_collection_op(event_details=_ids_details)
+def bury_cards(col: Collection, card_ids: Sequence[int]) -> int:
+    return ValueWithChanges(*_bury(col, card_ids))
+
+
+def _unbury(col: Collection, card_ids: Sequence[int]) -> Any:
     affected = _matching(col, card_ids, "is:buried")
-    changes = col.sched.unbury_cards(list(card_ids))
-    return ValueWithChanges(affected, changes)
+    return affected, col.sched.unbury_cards(list(card_ids))
 
 
-@as_collection_op
-def forget_cards(col: Collection, card_ids: Sequence[int], *,
-                 restore_position: bool = False, reset_counts: bool = False) -> int:
+@as_collection_op(event_details=_ids_details)
+def unbury_cards(col: Collection, card_ids: Sequence[int]) -> int:
+    return ValueWithChanges(*_unbury(col, card_ids))
+
+
+def _forget(col: Collection, card_ids: Sequence[int], *,
+            restore_position: bool = False, reset_counts: bool = False) -> Any:
     affected = _matching(col, card_ids)
     changes = col.sched.schedule_cards_as_new(
         list(card_ids), restore_position=restore_position, reset_counts=reset_counts)
-    return ValueWithChanges(affected, changes)
+    return affected, changes
 
 
-@as_collection_op
-def set_due_date(col: Collection, card_ids: Sequence[int], days: str,
-                 config_key: Optional[str] = None) -> int:
+@as_collection_op(event_details=_ids_details)
+def forget_cards(col: Collection, card_ids: Sequence[int], *,
+                 restore_position: bool = False, reset_counts: bool = False) -> int:
+    return ValueWithChanges(*_forget(
+        col, card_ids, restore_position=restore_position, reset_counts=reset_counts))
+
+
+def _set_due_date(col: Collection, card_ids: Sequence[int], days: str,
+                  config_key: Optional[str] = None) -> Any:
     affected = _matching(col, card_ids)
     try:
         changes = col.sched.set_due_date(list(card_ids), days, config_key)
@@ -318,12 +359,17 @@ def set_due_date(col: Collection, card_ids: Sequence[int], days: str,
         if type(e).__name__ in ("InvalidInput", "ValueError"):
             raise ValidationError(f"invalid due date '{days}': {e}") from e
         raise
-    return ValueWithChanges(affected, changes)
+    return affected, changes
 
 
-@as_collection_op
-def change_deck(col: Collection, card_ids: Sequence[int],
-                deck_id: Optional[int] = None, deck_name: Optional[str] = None) -> int:
+@as_collection_op(event_details=_ids_details)
+def set_due_date(col: Collection, card_ids: Sequence[int], days: str,
+                 config_key: Optional[str] = None) -> int:
+    return ValueWithChanges(*_set_due_date(col, card_ids, days, config_key))
+
+
+def _resolve_change_deck(col: Collection, deck_id: Optional[int],
+                         deck_name: Optional[str]) -> int:
     if deck_id is None and deck_name is None:
         raise ValidationError("one of deck_id or deck_name is required")
     if deck_id is None:
@@ -331,37 +377,56 @@ def change_deck(col: Collection, card_ids: Sequence[int],
         if deck is None:
             # Deliberately NOT creating the deck, matching POST /v1/notes.
             raise ValidationError(f"deck was not found: {deck_name}")
-        deck_id = int(deck["id"])
-    elif col.decks.get(int(deck_id), default=False) is None:
+        return int(deck["id"])
+    if col.decks.get(int(deck_id), default=False) is None:
         raise ResourceNotFoundError("deck", int(deck_id))
-    changes = col.set_deck(list(card_ids), int(deck_id))
-    return ValueWithChanges(_count(changes), changes)
+    return int(deck_id)
 
 
-@as_collection_op
-def reposition_cards(col: Collection, card_ids: Sequence[int], *,
-                     starting_from: int = 0, step_size: int = 1,
-                     randomize: bool = False, shift_existing: bool = False) -> int:
+def _change_deck(col: Collection, card_ids: Sequence[int],
+                 deck_id: Optional[int] = None, deck_name: Optional[str] = None) -> Any:
+    did = _resolve_change_deck(col, deck_id, deck_name)
+    changes = col.set_deck(list(card_ids), did)
+    return _count(changes), changes
+
+
+@as_collection_op(event_details=_ids_details)
+def change_deck(col: Collection, card_ids: Sequence[int],
+                deck_id: Optional[int] = None, deck_name: Optional[str] = None) -> int:
+    return ValueWithChanges(*_change_deck(col, card_ids, deck_id, deck_name))
+
+
+def _reposition(col: Collection, card_ids: Sequence[int], *,
+                starting_from: int = 0, step_size: int = 1,
+                randomize: bool = False, shift_existing: bool = False) -> Any:
     changes = col.sched.reposition_new_cards(
         list(card_ids), starting_from, step_size, randomize, shift_existing,
     )
-    return ValueWithChanges(_count(changes), changes)
+    return _count(changes), changes
 
 
-@as_collection_op
-def set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> int:
+@as_collection_op(event_details=_ids_details)
+def reposition_cards(col: Collection, card_ids: Sequence[int], *,
+                     starting_from: int = 0, step_size: int = 1,
+                     randomize: bool = False, shift_existing: bool = False) -> int:
+    return ValueWithChanges(*_reposition(
+        col, card_ids, starting_from=starting_from, step_size=step_size,
+        randomize=randomize, shift_existing=shift_existing))
+
+
+def _set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> Any:
     if not 0 <= int(flag) <= 7:
         raise ValidationError("flag must be between 0 and 7")
     changes = col.set_user_flag_for_cards(int(flag), list(card_ids))
-    return ValueWithChanges(_count(changes), changes)
+    return _count(changes), changes
 
 
-@as_collection_op
-def set_ease_factors(col: Collection, entries: Sequence[Dict[str, int]]) -> List[bool]:
-    """
-    Per-entry success, so a missing card doesn't fail the whole batch.
-    Returns a list aligned with `entries`.
-    """
+@as_collection_op(event_details=_ids_details)
+def set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> int:
+    return ValueWithChanges(*_set_flag(col, card_ids, flag))
+
+
+def _set_ease(col: Collection, entries: Sequence[Dict[str, int]]) -> Any:
     out: List[bool] = []
     changes: Any = None
     for entry in entries:
@@ -375,10 +440,20 @@ def set_ease_factors(col: Collection, entries: Sequence[Dict[str, int]]) -> List
         card.factor = int(entry["factor"])
         changes = col.update_card(card)
         out.append(True)
+    return out, changes
+
+
+@as_collection_op(event_details=_entry_ids_details)
+def set_ease_factors(col: Collection, entries: Sequence[Dict[str, int]]) -> List[bool]:
+    """
+    Per-entry success, so a missing card doesn't fail the whole batch.
+    Returns a list aligned with `entries`.
+    """
+    out, changes = _set_ease(col, entries)
     return ValueWithChanges(out, changes) if changes is not None else out
 
 
-@as_collection_op
+@as_collection_op(event_details=_entry_ids_details)
 def set_memory_states(col: Collection, entries: Sequence[Dict[str, Any]]) -> List[bool]:
     """
     Per-card FSRS state write, shaped like set_ease_factors: per-entry success,
@@ -493,3 +568,91 @@ RISKY_CARD_COLUMNS = frozenset({
     "did", "id", "ivl", "lapses", "left", "mod", "nid",
     "odid", "odue", "ord", "queue", "reps", "type", "usn",
 })
+
+
+# ====================
+# Batch: several verbs, one undo entry
+# ====================
+
+# Verb name (the :verb route names) -> (request model, raw runner). The
+# runner returns (affected, changes) - the same raw the single route uses.
+BATCH_VERBS: Dict[str, Any] = {
+    "suspend": (CardIds, lambda col, b: _suspend(col, b.card_ids)),
+    "unsuspend": (CardIds, lambda col, b: _unsuspend(col, b.card_ids)),
+    "bury": (CardIds, lambda col, b: _bury(col, b.card_ids)),
+    "unbury": (CardIds, lambda col, b: _unbury(col, b.card_ids)),
+    "forget": (ForgetRequest, lambda col, b: _forget(
+        col, b.card_ids, restore_position=b.restore_position,
+        reset_counts=b.reset_counts)),
+    "set-due-date": (SetDueDateRequest, lambda col, b: _set_due_date(
+        col, b.card_ids, b.days, b.config_key)),
+    "change-deck": (ChangeDeckRequest, lambda col, b: _change_deck(
+        col, b.card_ids, b.deck_id, b.deck_name)),
+    "reposition": (RepositionRequest, lambda col, b: _reposition(
+        col, b.card_ids, starting_from=b.starting_from, step_size=b.step_size,
+        randomize=b.randomize, shift_existing=b.shift_existing)),
+    "set-flag": (SetFlagRequest, lambda col, b: _set_flag(col, b.card_ids, b.flag)),
+    "set-ease": (SetEaseRequest, lambda col, b: _ease_affected(col, b)),
+}
+
+
+def _ease_affected(col: Collection, body: Any) -> Any:
+    results, changes = _set_ease(col, [e.dict() for e in body.cards])
+    return sum(1 for ok in results if ok), changes
+
+
+def _batch_card_ids(operations: Sequence[Any], *_a: Any, **_k: Any) -> Dict[str, Any]:
+    """Union of every card id in the batch, in first-seen order."""
+    out: List[int] = []
+    seen: set = set()
+    for _name, body in operations:
+        ids = (list(getattr(body, "card_ids", None) or [])
+               or [e.id for e in getattr(body, "cards", None) or []])
+        for cid in ids:
+            cid = int(cid)
+            if cid not in seen:
+                seen.add(cid)
+                out.append(cid)
+    return {"card_ids": out}
+
+
+@as_collection_op(event_details=_batch_card_ids)
+def batch_cards(col: Collection, operations: Sequence[Any]) -> Any:
+    """
+    Run several scheduling verbs as ONE undoable operation. `operations` is
+    [(verb_name, parsed request model), ...], already shape-validated by the
+    route.
+
+    Mechanics: anchor a custom undo entry, run each verb's raw exactly as the
+    single route would, and merge_undo_entries(target) after EVERY step - the
+    merge keeps the undo deque at one entry (so Anki's 30-step cap can never
+    swallow the anchor) and its return value is the union of all steps'
+    OpChanges, which is what the op reports (one repaint, one event).
+
+    NOT atomic: everything checkable is validated before the anchor, but a
+    backend error mid-run leaves the earlier steps applied - and Anki wipes
+    the undo queues on any failed op, so they can't be undone. Never call
+    update_card/update_note(skip_undo_entry=True) or Card.flush() in here:
+    both clear the undo queues and kill the merge target.
+    """
+    if not operations:
+        raise ValidationError("at least one operation is required")
+    for name, body in operations:
+        if name not in BATCH_VERBS:
+            raise ValidationError(
+                f"unknown op '{name}'; expected one of {sorted(BATCH_VERBS)}")
+        if name == "change-deck":
+            # Resolve now so a bad deck fails the batch before any write.
+            _resolve_change_deck(col, body.deck_id, body.deck_name)
+
+    target = col.add_custom_undo_entry("Card Batch")
+    results: List[Dict[str, Any]] = []
+    changes: Any = None
+    for name, body in operations:
+        _model, run = BATCH_VERBS[name]
+        affected, _step_changes = run(col, body)
+        changes = col.merge_undo_entries(target)
+        results.append({"op": name, "affected": int(affected)})
+
+    value = {"affected": sum(r["affected"] for r in results), "results": results}
+    return ValueWithChanges(value, changes)
