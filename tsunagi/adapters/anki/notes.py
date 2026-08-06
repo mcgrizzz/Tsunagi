@@ -47,14 +47,19 @@ def _fields_to_map(fields: Any) -> Dict[str, str]:
 
 
 def _note_info(col: Collection, note: Any, model_names: Dict[int, str],
-               wants: Optional[Set[str]] = None) -> NoteInfo:
+               wants: Optional[Set[str]] = None,
+               cards_by_nid: Optional[Dict[int, List[int]]] = None) -> NoteInfo:
     names = list(note.keys())
     fields = [{"name": n, "value": v, "ord": i}
               for i, (n, v) in enumerate(zip(names, note.fields))]
-    # One backend call per note, so only when the caller asked for it.
+    # A backend call per note unless the page prefetched the map, and only
+    # when the caller asked for the field at all.
     cards = None
     if wants is None or "cards" in wants:
-        cards = [int(c) for c in col.card_ids_of_note(note.id)]
+        if cards_by_nid is not None:
+            cards = cards_by_nid.get(int(note.id), [])
+        else:
+            cards = [int(c) for c in col.card_ids_of_note(note.id)]
     return NoteInfo(
         id=int(note.id),
         guid=getattr(note, "guid", "") or "",
@@ -137,6 +142,22 @@ def fields_check_impl(col: Collection, note: Any) -> int:
 # ====================
 
 @as_query_op
+def page_note_ids(col: Collection, after_id: Optional[int], limit: int) -> List[int]:
+    """
+    The next `limit` note ids after `after_id` (None = from the start),
+    ascending. `notes.id` is the primary key (unchanged across every Anki
+    schema migration), so this is a pure index walk - the keyset page for a
+    bare GET /v1/notes.
+    """
+    if after_id is None:
+        return [int(i) for i in col.db.list(
+            "select id from notes order by id limit ?", int(limit))]
+    return [int(i) for i in col.db.list(
+        "select id from notes where id > ? order by id limit ?",
+        int(after_id), int(limit))]
+
+
+@as_query_op
 def find_note_ids(col: Collection, query: str) -> List[int]:
     """
     Anki search -> note ids. An empty query means the whole collection
@@ -156,15 +177,27 @@ def find_note_ids(col: Collection, query: str) -> List[int]:
 def get_notes_by_ids(col: Collection, ids: Sequence[int],
                      wants: Optional[Set[str]] = None) -> List[NoteInfo]:
     model_names = _model_names(col)
+    ints = [int(i) for i in ids]
+    # One query for the whole page's card ids instead of a backend call per
+    # note (ids are ints we produced; `order by nid, ord` matches
+    # card_ids_of_note's per-note ordering).
+    cards_by_nid: Optional[Dict[int, List[int]]] = None
+    if ints and (wants is None or "cards" in wants):
+        cards_by_nid = {}
+        in_list = ",".join(str(i) for i in ints)
+        for cid, nid in col.db.all(
+                f"select id, nid from cards where nid in ({in_list})"
+                " order by nid, ord"):
+            cards_by_nid.setdefault(int(nid), []).append(int(cid))
     out: List[NoteInfo] = []
-    for nid in ids:
+    for nid in ints:
         try:
-            note = col.get_note(int(nid))
+            note = col.get_note(nid)
         except Exception as e:
             if type(e).__name__ == "NotFoundError":
                 continue  # missing ids are skipped, like get_models_by_ids
             raise
-        out.append(_note_info(col, note, model_names, wants))
+        out.append(_note_info(col, note, model_names, wants, cards_by_nid))
     return out
 
 
@@ -175,11 +208,20 @@ def check_notes(col: Collection, candidates: List[Dict[str, Any]]) -> List[NoteC
     this is a read - no undo entry, no collection mutation.
     """
     results: List[NoteCheckResult] = []
+    # A bulk check usually repeats one model/deck pair; resolve each distinct
+    # reference once instead of two backend lookups per candidate.
+    nt_cache: Dict[Any, Dict[str, Any]] = {}
+    deck_cache: Dict[Any, int] = {}
     for index, data in enumerate(candidates):
         try:
             req = NoteCreate.parse_obj(data)
-            nt = _resolve_notetype(col, req)
-            _resolve_deck_id(col, req)
+            nt_key = (req.model_id, req.model_name)
+            nt = nt_cache.get(nt_key)
+            if nt is None:
+                nt = nt_cache[nt_key] = _resolve_notetype(col, req)
+            deck_key = (req.deck_id, req.deck_name)
+            if deck_key not in deck_cache:
+                deck_cache[deck_key] = _resolve_deck_id(col, req)
             note = col.new_note(nt)
             _apply_fields(note, _fields_to_map(req.fields), nt["name"])
             note.tags = list(req.tags)
@@ -274,9 +316,10 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
     if req.model_id is not None or req.model_name is not None:
         _change_notetype(col, note, req)
 
+    model_names = _model_names(col)
     if req.fields is not None:
-        model_name = _model_names(col).get(int(note.mid), "")
-        _apply_fields(note, _fields_to_map(req.fields), model_name)
+        _apply_fields(note, _fields_to_map(req.fields),
+                      model_names.get(int(note.mid), ""))
 
     if req.tags is not None:
         note.tags = list(req.tags)
@@ -287,7 +330,7 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
         note.tags = [t for t in note.tags if t not in drop]
 
     changes = col.update_note(note)
-    return ValueWithChanges(_note_info(col, note, _model_names(col)), changes)
+    return ValueWithChanges(_note_info(col, note, model_names), changes)
 
 
 @as_collection_op(event_details=lambda ids: {"note_ids": [int(i) for i in ids]})
@@ -500,17 +543,16 @@ def ac_update_note_fields(col: Collection, note_id: int, fields: Dict[str, str],
 
 @as_query_op
 def notes_mod_times(col: Collection, note_ids: Sequence[int]) -> List[Dict[str, Any]]:
-    out: List[Dict[str, Any]] = []
-    for nid in note_ids:
-        try:
-            note = col.get_note(int(nid))
-        except Exception as e:
-            if type(e).__name__ == "NotFoundError":
-                out.append({"noteId": int(nid), "mod": None})
-                continue
-            raise
-        out.append({"noteId": int(note.id), "mod": int(getattr(note, "mod", 0) or 0)})
-    return out
+    # One indexed read for the whole batch - the old loop deserialized every
+    # note's full field blob to report a single integer per id.
+    ints = [int(n) for n in note_ids]
+    mods: Dict[int, int] = {}
+    if ints:
+        for nid, mod in col.db.all(
+                "select id, mod from notes where id in ("
+                + ",".join(str(i) for i in ints) + ")"):
+            mods[int(nid)] = int(mod or 0)
+    return [{"noteId": n, "mod": mods.get(n)} for n in ints]
 
 
 def profile_name() -> str:

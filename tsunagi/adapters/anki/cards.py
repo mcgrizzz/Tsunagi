@@ -148,6 +148,23 @@ def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
 # ====================
 
 @as_query_op
+def page_card_ids(col: Collection, after_id: Optional[int], limit: int) -> List[int]:
+    """
+    The next `limit` card ids after `after_id` (None = from the start),
+    ascending. `cards.id` is the primary key (and has never changed across
+    Anki's schema migrations), so this is a pure index walk - the keyset page
+    for a bare GET /v1/cards, which otherwise materializes every card id in
+    the collection per page request.
+    """
+    if after_id is None:
+        return [int(i) for i in col.db.list(
+            "select id from cards order by id limit ?", int(limit))]
+    return [int(i) for i in col.db.list(
+        "select id from cards where id > ? order by id limit ?",
+        int(after_id), int(limit))]
+
+
+@as_query_op
 def find_card_ids(col: Collection, query: str) -> List[int]:
     """
     Anki search -> card ids. An empty query means the whole collection
@@ -271,13 +288,18 @@ def _matching(col: Collection, card_ids: Sequence[int], query: str = "") -> int:
     """
     How many of `card_ids` match `query` (empty query = merely exist).
 
-    One search for the whole batch, so `affected` means the same thing on
-    every verb: cards the call actually changed.
+    One search scoped to the ids: `cid:a,b,c` compiles to an indexed
+    `c.id in (...)` in Anki's search engine. The old form ran the query over
+    the WHOLE collection and intersected client-side - asking about 5 cards
+    cost a 150k-card scan.
     """
-    wanted = {int(c) for c in card_ids}
-    if not wanted:
+    ids = sorted({int(c) for c in card_ids})
+    if not ids:
         return 0
-    return len(wanted & {int(i) for i in col.find_cards(query)})
+    scoped = "cid:" + ",".join(str(c) for c in ids)
+    if query:
+        scoped += " " + query
+    return len(col.find_cards(scoped))
 
 
 def _ids_details(card_ids: Sequence[int], *_a: Any, **_k: Any) -> Dict[str, Any]:

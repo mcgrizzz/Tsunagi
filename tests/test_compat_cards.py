@@ -280,3 +280,39 @@ class TestSetSpecificValueOfCard:
         assert len(result) == 1
         assert result[0][0] is False
         assert isinstance(result[0][1], str) and result[0][1]
+
+
+class TestAreDueBatching:
+    def test_one_scoped_search_not_one_per_card(self, cards, col):
+        client, cids = cards
+        searches = []
+        orig = col.find_cards
+        col.find_cards = lambda q, **kw: searches.append(q) or orig(q, **kw)
+        result = rpc(client, "areDue", {"cards": cids})["result"]
+        assert result == [True, True]           # both new
+        assert len(searches) <= 2               # is:new (+ maybe is:due), never per-card
+        assert all(q.startswith("cid:") for q in searches)
+
+    def test_reviewless_review_card_does_not_error(self, cards):
+        # A card shoved straight into the review queue (raw column write, no
+        # revlog rows) used to hit rows[-1] on an empty list -> error.
+        client, cids = cards
+        rpc(client, "setSpecificValueOfCard", {
+            "card": cids[0], "keys": ["type", "queue"], "newValues": [2, 2],
+            "warning_check": True})
+        resp = rpc(client, "areDue", {"cards": [cids[0]]})
+        assert resp["error"] is None
+        assert isinstance(resp["result"][0], bool)
+
+    def test_get_intervals_batches_and_survives_empty_history(self, cards, col):
+        client, cids = cards
+        rpc(client, "setSpecificValueOfCard", {
+            "card": cids[0], "keys": ["type", "queue"], "newValues": [2, 2],
+            "warning_check": True})
+        searches = []
+        orig = col.find_cards
+        col.find_cards = lambda q, **kw: searches.append(q) or orig(q, **kw)
+        resp = rpc(client, "getIntervals", {"cards": cids})
+        assert resp["error"] is None
+        assert resp["result"] == [0, 0]         # empty history reads as 0
+        assert len(searches) == 1               # one is:new probe for the batch

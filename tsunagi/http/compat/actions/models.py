@@ -39,6 +39,9 @@ from ..errors import (
 )
 from ..registry import registry
 
+_FIELD_REF = re.compile("{{[^#/}]+?}}")
+_BRACES = re.compile(r"[{}]")
+
 
 class ModelFieldNamesParams(BaseModel):
     modelName: str
@@ -252,8 +255,8 @@ def ac_modelFieldsOnTemplates(p: ModelFieldNamesParams) -> Dict[str, List[List[s
         sides: List[List[str]] = []
         for side in ("qfmt", "afmt"):
             names: List[str] = []
-            for match in re.findall("{{[^#/}]+?}}", template[side]):
-                name = re.sub(r"[{}]", "", match).split(":")[-1]
+            for match in _FIELD_REF.findall(template[side]):
+                name = _BRACES.sub("", match).split(":")[-1]
                 # FrontSide is a directive, and the answer side doesn't repeat
                 # what the question already showed.
                 if name == "FrontSide" or (side == "afmt" and name in sides[0]):

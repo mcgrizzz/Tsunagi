@@ -571,3 +571,98 @@ class TestKeysetScan:
         client, _calls = keyset
         body = client.get("/v1/things").json()
         assert body["items"] == [] and body["next_cursor"] is None
+
+
+class TestIdIndexPaging:
+    def test_id_list_hydrates_a_page_not_everything(self):
+        # `where=id in [600 ids]&limit=5` used to hydrate all 600 rows on
+        # every page; the id values ARE row keys, so it pages like a scan.
+        rows = [{"id": i, "name": f"r{i}", "type": 0, "fields": []} for i in range(1, 601)]
+        hydrated = []
+
+        def fetch(ids, wants=None):
+            hydrated.append(len(ids))
+            wanted = set(int(i) for i in ids)
+            return [r for r in rows if r["id"] in wanted]
+
+        caps = SourceCaps(indices=[
+            IndexSpec(path=("id",), fetch_values=fetch, coerce=_int_or_none)])
+        app = FastAPI()
+        app.include_router(create_resource_routes(
+            path="/v1/things", caps=caps, response_model=None,
+            id_getter=make_id_getter("id"),
+            resource_name="thing", resource_plural="things", tag="Things",
+        ))
+        client = TestClient(app)
+        id_list = ",".join(str(i) for i in range(1, 601))
+
+        p1 = client.get("/v1/things", params={"where": f"id in [{id_list}]", "limit": 5}).json()
+        assert [r["id"] for r in p1["items"]] == [1, 2, 3, 4, 5]
+        assert sum(hydrated) < 600          # nowhere near full materialization
+
+        hydrated.clear()
+        p2 = client.get("/v1/things", params={
+            "where": f"id in [{id_list}]", "limit": 5, "cursor": p1["next_cursor"]}).json()
+        assert [r["id"] for r in p2["items"]] == [6, 7, 8, 9, 10]
+        assert sum(hydrated) < 600
+
+
+class TestTwoPhaseHydrate:
+    """A where-only scan builds expensive fields for the PAGE, not for every
+    row the filter rejects."""
+
+    def _app(self, rows, expensive_builds):
+        def find_ids(query):
+            return [r["id"] for r in rows]
+
+        def hydrate(ids, wants=None):
+            wanted = set(int(i) for i in ids)
+            out = []
+            for r in rows:
+                if r["id"] not in wanted:
+                    continue
+                row = {"id": r["id"], "type": r["type"], "name": r["name"]}
+                if wants is None or "question" in wants:
+                    expensive_builds.append(r["id"])   # the costly derived field
+                    row["question"] = f"Q{r['id']}"
+                out.append(row)
+            return out
+
+        caps = SourceCaps(search=SearchSpec(find_ids=find_ids, hydrate=hydrate))
+        app = FastAPI()
+        app.include_router(create_resource_routes(
+            path="/v1/things", caps=caps, response_model=None,
+            id_getter=make_id_getter("id"),
+            resource_name="thing", resource_plural="things", tag="Things",
+        ))
+        return TestClient(app)
+
+    def test_expensive_fields_built_only_for_survivors(self):
+        rows = [{"id": i, "type": 7 if i in (150, 290) else 0, "name": f"r{i}"}
+                for i in range(1, 301)]
+        builds = []
+        client = self._app(rows, builds)
+        body = client.get("/v1/things", params={"where": "type==7"}).json()
+        # Full rows on the wire (the caller sent no select)...
+        assert [(r["id"], r["question"]) for r in body["items"]] == [
+            (150, "Q150"), (290, "Q290")]
+        # ...but the expensive field was built only for the survivors.
+        assert sorted(builds) == [150, 290]
+
+    def test_select_path_stays_single_phase(self):
+        rows = [{"id": i, "type": 0, "name": f"r{i}"} for i in range(1, 51)]
+        builds = []
+        client = self._app(rows, builds)
+        body = client.get("/v1/things", params={
+            "where": "type==0", "select": "id,name", "shape": "object"}).json()
+        assert len(body["items"]) == 50
+        assert builds == []          # narrow wants from select, no rehydrate
+
+    def test_completeness_survives_two_phase(self):
+        rows = [{"id": i, "type": 0, "name": f"r{i}"} for i in range(1, 400)]
+        rows.append({"id": 9999, "type": 7, "name": "needle"})
+        builds = []
+        client = self._app(rows, builds)
+        body = client.get("/v1/things", params={"where": "type==7", "limit": 1}).json()
+        assert [r["id"] for r in body["items"]] == [9999]
+        assert builds == [9999]

@@ -139,9 +139,18 @@ def ac_cardsModTime(p: CardsParams) -> List[Dict[str, Any]]:
     return cards_mod_times(p.cards)
 
 
+# Everything cardsInfo's wire shape reads - notably NOT retrievability,
+# whose build is a per-card FSRS stats call the response would just discard.
+_CARDS_INFO_WANTS = {
+    "id", "fields", "ord", "question", "answer", "model_name", "deck_name",
+    "css", "factor", "interval", "note_id", "type", "queue", "due", "reps",
+    "lapses", "left", "mod", "next_reviews", "flags",
+}
+
+
 @registry.register("cardsInfo", params=CardsParams)
 def ac_cardsInfo(p: CardsParams) -> List[Dict[str, Any]]:
-    by_id = {c.id: c for c in get_cards_by_ids(p.cards)}
+    by_id = {c.id: c for c in get_cards_by_ids(p.cards, _CARDS_INFO_WANTS)}
     out: List[Dict[str, Any]] = []
     for cid in p.cards:
         card = by_id.get(int(cid))

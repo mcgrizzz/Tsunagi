@@ -583,3 +583,55 @@ class TestBatch:
     def test_in_openapi(self, seeded):
         spec = seeded.get("/openapi.json").json()
         assert spec["paths"]["/v1/cards:batch"]["post"]["operationId"] == "cardsBatch"
+
+
+class TestKeysetListing:
+    def test_bare_listing_never_enumerates_the_collection(self, seeded, col):
+        # The scan tier walks the primary key with LIMIT; find_cards("") was
+        # the old materialize-every-id path.
+        searches, sqls = [], []
+        orig_find, orig_list = col.find_cards, col.db.list
+        col.find_cards = lambda q, **kw: searches.append(q) or orig_find(q, **kw)
+        col.db.list = lambda sql, *a: sqls.append(sql) or orig_list(sql, *a)
+        body = seeded.get("/v1/cards", params={"limit": 2}).json()
+        assert len(body["items"]) == 2
+        assert searches == []
+        id_queries = [s for s in sqls if "from cards" in s]
+        assert id_queries and all("limit ?" in s for s in id_queries)
+
+    def test_keyset_cursor_walks_every_card(self, seeded):
+        seen, cursor = [], None
+        while True:
+            params = {"limit": 1}
+            if cursor:
+                params["cursor"] = cursor
+            body = seeded.get("/v1/cards", params=params).json()
+            seen += [c["id"] for c in body["items"]]
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert seen == sorted(ids(seeded))
+
+    def test_search_still_uses_anki_search(self, seeded, col):
+        searches = []
+        orig = col.find_cards
+        col.find_cards = lambda q, **kw: searches.append(q) or orig(q, **kw)
+        body = seeded.get("/v1/cards", params={"search": "deck:JP"}).json()
+        assert [c["deck_name"] for c in body["items"]] == ["JP"]
+        assert searches == ["deck:JP"]
+
+
+class TestScopedAffectedCounts:
+    def test_verbs_never_search_the_whole_collection(self, seeded, col):
+        # affected-counting used to intersect against a WHOLE-collection
+        # search; now every query is scoped to the ids it asks about.
+        searches = []
+        orig = col.find_cards
+        col.find_cards = lambda q, **kw: searches.append(q) or orig(q, **kw)
+        cids = ids(seeded)[:2]
+        seeded.post("/v1/cards:suspend", json={"card_ids": cids})
+        seeded.post("/v1/cards:unsuspend", json={"card_ids": cids})
+        seeded.post("/v1/cards:set-due-date", json={"card_ids": cids, "days": "3"})
+        seeded.post("/v1/cards:forget", json={"card_ids": cids})
+        assert searches, "expected scoped affected-count searches"
+        assert all(q.startswith("cid:") for q in searches), searches

@@ -8,6 +8,7 @@ from ...adapters.anki.notes import (
     delete_notes,
     find_note_ids,
     get_notes_by_ids,
+    page_note_ids,
     patch_note,
 )
 from ...shared.errors import handle_mutation_errors
@@ -18,8 +19,8 @@ from ...shared.schemas.wrappers import Paginated
 
 caps = SourceCaps(
     # No fetch_all on purpose: materializing every note must be unreachable.
-    # A bare GET /v1/notes routes through the scan tier (empty search ->
-    # page the ids -> hydrate one page).
+    # A bare GET /v1/notes routes through the scan tier, which pages ids
+    # keyset-style (page_ids below) and hydrates one page at a time.
     indices=[
         IndexSpec(
             path=("id",),
@@ -28,7 +29,11 @@ caps = SourceCaps(
         ),
     ],
     # No columns_fetchers: no backend route returns a cheaper subset of a note.
-    search=SearchSpec(find_ids=find_note_ids, hydrate=get_notes_by_ids),
+    # page_ids: bare and where-filtered listings walk the notes primary key
+    # keyset-style instead of materializing every note id per page request.
+    # A `search=` query still enumerates in full - Anki search has no keyset.
+    search=SearchSpec(find_ids=find_note_ids, hydrate=get_notes_by_ids,
+                      page_ids=page_note_ids),
     mutations=MutationCaps(
         create=create_note,
         patch=patch_note,

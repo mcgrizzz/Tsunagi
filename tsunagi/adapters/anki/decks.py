@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 from anki.collection import Collection
@@ -47,9 +48,10 @@ def _deck_stats(col: Collection) -> Dict[int, Dict[str, int]]:
     return out
 
 
+@lru_cache(maxsize=1)
 def _retention_supported() -> bool:
-    # Per-deck desired retention postdates 23.10; the proto descriptor is the
-    # cheap, import-safe check.
+    # Per-deck desired retention postdates 23.10; fixed for the process
+    # lifetime, so probe the proto descriptor once instead of per deck row.
     try:
         from anki import decks_pb2
         return "desired_retention" in decks_pb2.Deck.Normal.DESCRIPTOR.fields_by_name

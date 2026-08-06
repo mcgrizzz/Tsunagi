@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import traceback
+from bisect import bisect_right
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
@@ -73,6 +74,28 @@ def _finish(
     final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
     return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
 
+def _rehydrate(
+    plan: Any,
+    rows: List[Row],
+    id_getter: Callable[[Row], int],
+    wants: Optional[set],
+) -> List[Row]:
+    """
+    Second phase of a two-phase filtered scan: the loop hydrated rows with
+    only the fields the predicate needed; re-fetch the SURVIVING page with
+    the caller's real want-set. A row deleted between phases just drops out -
+    the same read-consistency non-guarantee pagination already has.
+    """
+    if not rows:
+        return rows
+    ids = [id_getter(r) for r in rows]
+    by_id: Dict[int, Row] = {}
+    for i in range(0, len(ids), HYDRATE_CHUNK):
+        for r in plan.hydrate(ids[i:i + HYDRATE_CHUNK], wants):
+            by_id[id_getter(r)] = r
+    return [by_id[i] for i in ids if i in by_id]
+
+
 def _keyset_scan(
     plan: Any,
     limit: int,
@@ -80,6 +103,7 @@ def _keyset_scan(
     wants: Optional[set],
     id_getter: Callable[[Row], int],
     pred: Optional[Callable[[Mapping[str, Any]], bool]],
+    pred_wants: Optional[set] = None,
 ) -> tuple:
     """
     _paged_scan for a plan whose source enumerates ids keyset-style
@@ -98,6 +122,12 @@ def _keyset_scan(
             rows.extend(plan.hydrate(page_ids[i:i + HYDRATE_CHUNK], wants))
         return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
 
+    # Two-phase: when the caller wants full rows, scan with only the fields
+    # the predicate reads, then re-fetch the survivors in full - expensive
+    # fields are built for the page, not for every row the filter rejects.
+    two_phase = wants is None and pred_wants is not None
+    scan_wants = pred_wants if two_phase else wants
+
     batch_size = max(min(limit, HYDRATE_CHUNK), 50)
     out: List[Row] = []
     key = last_key
@@ -109,14 +139,18 @@ def _keyset_scan(
             break
         key = chunk[-1]
         exhausted = len(chunk) < batch_size
-        out.extend(r for r in plan.hydrate(chunk, wants) if pred(_as_dict(r)))
+        out.extend(r for r in plan.hydrate(chunk, scan_wants) if pred(_as_dict(r)))
 
     if len(out) > limit:
         out = out[:limit]
-        return out, encode_cursor({"last_key": id_getter(out[-1])})
-    if not exhausted and len(out) == limit:
-        return out, encode_cursor({"last_key": key})
-    return out, None
+        cur = encode_cursor({"last_key": id_getter(out[-1])})
+    elif not exhausted and len(out) == limit:
+        cur = encode_cursor({"last_key": key})
+    else:
+        cur = None
+    if two_phase:
+        out = _rehydrate(plan, out, id_getter, wants)
+    return out, cur
 
 
 def _paged_scan(
@@ -126,6 +160,7 @@ def _paged_scan(
     wants: Optional[set],
     id_getter: Callable[[Row], int],
     pred: Optional[Callable[[Mapping[str, Any]], bool]],
+    pred_wants: Optional[set] = None,
 ) -> tuple:
     """
     Walk the id list, hydrating a batch at a time until `limit` rows survive
@@ -138,12 +173,12 @@ def _paged_scan(
     clients into retry loops. `limit` bounds the results, not the search.
     """
     if getattr(plan, "page_ids", None) is not None:
-        return _keyset_scan(plan, limit, cursor, wants, id_getter, pred)
+        return _keyset_scan(plan, limit, cursor, wants, id_getter, pred, pred_wants)
 
     ids = sorted({int(i) for i in plan.find_ids()})
     last_key = decode_cursor(cursor).get("last_key")
     if last_key is not None:
-        ids = [i for i in ids if i > last_key]
+        ids = ids[bisect_right(ids, last_key):]   # sorted, so no linear scan
 
     if pred is None:
         page_ids, more = ids[:limit], len(ids) > limit
@@ -152,6 +187,9 @@ def _paged_scan(
             rows.extend(plan.hydrate(page_ids[i:i + HYDRATE_CHUNK], wants))
         return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
 
+    two_phase = wants is None and pred_wants is not None
+    scan_wants = pred_wants if two_phase else wants
+
     batch_size = max(min(limit, HYDRATE_CHUNK), 50)
     out: List[Row] = []
     examined = 0
@@ -159,16 +197,20 @@ def _paged_scan(
     while examined < len(ids) and len(out) < limit:
         chunk = ids[examined:examined + batch_size]
         examined += len(chunk)
-        out.extend(r for r in plan.hydrate(chunk, wants) if pred(_as_dict(r)))
+        out.extend(r for r in plan.hydrate(chunk, scan_wants) if pred(_as_dict(r)))
 
     if len(out) > limit:
         # Over-collected within a batch: cut to the page and resume from the
         # last INCLUDED row, so the surplus isn't skipped next time.
         out = out[:limit]
-        return out, encode_cursor({"last_key": id_getter(out[-1])})
-    if examined < len(ids):
-        return out, encode_cursor({"last_key": ids[examined - 1]})
-    return out, None
+        cur = encode_cursor({"last_key": id_getter(out[-1])})
+    elif examined < len(ids):
+        cur = encode_cursor({"last_key": ids[examined - 1]})
+    else:
+        cur = None
+    if two_phase:
+        out = _rehydrate(plan, out, id_getter, wants)
+    return out, cur
 
 def _wanted_fields(select: Optional[str], where: Optional[List[str]]) -> Optional[set]:
     """
@@ -199,9 +241,15 @@ def _execute_query(
         wants = _wanted_fields(select, where)
 
         if plan.find_ids is not None:
+            # pred_wants: the fields the where predicate reads, plus the row
+            # key - what phase one of a two-phase filtered scan hydrates.
+            pred_wants = None
+            if where and wants is None:
+                pred_wants = {parse_where(w).tokens[0] for w in where} | {"id"}
             page_rows, next_cursor = _paged_scan(
                 plan, limit, cursor, wants, id_getter,
                 build_predicate(where) if where else None,
+                pred_wants,
             )
             return _finish(page_rows, next_cursor, select, shape, start)
 

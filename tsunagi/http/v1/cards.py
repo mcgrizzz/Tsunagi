@@ -15,6 +15,7 @@ from ...adapters.anki.cards import (
     forget_cards,
     get_cards_by_ids,
     get_cards_of_notes,
+    page_card_ids,
     reposition_cards,
     set_card_values,
     set_due_date,
@@ -63,7 +64,10 @@ caps = SourceCaps(
         IndexSpec(path=("id",), fetch_values=get_cards_by_ids, coerce=_int_id),
         IndexSpec(path=("note_id",), fetch_values=get_cards_of_notes, coerce=_int_id),
     ],
-    search=SearchSpec(find_ids=find_card_ids, hydrate=get_cards_by_ids),
+    # page_ids: bare and where-filtered listings walk the cards primary key
+    # keyset-style instead of materializing every card id per page request.
+    search=SearchSpec(find_ids=find_card_ids, hydrate=get_cards_by_ids,
+                      page_ids=page_card_ids),
     # No MutationCaps: cards aren't created or deleted directly - they're
     # generated from notes by a notetype's templates. Everything a caller can
     # legitimately change about a card is a scheduling verb below.

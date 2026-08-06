@@ -233,17 +233,44 @@ def card_review_map(col: Collection, card_ids: Sequence[int]) -> Dict[int, List[
 # revlog reads, so they live here - one module owns the revlog SQL.
 # ====================
 
+def _scoped_card_ids(col: Collection, card_ids: Sequence[int], state: str) -> Set[int]:
+    """
+    Which of `card_ids` match a search state ("is:new", "is:due", ...) - ONE
+    search for the whole batch: `cid:a,b,c` compiles to an indexed
+    `c.id in (...)` in Anki's search engine, so this replaces a search PER
+    CARD with a single scoped one.
+    """
+    if not card_ids:
+        return set()
+    query = "cid:" + ",".join(str(int(c)) for c in card_ids) + " " + state
+    return {int(i) for i in col.find_cards(query)}
+
+
 @as_query_op
 def card_intervals(col: Collection, card_ids: Sequence[int],
                    complete: bool = False) -> List[Any]:
-    """Intervals a card has been given, newest last. 0 for an unseen card."""
+    """
+    Intervals a card has been given, newest last. 0 for an unseen card -
+    including a card put in the review queue without ever being answered
+    (canonical crashes on that one; an empty history reads as 0, not a 500).
+    """
+    ids = [int(c) for c in card_ids]
+    new_ids = _scoped_card_ids(col, ids, "is:new")
+    ivls: Dict[int, List[int]] = {}
+    seen = [c for c in ids if c not in new_ids]
+    if seen:
+        for cid, ivl in col.db.all(
+                "select cid, ivl from revlog where cid in "
+                + _in_clause(seen) + " order by id"):
+            ivls.setdefault(int(cid), []).append(int(ivl))
     out: List[Any] = []
-    for cid in card_ids:
-        if col.find_cards(f"cid:{cid} is:new"):
+    for cid in ids:
+        if cid in new_ids:
             out.append(0)
-            continue
-        ivls = col.db.list("select ivl from revlog where cid = ?", cid)
-        out.append(ivls if complete else ivls[-1])
+        elif complete:
+            out.append(ivls.get(cid, []))
+        else:
+            out.append(ivls[cid][-1] if ivls.get(cid) else 0)
     return out
 
 
@@ -253,18 +280,34 @@ def cards_are_due(col: Collection, card_ids: Sequence[int]) -> List[bool]:
     AnkiConnect areDue, including its revlog-based learning-card branch: an
     interval below -1200 means the card is in intraday learning, where due-ness
     is a wall-clock question the search index cannot answer.
+
+    Three batch reads regardless of how many cards were asked about: one
+    is:new search, one grouped revlog query, one is:due search over whatever
+    is left. A reviewless non-new card falls through to the is:due search
+    (canonical raises IndexError on it); an unknown id reports False.
     """
     import time as _time
 
+    ids = [int(c) for c in card_ids]
+    new_ids = _scoped_card_ids(col, ids, "is:new")
+    last: Dict[int, Any] = {}
+    seen = [c for c in ids if c not in new_ids]
+    if seen:
+        for cid, date, ivl in col.db.all(
+                "select cid, id/1000.0, ivl from revlog where cid in "
+                + _in_clause(seen) + " order by id"):
+            last[int(cid)] = (float(date), int(ivl))   # newest row wins
+    need_due = [c for c in seen if c not in last or last[c][1] >= -1200]
+    due_ids = _scoped_card_ids(col, need_due, "is:due")
+
+    now = _time.time()
     out: List[bool] = []
-    for cid in card_ids:
-        if col.find_cards(f"cid:{cid} is:new"):
+    for cid in ids:
+        if cid in new_ids:
             out.append(True)
-            continue
-        date, ivl = col.db.all(
-            "select id/1000.0, ivl from revlog where cid = ?", cid)[-1]
-        if ivl >= -1200:
-            out.append(bool(col.find_cards(f"cid:{cid} is:due")))
+        elif cid in last and last[cid][1] < -1200:
+            date, ivl = last[cid]
+            out.append(date - ivl <= now)
         else:
-            out.append(date - ivl <= _time.time())
+            out.append(cid in due_ids)
     return out
