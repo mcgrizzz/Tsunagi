@@ -231,7 +231,13 @@ def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
         raise ValueError(NOTES_INFO_NO_INPUT)
     ids = find_note_ids(p.query) if p.query is not None else list(p.notes)
 
-    found = {int(n.id): n for n in get_notes_by_ids(ids)}
+    # Chunked: a broad query can match the whole collection, and hydrating it
+    # in one QueryOp would hit the op timeout (503) where canonical answers
+    # slowly. Same unbounded result as canonical, bounded per op.
+    found = {}
+    for i in range(0, len(ids), 250):
+        for n in get_notes_by_ids(ids[i:i + 250]):
+            found[int(n.id)] = n
     profile = profile_name()
     out: List[Dict[str, Any]] = []
     for nid in ids:

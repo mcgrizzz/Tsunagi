@@ -26,10 +26,13 @@ def make_caps(calls):
 
 class TestIndexTier:
     def test_eq_uses_index(self):
+        # The id path is the row key, so the plan exposes find_ids/hydrate
+        # and the factory pages it like any id tier.
         calls = []
         plan = make_plan(None, ["id==1"], make_caps(calls))
         assert plan.mode == "index"
-        plan.fetch(None)
+        assert plan.fetch is None
+        plan.hydrate(plan.find_ids(), None)
         assert calls == [[1]]
 
     def test_fetch_receives_coerced_deduped_values(self):
@@ -38,7 +41,7 @@ class TestIndexTier:
         calls = []
         plan = make_plan(None, ['id in ["1", 1, 2, "abc"]'], make_caps(calls))
         assert plan.mode == "index"
-        plan.fetch(None)
+        plan.hydrate(plan.find_ids(), None)
         assert calls == [[1, 2]]
 
     def test_all_invalid_values_fall_through(self):

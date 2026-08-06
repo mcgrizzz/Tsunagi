@@ -97,7 +97,9 @@ def ac_createDeck(p: CreateDeckParams) -> int:
 
 @registry.register("deckNameFromId", params=DeckIdParams)
 def ac_deckNameFromId(p: DeckIdParams) -> str:
-    decks = get_decks_by_ids([p.deckId])
+    # Narrow wants: without it the deck fetcher builds due counts, which
+    # costs a full scheduler pass over every card - to read one name.
+    decks = get_decks_by_ids([p.deckId], {"id", "name"})
     if not decks:
         raise ValueError(DECK_NOT_FOUND.format(p.deckId))
     return decks[0].name

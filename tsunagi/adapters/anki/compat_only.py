@@ -53,9 +53,15 @@ def replace_tag_on_notes(col: Collection, note_ids: Sequence[int],
 @as_collection_op
 def replace_tag_everywhere(col: Collection, old: str, new: str) -> int:
     """replaceTagsInAllNotes - the same exact-match swap over every note."""
+    from anki.collection import SearchNode
+
     changed = 0
     changes = None
-    for nid in col.find_notes(""):
+    # Only the notes that actually carry the tag - the old form walked
+    # find_notes("") and loaded every note in the collection to discard
+    # nearly all of them. build_search_string handles tag escaping; the
+    # has_tag check stays, keeping the exact-match semantics identical.
+    for nid in col.find_notes(col.build_search_string(SearchNode(tag=old))):
         res = _replace_tag_on(col, col.get_note(int(nid)), old, new)
         if res is not None:
             changes = res

@@ -51,7 +51,7 @@ work, or malformed input rejected up front instead of after partial writes.
 | Action | Status | Notes |
 | --- | --- | --- |
 | `answerCards` | implemented | Real scheduler answers via POST /v1/cards:answer. Deviation: a malformed entry (missing cardId/ease) is rejected before any card is answered; canonical applies the answers preceding it. Invalid ease behaves identically (same anki exception, earlier answers kept). |
-| `areDue` | implemented |  |
+| `areDue` | implemented | Batched (one scoped search, not one per card). Deviation: a non-new card with no review history answers via the due search instead of raising IndexError like canonical. |
 | `areSuspended` | implemented |  |
 | `cardsInfo` | implemented |  |
 | `cardsModTime` | implemented |  |
@@ -59,7 +59,7 @@ work, or malformed input rejected up front instead of after partial writes.
 | `findCards` | implemented |  |
 | `forgetCards` | implemented |  |
 | `getEaseFactors` | implemented |  |
-| `getIntervals` | implemented |  |
+| `getIntervals` | implemented | Batched. Deviation: a non-new card with no review history reports 0 (empty list with complete=true) instead of canonical's IndexError. |
 | `relearnCards` | implemented | The one action with no Anki API; a raw UPDATE, wrapped in a CollectionOp. |
 | `setDueDate` | implemented |  |
 | `setEaseFactors` | implemented |  |

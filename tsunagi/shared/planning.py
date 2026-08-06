@@ -163,9 +163,20 @@ def _index_plan(caps: SourceCaps, where_params: Optional[List[str]]) -> Optional
     for idx in caps.indices:
         for w in where_params:
             scalars = _index_values(idx, parse_where(w))
-            if scalars:
-                return Plan("index", fetch=lambda wants=None, idx=idx, vals=scalars:
-                            idx.fetch_values(vals, wants))
+            if not scalars:
+                continue
+            if idx.path == ("id",):
+                # The values ARE the row keys, so the id-tier machinery can
+                # page and chunk them: `where=id in [10k ids]&limit=50` used
+                # to hydrate all 10k per page; now it hydrates a page.
+                return Plan("index", find_ids=lambda vals=scalars: vals,
+                            hydrate=idx.fetch_values)
+            # Secondary index (note_id, card_id, ...): values are not row
+            # keys - one value fans out to many rows and the cursor walks
+            # ROW ids - so fetch everything and paginate in memory. Result
+            # size is bounded by the values the caller listed.
+            return Plan("index", fetch=lambda wants=None, idx=idx, vals=scalars:
+                        idx.fetch_values(vals, wants))
     return None
 
 

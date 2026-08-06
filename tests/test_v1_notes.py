@@ -291,3 +291,45 @@ class TestCheck:
         self.check(client, [{"modelName": "Basic", "deckName": "Default",
                              "fields": {"Front": "新しい"}}])
         assert col.note_count() == before
+
+
+class TestKeysetListing:
+    def test_bare_listing_never_enumerates_the_collection(self, client, col):
+        for front in ("犬", "猫", "鳥"):
+            add(client, front)
+        searches, sqls = [], []
+        orig_find, orig_list = col.find_notes, col.db.list
+        col.find_notes = lambda q, **kw: searches.append(q) or orig_find(q, **kw)
+        col.db.list = lambda sql, *a: sqls.append(sql) or orig_list(sql, *a)
+        body = client.get("/v1/notes", params={"limit": 2}).json()
+        assert len(body["items"]) == 2
+        assert searches == []
+        id_queries = [s for s in sqls if "from notes" in s]
+        assert id_queries and all("limit ?" in s for s in id_queries)
+
+    def test_keyset_cursor_walks_every_note(self, client):
+        made = [add(client, f).json()["result"]["id"] for f in ("犬", "猫", "鳥")]
+        seen, cursor = [], None
+        while True:
+            params = {"limit": 1}
+            if cursor:
+                params["cursor"] = cursor
+            body = client.get("/v1/notes", params=params).json()
+            seen += [n["id"] for n in body["items"]]
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert seen == sorted(made)
+
+
+class TestBatchedCardIds:
+    def test_note_page_prefetches_card_ids_in_one_query(self, client, col):
+        for front in ("犬", "猫", "鳥"):
+            add(client, front)
+        per_note_calls = []
+        orig = col.card_ids_of_note
+        col.card_ids_of_note = lambda nid: per_note_calls.append(nid) or orig(nid)
+        body = client.get("/v1/notes").json()
+        assert len(body["items"]) == 3
+        assert all(len(n["cards"]) == 1 for n in body["items"])
+        assert per_note_calls == []     # the page used one grouped query

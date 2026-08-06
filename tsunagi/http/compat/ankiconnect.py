@@ -35,6 +35,8 @@ from .errors import (  # noqa: F401  (API_KEY_ERROR re-exported)
 )
 from .registry import registry
 
+_ACTIONS_CACHE = None
+
 
 def _success(version: int, result: Any) -> Any:
     return result if version <= 4 else {"result": result, "error": None}
@@ -179,4 +181,8 @@ def get_available_actions() -> Dict[str, list[str]]:
     Returns:
         Dictionary with 'actions' key containing list of action names
     """
-    return {"actions": sorted(registry.list_actions() + ["multi", "requestPermission"])}
+    global _ACTIONS_CACHE
+    if _ACTIONS_CACHE is None:
+        # Registration is import-time and immutable afterwards.
+        _ACTIONS_CACHE = sorted(registry.list_actions() + ["multi", "requestPermission"])
+    return {"actions": _ACTIONS_CACHE}

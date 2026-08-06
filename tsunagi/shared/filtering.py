@@ -119,7 +119,12 @@ class _WhereTransformer(Transformer):
 _parser = Lark(_WHERE_GRAMMAR, parser="lalr", maybe_placeholders=False)
 _transformer = _WhereTransformer()
 
+@lru_cache(maxsize=512)
 def parse_where(clause_text: str) -> Clause:
+    # Cached: one request parses the same clause up to ~5 times (planner
+    # tiers, wants computation, predicate build). Clause is frozen, so
+    # sharing the instance is safe. Parse errors are not cached (lru_cache
+    # does not memoize raises), so malformed input still reports each time.
     try:
         tree = _parser.parse(clause_text)
         out = _transformer.transform(tree)

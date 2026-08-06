@@ -125,13 +125,22 @@ _parser = Lark(_SELECT_GRAMMAR, parser="lalr", maybe_placeholders=False)
 class SelectParseError(ValueError): ...
 class SelectValidationError(ValueError): ...
 
+# Stateless (pure methods), so one instance serves every parse - same as
+# filtering's module-level transformer.
+_transformer = _SelectTransformer()
+
+
+@lru_cache(maxsize=512)
+def _parse_select_cached(select_text: str) -> Tuple[SelectNode, ...]:
+    return _transformer.transform(_parser.parse(select_text))
+
+
 def parse_select_csv(select_text: str) -> List[SelectNode]:
     if not select_text:
         return []
     try:
-        tree = _parser.parse(select_text)
-        nodes: Tuple[SelectNode, ...] = _SelectTransformer().transform(tree)
-        return list(nodes)
+        # Cached parse (nodes are immutable); fresh list per caller.
+        return list(_parse_select_cached(select_text))
     except UnexpectedInput as e:
         ctx = e.get_context(select_text)
         raise SelectParseError(
