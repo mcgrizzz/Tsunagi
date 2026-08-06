@@ -53,6 +53,13 @@ class IndexSpec:
     fetch_values: FetchValuesFn            # called with ([values], wants) for == / in filters
     coerce: Optional[CoerceFn] = None #Force the index into the correct type, returning None on invalid value
 
+# Keyset id enumeration: (after_key, limit) -> the next ids. The contract the
+# cursor math depends on: ascending, unique, and strictly greater than
+# after_key (None = from the start). SQL provides this for free; anything
+# else must guarantee it or pagination silently skips/repeats rows.
+PageIdsFn        = Callable[[Optional[int], int], List[int]]
+
+
 @dataclass(frozen=True)
 class SearchSpec:
     """
@@ -62,6 +69,9 @@ class SearchSpec:
     """
     find_ids: SearchIdsFn                  # (query) -> ids
     hydrate: FetchValuesFn                 # normally the SAME fn as IndexSpec(("id",)).fetch_values
+    # Optional keyset pushdown for the bare listing (the scan tier). A real
+    # search query can't use it - Anki search ids only come as a full list.
+    page_ids: Optional[PageIdsFn] = None
 
 # Subresource Mutation Capabilities
 @dataclass
@@ -103,6 +113,9 @@ class Plan:
     # The caller drives the loop because it owns `where` filtering.
     find_ids: Optional[BoundIdsFn] = None
     hydrate: Optional[FetchValuesFn] = None
+    # Scan tier only: keyset id enumeration, so a bare listing (or a
+    # where-filtered one) never materializes the full id list.
+    page_ids: Optional[PageIdsFn] = None
 
 def _dedupe_indices(xs):
     seen = {}
@@ -206,8 +219,11 @@ def make_plan(
 
     # 4) SCAN — search-backed resources with no fetch_all: a bare listing is
     # the same path as a search, with the empty query (= whole collection).
+    # When the source can enumerate ids keyset-style, hand that through so
+    # the page never materializes the full id list.
     if caps.search is not None:
         spec = caps.search
-        return Plan("scan", find_ids=lambda: spec.find_ids(""), hydrate=spec.hydrate)
+        return Plan("scan", find_ids=lambda: spec.find_ids(""),
+                    hydrate=spec.hydrate, page_ids=spec.page_ids)
 
     raise ValueError("resource has no way to enumerate rows")

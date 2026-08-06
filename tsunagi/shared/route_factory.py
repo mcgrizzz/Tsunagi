@@ -73,6 +73,52 @@ def _finish(
     final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
     return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
 
+def _keyset_scan(
+    plan: Any,
+    limit: int,
+    cursor: Optional[str],
+    wants: Optional[set],
+    id_getter: Callable[[Row], int],
+    pred: Optional[Callable[[Mapping[str, Any]], bool]],
+) -> tuple:
+    """
+    _paged_scan for a plan whose source enumerates ids keyset-style
+    (plan.page_ids): same pages, same cursors, same completeness guarantee,
+    but the full id list is never materialized. An unfiltered page is one id
+    query; a filtered one pulls id chunks until the page fills or a short
+    chunk says the ids ran out.
+    """
+    last_key = decode_cursor(cursor).get("last_key")
+
+    if pred is None:
+        ids = [int(i) for i in plan.page_ids(last_key, limit + 1)]
+        page_ids, more = ids[:limit], len(ids) > limit
+        rows: List[Row] = []
+        for i in range(0, len(page_ids), HYDRATE_CHUNK):
+            rows.extend(plan.hydrate(page_ids[i:i + HYDRATE_CHUNK], wants))
+        return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
+
+    batch_size = max(min(limit, HYDRATE_CHUNK), 50)
+    out: List[Row] = []
+    key = last_key
+    exhausted = False
+
+    while not exhausted and len(out) < limit:
+        chunk = [int(i) for i in plan.page_ids(key, batch_size)]
+        if not chunk:
+            break
+        key = chunk[-1]
+        exhausted = len(chunk) < batch_size
+        out.extend(r for r in plan.hydrate(chunk, wants) if pred(_as_dict(r)))
+
+    if len(out) > limit:
+        out = out[:limit]
+        return out, encode_cursor({"last_key": id_getter(out[-1])})
+    if not exhausted and len(out) == limit:
+        return out, encode_cursor({"last_key": key})
+    return out, None
+
+
 def _paged_scan(
     plan: Any,
     limit: int,
@@ -91,6 +137,9 @@ def _paged_scan(
     scan would mean "no results" for rows that do exist, and would force
     clients into retry loops. `limit` bounds the results, not the search.
     """
+    if getattr(plan, "page_ids", None) is not None:
+        return _keyset_scan(plan, limit, cursor, wants, id_getter, pred)
+
     ids = sorted({int(i) for i in plan.find_ids()})
     last_key = decode_cursor(cursor).get("last_key")
     if last_key is not None:

@@ -509,3 +509,77 @@ class TestSetValues:
         resp = seeded.post("/v1/cards:set-values",
                            json={"card_id": 999999, "values": {"factor": 2600}})
         assert resp.status_code == 404
+
+
+class TestBatch:
+    def _card(self, seeded, i=0):
+        return sorted(ids(seeded))[i]
+
+    def test_mixed_batch_applies_every_op(self, seeded):
+        c1, c2, c3 = sorted(ids(seeded))
+        body = seeded.post("/v1/cards:batch", json={"operations": [
+            {"op": "suspend", "card_ids": [c1]},
+            {"op": "set-due-date", "card_ids": [c2], "days": "5"},
+            {"op": "set-flag", "card_ids": [c3], "flag": 2},
+        ]}).json()
+        assert body["results"] == [
+            {"op": "suspend", "affected": 1},
+            {"op": "set-due-date", "affected": 1},
+            {"op": "set-flag", "affected": 1},
+        ]
+        assert body["affected"] == 3
+        rows = {c["id"]: c for c in seeded.get("/v1/cards").json()["items"]}
+        assert rows[c1]["suspended"] is True
+        assert rows[c2]["due"] == 5
+        assert rows[c3]["flag"] == 2
+
+    def test_batch_is_one_undo_entry(self, seeded, col):
+        c1, c2, c3 = sorted(ids(seeded))
+        seeded.post("/v1/cards:batch", json={"operations": [
+            {"op": "suspend", "card_ids": [c1]},
+            {"op": "set-due-date", "card_ids": [c2], "days": "5"},
+            {"op": "set-flag", "card_ids": [c3], "flag": 2},
+        ]})
+        assert col.undo_status().undo == "Card Batch"
+        col.undo()   # ONE undo reverts the whole batch
+        rows = {c["id"]: c for c in seeded.get("/v1/cards").json()["items"]}
+        assert rows[c1]["suspended"] is False
+        assert rows[c2]["due"] != 5 and rows[c2]["type"] == 0
+        assert rows[c3]["flag"] == 0
+
+    def test_unknown_op_applies_nothing(self, seeded):
+        c1 = self._card(seeded)
+        resp = seeded.post("/v1/cards:batch", json={"operations": [
+            {"op": "suspend", "card_ids": [c1]},
+            {"op": "explode", "card_ids": [c1]},
+        ]})
+        assert resp.status_code == 400 and "explode" in resp.json()["detail"]
+        assert seeded.get("/v1/cards", params={"where": f"id=={c1}"}
+                          ).json()["items"][0]["suspended"] is False
+
+    def test_bad_deck_fails_before_any_write(self, seeded):
+        # change-deck is resolved up front, so the suspend BEFORE it must not
+        # have run either.
+        c1 = self._card(seeded)
+        resp = seeded.post("/v1/cards:batch", json={"operations": [
+            {"op": "suspend", "card_ids": [c1]},
+            {"op": "change-deck", "card_ids": [c1], "deck_name": "Nope"},
+        ]})
+        assert resp.status_code == 400
+        assert seeded.get("/v1/cards", params={"where": f"id=={c1}"}
+                          ).json()["items"][0]["suspended"] is False
+
+    def test_malformed_entry_names_the_op(self, seeded):
+        resp = seeded.post("/v1/cards:batch", json={"operations": [
+            {"op": "set-due-date", "card_ids": [self._card(seeded)]},  # no days
+        ]})
+        assert resp.status_code == 400
+        assert "operation 0" in resp.json()["detail"]
+
+    def test_empty_batch_is_400(self, seeded):
+        assert seeded.post("/v1/cards:batch",
+                           json={"operations": []}).status_code == 400
+
+    def test_in_openapi(self, seeded):
+        spec = seeded.get("/openapi.json").json()
+        assert spec["paths"]["/v1/cards:batch"]["post"]["operationId"] == "cardsBatch"

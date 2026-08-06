@@ -44,6 +44,22 @@ def all_review_ids(col: Collection) -> List[int]:
 
 
 @as_query_op
+def page_review_ids(col: Collection, after_id: Optional[int], limit: int) -> List[int]:
+    """
+    The next `limit` revlog ids after `after_id` (None = from the start),
+    ascending. The keyset page for GET /v1/reviews: the id column is the
+    primary key, so this is an index walk - a bare listing never materializes
+    the whole revlog again.
+    """
+    if after_id is None:
+        return [int(i) for i in col.db.list(
+            "select id from revlog order by id limit ?", int(limit))]
+    return [int(i) for i in col.db.list(
+        "select id from revlog where id > ? order by id limit ?",
+        int(after_id), int(limit))]
+
+
+@as_query_op
 def get_reviews_by_ids(col: Collection, ids: Sequence[int],
                        wants: Optional[Set[str]] = None) -> List[ReviewInfo]:
     if not ids:

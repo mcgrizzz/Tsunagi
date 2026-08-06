@@ -236,3 +236,33 @@ class TestInsert:
     def test_in_openapi(self, client):
         spec = client.get("/openapi.json").json()
         assert spec["paths"]["/v1/reviews"]["post"]["operationId"] == "createReviews"
+
+
+class TestKeysetListing:
+    def test_bare_listing_never_reads_the_whole_revlog(self, reviewed, col):
+        # The scan tier walks the primary key with LIMIT; an unbounded
+        # "select id from revlog" would be the old materialize-everything path.
+        captured = []
+        original = col.db.list
+        col.db.list = lambda sql, *a: captured.append(sql) or original(sql, *a)
+        body = reviewed.get("/v1/reviews", params={"limit": 2}).json()
+        assert len(body["items"]) == 2
+        id_queries = [s for s in captured if "from revlog" in s]
+        assert id_queries and all("limit ?" in s for s in id_queries)
+
+    def test_keyset_cursor_walks_every_review(self, reviewed):
+        seen, cursor = [], None
+        while True:
+            params = {"limit": 2}
+            if cursor:
+                params["cursor"] = cursor
+            body = reviewed.get("/v1/reviews", params=params).json()
+            seen += [r["id"] for r in body["items"]]
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert seen == sorted(seen) and len(seen) == 3
+
+    def test_where_filter_rides_keyset(self, reviewed):
+        body = reviewed.get("/v1/reviews", params={"where": "ease==3"}).json()
+        assert len(body["items"]) == 3

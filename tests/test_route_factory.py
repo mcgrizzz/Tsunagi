@@ -477,3 +477,97 @@ class TestSubresources:
 
     def test_missing_parent_is_404(self, client):
         assert client.post("/v1/things/999/fields", json={"name": "X"}).status_code == 404
+
+
+class TestKeysetScan:
+    """
+    The scan tier with SearchSpec.page_ids: identical pages and cursors to
+    the materialized path, but the full id list is never enumerated.
+    """
+
+    @pytest.fixture()
+    def keyset(self, store):
+        calls = {"find_ids": 0, "page_ids": 0}
+
+        def find_ids(query):
+            calls["find_ids"] += 1
+            rows = store.rows if query != "type0" else [r for r in store.rows if r["type"] == 0]
+            return [r["id"] for r in rows]
+
+        def page_ids(after_key, limit):
+            calls["page_ids"] += 1
+            ids = sorted(r["id"] for r in store.rows)
+            if after_key is not None:
+                ids = [i for i in ids if i > after_key]
+            return ids[:limit]
+
+        caps = SourceCaps(search=SearchSpec(
+            find_ids=find_ids, hydrate=store.fetch_by_ids, page_ids=page_ids))
+        app = FastAPI()
+        app.include_router(create_resource_routes(
+            path="/v1/things", caps=caps, response_model=None,
+            id_getter=make_id_getter("id"),
+            resource_name="thing", resource_plural="things", tag="Things",
+        ))
+        return TestClient(app), calls
+
+    def test_bare_listing_is_keyset_not_materialized(self, keyset):
+        client, calls = keyset
+        body = client.get("/v1/things").json()
+        assert [r["id"] for r in body["items"]] == [1, 2, 3]
+        assert calls["page_ids"] == 1
+        assert calls["find_ids"] == 0
+
+    def test_search_still_materializes(self, keyset):
+        # Anki search has no keyset form; a real query keeps the old path.
+        client, calls = keyset
+        body = client.get("/v1/things", params={"search": "type0"}).json()
+        assert [r["id"] for r in body["items"]] == [1, 3]
+        assert calls["find_ids"] == 1
+        assert calls["page_ids"] == 0
+
+    def test_cursor_walks_every_row(self, keyset, store):
+        for i in range(4, 11):
+            store.rows.append({"id": i, "name": f"r{i}", "type": 0, "fields": []})
+        client, calls = keyset
+        seen, cursor = [], None
+        while True:
+            params = {"limit": 3}
+            if cursor:
+                params["cursor"] = cursor
+            body = client.get("/v1/things", params=params).json()
+            seen += [r["id"] for r in body["items"]]
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert seen == list(range(1, 11))
+        assert calls["find_ids"] == 0
+
+    def test_filtered_walk_finds_every_match(self, keyset):
+        client, calls = keyset
+        seen, cursor = [], None
+        while True:
+            params = {"limit": 1, "where": "type==0"}
+            if cursor:
+                params["cursor"] = cursor
+            body = client.get("/v1/things", params=params).json()
+            seen += [r["id"] for r in body["items"]]
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert seen == [1, 3]
+        assert calls["find_ids"] == 0    # where-filtering rides keyset too
+
+    def test_match_far_past_batch_boundaries(self, keyset, store):
+        for i in range(4, 400):
+            store.rows.append({"id": i, "name": f"filler{i}", "type": 9, "fields": []})
+        store.rows.append({"id": 9999, "name": "needle", "type": 7, "fields": []})
+        client, _calls = keyset
+        body = client.get("/v1/things", params={"limit": 1, "where": "name==needle"}).json()
+        assert [r["id"] for r in body["items"]] == [9999]
+
+    def test_empty_store(self, keyset, store):
+        store.rows.clear()
+        client, _calls = keyset
+        body = client.get("/v1/things").json()
+        assert body["items"] == [] and body["next_cursor"] is None

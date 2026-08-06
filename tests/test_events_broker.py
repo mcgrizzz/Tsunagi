@@ -292,3 +292,42 @@ class TestRealChangesPropagation:
         assert set_ease_factors([{"id": 999999, "factor": 2500}]) == [False]
         changes = recorded_ops[-1].result.changes
         assert not any(getattr(changes, f.name) for f in changes.DESCRIPTOR.fields)
+
+
+class TestEventDetailsCoverage:
+    """The scheduling verbs and deck mutations tag their op events with ids."""
+
+    def _card_id(self, col):
+        note = col.new_note(col.models.by_name("Basic"))
+        note["Front"] = "x"
+        col.add_note(note, 1)
+        return int(col.card_ids_of_note(note.id)[0])
+
+    def test_suspend_carries_card_ids(self, col, recorded_ops):
+        from tsunagi.adapters.anki.cards import suspend_cards
+        cid = self._card_id(col)
+        suspend_cards([cid])
+        assert recorded_ops[-1].initiator.details == {"card_ids": [cid]}
+
+    def test_set_ease_carries_card_ids(self, col, recorded_ops):
+        from tsunagi.adapters.anki.cards import set_ease_factors
+        set_ease_factors([{"id": 123, "factor": 2500}])
+        assert recorded_ops[-1].initiator.details == {"card_ids": [123]}
+
+    def test_patch_deck_carries_deck_ids(self, col, recorded_ops):
+        from tsunagi.adapters.anki.decks import patch_deck
+        patch_deck(1, {"desc": "hello"})
+        assert recorded_ops[-1].initiator.details == {"deck_ids": [1]}
+
+    def test_batch_carries_the_union(self, col, recorded_ops):
+        from tsunagi.adapters.anki.cards import batch_cards
+        from tsunagi.shared.schemas.cards import CardIds, SetFlagRequest
+        c1, c2 = self._card_id(col), self._card_id(col)
+        result = batch_cards([
+            ("suspend", CardIds(card_ids=[c1])),
+            ("set-flag", SetFlagRequest(card_ids=[c1, c2], flag=1)),
+        ])
+        assert result["affected"] == 3
+        assert recorded_ops[-1].initiator.details == {"card_ids": [c1, c2]}
+        # And the merged proto reports real flags for the event stream.
+        assert recorded_ops[-1].result.changes.card is True
