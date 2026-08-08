@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body
 from ...adapters.anki.collection import (
     active_profile,
     check_database,
+    collection_meta,
     export_package,
     import_package,
     list_profiles,
@@ -23,6 +24,7 @@ from ...adapters.anki.collection import (
 from ...shared.errors import handle_mutation_errors
 from ...shared.schemas.collection import (
     CollectionActionResult,
+    CollectionMeta,
     ExportRequest,
     ImportRequest,
     ImportResult,
@@ -37,6 +39,28 @@ router = APIRouter()
 
 def _stats(start: float) -> dict:
     return {"duration_ms": round((time.perf_counter() - start) * 1000, 3)}
+
+
+@router.get(
+    "/v1/collection",
+    response_model=CollectionMeta,
+    summary="Collection metadata",
+    description=(
+        "Collection-wide facts with no row of their own: whether FSRS is "
+        "enabled (one switch for the whole collection - per-deck and "
+        "per-preset `desired_retention` values exist either way, the "
+        "scheduler just ignores them while this is off), and the running "
+        "Anki version for feature detection."
+    ),
+    tags=["Collection"],
+    operation_id="getCollectionMeta",
+)
+@handle_mutation_errors("meta")
+def meta() -> CollectionMeta:
+    start = time.perf_counter()
+    out = collection_meta()
+    return CollectionMeta(fsrs=out["fsrs"], anki_version=out["anki_version"],
+                          stats=_stats(start))
 
 
 @router.get(

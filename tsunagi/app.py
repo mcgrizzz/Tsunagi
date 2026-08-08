@@ -41,6 +41,10 @@ def _log(msg: str) -> None: print("[tsunagi]", msg, file=sys.stdout)
 app = FastAPI(
     title="Tsunagi",
     version="0.0.1",
+    # The default /redoc points at redoc@next on jsdelivr, which now serves
+    # the restructured redoc 3 alpha - browsers refuse it (MIME mismatch under
+    # nosniff). A pinned /redoc route is defined below instead.
+    redoc_url=None,
     description="REST API for Anki. Query and modify models (note types), fields, and templates.",
     license_info={"name": "MIT"},
     openapi_tags=[
@@ -109,6 +113,18 @@ register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -
 # CORS headers for allowed origins and disallowed origins never reach auth.
 app.add_middleware(ApiKeyAuthMiddleware, settings=settings)
 app.add_middleware(DynamicCORSMiddleware, settings=settings)
+
+# Replacement for the disabled default /redoc (see the FastAPI() call): same
+# path (so AUTH_EXEMPT_PATHS still covers it), same page, working bundle.
+@app.get("/redoc", include_in_schema=False)
+def redoc_page():
+    from fastapi.openapi.docs import get_redoc_html
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title=f"{app.title} - ReDoc",
+        redoc_js_url="https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js",
+    )
+
 
 # Root GET endpoint - Tsunagi landing page
 @app.get(

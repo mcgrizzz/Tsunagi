@@ -1,16 +1,18 @@
 # Tsunagi — full manual test plan
 
-Every surface a user can reach: 100 native routes, 122 AnkiConnect actions,
+Every surface a user can reach: 101 native routes, 122 AnkiConnect actions,
 the settings dialog, the event stream, and the server lifecycle. Each item is
 a checkbox with an exact copy-paste command and an expected result. Automated
 tests already pin wire shapes and call counts — this plan is for the things
 only a real Anki can prove: visible UI effects, undo, timing on a real
 collection, and drop-in behaviour with real clients.
 
-> **Rebuild note:** the suite‑1/2 findings (reload_addon crash, vendor-warning
-> noise) are fixed in the current build. Re-sync the addon (dev_sync or
-> reinstall `dist/tsunagi-0.0.1.ankiaddon`) and restart Anki before
-> continuing, then re-run the two suite‑1 items marked ⟳.
+> **Rebuild note:** the suite‑3/4 findings are addressed in the current
+> build — `/redoc` pinned to a working bundle, and a new `GET /v1/collection`
+> exposing the collection-wide FSRS switch (your suite‑4 question). Re-sync
+> the addon (dev_sync or reinstall `dist/tsunagi-0.0.1.ankiaddon`) and
+> restart Anki, then re-run the items marked ⟳ in suites 3–4 before
+> continuing with suite 5.
 
 ## 0. Setup and conventions
 
@@ -93,13 +95,13 @@ Sign-off grid — initial each suite as you finish:
 - [x] Restore Defaults button repopulates the form but writes nothing until
   OK.
 - [x] Tools → Add-ons → Tsunagi → Config opens the same dialog.
-- [ ] ⟳ Switch profile away and back → server stops and restarts cleanly; no
+- [x] ⟳ Switch profile away and back → server stops and restarts cleanly; no
   "thread did not stop" in the console; port rebinds. **No
   vendored-module warning for Anki's own `app_packages`** (attr, click,
   idna, …) — that's expected environment now, filtered out. A warning
   naming a path under `addons21\<other-addon>` is still real and worth
   noting.
-- [ ] ⟳ Debug console (Ctrl+Shift+;):
+- [x] ⟳ Debug console (Ctrl+Shift+;):
 
   ```python
   import tsunagi; tsunagi.reload_addon()
@@ -154,7 +156,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → first streams for ~2s then closes; second → `401`.
-- [ ] CORS — the default allowlist entry `http://localhost` also covers
+- [x] CORS — the default allowlist entry `http://localhost` also covers
   `127.0.0.1` origins and browser extensions (AnkiConnect's exact
   semantics; it's why Yomitan needs zero setup). So test with an origin
   that is genuinely unlisted:
@@ -166,7 +168,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 
   → first: `403` (body "Disallowed CORS origin"); second: `200` with
   `Access-Control-Allow-Origin: http://localhost`.
-- [ ] Preflight:
+- [x] Preflight:
 
   ```powershell
   curl.exe -si -X OPTIONS $T/v1/decks -H "Origin: https://evil.example" -H "Access-Control-Request-Method: GET" | Select-Object -First 1
@@ -174,7 +176,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → `403`, then `200`.
-- [ ] `POST /` stays reachable from any origin so clients can *ask* for
+- [x] `POST /` stays reachable from any origin so clients can *ask* for
   access, but actions other than `requestPermission` are refused:
 
   ```powershell
@@ -187,7 +189,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   `{"permission": "granted", "requireApikey": true, "version": 6}`, the
   origin appears in the settings dialog's allowlist, and the `version`
   probe above now answers.
-- [ ] `requestPermission` with no Origin header (a local script) → granted
+- [x] `requestPermission` with no Origin header (a local script) → granted
   without any dialog:
 
   ```powershell
@@ -198,25 +200,29 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 
 ## 3. Discovery surfaces
 
-- [ ] `(Api GET /actions).actions.Count` → **122**.
+- [x] `(Api GET /actions).actions.Count` → **122**.
 - [ ] `curl.exe -si $T/ | Select-Object -First 5` → a redirect
   (`307`) with `location: /docs`.
-- [ ] Open `http://127.0.0.1:7777/docs` in a browser → Swagger UI renders;
+- [x] Open `http://127.0.0.1:7777/docs` in a browser → Swagger UI renders;
   spot-open a few routes and check the descriptions read sensibly.
-  `http://127.0.0.1:7777/redoc` renders too.
-- [ ] OpenAPI sanity — 96 operations (the 100 live routes minus the four
-  docs/schema routes, which FastAPI serves outside the schema):
+- [ ] ⟳ `http://127.0.0.1:7777/redoc` renders. (Was broken: FastAPI's default
+  page loads `redoc@next` from jsdelivr, which now serves the restructured
+  redoc 3 alpha and gets MIME-blocked. Fixed by pinning the page to
+  `redoc@2` — re-check after re-syncing the addon.)
+- [x] ⟳ OpenAPI sanity — **97** operations after the `GET /v1/collection`
+  addition (the 101 live routes minus the four docs/schema routes, which
+  FastAPI serves outside the schema):
 
   ```powershell
   $spec = Api GET /openapi.json
   ($spec.paths.PSObject.Properties | ForEach-Object { $_.Value.PSObject.Properties.Name }).Count
   ```
 
-  → `96`.
+  → `97`.
 
 ## 4. Decks & deck-configs
 
-- [ ] Create (capture the id) — parent `TestSuite` auto-created; both decks
+- [x] Create (capture the id) — parent `TestSuite` auto-created; both decks
   visible in Anki's deck list **immediately**, no click needed:
 
   ```powershell
@@ -225,7 +231,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → HTTP 201, `$sub` is a numeric id.
-- [ ] List, then the narrow fast path (compare `stats.duration_ms` — the
+- [x] List, then the narrow fast path (compare `stats.duration_ms` — the
   narrow one skips the scheduler's due-tree pass):
 
   ```powershell
@@ -233,13 +239,13 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   (Api GET "/v1/decks?select=id,name&shape=object").stats
   ```
 
-- [ ] Rename + describe — deck list updates live:
+- [x] Rename + describe — deck list updates live:
 
   ```powershell
   Api PATCH /v1/decks/$sub '{"name":"TestSuite::Renamed","description":"manual test deck"}'
   ```
 
-- [ ] FSRS retention override (26.08 supports it): set, read back, clear:
+- [x] FSRS retention override (26.08 supports it): set, read back, clear:
 
   ```powershell
   Api PATCH /v1/decks/$sub '{"desired_retention":0.85}'
@@ -248,7 +254,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → reads back `0.85`, then null after clearing.
-- [ ] Delete the subdeck; the default deck refuses:
+- [x] Delete the subdeck; the default deck refuses:
 
   ```powershell
   Api DELETE /v1/decks/$sub
@@ -256,7 +262,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → `success: true` then HTTP 400.
-- [ ] Deck-configs — clone the default, patch a value, verify in Anki's
+- [x] Deck-configs — clone the default, patch a value, verify in Anki's
   deck options UI, delete; default config refuses:
 
   ```powershell
@@ -274,6 +280,24 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → `success: true` then HTTP 400.
+
+  > **Answered (was: "how do we test if a deck is using FSRS?"):** FSRS
+  > on/off is neither per-deck nor per-preset — it's one collection-wide
+  > switch (Anki's deck-options screen hosts the toggle, but it flips the
+  > scheduler for the whole collection). That's why `desired_retention`
+  > reads back a value with FSRS off: the retention numbers are stored
+  > either way, the scheduler just ignores them until the switch is on.
+  > The flag is now exposed at `GET /v1/collection` — checked below.
+- [ ] ⟳ Collection meta — the FSRS switch and Anki version:
+
+  ```powershell
+  Api GET /v1/collection
+  ```
+
+  → `{fsrs: false, anki_version: "26.8", ...}` on a fresh profile; toggle
+  FSRS on in any deck's Options → re-run → `fsrs: true` (and suite 7's
+  full card rows will start showing `memory_state`/`retrievability` once
+  cards are reviewed under it).
 
 ## 5. Models (+ fields/templates)
 
