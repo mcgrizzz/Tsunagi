@@ -7,12 +7,12 @@ tests already pin wire shapes and call counts — this plan is for the things
 only a real Anki can prove: visible UI effects, undo, timing on a real
 collection, and drop-in behaviour with real clients.
 
-> **Rebuild note:** the suite‑3/4 findings are addressed in the current
-> build — `/redoc` pinned to a working bundle, and a new `GET /v1/collection`
-> exposing the collection-wide FSRS switch (your suite‑4 question). Re-sync
-> the addon (dev_sync or reinstall `dist/tsunagi-0.0.1.ankiaddon`) and
-> restart Anki, then re-run the items marked ⟳ in suites 3–4 before
-> continuing with suite 5.
+> **Status:** suites 1–6 signed off (the suite‑3/4 findings — redoc bundle,
+> `GET /v1/collection` — are fixed and re-verified; the suite‑6 Browser
+> observation is stock Anki, see known-cosmetics). Suites 7+ commands now
+> bake in output formatting — paste the `J` filter from suite 7 (or the
+> setup block) before continuing. No re-sync needed; the installed build
+> is current.
 
 ## 0. Setup and conventions
 
@@ -52,14 +52,19 @@ collection, and drop-in behaviour with real clients.
     Write-Host "HTTP $code" -ForegroundColor $(if ($code -lt 400) { 'Green' } else { 'Yellow' })
     if ($text) { try { $text | ConvertFrom-Json } catch { $text } }
   }
+
+  filter J { $_ | ConvertTo-Json -Depth 8 }
   ```
 
-  Usage: `Api GET /v1/health`, `Api POST /v1/decks '{"name":"X"}'`. Pipe
-  through `| ConvertTo-Json -Depth 6` any time you want the full body.
-  Bodies that embed a captured variable are built with hashtables +
-  `ConvertTo-Json` — that sidesteps every PowerShell quoting difference.
-  `curl.exe` (not the `curl` alias) is used only where streaming or raw
-  headers matter.
+  Usage: `Api GET /v1/health`, `Api POST /v1/decks '{"name":"X"}'`.
+  PowerShell's default table view truncates wide objects at `…`, so the
+  commands bake in the right display: `Api ... | J` prints the full JSON
+  body, `(...).items | Select-Object <fields> | Format-Table` shows just
+  the columns a check verifies, and `(...).items | Format-List *` prints
+  every field of every row without truncation. Bodies that embed a
+  captured variable are built with hashtables + `ConvertTo-Json` — that
+  sidesteps every PowerShell quoting difference. `curl.exe` (not the
+  `curl` alias) is used only where streaming or raw headers matter.
 - "Envelope" = `{items, next_cursor, stats}` for lists, `{result, error}`
   for `POST /`.
 - Known-cosmetic (expected, don't fail the run): deck browser may repaint
@@ -462,58 +467,87 @@ items
 
 ## 7. Cards — reads
 
-- [ ] Seed six more notes, then capture three card ids: `# CAPTURE`
+Paste this display helper first — `J` prints a full, never-truncated JSON
+body (PowerShell's default table view cuts wide objects off at `…`):
+
+```powershell
+filter J { $_ | ConvertTo-Json -Depth 8 }
+```
+
+Pattern for the rest of the run: `Api ... | J` for a whole body,
+`(...).items | Select-Object <fields> | Format-Table` when only a few
+columns matter, `(...).items | Format-List *` for every field of every row.
+
+- [x] Seed six more notes, then capture three card ids: `# CAPTURE`
 
   ```powershell
   1..6 | ForEach-Object { Api POST /v1/notes ('{"modelName":"Basic","deckName":"TestSuite","fields":{"Front":"card-seed-' + $_ + '","Back":"b"},"tags":["seed"]}') | Out-Null }
   $cards = (Api GET "/v1/cards?search=deck:TestSuite&select=id&shape=object&limit=100").items
   $cid1 = $cards[0].id; $cid2 = $cards[1].id; $cid3 = $cards[2].id
+  "cid1=$cid1  cid2=$cid2  cid3=$cid3"
   ```
 
-- [ ] Cursor walk:
+  → three numeric ids print.
+- [x] Cursor walk — ids per page, then the cursor itself:
 
   ```powershell
   $p1 = Api GET "/v1/cards?limit=5"
   $p2 = Api GET "/v1/cards?limit=5&cursor=$($p1.next_cursor)"
+  $p1.items.id
+  $p2.items.id
+  $p1.next_cursor
   ```
 
-  → 5 items each, no overlap in ids; keep following `next_cursor` until it
-  is null — total equals your card count.
-- [ ] Anki search syntax: `Api GET "/v1/cards?search=deck:TestSuite%20is:new"`
-  → the seeded cards.
+  → two blocks of 5 ids with no overlap; keep following `next_cursor`
+  until it comes back empty — the total equals your card count.
+- [ ] Anki search syntax:
+
+  ```powershell
+  (Api GET "/v1/cards?search=deck:TestSuite%20is:new").items | Select-Object id, deck_name, type, queue | Format-Table
+  ```
+
+  → only the seeded TestSuite cards, `type: 0` (new).
 - [ ] Where DSL (suspend one card first so the filter has a hit):
 
   ```powershell
   Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json)
-  (Api GET "/v1/cards?where=queue==-1").items | Select-Object id, queue
+  (Api GET "/v1/cards?where=queue==-1").items | Select-Object id, queue, suspended | Format-Table
   Api POST /v1/cards:unsuspend (@{cardIds=@($cid1)} | ConvertTo-Json)
   ```
 
-  → exactly the suspended card, `queue: -1`.
-- [ ] Narrow vs full rows (compare `stats.duration_ms`):
+  → exactly the suspended card: `queue: -1`, `suspended: True`.
+- [ ] Narrow vs full rows — compare the durations, then inspect one full
+  row:
 
   ```powershell
-  (Api GET "/v1/cards?select=id,due,queue&shape=object&limit=50").stats
-  (Api GET "/v1/cards?limit=50").stats
+  (Api GET "/v1/cards?select=id,due,queue&shape=object&limit=50").stats | J
+  (Api GET "/v1/cards?limit=50").stats | J
+  (Api GET "/v1/cards?where=id==$cid2").items[0] | J
   ```
 
-  → full rows include `question`/`answer` HTML, `next_reviews`, and (on a
-  reviewed card with FSRS on) `memory_state`/`retrievability`; the narrow
-  read is visibly faster.
-- [ ] Index tier: `Api GET "/v1/cards?where=note_id==$nid"` → that note's
-  card(s).
-- [ ] GET/POST parity:
+  → the narrow read is visibly faster; the full row shows
+  `question`/`answer` HTML, `next_reviews`, and (on a reviewed card with
+  FSRS on) `memory_state`/`retrievability`.
+- [ ] Index tier:
 
   ```powershell
-  Api POST /v1/cards/query '{"select":"id,due","shape":"object","limit":5}'
+  (Api GET "/v1/cards?where=note_id==$nid").items | Select-Object id, note_id, ord, deck_name | Format-Table
   ```
 
-  → same shape as the GET equivalent.
+  → that note's card(s), `note_id` matching `$nid`.
+- [ ] GET/POST parity — the two `items` blocks print identically:
+
+  ```powershell
+  Api POST /v1/cards/query '{"select":"id,due","shape":"object","limit":5}' | J
+  Api GET "/v1/cards?select=id,due&shape=object&limit=5" | J
+  ```
 
 ## 8. Cards — writes
 
 Keep the Browser open on `deck:TestSuite` the whole suite — every verb
-should repaint it **without clicking**.
+should repaint it **without clicking**. Verb responses are small
+(`{affected, stats}`) — the default view already shows `affected`; add
+`| J` any time you want the full body.
 
 - [ ] Verbs, one at a time (each → HTTP 200 with an `affected` count):
 
@@ -539,39 +573,42 @@ should repaint it **without clicking**.
 
   ```powershell
   Api POST /v1/cards:answer (@{answers=@(@{cardId=$cid2; ease=3})} | ConvertTo-Json -Depth 3)
-  Api GET "/v1/reviews?where=card_id==$cid2"
+  (Api GET "/v1/reviews?where=card_id==$cid2").items | Select-Object id, card_id, ease, interval, type | Format-Table
   Api POST /v1/cards:suspend (@{cardIds=@($cid3)} | ConvertTo-Json)
   Api POST /v1/cards:answer (@{answers=@(@{cardId=$cid3; ease=3})} | ConvertTo-Json -Depth 3)
   (Api GET "/v1/cards?where=id==$cid3").items[0].suspended
-  Api POST /v1/cards:answer (@{answers=@(@{cardId=$cid2; ease=5})} | ConvertTo-Json -Depth 3)
+  Api POST /v1/cards:answer (@{answers=@(@{cardId=$cid2; ease=5})} | ConvertTo-Json -Depth 3) | J
   ```
 
-  → review row present; `suspended` → `False`; last call → HTTP 422.
+  → a review row with `ease: 3`; then `suspended` prints `False`; the
+  ease-5 call → HTTP 422 with the validation detail.
 - [ ] Raw column writes — plain column fine, scheduling column needs
   `force`:
 
   ```powershell
   Api POST /v1/cards:set-values (@{cardId=$cid2; values=@{factor=2700}} | ConvertTo-Json)
-  Api POST /v1/cards:set-values (@{cardId=$cid2; values=@{reps=99}} | ConvertTo-Json)
+  Api POST /v1/cards:set-values (@{cardId=$cid2; values=@{reps=99}} | ConvertTo-Json) | J
   Api POST /v1/cards:set-values (@{cardId=$cid2; values=@{reps=99}; force=$true} | ConvertTo-Json)
   ```
 
-  → 200, then HTTP 400 naming the risky column, then 200.
+  → 200, then HTTP 400 naming the risky column (full message via `J`),
+  then 200.
 - [ ] Gate check — `:set-memory-state` → HTTP 400 until you enable its gate
   in the settings dialog; after enabling (no restart) it works:
 
   ```powershell
-  Api POST /v1/cards:set-memory-state (@{cards=@(@{id=$cid2; memory_state=@{stability=5.0; difficulty=3.2}})} | ConvertTo-Json -Depth 4)
+  Api POST /v1/cards:set-memory-state (@{cards=@(@{id=$cid2; memory_state=@{stability=5.0; difficulty=3.2}})} | ConvertTo-Json -Depth 4) | J
   ```
 
-- [ ] **Batch** — one op, ONE undo entry:
+- [ ] **Batch** — one op, ONE undo entry (`J` shows the per-op `results`
+  array the default view hides):
 
   ```powershell
   Api POST /v1/cards:batch (@{operations=@(
     @{op="suspend";      cardIds=@($cid1)},
     @{op="set-due-date"; cardIds=@($cid2); days="3"},
     @{op="set-flag";     cardIds=@($cid3); flag=4}
-  )} | ConvertTo-Json -Depth 4)
+  )} | ConvertTo-Json -Depth 4) | J
   ```
 
   → `results` has three entries with per-op `affected`; Anki's Edit menu
@@ -579,23 +616,24 @@ should repaint it **without clicking**.
   Then the all-or-nothing check:
 
   ```powershell
-  Api POST /v1/cards:batch '{"operations":[{"op":"suspennd","cardIds":[1]}]}'
+  Api POST /v1/cards:batch '{"operations":[{"op":"suspennd","cardIds":[1]}]}' | J
   ```
 
   → HTTP 400 listing the valid op names, and nothing was applied.
 
 ## 9. Reviews & tags
 
-- [ ] Reads:
+- [ ] Reads — the review columns, not a truncated blob:
 
   ```powershell
-  Api GET "/v1/reviews?limit=5"
-  Api GET "/v1/reviews?search=deck:TestSuite"
-  Api GET "/v1/reviews?where=ease==3"
+  (Api GET "/v1/reviews?limit=5").items | Select-Object id, card_id, ease, interval, factor, type | Format-Table
+  (Api GET "/v1/reviews?search=deck:TestSuite").items | Select-Object id, card_id, ease | Format-Table
+  (Api GET "/v1/reviews?where=ease==3").items | Select-Object id, card_id, ease | Format-Table
   ```
 
   → rows in review order (`id` is the review's epoch-ms timestamp); the
-  search form returns only reviews of TestSuite cards.
+  search form returns only reviews of TestSuite cards; the where form
+  only `ease: 3` rows.
 - [ ] Insert (history import) — both rows land atomically, and the **undo
   history is cleared** (expected: raw revlog write, Anki's own dbproxy
   behaviour):
@@ -606,33 +644,35 @@ should repaint it **without clicking**.
     @{id=$now;     card_id=$cid2; ease=3; interval=1; last_interval=0; factor=2500; time_ms=4000; type=0},
     @{id=($now+1); card_id=$cid2; ease=4; interval=3; last_interval=1; factor=2500; time_ms=2500; type=1}
   )} | ConvertTo-Json -Depth 3)
-  Api GET "/v1/reviews?where=card_id==$cid2"
+  (Api GET "/v1/reviews?where=card_id==$cid2").items | Select-Object id, card_id, ease, interval | Format-Table
   ```
 
-  → `inserted: 2`; both rows in the read. Re-running the same insert (same
-  ids) → an error response and **neither** row duplicated — the
-  transaction rolls back, `inserted` is never partial.
+  → `inserted: 2`; both new rows (ids `$now` and `$now+1`) in the table.
+  Re-running the same insert (same ids) → an error response and
+  **neither** row duplicated — the transaction rolls back, `inserted` is
+  never partial.
 - [ ] Tags:
 
   ```powershell
-  Api GET /v1/tags
-  Api GET "/v1/tags?prefix=ts"
+  (Api GET /v1/tags).items
+  (Api GET "/v1/tags?prefix=ts").items
   Api POST /v1/tags:bulk-add (@{noteIds=@($nid); tags="ts-bulk"} | ConvertTo-Json)
   Api PATCH /v1/tags/ts-bulk '{"name":"ts-bulk2"}'
   Api POST /v1/tags:bulk-remove (@{noteIds=@($nid); tags="ts-bulk2"} | ConvertTo-Json)
   Api POST /v1/tags:clear-unused
   ```
 
-  → each `affected` ≥ 1 except the final clear-unused (whatever was left);
-  the Browser's tag sidebar tracks every step.
+  → tag names print as plain lists; each write's `affected` ≥ 1 except
+  the final clear-unused (whatever was left); the Browser's tag sidebar
+  tracks every step.
 
 ## 10. Media
 
 - [ ] Base64 upload, then the same name again → stored under a new name:
 
   ```powershell
-  Api POST /v1/media '{"filename":"ts.txt","data":"aGVsbG8gdHN1bmFnaQ=="}'
-  Api POST /v1/media '{"filename":"ts.txt","data":"b3RoZXIgY29udGVudA=="}'
+  Api POST /v1/media '{"filename":"ts.txt","data":"aGVsbG8gdHN1bmFnaQ=="}' | J
+  Api POST /v1/media '{"filename":"ts.txt","data":"b3RoZXIgY29udGVudA=="}' | J
   ```
 
   → first `{filename: "ts.txt", renamed: false}`; second `renamed: true`
@@ -640,7 +680,7 @@ should repaint it **without clicking**.
 - [ ] URL fetch:
 
   ```powershell
-  Api POST /v1/media '{"url":"https://raw.githubusercontent.com/mcgrizzz/Tsunagi/main/README.md","filename":"ts-readme.md"}'
+  Api POST /v1/media '{"url":"https://raw.githubusercontent.com/mcgrizzz/Tsunagi/main/README.md","filename":"ts-readme.md"}' | J
   ```
 
   → 201 with `size` > 0.
@@ -648,7 +688,7 @@ should repaint it **without clicking**.
 
   ```powershell
   Set-Content C:\Users\Public\ts-local.txt "hello from disk"
-  Api POST /v1/media '{"path":"C:\\Users\\Public\\ts-local.txt"}'
+  Api POST /v1/media '{"path":"C:\\Users\\Public\\ts-local.txt"}' | J
   ```
 
   → HTTP 400 while `media_allow_local_path` is off; enable it in the
@@ -656,14 +696,14 @@ should repaint it **without clicking**.
 - [ ] List, download (real Content-Type), delete, confirm gone:
 
   ```powershell
-  Api GET "/v1/media?prefix=ts"
+  (Api GET "/v1/media?prefix=ts").items | Format-Table
   curl.exe -si @K "$T/v1/media/ts.txt" | Select-String "HTTP|Content-Type"
   Api DELETE /v1/media/ts.txt
   curl.exe -s -o NUL -w "%{http_code}`n" @K "$T/v1/media/ts.txt"
   ```
 
-  → list shows the uploads; download `200` + `text/plain`; delete
-  `success: true`; final GET `404`.
+  → the uploads as filename/size/mtime rows; download `200` +
+  `text/plain`; delete `success: true`; final GET `404`.
 - [ ] Traversal refused, nothing written:
 
   ```powershell
@@ -679,11 +719,11 @@ clean "not enough reviews" job error, which is itself a pass. For real
 numbers, re-run this suite against your real collection: compute/evaluate
 only *return* parameters, they write nothing.
 
-- [ ] Submit → poll:
+- [ ] Submit → poll (`J` shows the nested `progress`/`result`):
 
   ```powershell
   $job = Api POST /v1/fsrs:compute-params '{"search":"deck:TestSuite"}'   # CAPTURE
-  Api GET "/v1/jobs/$($job.job_id)"
+  Api GET "/v1/jobs/$($job.job_id)" | J
   ```
 
   → HTTP 202 with `job_id`; polls show `queued`/`running` (with progress),
@@ -693,7 +733,7 @@ only *return* parameters, they write nothing.
 
   ```powershell
   $job2 = Api POST /v1/fsrs:compute-params '{}'
-  Api POST "/v1/jobs/$($job2.job_id):abort"
+  Api POST "/v1/jobs/$($job2.job_id):abort" | J
   ```
 
   → status ends `aborted` (poll once more if it was mid-transition).
@@ -703,30 +743,36 @@ only *return* parameters, they write nothing.
   compare against Anki's own FSRS optimizer output):
 
   ```powershell
-  Api POST /v1/fsrs:simulate '{"days_to_simulate":30}'
-  Api POST /v1/fsrs:simulate-workload '{"days_to_simulate":30}'
-  Api POST /v1/fsrs:optimal-retention '{"days_to_simulate":30}'
+  $sim = Api POST /v1/fsrs:simulate '{"days_to_simulate":30}'
+  $sim.daily_review_count
+  $sim.daily_new_count
+  Api POST /v1/fsrs:simulate-workload '{"days_to_simulate":30}' | J
+  Api POST /v1/fsrs:optimal-retention '{"days_to_simulate":30}' | J
   ```
 
-  → arrays of 30 daily values / workload maps / a retention in (0, 1).
+  → two 30-number arrays print in full; the workload maps and a
+  `retention` in (0, 1) as JSON.
 - [ ] Evaluate with the computed params (real collection):
 
   ```powershell
   $done = Api GET "/v1/jobs/$($job.job_id)"
-  Api POST /v1/fsrs:evaluate-params (@{params=$done.result.params} | ConvertTo-Json -Depth 3)
+  $eval = Api POST /v1/fsrs:evaluate-params (@{params=$done.result.params} | ConvertTo-Json -Depth 3)
+  Api GET "/v1/jobs/$($eval.job_id)" | J
   ```
 
   → 202 + a job that finishes with log-loss/RMSE numbers.
 
 ## 12. GUI routes
 
-Each produces its visible effect and returns cleanly.
+Each produces its visible effect and returns cleanly. Responses are small —
+the default view is enough except where marked.
 
 - [ ] `Api POST /v1/gui:browse '{"query":"deck:TestSuite"}'` → Browser opens
-  filtered; response carries the matching `card_ids`.
+  filtered; response carries the matching `card_ids` (print them all with
+  `(Api POST /v1/gui:browse '{"query":"deck:TestSuite"}').card_ids`).
 - [ ] `Api POST /v1/gui:select-card (@{card_id=$cid2} | ConvertTo-Json)` →
   the row highlights. Select a few rows by hand, then
-  `Api GET /v1/gui/selected-notes` → their note ids.
+  `(Api GET /v1/gui/selected-notes).note_ids` → their note ids print.
 - [ ] `Api POST /v1/gui:edit-note (@{note_id=$nid} | ConvertTo-Json)` → the
   edit dialog opens on that note.
 - [ ] Add Cards dialog:
@@ -743,16 +789,17 @@ Each produces its visible effect and returns cleanly.
   `Api POST /v1/gui:deck-review '{"name":"TestSuite"}'` → lands **directly
   in the reviewer** (make sure TestSuite has due/new cards; suite 8's
   forget left some new).
-- [ ] Reviewer flow by API only:
+- [ ] Reviewer flow by API only (`J` on current-card shows the nested card):
 
   ```powershell
-  Api GET /v1/gui/current-card
+  Api GET /v1/gui/current-card | J
   Api POST /v1/gui:show-answer
   Api POST /v1/gui:answer-card '{"ease":3}'
-  Api GET /v1/gui/current-card
+  Api GET /v1/gui/current-card | J
   ```
 
-  → question shown → answer shown → next card is a different id.
+  → question shown → answer shown → the second current-card is a
+  different `card.id`.
   Also: `Api POST /v1/gui:show-question`, `Api POST /v1/gui:start-card-timer`,
   and `Api POST /v1/gui:play-audio` on a card with `[sound:...]`.
 - [ ] `Api POST /v1/gui:undo` → undoes the reviewer answer (Anki shows its
@@ -769,32 +816,35 @@ Each produces its visible effect and returns cleanly.
   ```powershell
   Api POST /v1/collection:export '{"deck":"TestSuite","path":"C:\\Users\\Public\\ts-export.apkg"}'
   Test-Path C:\Users\Public\ts-export.apkg
-  Api POST /v1/collection:import '{"path":"C:\\Users\\Public\\ts-export.apkg"}'
+  Api POST /v1/collection:import '{"path":"C:\\Users\\Public\\ts-export.apkg"}' | J
   ```
 
-  → `success: true`; `True`; import reports counts and Anki shows its
-  import summary.
+  → `success: true`; `True`; import prints its `imported`/`updated`
+  counts and Anki shows its import summary.
 - [ ] `Api POST /v1/collection:check-database` → `success: true`, Anki
   stays healthy. `Api POST /v1/collection:reload` → collection reopens
   (deck list flickers/refreshes).
-- [ ] Optional, with AnkiWeb configured: `Api POST /v1/collection:sync` →
-  sync runs; watch suite 14's `sync started/finished` + `reset` events
+- [ ] Optional, with AnkiWeb configured: `Api POST /v1/collection:sync | J`
+  → sync runs; watch suite 14's `sync started/finished` + `reset` events
   while it does.
 - [ ] Profiles — list, switch away and back; requests during the switch →
   503, never corruption:
 
   ```powershell
   $profs = Api GET /v1/profiles   # CAPTURE
+  $profs | J
   $other = $profs.items | Where-Object { $_ -ne $profs.active } | Select-Object -First 1
   Api POST /v1/profiles:load (@{name=$other} | ConvertTo-Json)
   ```
 
-  → Anki switches profiles (server restarts with it — re-run the load with
-  your original profile's name to come back).
+  → every profile name plus which is `active`; then Anki switches (server
+  restarts with it — re-run the load with your original profile's name to
+  come back).
 
 ## 14. Event stream
 
-Terminal A (leave running): 
+Terminal A (leave running — curl prints each event as it arrives, nothing
+to format):
 
 ```powershell
 curl.exe -N "$T/v1/events?api_key=test-key-123"
@@ -836,14 +886,16 @@ Trigger from terminal B / the Anki UI:
 ## 15. AnkiConnect shim — protocol
 
 All through `POST /`. With a key set, the shim takes it as the body `"key"`
-field (headers also accepted — the middleware runs first).
+field (headers also accepted — the middleware runs first). Every command
+below pipes through `J` — the `{result, error}` envelope is exactly what
+each check inspects, and the default table view mangles array results.
 
 - [ ] Envelope + key handling:
 
   ```powershell
-  Api POST / '{"action":"version","version":6,"key":"test-key-123"}'
-  Api POST / '{"action":"version","version":6,"key":"wrong"}'
-  Api POST / '{"action":"deckNames","version":4,"key":"test-key-123"}'
+  Api POST / '{"action":"version","version":6,"key":"test-key-123"}' | J
+  Api POST / '{"action":"version","version":6,"key":"wrong"}' | J
+  Api POST / '{"action":"deckNames","version":4,"key":"test-key-123"}' | J
   curl.exe -s -X POST $T/ @K -d "not json"
   ```
 
@@ -856,60 +908,61 @@ field (headers also accepted — the middleware runs first).
 - [ ] Reads:
 
   ```powershell
-  Api POST / '{"action":"deckNames","version":6}'
-  Api POST / '{"action":"modelNames","version":6}'
-  Api POST / '{"action":"findNotes","version":6,"params":{"query":"deck:TestSuite"}}'
-  Api POST / '{"action":"findCards","version":6,"params":{"query":"deck:TestSuite"}}'
-  Api POST / (@{action="notesInfo";      version=6; params=@{notes=@($nid)}}  | ConvertTo-Json -Depth 3)
-  Api POST / '{"action":"notesInfo","version":6,"params":{"query":"deck:*"}}'
-  Api POST / (@{action="cardsInfo";      version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="getEaseFactors"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="areDue";         version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="getIntervals";   version=6; params=@{cards=@($cid2); complete=$true}} | ConvertTo-Json -Depth 3)
+  Api POST / '{"action":"deckNames","version":6}' | J
+  Api POST / '{"action":"modelNames","version":6}' | J
+  Api POST / '{"action":"findNotes","version":6,"params":{"query":"deck:TestSuite"}}' | J
+  Api POST / '{"action":"findCards","version":6,"params":{"query":"deck:TestSuite"}}' | J
+  Api POST / (@{action="notesInfo";      version=6; params=@{notes=@($nid)}}  | ConvertTo-Json -Depth 3) | J
+  Api POST / '{"action":"notesInfo","version":6,"params":{"query":"deck:*"}}' | Out-Null   # broad: slow ok, 503 NOT ok
+  Api POST / (@{action="cardsInfo";      version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="getEaseFactors"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="areDue";         version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="getIntervals";   version=6; params=@{cards=@($cid2); complete=$true}} | ConvertTo-Json -Depth 3) | J
   ```
 
-  → all answer; the broad `notesInfo` by query may be slow but must not
-  503.
+  → all answer with `error: null`; the broad `notesInfo` prints only
+  `HTTP 200` (body discarded — the check is that it answers at all).
 - [ ] Writes:
 
   ```powershell
-  Api POST / '{"action":"createDeck","version":6,"params":{"deck":"TestSuite::Shim"}}'
-  Api POST / '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"1"},"options":{"allowDuplicate":false},"tags":["shim"]}}}'
-  Api POST / '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"2"},"options":{"allowDuplicate":false}}}}'
-  Api POST / (@{action="updateNoteFields"; version=6; params=@{note=@{id=$nid; fields=@{Back="shim-edited"}}}} | ConvertTo-Json -Depth 4)
-  Api POST / (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3)   # again -> result: false
-  Api POST / (@{action="unsuspend"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3)   # -> result: null (canonical quirk)
-  Api POST / (@{action="forgetCards";  version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="relearnCards"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="setDueDate";   version=6; params=@{cards=@($cid1); days="2"}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="setEaseFactors"; version=6; params=@{cards=@($cid1); easeFactors=@(2400)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="changeDeck";   version=6; params=@{cards=@($cid1); deck="TestSuite"}} | ConvertTo-Json -Depth 3)
+  Api POST / '{"action":"createDeck","version":6,"params":{"deck":"TestSuite::Shim"}}' | J
+  Api POST / '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"1"},"options":{"allowDuplicate":false},"tags":["shim"]}}}' | J
+  Api POST / '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"2"},"options":{"allowDuplicate":false}}}}' | J
+  Api POST / (@{action="updateNoteFields"; version=6; params=@{note=@{id=$nid; fields=@{Back="shim-edited"}}}} | ConvertTo-Json -Depth 4) | J
+  Api POST / (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J   # again -> result: false
+  Api POST / (@{action="unsuspend"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J   # -> result: null (canonical quirk)
+  Api POST / (@{action="forgetCards";  version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="relearnCards"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="setDueDate";   version=6; params=@{cards=@($cid1); days="2"}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="setEaseFactors"; version=6; params=@{cards=@($cid1); easeFactors=@(2400)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="changeDeck";   version=6; params=@{cards=@($cid1); deck="TestSuite"}} | ConvertTo-Json -Depth 3) | J
   ```
 
   → second `addNote` errors with canonical's duplicate message; the rest
-  match the annotated expectations.
+  match the inline annotations.
 - [ ] The three newest actions, quirks verbatim:
 
   ```powershell
-  Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=3},@{cardId=123; ease=3})}} | ConvertTo-Json -Depth 4)
-  Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=9})}} | ConvertTo-Json -Depth 4)
-  Api POST / '{"action":"setSpecificValueOfCard","version":6,"params":{"card":[1,2],"keys":["factor"],"newValues":[2600]}}'
-  Api POST / (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("due"); newValues=@(0)}} | ConvertTo-Json -Depth 3)
-  Api POST / (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("due"); newValues=@(0); warning_check=$true}} | ConvertTo-Json -Depth 3)
-  Api POST / '{"action":"setSpecificValueOfCard","version":6,"params":{"card":123,"keys":["factor"],"newValues":[2600],"warning_check":true}}'
+  Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=3},@{cardId=123; ease=3})}} | ConvertTo-Json -Depth 4) | J
+  Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=9})}} | ConvertTo-Json -Depth 4) | J
+  Api POST / '{"action":"setSpecificValueOfCard","version":6,"params":{"card":[1,2],"keys":["factor"],"newValues":[2600]}}' | J
+  Api POST / (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("due"); newValues=@(0)}} | ConvertTo-Json -Depth 3) | J
+  Api POST / (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("due"); newValues=@(0); warning_check=$true}} | ConvertTo-Json -Depth 3) | J
+  Api POST / '{"action":"setSpecificValueOfCard","version":6,"params":{"card":123,"keys":["factor"],"newValues":[2600],"warning_check":true}}' | J
   $now2 = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-  Api POST / (@{action="insertReviews"; version=6; params=@{reviews=@(,@($now2, $cid1, -1, 3, 1, 0, 2500, 3000, 0))}} | ConvertTo-Json -Depth 4)
+  Api POST / (@{action="insertReviews"; version=6; params=@{reviews=@(,@($now2, $cid1, -1, 3, 1, 0, 2500, 3000, 0))}} | ConvertTo-Json -Depth 4) | J
+  (Api GET "/v1/reviews?where=id==$now2").items | Select-Object id, card_id, ease | Format-Table
   ```
 
-  → `[true, false]`; error `"invalid ease"` (the true answer before it
-  kept); bare `false`; bare `false` (risky key, no warning_check);
-  `[true]`; `[[false, "..."]]`; `null` with the row landed
-  (`Api GET "/v1/reviews?where=id==$now2"`).
+  → in order: `result: [true, false]`; error `"invalid ease"` (the true
+  answer before it kept); `result: false`; `result: false` (risky key, no
+  warning_check); `result: [true]`; `result: [[false, "..."]]`;
+  `result: null` — and the final read shows the inserted row landed.
 - [ ] `multi` — per-action results in order, one failure isolated:
 
   ```powershell
-  Api POST / '{"action":"multi","version":6,"params":{"actions":[{"action":"version"},{"action":"bogusAction"},{"action":"deckNames"}]}}'
+  Api POST / '{"action":"multi","version":6,"params":{"actions":[{"action":"version"},{"action":"bogusAction"},{"action":"deckNames"}]}}' | J
   ```
 
   → `result` is a 3-array: `6`, an `"unsupported action"` entry, the deck
@@ -917,36 +970,36 @@ field (headers also accepted — the middleware runs first).
 - [ ] Compat GUI set behaves like suite 12:
 
   ```powershell
-  Api POST / '{"action":"guiBrowse","version":6,"params":{"query":"deck:TestSuite"}}'
-  Api POST / '{"action":"guiDeckReview","version":6,"params":{"name":"TestSuite"}}'
-  Api POST / '{"action":"guiCurrentCard","version":6}'
-  Api POST / '{"action":"guiShowAnswer","version":6}'
-  Api POST / '{"action":"guiAnswerCard","version":6,"params":{"ease":3}}'
+  Api POST / '{"action":"guiBrowse","version":6,"params":{"query":"deck:TestSuite"}}' | J
+  Api POST / '{"action":"guiDeckReview","version":6,"params":{"name":"TestSuite"}}' | J
+  Api POST / '{"action":"guiCurrentCard","version":6}' | J
+  Api POST / '{"action":"guiShowAnswer","version":6}' | J
+  Api POST / '{"action":"guiAnswerCard","version":6,"params":{"ease":3}}' | J
   ```
 
 - [ ] Collection/media compat:
 
   ```powershell
-  Api POST / '{"action":"getProfiles","version":6}'
-  Api POST / '{"action":"exportPackage","version":6,"params":{"deck":"TestSuite","path":"C:\\Users\\Public\\ts-shim-export.apkg"}}'
-  Api POST / '{"action":"importPackage","version":6,"params":{"path":"C:\\Users\\Public\\ts-shim-export.apkg"}}'
-  Api POST / '{"action":"storeMediaFile","version":6,"params":{"filename":"shim.txt","data":"c2hpbQ=="}}'
-  Api POST / '{"action":"getMediaFilesNames","version":6,"params":{"pattern":"shim*"}}'
-  Api POST / '{"action":"retrieveMediaFile","version":6,"params":{"filename":"shim.txt"}}'
-  Api POST / '{"action":"deleteMediaFile","version":6,"params":{"filename":"shim.txt"}}'
-  Api POST / '{"action":"sync","version":6}'
+  Api POST / '{"action":"getProfiles","version":6}' | J
+  Api POST / '{"action":"exportPackage","version":6,"params":{"deck":"TestSuite","path":"C:\\Users\\Public\\ts-shim-export.apkg"}}' | J
+  Api POST / '{"action":"importPackage","version":6,"params":{"path":"C:\\Users\\Public\\ts-shim-export.apkg"}}' | J
+  Api POST / '{"action":"storeMediaFile","version":6,"params":{"filename":"shim.txt","data":"c2hpbQ=="}}' | J
+  Api POST / '{"action":"getMediaFilesNames","version":6,"params":{"pattern":"shim*"}}' | J
+  Api POST / '{"action":"retrieveMediaFile","version":6,"params":{"filename":"shim.txt"}}' | J
+  Api POST / '{"action":"deleteMediaFile","version":6,"params":{"filename":"shim.txt"}}' | J
+  Api POST / '{"action":"sync","version":6}' | J
   ```
 
-  → each in canonical shape (`retrieveMediaFile` → the base64,
+  → each in canonical shape (`retrieveMediaFile` → the base64 `c2hpbQ==`,
   `deleteMediaFile` → null; `sync` only with AnkiWeb configured).
 - [ ] Reflection + unknown action:
 
   ```powershell
-  Api POST / '{"action":"apiReflect","version":6,"params":{"scopes":["actions"]}}'
-  Api POST / '{"action":"noSuchAction","version":6}'
+  Api POST / '{"action":"apiReflect","version":6,"params":{"scopes":["actions"]}}' | J
+  Api POST / '{"action":"noSuchAction","version":6}' | J
   ```
 
-  → action list; `{"result":null,"error":"unsupported action"}`.
+  → the full action list; `{"result":null,"error":"unsupported action"}`.
 
 ## 16. Shim — real clients (the drop-in proof)
 
@@ -961,30 +1014,32 @@ AnkiConnect (the real addon) **disabled** throughout.
 
 ## 17. Performance spot checks (real collection, read-only)
 
-Switch to your real profile. Compare `stats.duration_ms`:
+Switch to your real profile. Every command below prints just the
+`duration_ms` being compared:
 
 - [ ] Keyset listings — low single-digit ms for the id walk (was: a
   whole-collection scan per page):
 
   ```powershell
-  $p1 = Api GET "/v1/cards?limit=100";  $p1.stats
-  (Api GET "/v1/cards?limit=100&cursor=$($p1.next_cursor)").stats
-  (Api GET "/v1/notes?limit=100").stats
-  (Api GET "/v1/reviews?limit=100").stats
+  $p1 = Api GET "/v1/cards?limit=100"
+  $p1.stats.duration_ms
+  (Api GET "/v1/cards?limit=100&cursor=$($p1.next_cursor)").stats.duration_ms
+  (Api GET "/v1/notes?limit=100").stats.duration_ms
+  (Api GET "/v1/reviews?limit=100").stats.duration_ms
   ```
 
 - [ ] Two-phase filtered scan — quick despite touching every row (no
   renders for rejected rows):
 
   ```powershell
-  (Api GET "/v1/cards?where=queue==-1&limit=50").stats
+  (Api GET "/v1/cards?where=queue==-1&limit=50").stats.duration_ms
   ```
 
 - [ ] Narrow vs full hydration — visible gap (renders/scheduling skipped):
 
   ```powershell
-  (Api GET "/v1/cards?select=id,due&limit=200").stats
-  (Api GET "/v1/cards?limit=200").stats
+  (Api GET "/v1/cards?select=id,due&limit=200").stats.duration_ms
+  (Api GET "/v1/cards?limit=200").stats.duration_ms
   ```
 
 - [ ] A 10-op `cards:batch` on real cards (suspend/unsuspend pairs are
@@ -992,8 +1047,8 @@ Switch to your real profile. Compare `stats.duration_ms`:
 - [ ] Shim deck lookups — instant, no due-tree pass:
 
   ```powershell
-  Api POST / '{"action":"deckNamesAndIds","version":6}'
-  Api POST / '{"action":"deckNameFromId","version":6,"params":{"deckId":1}}'
+  Api POST / '{"action":"deckNamesAndIds","version":6}' | J
+  Api POST / '{"action":"deckNameFromId","version":6,"params":{"deckId":1}}' | J
   ```
 
 ## 18. Errors & busy behaviour
@@ -1001,17 +1056,18 @@ Switch to your real profile. Compare `stats.duration_ms`:
 - [ ] Unknown ids:
 
   ```powershell
-  Api GET "/v1/notes?where=id==1"
-  Api DELETE /v1/decks/999999999
-  Api PATCH /v1/notes/999999999 '{"fields":{"Front":"x"}}'
+  Api GET "/v1/notes?where=id==1" | J
+  Api DELETE /v1/decks/999999999 | J
+  Api PATCH /v1/notes/999999999 '{"fields":{"Front":"x"}}' | J
   ```
 
-  → empty 200 list; HTTP 404; HTTP 404.
-- [ ] Malformed inputs:
+  → empty 200 `items: []`; HTTP 404; HTTP 404.
+- [ ] Malformed inputs (`J` shows the full error message, which the table
+  view truncates):
 
   ```powershell
-  Api GET "/v1/cards?search=%22unbalanced"
-  Api GET "/v1/cards?where=nonsense"
+  Api GET "/v1/cards?search=%22unbalanced" | J
+  Api GET "/v1/cards?where=nonsense" | J
   curl.exe -s -o NUL -w "%{http_code}`n" @K -X POST $T/v1/decks -H "Content-Type: application/json" -d "nope"
   ```
 
@@ -1020,7 +1076,7 @@ Switch to your real profile. Compare `stats.duration_ms`:
 - [ ] **Busy**: open a modal dialog in Anki (e.g. any deck's Options), then:
 
   ```powershell
-  Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json)
+  Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json) | J
   ```
 
   → HTTP 503 within the op timeout (~15s), not a hang; close the dialog →
