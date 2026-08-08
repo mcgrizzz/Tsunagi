@@ -326,8 +326,10 @@ Every resource below supports the query parameters above, plus
   `:answer-card`, `:play-audio`, `:start-card-timer`, `:undo`, `:deck-browser`,
   `:deck-overview`, `:deck-review`, `:import-file`, `:exit`, plus
   `GET /v1/gui/current-card` and `GET /v1/gui/selected-notes`.
-- **`/v1/collection:*` and `/v1/profiles`** - `:sync`, `:export`, `:import`,
-  `:reload`, `:check-database`; `GET /v1/profiles` and `POST /v1/profiles:load`.
+- **`/v1/collection` and `/v1/profiles`** - `GET /v1/collection` (collection
+  metadata: the collection-wide FSRS switch, Anki version); `:sync`,
+  `:export`, `:import`, `:reload`, `:check-database`; `GET /v1/profiles` and
+  `POST /v1/profiles:load`.
 - **GET `/v1/health`** - Simple health check (never requires an API key).
 
 ### AnkiConnect compatibility

@@ -107,3 +107,26 @@ class TestCompatAliases:
 
     def test_reload_collection_returns_null(self, client):
         assert rpc(client, "reloadCollection") == {"result": None, "error": None}
+
+
+class TestCollectionMeta:
+    def test_fsrs_flag_tracks_the_collection_switch(self, client, col):
+        body = client.get("/v1/collection").json()
+        assert body["fsrs"] is False   # fresh collections default to SM-2
+
+        col.set_config("fsrs", True)
+        assert client.get("/v1/collection").json()["fsrs"] is True
+
+    def test_anki_version_is_reported(self, client):
+        body = client.get("/v1/collection").json()
+        assert isinstance(body["anki_version"], str) and body["anki_version"]
+        assert "duration_ms" in body["stats"]
+
+
+class TestRedocPage:
+    def test_serves_a_pinned_working_bundle(self, client):
+        # The default redoc@next bundle on jsdelivr is broken (redoc 3 alpha
+        # restructure -> MIME mismatch under nosniff); we pin redoc@2.
+        resp = client.get("/redoc")
+        assert resp.status_code == 200
+        assert "redoc@2/bundles/redoc.standalone.js" in resp.text

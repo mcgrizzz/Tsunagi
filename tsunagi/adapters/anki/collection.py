@@ -98,6 +98,21 @@ def sync_collection() -> Dict[str, Any]:
 
 
 @as_query_op
+def collection_meta(col: Any) -> Dict[str, Any]:
+    """
+    Collection-wide facts. The FSRS flag is the rslib BoolKey::Fsrs config
+    entry (stored under "fsrs", absent = disabled) - the deck-options UI
+    hosts the toggle, but it switches the scheduler for the whole collection.
+    """
+    from anki.buildinfo import version as anki_version
+
+    return {
+        "fsrs": bool(col.get_config("fsrs", default=False)),
+        "anki_version": anki_version,
+    }
+
+
+@as_query_op
 def reload_collection(col: Any) -> bool:
     """Drop cached state so the next read sees what is on disk."""
     col.reset()

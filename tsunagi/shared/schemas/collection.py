@@ -50,6 +50,18 @@ class ImportResult(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
+class CollectionMeta(BaseModel):
+    """
+    Collection-level facts a client can't read from any row: whether FSRS is
+    enabled (one collection-wide switch - NOT per deck or per preset, even
+    though Anki's deck-options screen hosts the toggle), and the Anki version
+    for feature detection (e.g. per-deck desired_retention needs 26.08+).
+    """
+    fsrs: bool
+    anki_version: str
+    stats: Dict[str, Any] = Field(default_factory=dict)
+
+
 class CollectionActionResult(BaseModel):
     """Result of a collection-level command that either worked or raised."""
     success: bool = True
