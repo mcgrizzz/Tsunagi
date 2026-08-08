@@ -64,7 +64,10 @@ collection, and drop-in behaviour with real clients.
   for `POST /`.
 - Known-cosmetic (expected, don't fail the run): deck browser may repaint
   only on window focus after some GUI actions; `gui:exit` with the Add Cards
-  window open logs a traceback while quitting.
+  window open logs a traceback while quitting; a **created** note doesn't
+  appear in an open Browser until its search re-runs (stock Anki — the row
+  list is never re-searched on an op; edits/deletes of *existing* rows
+  repaint instantly).
 
 Sign-off grid — initial each suite as you finish:
 
@@ -95,13 +98,13 @@ Sign-off grid — initial each suite as you finish:
 - [x] Restore Defaults button repopulates the form but writes nothing until
   OK.
 - [x] Tools → Add-ons → Tsunagi → Config opens the same dialog.
-- [x] ⟳ Switch profile away and back → server stops and restarts cleanly; no
+- [x] Switch profile away and back → server stops and restarts cleanly; no
   "thread did not stop" in the console; port rebinds. **No
   vendored-module warning for Anki's own `app_packages`** (attr, click,
   idna, …) — that's expected environment now, filtered out. A warning
   naming a path under `addons21\<other-addon>` is still real and worth
   noting.
-- [x] ⟳ Debug console (Ctrl+Shift+;):
+- [x] Debug console (Ctrl+Shift+;):
 
   ```python
   import tsunagi; tsunagi.reload_addon()
@@ -201,11 +204,11 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 ## 3. Discovery surfaces
 
 - [x] `(Api GET /actions).actions.Count` → **122**.
-- [ ] `curl.exe -si $T/ | Select-Object -First 5` → a redirect
+- [x] `curl.exe -si $T/ | Select-Object -First 5` → a redirect
   (`307`) with `location: /docs`.
 - [x] Open `http://127.0.0.1:7777/docs` in a browser → Swagger UI renders;
   spot-open a few routes and check the descriptions read sensibly.
-- [ ] ⟳ `http://127.0.0.1:7777/redoc` renders. (Was broken: FastAPI's default
+- [x] `http://127.0.0.1:7777/redoc` renders. (Was broken: FastAPI's default
   page loads `redoc@next` from jsdelivr, which now serves the restructured
   redoc 3 alpha and gets MIME-blocked. Fixed by pinning the page to
   `redoc@2` — re-check after re-syncing the addon.)
@@ -288,7 +291,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   > reads back a value with FSRS off: the retention numbers are stored
   > either way, the scheduler just ignores them until the switch is on.
   > The flag is now exposed at `GET /v1/collection` — checked below.
-- [ ] ⟳ Collection meta — the FSRS switch and Anki version:
+- [x] Collection meta — the FSRS switch and Anki version:
 
   ```powershell
   Api GET /v1/collection
@@ -301,7 +304,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 
 ## 5. Models (+ fields/templates)
 
-- [ ] Create; appears in Tools → Manage Note Types. Re-running the same
+- [x] Create; appears in Tools → Manage Note Types. Re-running the same
   create → HTTP 400 (duplicate name):
 
   ```powershell
@@ -310,17 +313,17 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   Api POST /v1/models '{"name":"TSModel","fields":[{"name":"F"}],"templates":[{"name":"Card 1","qfmt":"{{F}}","afmt":"{{F}}"}]}'
   ```
 
-- [ ] Cloze model (`type: 1` — needed by suite 6):
+- [x] Cloze model (`type: 1` — needed by suite 6):
 
   ```powershell
   $cloze = Api POST /v1/models '{"name":"TSCloze","type":1,"fields":[{"name":"Text"}],"templates":[{"name":"Cloze","qfmt":"{{cloze:Text}}","afmt":"{{cloze:Text}}"}]}'   # CAPTURE
   ```
 
-- [ ] `(Api GET /v1/models).items.Count` (full rows) and
+- [x] `(Api GET /v1/models).items.Count` (full rows) and
   `Api GET "/v1/models?select=id,name"` (fast path) both list TSModel.
-- [ ] `Api PATCH /v1/models/$mid '{"css":".card { color: navy; }"}'` →
+- [x] `Api PATCH /v1/models/$mid '{"css":".card { color: navy; }"}'` →
   visible in the card template editor's Styling tab.
-- [ ] Fields — full cycle, checking Anki's Fields… editor after each
+- [x] Fields — full cycle, checking Anki's Fields… editor after each
   (fields are addressed **by name** in the path):
 
   ```powershell
@@ -337,7 +340,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → HTTP 400 "Cannot delete last field…".
-- [ ] Templates — same cycle:
+- [x] Templates — same cycle:
 
   ```powershell
   Api POST /v1/models/$mid/templates '{"name":"Card 2","qfmt":"{{B}}","afmt":"{{F}}"}'
@@ -348,28 +351,34 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → all 200 until the last delete → HTTP 400 (last template).
-- [ ] Find-replace in templates:
+- [x] Find-replace in templates:
 
   ```powershell
   Api POST /v1/models:find-replace '{"find":"<hr>","replace":"<hr id=answer>","modelName":"TSModel"}'
   ```
 
   → `affected: 1`; the template's back side changed in the editor.
-- [ ] `Api DELETE /v1/models/$mid` (no notes on it) → gone from the manage
+- [x] `Api DELETE /v1/models/$mid` (no notes on it) → gone from the manage
   list. **Keep TSCloze** — suite 6 uses it.
 
 ## 6. Notes
 
-- [ ] Create — with Anki's **Browser open**, the new note appears without
-  clicking:
+- [x] Create — with Anki's **Browser open**:
 
   ```powershell
   $n1 = Api POST /v1/notes '{"modelName":"Basic","deckName":"TestSuite","fields":{"Front":"tsunagi-front-1","Back":"dog"},"tags":["ts"]}'   # CAPTURE
   $nid = $n1.result.id
   ```
 
+  > **Observed: new note needs a reclick to appear — that's stock Anki.**
+  > The Browser's row list is the result of the last search and is never
+  > re-run on an operation; `op_executed` (aqt table.py) only redraws
+  > *existing* rows. So edits/deletes repaint instantly (their rows exist)
+  > but a created note is invisible until the search re-runs — exactly the
+  > same as adding via Anki's own Add dialog with the Browser open.
+
   → HTTP 201; `$n1.result.cards` holds the generated card id(s).
-- [ ] Duplicate handling — same Front again:
+- [x] Duplicate handling — same Front again:
 
   ```powershell
   Api POST /v1/notes '{"modelName":"Basic","deckName":"TestSuite","fields":{"Front":"tsunagi-front-1","Back":"x"}}'
@@ -378,7 +387,9 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 
   → HTTP 409 naming the duplicate note id(s); then HTTP 201. Delete the
   duplicate: `Api DELETE /v1/notes/<its id>`.
-- [ ] Validation: empty first field, and a cloze note with no `{{c1::}}`:
+  
+  ** Counter point to above, delete will immediately show in UI ** 
+- [x] Validation: empty first field, and a cloze note with no `{{c1::}}`:
 
   ```powershell
   Api POST /v1/notes '{"modelName":"Basic","deckName":"TestSuite","fields":{"Front":"","Back":"x"}}'
@@ -386,17 +397,37 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   ```
 
   → both HTTP 400.
-- [ ] Reads:
+- [x] Reads:
 
   ```powershell
   Api GET "/v1/notes?limit=5"
   Api GET "/v1/notes?search=tag:ts"
   Api GET "/v1/notes?where=id==$nid"
   ```
+	PS H:\Documents\Dev\Anki Addons\Tsunagi> Api GET "/v1/notes?limit=5"
+HTTP 200
+
+items
+-----
+{@{id=1634251759190; guid=AiRwDGzkZJ; model_id=1714404065052; model_name=Kaishi 1.5k; mod=1714404138…
+
+PS H:\Documents\Dev\Anki Addons\Tsunagi> Api GET "/v1/notes?search=tag:ts"
+HTTP 200
+
+items
+-----
+{@{id=1786223679020; guid=HSqr?gdp`c; model_id=1783565347129; model_name=Basic; mod=1786223679; usn=…
+
+PS H:\Documents\Dev\Anki Addons\Tsunagi> Api GET "/v1/notes?where=id==$nid"
+HTTP 200
+
+items
+-----
+{@{id=1786223679020; guid=HSqr?gdp`c; model_id=1783565347129; model_name=Basic; mod=1786223679; usn=…
 
   → each row carries its `cards` ids; the search/where forms return
   exactly the seeded note.
-- [ ] Patch fields and tags — Browser shows each edit live:
+- [x] Patch fields and tags — Browser shows each edit live:
 
   ```powershell
   Api PATCH /v1/notes/$nid '{"fields":{"Back":"DOG"}}'
@@ -405,8 +436,9 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
   Api PATCH /v1/notes/$nid '{"tags":["x"],"addTags":["y"]}'
   ```
 
+	** all worked and instant in the UI ** 
   → first three 200; the combined form → HTTP 400.
-- [ ] Retype (scratch note, since retyping is destructive to fields):
+- [x] Retype (scratch note, since retyping is destructive to fields):
 
   ```powershell
   $n2 = Api POST /v1/notes '{"modelName":"Basic","deckName":"TestSuite","fields":{"Front":"retype-me","Back":"z"}}'   # CAPTURE
@@ -416,7 +448,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 
   → without `fields` HTTP 400 (would blank the note); with them, 200 and
   the Browser shows it as a TSCloze note.
-- [ ] `notes:check` — verdicts only, nothing created (note count in the
+- [x] `notes:check` — verdicts only, nothing created (note count in the
   Browser unchanged):
 
   ```powershell
@@ -425,7 +457,7 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 
   → `results` states: `normal`, `duplicate` (with `duplicate_note_ids`),
   `empty`.
-- [ ] `Api DELETE "/v1/notes/$($n2.result.id)"` → its cards vanish from the
+- [x] `Api DELETE "/v1/notes/$($n2.result.id)"` → its cards vanish from the
   Browser immediately.
 
 ## 7. Cards — reads
