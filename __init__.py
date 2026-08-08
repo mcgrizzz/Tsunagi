@@ -31,6 +31,15 @@ def _log_vendor_conflicts() -> None:
         if not shared.is_dir():
             return
         prefix = str(shared)
+        # Anki ships some of the same packages (attrs, idna, ...) in its own
+        # bundle, imported before any addon runs. That's the normal, working
+        # environment, not a conflict worth reporting - only flag copies from
+        # OUTSIDE Anki's bundle (i.e. another addon's).
+        anki_roots = []
+        for base_mod in ("anki", "aqt"):
+            mod_file = getattr(sys.modules.get(base_mod), "__file__", None)
+            if mod_file:
+                anki_roots.append(str(Path(mod_file).resolve().parent.parent))
         clashes = []
         for child in sorted(shared.iterdir()):
             name = child.name[:-3] if child.name.endswith(".py") else child.name
@@ -38,7 +47,8 @@ def _log_vendor_conflicts() -> None:
                 continue
             mod = sys.modules.get(name)
             file = getattr(mod, "__file__", None) if mod is not None else None
-            if file and not file.startswith(prefix):
+            if file and not file.startswith(prefix) \
+                    and not any(file.startswith(r) for r in anki_roots):
                 clashes.append(f"{name} ({file})")
         if clashes:
             print("[tsunagi] vendored modules already imported from elsewhere, "
