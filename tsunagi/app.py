@@ -266,6 +266,12 @@ def start_server(mw) -> None:
             app, host=host, port=port, loop="asyncio",
             http="h11", access_log=False,
             log_level=cfg.get("log_level", "warning"),
+            # None = never call logging.config.dictConfig: uvicorn's default
+            # config probes sys.stdout.isatty(), which crashes under Anki's
+            # debug console (its Stream has no isatty), and rewriting the host
+            # app's logging config isn't ours to do. log_level/access_log
+            # still apply; records fall to Python's last-resort stderr handler.
+            log_config=None,
             # Backstop for shutdown: in-flight responses (an open event
             # stream) would otherwise be waited on forever. The drain flag
             # in stop_server closes streams first; this catches stragglers.
