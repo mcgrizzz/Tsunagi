@@ -392,8 +392,8 @@ browsers are stopped by CORS anyway. `/v1/health` is a liveness probe.
 
   → HTTP 409 naming the duplicate note id(s); then HTTP 201. Delete the
   duplicate: `Api DELETE /v1/notes/<its id>`.
-  
-  ** Counter point to above, delete will immediately show in UI ** 
+
+  ** Counter point to above, delete will immediately show in UI **
 - [x] Validation: empty first field, and a cloze note with no `{{c1::}}`:
 
   ```powershell
@@ -441,7 +441,7 @@ items
   Api PATCH /v1/notes/$nid '{"tags":["x"],"addTags":["y"]}'
   ```
 
-	** all worked and instant in the UI ** 
+	** all worked and instant in the UI **
   → first three 200; the combined form → HTTP 400.
 - [x] Retype (scratch note, since retyping is destructive to fields):
 
@@ -500,23 +500,46 @@ columns matter, `(...).items | Format-List *` for every field of every row.
 
   → two blocks of 5 ids with no overlap; keep following `next_cursor`
   until it comes back empty — the total equals your card count.
-- [ ] Anki search syntax:
+- [x] Anki search syntax:
 
   ```powershell
   (Api GET "/v1/cards?search=deck:TestSuite%20is:new").items | Select-Object id, deck_name, type, queue | Format-Table
   ```
 
   → only the seeded TestSuite cards, `type: 0` (new).
-- [ ] Where DSL (suspend one card first so the filter has a hit):
+- [x] Where DSL (suspend one card first so the filter has a hit):
+
+  Re-verified 2026-09-06 on `[DEV] Yomine`: scope the query to TestSuite.
+  The seven other suspended cards belong to Kaishi 1.5k and Mining, so
+  the original collection-wide result of eight was correct. The scoped
+  query returned only card `1786223679020` with `queue: -1` and
+  `suspended: true`; unsuspending affected one card and the scoped query
+  then returned no items. Browser updated on window focus, accepted for
+  this run. Original observation retained below for context.
 
   ```powershell
   Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json)
-  (Api GET "/v1/cards?where=queue==-1").items | Select-Object id, queue, suspended | Format-Table
+  (Api GET "/v1/cards?search=deck:TestSuite&where=queue==-1").items | Select-Object id, queue, suspended | Format-Table
   Api POST /v1/cards:unsuspend (@{cardIds=@($cid1)} | ConvertTo-Json)
   ```
+	PS H:\Documents\Dev\Anki Addons\Tsunagi> (Api GET "/v1/cards?where=queue==-1").items | Select-Object id, queue, suspended | Format-Table
+HTTP 200
 
+           id queue suspended
+           -- ----- ---------
+1711551717546    -1      True
+1724856098432    -1      True
+1730312496931    -1      True
+1733860184510    -1      True
+1737603559746    -1      True
+1740625635027    -1      True
+1765158806210    -1      True
+1786223679020    -1      True
+
+All came back suspended? But in UI I can see the only 1 is suspended
   → exactly the suspended card: `queue: -1`, `suspended: True`.
-- [ ] Narrow vs full rows — compare the durations, then inspect one full
+
+- [x] Narrow vs full rows — compare the durations, then inspect one full
   row:
 
   ```powershell
@@ -528,14 +551,14 @@ columns matter, `(...).items | Format-List *` for every field of every row.
   → the narrow read is visibly faster; the full row shows
   `question`/`answer` HTML, `next_reviews`, and (on a reviewed card with
   FSRS on) `memory_state`/`retrievability`.
-- [ ] Index tier:
+- [x] Index tier:
 
   ```powershell
   (Api GET "/v1/cards?where=note_id==$nid").items | Select-Object id, note_id, ord, deck_name | Format-Table
   ```
 
   → that note's card(s), `note_id` matching `$nid`.
-- [ ] GET/POST parity — the two `items` blocks print identically:
+- [x] GET/POST parity — the two `items` blocks print identically:
 
   ```powershell
   Api POST /v1/cards/query '{"select":"id,due","shape":"object","limit":5}' | J
@@ -549,7 +572,7 @@ should repaint it **without clicking**. Verb responses are small
 (`{affected, stats}`) — the default view already shows `affected`; add
 `| J` any time you want the full body.
 
-- [ ] Verbs, one at a time (each → HTTP 200 with an `affected` count):
+- [x] Verbs, one at a time (each → HTTP 200 with an `affected` count):
 
   ```powershell
   Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json)
@@ -568,8 +591,15 @@ should repaint it **without clicking**. Verb responses are small
   Api POST /v1/cards:set-ease (@{cards=@(@{id=$cid1; factor=2600})} | ConvertTo-Json -Depth 3)
   ```
 
-- [ ] Answer — the card advances, a revlog row appears; a suspended card is
+- [x] Answer — the card advances, a revlog row appears; a suspended card is
   unsuspended by answering; ease 5 fails validation:
+
+  Verified 2026-09-06 on `[DEV] Yomine`: card `1786225501336` moved from
+  new to learning, reps 0 to 1, with one ease-3 review entry. User confirmed
+  the Browser Due value updated immediately without a click. Card
+  `1786225501352` was verified suspended, then answering with ease 3
+  cleared suspension and moved it to learning. Ease 5 returned HTTP 422;
+  the first card's scheduling values and single review entry were unchanged.
 
   ```powershell
   Api POST /v1/cards:answer (@{answers=@(@{cardId=$cid2; ease=3})} | ConvertTo-Json -Depth 3)
@@ -582,8 +612,14 @@ should repaint it **without clicking**. Verb responses are small
 
   → a review row with `ease: 3`; then `suspended` prints `False`; the
   ease-5 call → HTTP 422 with the validation detail.
-- [ ] Raw column writes — plain column fine, scheduling column needs
+- [x] Raw column writes — plain column fine, scheduling column needs
   `force`:
+
+  Verified 2026-09-06 on `[DEV] Yomine`, card `1786225501336`:
+  factor 2700 returned HTTP 200 and persisted; reps 99 without force
+  returned HTTP 400 naming reps and left reps at 1; with force it returned
+  HTTP 200 and persisted reps 99. Restored and read back the original
+  factor 0 and reps 1 after the check.
 
   ```powershell
   Api POST /v1/cards:set-values (@{cardId=$cid2; values=@{factor=2700}} | ConvertTo-Json)
@@ -593,15 +629,34 @@ should repaint it **without clicking**. Verb responses are small
 
   → 200, then HTTP 400 naming the risky column (full message via `J`),
   then 200.
-- [ ] Gate check — `:set-memory-state` → HTTP 400 until you enable its gate
+- [x] Gate check — `:set-memory-state` → HTTP 400 until you enable its gate
   in the settings dialog; after enabling (no restart) it works:
+
+  Verified 2026-09-06 on `[DEV] Yomine`, card `1786225501336`: disabled
+  gate returned HTTP 400 naming `gates.cards_set_memory_state`, with
+  memory state unchanged. After enabling in Settings without restarting,
+  the same request returned HTTP 200, affected 1; readback showed stability
+  5.0 and difficulty 3.200000047683716 (float storage rounding). Restored
+  and verified original stability 2.30649995803833 and difficulty
+  2.118000030517578. User confirmed the gate was disabled again afterward.
 
   ```powershell
   Api POST /v1/cards:set-memory-state (@{cards=@(@{id=$cid2; memory_state=@{stability=5.0; difficulty=3.2}})} | ConvertTo-Json -Depth 4) | J
   ```
 
-- [ ] **Batch** — one op, ONE undo entry (`J` shows the per-op `results`
+- [x] **Batch** — one op, ONE undo entry (`J` shows the per-op `results`
   array the default view hides):
+
+  Verified 2026-09-06 on `[DEV] Yomine`: HTTP 200, affected 3, with
+  three per-op results each affected 1. User invoked Undo once and saw
+  the blue flag disappear. API comparison against pre-batch snapshots
+  confirmed all three cards' scheduling, suspension, flags and memory
+  state restored. In particular, `1786223679020` returned to queue 0,
+  unsuspended, retaining its pre-existing orange flag; `1786225501336`
+  returned to learning with due 1788729171; `1786225501352` returned to
+  flag 0. Invalid-only `suspennd` request returned HTTP 400 listing valid
+  operations, with the target card still unsuspended. This invalid-only
+  check does not establish rollback of a partially executed mixed batch.
 
   ```powershell
   Api POST /v1/cards:batch (@{operations=@(
@@ -623,7 +678,13 @@ should repaint it **without clicking**. Verb responses are small
 
 ## 9. Reviews & tags
 
-- [ ] Reads — the review columns, not a truncated blob:
+- [x] Reads — the review columns, not a truncated blob:
+
+  Verified 2026-09-06 on `[DEV] Yomine`: first five reviews returned
+  expected columns in ascending id order; all seven TestSuite reviews
+  belonged to card ids independently fetched from TestSuite. First 100
+  rows of the ease-3 filter all had ease 3 and ascending ids (further
+  pages not checked).
 
   ```powershell
   (Api GET "/v1/reviews?limit=5").items | Select-Object id, card_id, ease, interval, factor, type | Format-Table
@@ -634,9 +695,17 @@ should repaint it **without clicking**. Verb responses are small
   → rows in review order (`id` is the review's epoch-ms timestamp); the
   search form returns only reviews of TestSuite cards; the where form
   only `ease: 3` rows.
-- [ ] Insert (history import) — both rows land atomically, and the **undo
+- [x] Insert (history import) — both rows land atomically, and the **undo
   history is cleared** (expected: raw revlog write, Anki's own dbproxy
   behaviour):
+
+  Verified 2026-09-06 on `[DEV] Yomine`: inserted review ids
+  1788729794335 and 1788729794336 for card 1786225501336; HTTP 200,
+  inserted 2, with both rows read back. Repeating the same payload returned
+  HTTP 500, "Insert reviews failed", and the three existing rows remained
+  unchanged with no duplicates. User confirmed "Undo Edit Card" became
+  disabled. This duplicate-only check does not prove rollback when a new
+  row precedes a conflicting row in the same request.
 
   ```powershell
   $now = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()   # CAPTURE
@@ -651,7 +720,18 @@ should repaint it **without clicking**. Verb responses are small
   Re-running the same insert (same ids) → an error response and
   **neither** row duplicated — the transaction rolls back, `inserted` is
   never partial.
-- [ ] Tags:
+- [x] Tags:
+
+  Verified 2026-09-06 on `[DEV] Yomine`, note 1786223679020:
+  bulk-add returned HTTP 200, affected 1; note and prefix list included
+  ts-bulk, and user confirmed it appeared in the sidebar. Rename returned
+  HTTP 200, affected 1; note and prefix list replaced ts-bulk with
+  ts-bulk2. User confirmed sidebar rename appeared on window focus.
+  Bulk-remove returned HTTP 200, affected 1; note tags restored to [ts].
+  User confirmed the note's Tags field showed only ts. Clear-unused
+  returned HTTP 200, affected 2; prefix list now contains only ts, with
+  ts-added and ts-bulk2 removed. Note still has [ts]. User confirmed
+  both unused tags disappeared from the Browser sidebar.
 
   ```powershell
   (Api GET /v1/tags).items
@@ -668,7 +748,14 @@ should repaint it **without clicking**. Verb responses are small
 
 ## 10. Media
 
-- [ ] Base64 upload, then the same name again → stored under a new name:
+- [x] Base64 upload, then the same name again → stored under a new name:
+
+  Verified 2026-09-06 on `[DEV] Yomine`: both uploads returned HTTP 201,
+  size 13. First stored ts.txt with renamed false; second stored
+  ts-fc436fef492fd917ec8ffae16c74013d8181af95.txt with renamed true.
+  Downloads returned text/plain and preserved distinct contents:
+  "hello tsunagi" and "other content". Deleted the renamed file and
+  confirmed HTTP 404; ts.txt retained for the later list/delete check.
 
   ```powershell
   Api POST /v1/media '{"filename":"ts.txt","data":"aGVsbG8gdHN1bmFnaQ=="}' | J
@@ -677,14 +764,29 @@ should repaint it **without clicking**. Verb responses are small
 
   → first `{filename: "ts.txt", renamed: false}`; second `renamed: true`
   with a different stored `filename` (delete that one after checking).
-- [ ] URL fetch:
+- [x] URL fetch:
+
+  Verified 2026-09-06 on `[DEV] Yomine`: checklist URL imported as
+  ts-readme.md, HTTP 201, renamed false, size 7966. Download returned
+  HTTP 200 with a nonempty body and Content-Length 7966. Retained for
+  the later media listing and cleanup check.
 
   ```powershell
   Api POST /v1/media '{"url":"https://raw.githubusercontent.com/mcgrizzz/Tsunagi/main/README.md","filename":"ts-readme.md"}' | J
   ```
 
   → 201 with `size` > 0.
-- [ ] Local-path gate:
+- [x] Local-path gate:
+
+  Verified 2026-09-06 on `[DEV] Yomine` using a uniquely named text file
+  in Windows Temp (tsunagi-local-3363f97ec6474410a172d4b1cdf6365a.txt).
+  Disabled gate returned HTTP 400 naming gates.media_allow_local_path;
+  media listing confirmed no file created. After user enabled and saved
+  without restarting, the identical import returned HTTP 201, size 15.
+  Download returned HTTP 200, text/plain, exact content "hello from disk".
+  Gate reset verified by repeating the import and receiving the disabled-
+  gate HTTP 400. Imported file deleted and confirmed HTTP 404; temporary
+  source file removed from Windows Temp.
 
   ```powershell
   Set-Content C:\Users\Public\ts-local.txt "hello from disk"
@@ -693,7 +795,13 @@ should repaint it **without clicking**. Verb responses are small
 
   → HTTP 400 while `media_allow_local_path` is off; enable it in the
   settings dialog (no restart) → re-run → 201.
-- [ ] List, download (real Content-Type), delete, confirm gone:
+- [x] List, download (real Content-Type), delete, confirm gone:
+
+  Verified 2026-09-06 on `[DEV] Yomine`: prefix listing included all
+  three uploads with filename, size and mtime. ts.txt download previously
+  returned HTTP 200, text/plain, exact content "hello tsunagi". Deleted
+  ts.txt, ts-readme.md and the uniquely named local-path upload; each
+  returned HTTP 200, success true, followed by HTTP 404 on download.
 
   ```powershell
   (Api GET "/v1/media?prefix=ts").items | Format-Table
@@ -704,7 +812,11 @@ should repaint it **without clicking**. Verb responses are small
 
   → the uploads as filename/size/mtime rows; download `200` +
   `text/plain`; delete `success: true`; final GET `404`.
-- [ ] Traversal refused, nothing written:
+- [x] Traversal refused, nothing written:
+
+  Verified 2026-09-06: GET with --path-as-is to
+  /v1/media/..%2Fcollection.anki2 returned HTTP 400,
+  "filename must not contain path separators".
 
   ```powershell
   curl.exe -s -o NUL -w "%{http_code}`n" @K "$T/v1/media/..%2Fcollection.anki2"
@@ -714,12 +826,31 @@ should repaint it **without clicking**. Verb responses are small
 
 ## 11. FSRS & jobs
 
-FSRS optimization needs review history — on the throwaway profile expect a
-clean "not enough reviews" job error, which is itself a pass. For real
+FSRS optimization needs review history. With sparse history, Anki 23.10
+reports a failed job with an insufficient-history error; newer Anki can
+return done with empty params and fsrs_items 0. Either is an expected
+version-dependent result; empty params are not a trained model. For real
 numbers, re-run this suite against your real collection: compute/evaluate
 only *return* parameters, they write nothing.
 
-- [ ] Submit → poll (`J` shows the nested `progress`/`result`):
+- [x] Submit → poll (`J` shows the nested `progress`/`result`):
+
+  Observed 2026-09-06 on `[DEV] Yomine`: submitting deck:TestSuite
+  returned HTTP 202, job c1c9c3132560, status queued. Poll returned
+  HTTP 200, status done, result {params: [], fsrs_items: 0,
+  health_check_passed: null}, error null. Submission/polling worked,
+  but no usable parameters were produced and no not-enough-reviews
+  error was reported. Confirmed this matches the adapter's deliberate
+  passthrough and existing test_sparse_history_reports_done_with_empty_params
+  test for newer Anki. Checklist expectation corrected; running/progress
+  was not observed before this small job completed. Existing test inspected,
+  not rerun in this environment.
+
+  Broader-history retest on the same test profile: job 6ca5095d4267
+  returned HTTP 202, was observed running, then done with 21 finite
+  parameters and fsrs_items 211593, error null. Successful computation
+  verified; the empty TestSuite result above is also expected for this
+  Anki version's sparse-history path.
 
   ```powershell
   $job = Api POST /v1/fsrs:compute-params '{"search":"deck:TestSuite"}'   # CAPTURE
@@ -727,9 +858,16 @@ only *return* parameters, they write nothing.
   ```
 
   → HTTP 202 with `job_id`; polls show `queued`/`running` (with progress),
-  then `done` with `result.params` — or `error` with Anki's
-  not-enough-reviews message on a thin collection.
-- [ ] Abort:
+  then `done` with `result.params`. On sparse history, expect `failed`
+  with an insufficient-history `error` on Anki 23.10, or `done` with
+  `result.params: []` and `result.fsrs_items: 0` on newer Anki. Only
+  nonempty computed parameters are used in the evaluation check below.
+- [x] Abort:
+
+  Verified 2026-09-06 on `[DEV] Yomine`: collection-wide computation
+  returned HTTP 202, job b754177b6c36, queued. Immediate abort returned
+  HTTP 200 with status running while cancellation was pending; the next
+  poll returned status aborted, error "Interrupted", result null.
 
   ```powershell
   $job2 = Api POST /v1/fsrs:compute-params '{}'
@@ -737,22 +875,51 @@ only *return* parameters, they write nothing.
   ```
 
   → status ends `aborted` (poll once more if it was mid-transition).
-- [ ] One-job rule: submit two computes back-to-back → the second is
+- [x] One-job rule: submit two computes back-to-back → the second is
   rejected or queued per the rule, never interleaved garbage.
-- [ ] Synchronous endpoints (defaults are fine; on a real collection
-  compare against Anki's own FSRS optimizer output):
+
+  Verified 2026-09-06 on `[DEV] Yomine`: first submission returned
+  HTTP 202, job 8915b5f600d7; second returned HTTP 409 naming the
+  already-running job. Poll showed running with progress current 710524,
+  total 1658224. Aborted the accepted job after the check and confirmed
+  its terminal status was aborted; the error explained that computation
+  had already finished and its result was discarded.
+- [x] Synchronous endpoints (supply explicit simulation limits; on a real
+  collection compare against Anki's own FSRS optimizer output):
+
+  Observed 2026-09-06 on `[DEV] Yomine`: all three requests returned
+  HTTP 200. Simulation returned four numeric arrays of length 30;
+  daily_review_count, daily_new_count and daily_time_cost were all zero.
+  Workload returned cost/memorized/review_count maps for retentions 70–99,
+  but costs and review counts were all zero and memorized values identical.
+  Optimal retention returned 0.9367321133613586, within (0, 1).
+  Confirmed the schema defaults deck_size, new_limit, review_limit and
+  max_interval to zero and passes them directly to Anki. The zero-workload
+  result came from the checklist's omitted limits. Retest with the explicit
+  body below returned HTTP 200 for all three endpoints, four length-30
+  arrays with nonzero activity, positive workload costs/review counts for
+  every retention 70–99, and retention 0.9367321133613586. This signs off
+  functional output checks, not numerical agreement with Anki's UI.
 
   ```powershell
-  $sim = Api POST /v1/fsrs:simulate '{"days_to_simulate":30}'
+  $simBody = '{"days_to_simulate":30,"deck_size":100,"new_limit":10,"review_limit":100,"max_interval":36500,"desired_retention":0.9,"search":"deck:TestSuite"}'
+  $sim = Api POST /v1/fsrs:simulate $simBody
   $sim.daily_review_count
   $sim.daily_new_count
-  Api POST /v1/fsrs:simulate-workload '{"days_to_simulate":30}' | J
-  Api POST /v1/fsrs:optimal-retention '{"days_to_simulate":30}' | J
+  Api POST /v1/fsrs:simulate-workload $simBody | J
+  Api POST /v1/fsrs:optimal-retention $simBody | J
   ```
 
   → two 30-number arrays print in full; the workload maps and a
   `retention` in (0, 1) as JSON.
-- [ ] Evaluate with the computed params (real collection):
+- [x] Evaluate with the computed params (real collection):
+
+  Verified 2026-09-06 using the broader review history already present
+  in `[DEV] Yomine`; no profile switch. Submitted the 21 parameters from
+  job 6ca5095d4267. Evaluation returned HTTP 202, job 8fae703883a3;
+  observed running with progress 44032/211590, then done, error null,
+  log_loss 0.4507100582122803 and rmse_bins 0.031009767204523087.
+  Parameters were not applied to deck settings.
 
   ```powershell
   $done = Api GET "/v1/jobs/$($job.job_id)"
@@ -767,15 +934,31 @@ only *return* parameters, they write nothing.
 Each produces its visible effect and returns cleanly. Responses are small —
 the default view is enough except where marked.
 
-- [ ] `Api POST /v1/gui:browse '{"query":"deck:TestSuite"}'` → Browser opens
+- [x] `Api POST /v1/gui:browse '{"query":"deck:TestSuite"}'` → Browser opens
   filtered; response carries the matching `card_ids` (print them all with
   `(Api POST /v1/gui:browse '{"query":"deck:TestSuite"}').card_ids`).
-- [ ] `Api POST /v1/gui:select-card (@{card_id=$cid2} | ConvertTo-Json)` →
+  Verified 2026-09-06: HTTP 200 with seven matching card ids; user
+  confirmed Browser opened/came forward with deck:TestSuite and seven cards.
+- [x] `Api POST /v1/gui:select-card (@{card_id=$cid2} | ConvertTo-Json)` →
   the row highlights. Select a few rows by hand, then
   `(Api GET /v1/gui/selected-notes).note_ids` → their note ids print.
-- [ ] `Api POST /v1/gui:edit-note (@{note_id=$nid} | ConvertTo-Json)` → the
-  edit dialog opens on that note.
-- [ ] Add Cards dialog:
+  Verified 2026-09-06: select-card returned HTTP 200, ok true;
+  selected-notes initially returned only 1786225501336 (card-seed-1).
+  After user selected card-seed-1 and card-seed-2 together, selected-notes
+  returned exactly [1786225501336, 1786225501352].
+- [x] `Api POST /v1/gui:edit-note (@{note_id=$nid} | ConvertTo-Json)` → the
+  target note is available for editing.
+  Verified 2026-09-06 on Anki 26.08.1: HTTP 200, ok true. User confirmed
+  Front tsunagi-front-1 and Back DOG in the Browser's editor sidebar,
+  not a separate dialog. No field changes made.
+- [x] Add Cards dialog:
+
+  Verified 2026-09-06 on `[DEV] Yomine`: add-cards returned HTTP 200,
+  note_id 0; user confirmed TestSuite / Basic, Front "from gui:add-cards",
+  Back "x". set-add-note-data with append true returned HTTP 200,
+  ok true; user confirmed Back became "xappended" and Front stayed
+  unchanged. Add was not clicked; user confirmed the Add Cards window
+  was closed afterward.
 
   ```powershell
   Api POST /v1/gui:add-cards '{"deckName":"TestSuite","modelName":"Basic","fields":{"Front":"from gui:add-cards","Back":"x"}}'
@@ -784,12 +967,37 @@ the default view is enough except where marked.
 
   → dialog opens pre-filled; the second call updates the open dialog's
   fields.
-- [ ] Navigation: `Api POST /v1/gui:deck-browser`, then
+- [x] Navigation: `Api POST /v1/gui:deck-browser`, then
   `Api POST /v1/gui:deck-overview '{"name":"TestSuite"}'`, then
   `Api POST /v1/gui:deck-review '{"name":"TestSuite"}'` → lands **directly
   in the reviewer** (make sure TestSuite has due/new cards; suite 8's
   forget left some new).
-- [ ] Reviewer flow by API only (`J` on current-card shows the nested card):
+  Verified 2026-09-06: all three routes returned HTTP 200, ok true.
+  User confirmed overview -> deck list (rerun from a distinct starting
+  screen), deck list -> TestSuite overview, and overview -> reviewer
+  question with Show Answer. current-card returned review_active true,
+  card.card_id 1786225501336, Front card-seed-1, deck TestSuite.
+- [x] Reviewer flow by API only (`J` on current-card shows the nested card):
+
+  In progress 2026-09-06: current-card identified card-seed-1
+  (1786225501336); show-answer returned HTTP 200 and user confirmed
+  Back b with rating buttons. answer-card ease 3 returned HTTP 200;
+  current-card changed to card-seed-2 (1786225501352), and user confirmed
+  its question side. After Undo and another show-answer, show-question
+  returned HTTP 200; user confirmed Back b was hidden and Show Answer
+  was visible again. start-card-timer returned HTTP 200, ok true; elapsed
+  timer behavior not independently measured; timer endpoint smoke check only.
+  Temporary audio fixture created: deck TestSuite::AudioCheck
+  (1788752557678), note/card 1788752557964, media
+  tsunagi-audio-check-20260906.wav (quiet half-second 440 Hz tone).
+  Sound was on the answer side. User heard automatic playback after
+  show-answer and saw the play button. Explicit play-audio returned
+  HTTP 200, ok true; user confirmed hearing the tone replay without
+  clicking. Left reviewer and deleted fixture note, empty subdeck and
+  media; all three deletes returned success. Filtered note/deck list
+  reads returned no items; media download returned 404. Direct GET by
+  note/deck id is unsupported (405), so list filters verified removal.
+  Cleared the unused fixture tag afterward.
 
   ```powershell
   Api GET /v1/gui/current-card | J
@@ -799,19 +1007,38 @@ the default view is enough except where marked.
   ```
 
   → question shown → answer shown → the second current-card is a
-  different `card.id`.
+  different `card.card_id`.
   Also: `Api POST /v1/gui:show-question`, `Api POST /v1/gui:start-card-timer`,
   and `Api POST /v1/gui:play-audio` on a card with `[sound:...]`.
-- [ ] `Api POST /v1/gui:undo` → undoes the reviewer answer (Anki shows its
+- [x] `Api POST /v1/gui:undo` → undoes the reviewer answer (Anki shows its
   undo toast).
-- [ ] `Api POST /v1/gui:import-file '{"path":"C:\\Users\\Public\\ts-export.apkg"}'`
+  In progress 2026-09-06: HTTP 200, ok true; card-seed-1 review history
+  returned to its three pre-answer entries. Immediate current-card read
+  still reported card-seed-2, but a later poll returned card-seed-1,
+  confirming an asynchronous reviewer transition. User confirmed
+  card-seed-1 returned and the undo notification appeared.
+- [x] `Api POST /v1/gui:import-file '{"path":"C:\\Users\\Public\\ts-export.apkg"}'`
   → Anki's import flow opens (run after suite 13 creates the file).
+  Verified 2026-09-06 with the temporary package from suite 13:
+  HTTP 200, ok true; user confirmed an import screen opened, then closed
+  it without importing again.
 - [ ] LAST, if you want: `Api POST /v1/gui:exit` quits Anki
   (known-cosmetic traceback if Add Cards is open).
 
 ## 13. Collection & profiles (destructive-ish — do late)
 
-- [ ] Export → file exists → import it back (dupes skipped per Anki rules):
+- [x] Export → file exists → import it back (dupes skipped per Anki rules):
+
+  Verified 2026-09-06 on `[DEV] Yomine`: exported TestSuite to
+  C:\Users\Andrew\AppData\Local\Temp\tsunagi-export-a2e24429104340f6b7b68049217a0317.apkg.
+  HTTP 200, success true; file exists, 57201 bytes, ZIP opens and contains
+  meta, collection.anki21b, collection.anki2 and media. Import returned
+  HTTP 200, imported 0, updated 0. All seven TestSuite card/note id pairs
+  unchanged afterward. User confirmed main window stayed unchanged.
+  Adapter inspection confirms this route calls collection import directly
+  and returns counts without opening an import summary. Package retained
+  for suite 12's separate GUI import check; after user closed that screen,
+  the temporary package was removed and its absence verified.
 
   ```powershell
   Api POST /v1/collection:export '{"deck":"TestSuite","path":"C:\\Users\\Public\\ts-export.apkg"}'
@@ -820,15 +1047,61 @@ the default view is enough except where marked.
   ```
 
   → `success: true`; `True`; import prints its `imported`/`updated`
-  counts and Anki shows its import summary.
-- [ ] `Api POST /v1/collection:check-database` → `success: true`, Anki
+  counts. This collection API does not open a summary window; test the
+  visible import flow separately with suite 12's gui:import-file route.
+- [x] `Api POST /v1/collection:check-database` → `success: true`, Anki
   stays healthy. `Api POST /v1/collection:reload` → collection reopens
   (deck list flickers/refreshes).
+  Verified 2026-09-06: check-database returned HTTP 200,
+  success true. User reported "Added last review time to 1 card.
+  Database rebuilt and optimized." User dismissed the result popup.
+  Reload returned HTTP 200, success true; health ok, active profile still
+  [DEV] Yomine and all seven TestSuite card/note id pairs unchanged.
+  User confirmed Anki remained responsive with no error popups.
 - [ ] Optional, with AnkiWeb configured: `Api POST /v1/collection:sync | J`
   → sync runs; watch suite 14's `sync started/finished` + `reset` events
   while it does.
-- [ ] Profiles — list, switch away and back; requests during the switch →
-  503, never corruption:
+- [x] Profiles — list, switch away and back. The server restarts during
+  switching: requests may receive 503 or a connection interruption;
+  reconnect and confirm the active profile before continuing.
+
+  In progress 2026-09-06: user authorized Tsunagi as a second disposable
+  profile. POST profiles:load from [DEV] Yomine to Tsunagi completed with
+  HTTP 500, plain-text "Internal Server Error". A concurrent profiles
+  probe encountered connection refusal during restart; later GET profiles
+  returned HTTP 200, active Tsunagi. The switch succeeded despite the
+  initiating request failing. Keep open as a lifecycle/response issue;
+  User screenshots confirmed Tsunagi loaded while the Profiles dialog
+  remained open, still highlighting [DEV] Yomine. Adapter inspection:
+  visible-main-window branch calls unloadProfileAndShowProfileManager,
+  then loads the target in a timer callback without closeWithoutQuitting;
+  that close exists only in the initially-hidden-window branch. Profile
+  close also invokes stop_server, explaining the listener outage; the
+  exact HTTP 500 cause still needs a traceback or focused reproduction.
+  Reproduction after user closed the dialog: initial GET reported active
+  [DEV] Yomine; same-profile load returned HTTP 200, loaded true. Retried
+  [DEV] Yomine -> Tsunagi: again HTTP 500, followed by HTTP 200 from
+  profiles with active Tsunagi. Repeat UI confirmation pending; leave
+  any Profiles dialog open. Controlled return-switch test still pending.
+
+  Fix prepared 2026-09-07: defer profile switching to the next Qt event
+  loop turn so call_on_main releases the requesting HTTP handler before
+  profile-close server draining, and close the Profiles dialog after
+  loading the target in either branch. API description now documents
+  acceptance versus completion and restart connection interruptions.
+  Five new regression cases cover deferred unloading, delayed unload,
+  manager-only switching and unknown/current profile no-ops. Validation
+  on Python 3.10 / Anki 23.10: 837 passed, 8 skipped; Ruff passed.
+  Installed source synced and user reloaded the add-on. First live retest:
+  Tsunagi -> [DEV] Yomine returned HTTP 200, loaded true (previously 500).
+  Follow-up profiles read returned HTTP 200, active [DEV] Yomine; all
+  seven TestSuite cards remain accessible. User confirmed the Profiles
+  dialog closed automatically. Reverse retest [DEV] Yomine -> Tsunagi
+  also returned HTTP 200, loaded true; follow-up profiles read confirmed
+  active Tsunagi. User confirmed no leftover dialog in that direction
+  either. Returned to [DEV] Yomine with HTTP 200; confirmed active profile
+  and all seven TestSuite cards. Profile switching passed in both
+  directions after the fix on Anki 26.08.1.
 
   ```powershell
   $profs = Api GET /v1/profiles   # CAPTURE
@@ -852,45 +1125,128 @@ curl.exe -N "$T/v1/events?api_key=test-key-123"
 
 Trigger from terminal B / the Anki UI:
 
-- [ ] Connect: `retry:` preamble + `: connected`; `: ping` about every 15s.
-- [ ] Review a card in Anki's reviewer → `review {card_id, ease}` then
+- [x] Connect: `retry:` preamble + `: connected`; `: ping` about every 15s.
+  Verified 2026-09-07: HTTP 200, text/event-stream, retry: 3000 and
+  : connected on opening. A 20-second stream emitted : ping, then
+  close {"reason":"timeout"} and exited cleanly (curl exit 0).
+- [x] Review a card in Anki's reviewer → `review {card_id, ease}` then
   `op {origin:"ui", changes:[...card, study_queues...]}` with a label.
-- [ ] Type in Anki's note editor → one `op` per keystroke, label
-  "Update Note" (Anki's own granularity — clients debounce).
-- [ ] API write: `Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json)`
+  Verified 2026-09-07: user answered one card Good in Anki. Stream
+  emitted review seq 1, card_id 1786225501336, ease 3, followed by
+  op seq 2, origin ui, label "Answer Card", changes including card,
+  deck, mtime, browser_table, browser_sidebar and study_queues.
+- [x] Type in Anki's note editor and let the edit save → UI `op`, label
+  "Update Note". Observe Anki's save granularity rather than requiring
+  one event per keystroke.
+  Verified 2026-09-07: user typed 123 normally after DOG; API readback
+  confirmed DOG123. Captured one op (seq 3), origin ui, label Update Note,
+  changes note, mtime, browser_table and note_text. This run did not emit
+  one event per character. User restored DOG; API readback confirmed it,
+  and the stream emitted a second UI Update Note event (seq 4).
+- [x] API write: `Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json)`
   → `op {origin:"api", card_ids:[...], label:"Suspend"}`. A note patch
   carries `note_ids`; a deck patch carries `deck_ids`.
-- [ ] `cards:batch` (suite 8's three-op body) → **one** `op`, label
+  In progress 2026-09-07: suspend returned HTTP 200, affected 1, and
+  exactly one op (seq 5), origin api, label Suspend,
+  card_ids [1786223679020]. Cleanup unsuspend affected 1 and emitted
+  one op (seq 6), origin api, label Unbury/Unsuspend, same card_ids.
+  Readback confirmed queue 0, suspended false. Note patch emitted one
+  Update Note op (seq 7), origin api, note_ids [1786223679020]. Deck
+  description patch emitted one Update Deck op (seq 8), origin api,
+  deck_ids [1786219820315]. Restoring both produced corresponding ops
+  seq 9/10; independent reads confirmed Back DOG and empty description.
+- [x] `cards:batch` (suite 8's three-op body) → **one** `op`, label
   "Card Batch", the union of the card ids.
-- [ ] Shim write: `Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid2; ease=3})}} | ConvertTo-Json -Depth 4)`
+  Verified 2026-09-07: fresh stream captured exactly one op (seq 11),
+  origin api, label Card Batch, card_ids
+  [1786223679020,1786225501336,1786225501352]; response affected 3 with
+  three per-op affected counts of 1. API Undo returned HTTP 200; all
+  three cards' saved scheduling, suspension, flag and memory values
+  matched the pre-batch snapshots afterward. Separate follow-up finding:
+  the undo op (seq 12) had origin null and label Update Deck despite
+  reverting Card Batch. Diagnosed 2026-09-07: the hook reads the next
+  undoable action's label after undo, not the action just reversed. Fix
+  omits this unreliable label when handler is None, retaining origin null
+  and change flags. Identified API/UI operations retain their labels.
+  Added regression coverage; 52 targeted event/GUI tests passed, Ruff
+  and code diff checks passed. Installed source synced and user reloaded.
+  Live retest passed: suspension emitted one origin-api op with label
+  Suspend and the correct card_ids; Undo emitted one origin-null op with
+  change flags and no label. Independent readback matched the pre-test
+  card scheduling/flag/memory values, with suspended false. Incorrect
+  undo-label finding resolved.
+- [x] Shim write: `Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid2; ease=3})}} | ConvertTo-Json -Depth 4)`
   → `op {origin:"api", card_ids}` and **no** `review` event (that hook is
   reviewer-only).
+  Verified 2026-09-07: keyed answerCards call returned HTTP 200,
+  result [true], error null. One op (seq 13), origin api, label Answer
+  Card, card_ids [1786225501336]; no review event during capture. One
+  new ease-3 review row was saved. API Undo restored the saved card
+  scheduling/memory values and exactly the original four review rows.
+  Undo metadata issue reproduced: seq 14, origin null, label Update Deck.
 - [ ] Sync (if configured) → `sync started`, `sync finished`, then `reset`.
-- [ ] Change the API key in the settings dialog mid-stream → stream ends
+- [x] Change the API key in the settings dialog mid-stream → stream ends
   with `close {"reason":"auth"}`. (Change it back, restart terminal A.)
-- [ ] `tsunagi.reload_addon()` in the debug console (or a profile switch)
+  Verified 2026-09-07: fresh stream connected using test-key-123; user
+  changed and saved test-key-456. Old stream emitted close reason auth
+  and exited cleanly. Old header key returned HTTP 401, new header key
+  returned HTTP 200. Fresh stream with new key connected and ended with
+  timeout after two seconds. User restored test-key-123; profiles returned
+  HTTP 200 with that key, and a fresh event stream connected successfully.
+- [x] `tsunagi.reload_addon()` in the debug console (or a profile switch)
   with the stream open → `close {"reason":"shutdown"}`, port rebinds,
   reconnect works, and events arrive **exactly once** (no duplicate
   hooks).
-- [ ] Script ergonomics — both close themselves with their reason:
+  In progress 2026-09-07: initial capture reached its 590-second timeout
+  before user reload, so shutdown reason was not tested. After reload,
+  health and reconnect returned HTTP 200; a 15-second capture saw exactly
+  one Suspend op for one API write, no duplicate. Card was unsuspended
+  afterward and verified. Opened a replacement stream without server-side
+  timeout (client cap two hours). On the repeated reload, captured close
+  reason shutdown and clean stream exit. Health/reconnect returned HTTP
+  200; a fresh 10-second capture contained exactly one Suspend op for
+  one write (seq 1), then timeout close. Cleanup unsuspend succeeded;
+  readback confirmed queue 0 and suspended false.
+- [x] Script ergonomics — both close themselves with their reason:
+
+  Verified 2026-09-07: timeout=2 connected with HTTP 200, then emitted
+  close reason timeout and exited 0 after about two seconds. max_events=1
+  connected with HTTP 200; one suspension produced exactly one op, then
+  close reason max_events and exit 0. Cleanup unsuspend returned affected
+  1, with readback confirming queue 0 and suspended false.
 
   ```powershell
   curl.exe -N "$T/v1/events?api_key=test-key-123&timeout=2"
   curl.exe -N "$T/v1/events?api_key=test-key-123&max_events=1"
   ```
 
-- [ ] Browser check: from a page on an allowlisted origin,
+- [x] Browser check: from a page on an allowlisted origin,
   `new EventSource("http://127.0.0.1:7777/v1/events?api_key=test-key-123")`
   → events visible in DevTools' Network → EventStream tab.
+  Verified 2026-09-07 from http://localhost:7777/docs: user created an
+  EventSource for /v1/events?api_key=test-key-123 and confirmed connected.
+  One API suspension returned affected 1; user confirmed Console received
+  an op with origin api, label Suspend, card_ids [1786223679020].
+  Verified through the Console listener; EventStream-tab inspection was
+  optional and not separately confirmed. Cleanup unsuspend affected 1;
+  readback queue 0, suspended false. User confirmed Browser EventSource
+  was closed afterward.
 
 ## 15. AnkiConnect shim — protocol
 
 All through `POST /`. With a key set, the shim takes it as the body `"key"`
-field (headers also accepted — the middleware runs first). Every command
+field; an X-Api-Key header alone is not accepted by the shim. Every command
 below pipes through `J` — the `{result, error}` envelope is exactly what
 each check inspects, and the default table view mangles array results.
 
-- [ ] Envelope + key handling:
+- [x] Envelope + key handling:
+
+  Verified 2026-09-07: valid body key returned HTTP 200, result 6,
+  error null; wrong body key returned the canonical key error envelope.
+  Version 4 deckNames returned a bare name array. Malformed JSON returned
+  HTTP 200 with error "request body is not valid JSON", not HTTP 422.
+  Header-only version request returned the key error; corrected the
+  checklist's mistaken header-auth claim.
 
   ```powershell
   Api POST / '{"action":"version","version":6,"key":"test-key-123"}' | J
@@ -903,55 +1259,95 @@ each check inspects, and the default table view mangles array results.
   must be provided"}`; a **bare** name array (version ≤ 4 has no
   envelope); an error envelope — **never** a 422 body.
 
-  The remaining commands omit `"key"` for brevity — the `X-Api-Key` header
-  in `$H` covers them.
-- [ ] Reads:
+  Paste this helper before the remaining checks. It adds the body key
+  while preserving any explicit key in a request (including negative tests):
 
   ```powershell
-  Api POST / '{"action":"deckNames","version":6}' | J
-  Api POST / '{"action":"modelNames","version":6}' | J
-  Api POST / '{"action":"findNotes","version":6,"params":{"query":"deck:TestSuite"}}' | J
-  Api POST / '{"action":"findCards","version":6,"params":{"query":"deck:TestSuite"}}' | J
-  Api POST / (@{action="notesInfo";      version=6; params=@{notes=@($nid)}}  | ConvertTo-Json -Depth 3) | J
-  Api POST / '{"action":"notesInfo","version":6,"params":{"query":"deck:*"}}' | Out-Null   # broad: slow ok, 503 NOT ok
-  Api POST / (@{action="cardsInfo";      version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="getEaseFactors"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="areDue";         version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="getIntervals";   version=6; params=@{cards=@($cid2); complete=$true}} | ConvertTo-Json -Depth 3) | J
+  function Rpc {
+    param([string]$Body)
+    $request = $Body | ConvertFrom-Json
+    if (-not $request.PSObject.Properties['key']) {
+      $request | Add-Member -NotePropertyName key -NotePropertyValue 'test-key-123'
+    }
+    Api POST / ($request | ConvertTo-Json -Depth 12)
+  }
+  ```
+- [x] Reads:
+
+  Verified 2026-09-07 with body key: deckNames, modelNames, findNotes,
+  findCards, notesInfo, cardsInfo, getEaseFactors, areDue and getIntervals
+  returned error null. TestSuite findNotes/findCards each returned the
+  expected seven ids; note fields were tsunagi-front-1 / DOG; cardsInfo
+  returned the requested two TestSuite cards; ease factors [2600],
+  due flags [true,false], complete intervals [[-600,1,3,2]]. Broad
+  notesInfo query deck:* returned HTTP 200, about 59.9 MB in 1.68 seconds;
+  parsed response contained 4543 notes and error null. Temporary capture
+  removed afterward.
+
+  ```powershell
+  Rpc '{"action":"deckNames","version":6}' | J
+  Rpc '{"action":"modelNames","version":6}' | J
+  Rpc '{"action":"findNotes","version":6,"params":{"query":"deck:TestSuite"}}' | J
+  Rpc '{"action":"findCards","version":6,"params":{"query":"deck:TestSuite"}}' | J
+  Rpc (@{action="notesInfo";      version=6; params=@{notes=@($nid)}}  | ConvertTo-Json -Depth 3) | J
+  Rpc '{"action":"notesInfo","version":6,"params":{"query":"deck:*"}}' | Out-Null   # broad: slow ok, 503 NOT ok
+  Rpc (@{action="cardsInfo";      version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="getEaseFactors"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="areDue";         version=6; params=@{cards=@($cid1,$cid2)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="getIntervals";   version=6; params=@{cards=@($cid2); complete=$true}} | ConvertTo-Json -Depth 3) | J
   ```
 
   → all answer with `error: null`; the broad `notesInfo` prints only
   `HTTP 200` (body discarded — the check is that it answers at all).
-- [ ] Writes:
+- [x] Writes:
+
+  In progress 2026-09-07: createDeck created TestSuite::Shim, id
+  1788796638769. addNote created note/card 1788796639073, Front shim-note,
+  Back 1, tag shim. Both returned HTTP 200, numeric result, error null.
+  Duplicate Front with allowDuplicate false returned result null and
+  "cannot create note because it is a duplicate". Readback confirmed
+  exactly one note in the subdeck, with original Back 1. Use this
+  temporary note/card for subsequent writes; fixture cleanup pending.
+  updateNoteFields returned result null, error null; notesInfo confirmed
+  Back shim-edited. First suspend returned true and native readback showed
+  queue -1, suspended true. Second suspend returned false. Unsuspend
+  returned null (canonical shape); readback queue 0, suspended false.
+  All calls returned HTTP 200. Scheduling/deck tests also returned 200
+  and error null: forgetCards result null, readback queue/type 0/0;
+  relearnCards result null, queue/type 1/3; setDueDate days 2 result true,
+  queue/type 2/2, due 63; setEaseFactors result [true], factor 2400;
+  changeDeck result null, readback deck TestSuite. Temporary card now
+  lives in TestSuite, with TestSuite::Shim empty; retain for action-quirk
+  tests, then delete fixture note/card and empty subdeck.
 
   ```powershell
-  Api POST / '{"action":"createDeck","version":6,"params":{"deck":"TestSuite::Shim"}}' | J
-  Api POST / '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"1"},"options":{"allowDuplicate":false},"tags":["shim"]}}}' | J
-  Api POST / '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"2"},"options":{"allowDuplicate":false}}}}' | J
-  Api POST / (@{action="updateNoteFields"; version=6; params=@{note=@{id=$nid; fields=@{Back="shim-edited"}}}} | ConvertTo-Json -Depth 4) | J
-  Api POST / (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J   # again -> result: false
-  Api POST / (@{action="unsuspend"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J   # -> result: null (canonical quirk)
-  Api POST / (@{action="forgetCards";  version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="relearnCards"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="setDueDate";   version=6; params=@{cards=@($cid1); days="2"}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="setEaseFactors"; version=6; params=@{cards=@($cid1); easeFactors=@(2400)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="changeDeck";   version=6; params=@{cards=@($cid1); deck="TestSuite"}} | ConvertTo-Json -Depth 3) | J
+  Rpc '{"action":"createDeck","version":6,"params":{"deck":"TestSuite::Shim"}}' | J
+  Rpc '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"1"},"options":{"allowDuplicate":false},"tags":["shim"]}}}' | J
+  Rpc '{"action":"addNote","version":6,"params":{"note":{"deckName":"TestSuite::Shim","modelName":"Basic","fields":{"Front":"shim-note","Back":"2"},"options":{"allowDuplicate":false}}}}' | J
+  Rpc (@{action="updateNoteFields"; version=6; params=@{note=@{id=$nid; fields=@{Back="shim-edited"}}}} | ConvertTo-Json -Depth 4) | J
+  Rpc (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="suspend";   version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J   # again -> result: false
+  Rpc (@{action="unsuspend"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J   # -> result: null (canonical quirk)
+  Rpc (@{action="forgetCards";  version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="relearnCards"; version=6; params=@{cards=@($cid1)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="setDueDate";   version=6; params=@{cards=@($cid1); days="2"}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="setEaseFactors"; version=6; params=@{cards=@($cid1); easeFactors=@(2400)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="changeDeck";   version=6; params=@{cards=@($cid1); deck="TestSuite"}} | ConvertTo-Json -Depth 3) | J
   ```
 
   → second `addNote` errors with canonical's duplicate message; the rest
   match the inline annotations.
-- [ ] The three newest actions, quirks verbatim:
+- [x] The three newest actions, quirks verbatim:
 
   ```powershell
-  Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=3},@{cardId=123; ease=3})}} | ConvertTo-Json -Depth 4) | J
-  Api POST / (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=9})}} | ConvertTo-Json -Depth 4) | J
-  Api POST / '{"action":"setSpecificValueOfCard","version":6,"params":{"card":[1,2],"keys":["factor"],"newValues":[2600]}}' | J
-  Api POST / (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("due"); newValues=@(0)}} | ConvertTo-Json -Depth 3) | J
-  Api POST / (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("due"); newValues=@(0); warning_check=$true}} | ConvertTo-Json -Depth 3) | J
-  Api POST / '{"action":"setSpecificValueOfCard","version":6,"params":{"card":123,"keys":["factor"],"newValues":[2600],"warning_check":true}}' | J
+  Rpc (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=3},@{cardId=123; ease=3})}} | ConvertTo-Json -Depth 4) | J
+  Rpc (@{action="answerCards"; version=6; params=@{answers=@(@{cardId=$cid1; ease=9})}} | ConvertTo-Json -Depth 4) | J
+  Rpc '{"action":"setSpecificValueOfCard","version":6,"params":{"card":[1,2],"keys":["factor"],"newValues":[2600]}}' | J
+  Rpc (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("reps"); newValues=@(5)}} | ConvertTo-Json -Depth 3) | J
+  Rpc (@{action="setSpecificValueOfCard"; version=6; params=@{card=$cid1; keys=@("reps"); newValues=@(5); warning_check=$true}} | ConvertTo-Json -Depth 3) | J
+  Rpc '{"action":"setSpecificValueOfCard","version":6,"params":{"card":123,"keys":["factor"],"newValues":[2600],"warning_check":true}}' | J
   $now2 = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-  Api POST / (@{action="insertReviews"; version=6; params=@{reviews=@(,@($now2, $cid1, -1, 3, 1, 0, 2500, 3000, 0))}} | ConvertTo-Json -Depth 4) | J
+  Rpc (@{action="insertReviews"; version=6; params=@{reviews=@(,@($now2, $cid1, -1, 3, 1, 0, 2500, 3000, 0))}} | ConvertTo-Json -Depth 4) | J
   (Api GET "/v1/reviews?where=id==$now2").items | Select-Object id, card_id, ease | Format-Table
   ```
 
@@ -959,66 +1355,138 @@ each check inspects, and the default table view mangles array results.
   answer before it kept); `result: false`; `result: false` (risky key, no
   warning_check); `result: [true]`; `result: [[false, "..."]]`;
   `result: null` — and the final read shows the inserted row landed.
-- [ ] `multi` — per-action results in order, one failure isolated:
+
+  Live verified 2026-09-07 on disposable shim card `1788796639073`: all
+  result shapes above passed. Corrected the guarded-field probe from `due`
+  (not guarded) to `reps`. Omitted and explicit false `warning_check` both
+  returned false and kept reps at 1; true returned `[true]` and readback
+  showed reps 5. Missing card 123 returned nested false with a message.
+  Inserted review `1788797478685` was read back with the expected values.
+
+- [x] `multi` — per-action results in order, one failure isolated:
 
   ```powershell
-  Api POST / '{"action":"multi","version":6,"params":{"actions":[{"action":"version"},{"action":"bogusAction"},{"action":"deckNames"}]}}' | J
+  Rpc '{"action":"multi","version":6,"params":{"actions":[{"action":"version","key":"test-key-123"},{"action":"bogusAction","key":"test-key-123"},{"action":"deckNames","key":"test-key-123"}]}}' | J
   ```
 
   → `result` is a 3-array: `6`, an `"unsupported action"` entry, the deck
   names.
-- [ ] Compat GUI set behaves like suite 12:
+  Live verified 2026-09-07: HTTP 200, outer error null, ordered results
+  `6`, `{result: null, error: "unsupported action"}`, and the deck names.
+  Each nested action needs its own body key when authentication is enabled;
+  the outer key alone produced three per-action authentication errors.
+
+- [x] Compat GUI set behaves like suite 12:
 
   ```powershell
-  Api POST / '{"action":"guiBrowse","version":6,"params":{"query":"deck:TestSuite"}}' | J
-  Api POST / '{"action":"guiDeckReview","version":6,"params":{"name":"TestSuite"}}' | J
-  Api POST / '{"action":"guiCurrentCard","version":6}' | J
-  Api POST / '{"action":"guiShowAnswer","version":6}' | J
-  Api POST / '{"action":"guiAnswerCard","version":6,"params":{"ease":3}}' | J
+  Rpc '{"action":"guiBrowse","version":6,"params":{"query":"deck:TestSuite"}}' | J
+  Rpc '{"action":"guiDeckReview","version":6,"params":{"name":"TestSuite"}}' | J
+  Rpc '{"action":"guiCurrentCard","version":6}' | J
+  Rpc '{"action":"guiShowAnswer","version":6}' | J
+  Rpc '{"action":"guiAnswerCard","version":6,"params":{"ease":3}}' | J
   ```
 
-- [ ] Collection/media compat:
+  Live verified 2026-09-07: Browse showed `deck:TestSuite` and eight cards.
+  Deck review opened `card-seed-2`; current-card data matched the screen.
+  Show Answer revealed `b` and review buttons. Answering Good returned
+  true and advanced to `tsunagi-front-1`; user undid once and confirmed
+  return to `card-seed-2`.
+
+- [x] Collection/media compat (optional sync excluded):
 
   ```powershell
-  Api POST / '{"action":"getProfiles","version":6}' | J
-  Api POST / '{"action":"exportPackage","version":6,"params":{"deck":"TestSuite","path":"C:\\Users\\Public\\ts-shim-export.apkg"}}' | J
-  Api POST / '{"action":"importPackage","version":6,"params":{"path":"C:\\Users\\Public\\ts-shim-export.apkg"}}' | J
-  Api POST / '{"action":"storeMediaFile","version":6,"params":{"filename":"shim.txt","data":"c2hpbQ=="}}' | J
-  Api POST / '{"action":"getMediaFilesNames","version":6,"params":{"pattern":"shim*"}}' | J
-  Api POST / '{"action":"retrieveMediaFile","version":6,"params":{"filename":"shim.txt"}}' | J
-  Api POST / '{"action":"deleteMediaFile","version":6,"params":{"filename":"shim.txt"}}' | J
-  Api POST / '{"action":"sync","version":6}' | J
+  Rpc '{"action":"getProfiles","version":6}' | J
+  Rpc '{"action":"exportPackage","version":6,"params":{"deck":"TestSuite","path":"C:\\Users\\Public\\ts-shim-export.apkg"}}' | J
+  Rpc '{"action":"importPackage","version":6,"params":{"path":"C:\\Users\\Public\\ts-shim-export.apkg"}}' | J
+  Rpc '{"action":"storeMediaFile","version":6,"params":{"filename":"shim.txt","data":"c2hpbQ=="}}' | J
+  Rpc '{"action":"getMediaFilesNames","version":6,"params":{"pattern":"shim*"}}' | J
+  Rpc '{"action":"retrieveMediaFile","version":6,"params":{"filename":"shim.txt"}}' | J
+  Rpc '{"action":"deleteMediaFile","version":6,"params":{"filename":"shim.txt"}}' | J
   ```
 
   → each in canonical shape (`retrieveMediaFile` → the base64 `c2hpbQ==`,
   `deleteMediaFile` → null; `sync` only with AnkiWeb configured).
-- [ ] Reflection + unknown action:
+  Live verification 2026-09-07: `getProfiles` returned all five
+  profiles with error null. Media round trip passed: `shim.txt` was absent
+  before creation; store returned the filename, listing included it,
+  retrieval returned `c2hpbQ==`, deletion returned null, and the final
+  listing was empty. Export and import each returned true with error null.
+  Export produced a valid 57,349-byte package; after import, all eight card
+  IDs matched the pre-export list. The temporary package was removed.
+
+- [ ] Optional shim sync (only with AnkiWeb configured; not run):
 
   ```powershell
-  Api POST / '{"action":"apiReflect","version":6,"params":{"scopes":["actions"]}}' | J
-  Api POST / '{"action":"noSuchAction","version":6}' | J
+  Rpc '{"action":"sync","version":6}' | J
+  ```
+
+- [x] Reflection + unknown action:
+
+  ```powershell
+  Rpc '{"action":"apiReflect","version":6,"params":{"scopes":["actions"]}}' | J
+  Rpc '{"action":"noSuchAction","version":6}' | J
   ```
 
   → the full action list; `{"result":null,"error":"unsupported action"}`.
+  Live verified 2026-09-07: reflection returned scope `actions` and 122
+  action names with error null. `noSuchAction` returned exactly
+  `{ "result": null, "error": "unsupported action" }`.
+
 
 ## 16. Shim — real clients (the drop-in proof)
 
 AnkiConnect (the real addon) **disabled** throughout.
 
-- [ ] **Yomitan** pointed at Tsunagi's port: card creation from a lookup
+- [x] **Yomitan** pointed at Tsunagi's port: card creation from a lookup
   works end-to-end incl. audio/media; duplicate detection behaves.
-- [ ] **Asbplayer**: mining a card and updating the last card's media.
-- [ ] **Yomine** (your pipeline): add note via Tsunagi → Asbplayer patches
-  media by note id → Yomine sees `op {origin:"api", note_ids:[...]}` on
-  the stream and matches it. No client config changed except the port.
 
-## 17. Performance spot checks (real collection, read-only)
+  Live verified 2026-09-07 using the existing Yomitan settings and Mining
+  destination in `[DEV] Yomine`. User created 船首, note/card
+  `1788801318673` (Kiku). Readback confirmed reading せんしゅ, definitions,
+  sentence, and expression audio; referenced MP3 retrieved successfully
+  (10,508 bytes). User confirmed playback in Anki and Yomitan marking the
+  word already mined on another lookup. Test note retained for client tests.
 
-Switch to your real profile. Every command below prints just the
-`duration_ms` being compared:
+- [x] **Asbplayer**: mining a card and updating the last card's media.
 
-- [ ] Keyset listings — low single-digit ms for the id walk (was: a
-  whole-collection scan per page):
+  Partial live verification 2026-09-07: update-last-card passed on 船首
+  note/card `1788801318673`. SentenceAudio and Picture were added to that
+  same note; the referenced MP3 (86,976 bytes) and JPEG (143,895 bytes)
+  were retrievable. User confirmed screenshot display and sentence audio
+  playback in Anki. Standalone Export also created 椅子席 in Mining,
+  note/card `1788803402613` (Kiku), after the user corrected a setting
+  following an empty-note validation error. Readback confirmed Expression,
+  sentence, furigana, source information, sentence MP3 (78,336 bytes), and
+  screenshot JPEG (158,467 bytes); both media files were retrievable.
+  User confirmed screenshot display and sentence audio playback for this
+  newly exported card in Anki.
+
+- [x] **Yomine** (your pipeline): add note via Tsunagi → Asbplayer patches
+  media → Yomine recognizes and matches the update.
+
+  Live verified 2026-09-07 with the API key disabled by the user because
+  Yomine does not yet support API keys. User confirmed 日本 was recognized
+  and the workflow completed. Readback verified note/card `1788803735014`
+  in Mining, `[DEV] Yomine`, with Expression 日本, sentence, sentence audio
+  (75,456 bytes), and screenshot (233,622 bytes); both files retrieved
+  successfully. This verifies the observed client workflow; the exact event
+  payload and note-targeting request were not captured during this run.
+  Follow-up for Yomine: API-key support for requests and event connections;
+  authenticated client integration remains untested.
+
+## 17. Performance spot checks
+
+Use a populated disposable test profile. Listings below are read-only;
+the separate batch check writes card state and needs Undo verification.
+Every listing command prints total route `duration_ms`, which includes dispatch,
+hydration, filtering, and projection; it does not isolate the ID query or include
+all HTTP response serialization/client overhead. Record at least three runs and
+report median/range, collection size, installed revision, and whether Anki is
+foreground, background, or minimized. Compare before/after in the same state.
+
+- [ ] Keyset listings — verify bounded ID queries and hydration on both pages
+  with instrumentation; record total route and ID-query timings separately.
+  A fast route time alone does not prove that the ID walk is bounded:
 
   ```powershell
   $p1 = Api GET "/v1/cards?limit=100"
@@ -1028,32 +1496,76 @@ Switch to your real profile. Every command below prints just the
   (Api GET "/v1/reviews?limit=100").stats.duration_ms
   ```
 
-- [ ] Two-phase filtered scan — quick despite touching every row (no
-  renders for rejected rows):
+- [x] Two-phase filtered scan — verify complete results, including late matches,
+  and zero renders for rejected rows. Record scanned rows, operation counts,
+  worker time, scheduling waits, and total route median/range. Compare full and
+  narrow selection, and separately compare Anki `search=is:suspended` without
+  assuming that Anki search and the where DSL have identical semantics:
 
   ```powershell
   (Api GET "/v1/cards?where=queue==-1&limit=50").stats.duration_ms
+  (Api GET "/v1/cards?where=queue==-1&select=id,queue&limit=50").stats.duration_ms
+  (Api GET "/v1/cards?search=is:suspended&select=id,queue&limit=50").stats.duration_ms
   ```
 
-- [ ] Narrow vs full hydration — visible gap (renders/scheduling skipped):
+- [x] Narrow vs full hydration — visible gap (renders/scheduling skipped):
 
   ```powershell
   (Api GET "/v1/cards?select=id,due&limit=200").stats.duration_ms
   (Api GET "/v1/cards?limit=200").stats.duration_ms
   ```
 
-- [ ] A 10-op `cards:batch` on real cards (suspend/unsuspend pairs are
-  safe) → one round trip, one undo entry.
-- [ ] Shim deck lookups — instant, no due-tree pass:
+- [x] A 10-op `cards:batch` on a disposable card → one round trip, one
+  undo entry. Live verified 2026-09-07: five suspend/unsuspend pairs on
+  shim card `1788796639073`, all ten affected counts 1, HTTP 200,
+  server duration 16.976 ms. Queue/type/due/reps/flags matched before and
+  after. User saw Undo Card Batch; one Undo changed the label to
+  Undo Update Note. Post-Undo state also matched the original snapshot.
+- [x] Shim deck lookups — successful, responsive lookup:
 
   ```powershell
   Api POST / '{"action":"deckNamesAndIds","version":6}' | J
   Api POST / '{"action":"deckNameFromId","version":6,"params":{"deckId":1}}' | J
   ```
 
+  Live measurements 2026-09-07 on populated `[DEV] Yomine` (API key off):
+  card pages 1/2: 138.905/139.758 ms; notes: 74.899 ms; reviews: 67.407 ms.
+  ID-only card page: 68.514 ms. These are total route timings, not isolated
+  ID-walk timings; the stated single-digit target is not demonstrated.
+  Narrow/full 200-card results: 75.853/205.839 ms (about 2.7x faster narrow).
+  Suspended-card scan returned seven cards in 11,516.677 ms; a narrow
+  `select=id,queue` repeat took 11,448.664 ms. Filtered-scan performance
+  remains an unresolved issue; full rendering does not explain this delay.
+  Shim deck lookups returned expected results with error null, about
+  250 ms wall time including Windows curl startup. The 10-op batch passed as recorded above.
+
+  Investigation baseline, later 2026-09-07: same installed routing/card/dispatch
+  files as the workspace, Anki 26.08.1, `[DEV] Yomine`, 4,547 cards/notes,
+  minimized (confirmed by user). Three narrow suspended scans: median
+  329.485 ms, range 299.553–339.682; full scans: median 383.020 ms, range
+  336.077–396.868. Native suspended search: median 1.419 ms, range
+  1.295–1.562, same seven results. ID-only 100-card page: median 7.779 ms,
+  range 7.369–8.510. Narrow scan with limit 250 (larger internal batches):
+  median 305.640 ms, range 300.110–305.829. Windows curl adds roughly
+  250–275 ms wall time. The earlier 11.5-second delay has not yet reproduced;
+  do not attribute the difference to a code fix.
+
+  Phase profiling identified per-card object/model construction and dictionary
+  conversion as the largest measured costs in the current scan. Native scalar
+  hydration now uses bounded SQL batches inside QueryOp. After reload, three
+  uninstrumented narrow scans had median 55.217 ms (50.305–62.122); full scans
+  had median 61.174 ms (57.784–62.799), approximately 6× faster than the
+  comparable uninstrumented baseline above. Four-page narrow and full cursor
+  walks each returned the same seven IDs in order. Twenty scalar fields on
+  100 cards matched full responses; GET/POST parity and missing-ID/malformed
+  filter errors passed. Full suite: 842 passed, 8 skipped; Ruff passed.
+  The historical 11.5-second delay remains unexplained. See
+  [routing_efficiency_results.md](routing_efficiency_results.md) for phase
+  measurements, methodology, regression coverage, and limitations.
+
 ## 18. Errors & busy behaviour
 
-- [ ] Unknown ids:
+- [x] Unknown ids:
 
   ```powershell
   Api GET "/v1/notes?where=id==1" | J
@@ -1062,7 +1574,7 @@ Switch to your real profile. Every command below prints just the
   ```
 
   → empty 200 `items: []`; HTTP 404; HTTP 404.
-- [ ] Malformed inputs (`J` shows the full error message, which the table
+- [x] Malformed inputs (`J` shows the full error message, which the table
   view truncates):
 
   ```powershell
@@ -1073,17 +1585,54 @@ Switch to your real profile. Every command below prints just the
 
   → HTTP 400 with Anki's search error; HTTP 400 with the where-DSL help;
   `422` (native routes may 422 — only `POST /` never does).
-- [ ] **Busy**: open a modal dialog in Anki (e.g. any deck's Options), then:
+  Live verified 2026-09-07: missing-note lookup returned empty HTTP 200;
+  deleting missing deck and updating missing note returned HTTP 404.
+  Unbalanced search and malformed where returned HTTP 400 with useful
+  detail; invalid native JSON returned HTTP 422.
 
-  ```powershell
-  Api POST /v1/cards:suspend (@{cardIds=@($cid1)} | ConvertTo-Json) | J
-  ```
+- [x] **Busy/timeout (controlled test)**: ordinary open dialogs are not a
+  reliable trigger. The operation bridge raises `AnkiBusyError` when its
+  completion event is not received within `op_timeout_seconds` (default
+  15 seconds). A blocked UI thread, queued collection operation, or slow
+  operation can exercise this path; merely opening Options did not.
 
-  → HTTP 503 within the op timeout (~15s), not a hang; close the dialog →
-  the same command succeeds.
-- [ ] Kill Anki with the event stream open and a client polling → clients
-  get connection errors, then clean service after a normal restart; no
-  port squatting.
+  Verify HTTP 503 using a deliberately delayed **read-only** operation or
+  controlled test harness, then verify normal requests recover after the
+  delay is removed. Do not infer cancellation from a timeout: the bridge
+  stops waiting but does not cancel the scheduled work. Avoid mutation
+  requests for fault injection or blind retries after a timeout.
+
+  Live probe 2026-09-07: with TestSuite deck Options open, suspending
+  disposable shim card `1788796639073` succeeded (HTTP 200, 2.805 ms
+  server time, 0.209 s total). Unsuspend also succeeded and readback
+  restored queue/type/due/reps/flags. Source inspection confirmed the
+  timeout mechanism and existing HTTP-503 mapping tests.
+
+  Controlled live test passed 2026-09-07: user scheduled a 35-second UI
+  thread sleep via the debug console with a 10-second delay. Read-only
+  `/v1/cards?select=id&limit=1` returned HTTP 503 after 15.222 seconds
+  with `Read operation timed out; Anki may be busy or blocked by a dialog`.
+  A subsequent read returned HTTP 200 as the UI recovered (2.162 seconds
+  total). No mutation requests were used for this controlled test.
+
+- [x] Normal shutdown/restart recovery: live verified 2026-09-07.
+  Before closing, polling returned HTTP 200 and the event stream connected.
+  After the user closed Anki normally, a fresh request failed to connect
+  (curl exit 28, HTTP 000). After reopening `[DEV] Yomine`, active-profile
+  lookup and card read returned HTTP 200; the card read took 2.017 ms server
+  time. A fresh event stream returned HTTP 200 and `: connected`. The same
+  localhost:7777 endpoint served successfully after restart.
+- [x] Shutdown with an active event stream and continuous polling: live
+  verified 2026-09-07. On normal Anki exit, the stream emitted
+  `event: close` with `data: {"reason": "shutdown"}` and curl exited 0.
+  The still-running polling monitor changed from HTTP 200 to connection
+  failure (HTTP 000, curl exit 28), then back to HTTP 200 after restart.
+  Active profile was `[DEV] Yomine`; a fresh event stream connected with
+  HTTP 200. Normal shutdown should close gracefully; an abrupt stream
+  connection error is not required for this case.
+- [ ] Optional forced-crash recovery: not performed. Normal shutdown and
+  restart above do not establish behavior after forcibly terminating Anki.
+
 
 ---
 
