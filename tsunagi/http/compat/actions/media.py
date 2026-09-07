@@ -35,7 +35,7 @@ class StoreMediaFileParams(BaseModel):
     path: Optional[str] = None
     url: Optional[str] = None
     skipHash: Optional[str] = None
-    deleteExisting: bool = True
+    deleteExisting: Optional[bool] = True
 
 
 class FilenameParams(BaseModel):

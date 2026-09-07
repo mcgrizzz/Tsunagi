@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel
 
-from ....adapters.anki.cards import change_deck, get_cards_by_ids
+from ....adapters.anki.cards import change_deck
 from ....adapters.anki.deck_configs import (
     create_deck_config,
     delete_deck_config,
@@ -107,14 +107,9 @@ def ac_deckNameFromId(p: DeckIdParams) -> str:
 
 @registry.register("getDecks", params=CardsParams)
 def ac_getDecks(p: CardsParams) -> Dict[str, List[int]]:
-    """
-    {deckName: [cardIds]}. Unknown card ids are dropped; canonical files them
-    under "Default", because decks.get(None) falls back to the default deck.
-    """
-    out: Dict[str, List[int]] = {}
-    for card in get_cards_by_ids(p.cards, {"id", "deck_name"}):
-        out.setdefault(card.deck_name, []).append(card.id)
-    return out
+    from ....adapters.anki.compat import decks_for_cards
+
+    return decks_for_cards(p.cards)
 
 
 @registry.register("changeDeck", params=ChangeDeckParams)
@@ -176,4 +171,8 @@ def ac_removeDeckConfigId(p: RemoveDeckConfigIdParams) -> bool:
 
 @registry.register("getDeckStats", params=DecksParams)
 def ac_getDeckStats(p: DecksParams) -> Dict[int, Dict[str, Any]]:
-    return get_deck_stats(p.decks)
+    from ....adapters.anki.compat import deck_tree_names
+
+    names = deck_tree_names()
+    return {did: dict(stats, name=names[did])
+            for did, stats in get_deck_stats(p.decks).items() if did in names}

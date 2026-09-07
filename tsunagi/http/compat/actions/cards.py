@@ -35,6 +35,10 @@ class CardsParams(BaseModel):
     cards: List[int]
 
 
+class CardsInfoParams(BaseModel):
+    cards: Optional[List[int]] = ...
+
+
 class CardParams(BaseModel):
     card: int
 
@@ -148,9 +152,13 @@ _CARDS_INFO_WANTS = {
 }
 
 
-@registry.register("cardsInfo", params=CardsParams)
-def ac_cardsInfo(p: CardsParams) -> List[Dict[str, Any]]:
-    by_id = {c.id: c for c in get_cards_by_ids(p.cards, _CARDS_INFO_WANTS)}
+@registry.register("cardsInfo", params=CardsInfoParams)
+def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
+    if p.cards is None:
+        raise ValueError("'NoneType' object is not iterable")
+    # Anki treats get_card(0) as constructing an unsaved card. Upstream catches
+    # its missing-note error and returns an empty object at that input position.
+    by_id = {c.id: c for c in get_cards_by_ids([cid for cid in p.cards if cid], _CARDS_INFO_WANTS)}
     out: List[Dict[str, Any]] = []
     for cid in p.cards:
         card = by_id.get(int(cid))

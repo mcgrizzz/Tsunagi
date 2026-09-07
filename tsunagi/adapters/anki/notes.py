@@ -512,13 +512,17 @@ def ac_add_note(col: Collection, deck_name: str, model_name: str,
     return ValueWithChanges(int(note.id), res)
 
 
-@as_query_op
+@as_collection_op
 def ac_check_note(col: Collection, deck_name: str, model_name: str,
-                  fields: Dict[str, str], options: Dict[str, Any]) -> bool:
-    """Probe for canAddNotes: raises the canonical string, never writes."""
+                  fields: Dict[str, str], options: Dict[str, Any],
+                  media: Sequence[Dict[str, Any]] = ()) -> bool:
+    """Prepare a probe, including upstream media side effects, without adding it."""
+    from anki.collection import OpChanges
+
     note, _model, deck, opts = _ac_prepare(col, deck_name, model_name, fields, [], options)
+    _ac_write_media(col, note, media)
     _ac_finish_check(col, note, deck, opts)
-    return True
+    return ValueWithChanges(True, OpChanges())
 
 
 @as_collection_op

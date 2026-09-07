@@ -39,11 +39,10 @@ class TestGetDecks:
         assert sorted(result) == ["Default", "JP"]
         assert len(result["Default"]) == 1 and len(result["JP"]) == 1
 
-    def test_unknown_card_is_dropped(self, seeded):
-        # Divergence: canonical files it under "Default", because
-        # decks.get(None) falls back to the default deck.
+    def test_unknown_card_uses_default_deck(self, seeded):
+        # Canonical resolves a missing card through decks.get(None).
         result = rpc(seeded, "getDecks", {"cards": [999999]})["result"]
-        assert result == {}
+        assert result == {"Default": [999999]}
 
 
 class TestChangeDeck:
