@@ -29,6 +29,10 @@ Completed:
   behavior, short ease-factor array side effects and due-date error messages. Shared
   writes still use native methods; unsaved template cache edits stay in the shim.
   See commit `fc18668` and the comparison results for the 38 added differential cases.
+  After reload, live checks on Anki 26.08.1 passed for native rename/rendering,
+  empty template-update acceptance, immediate cached-template visibility, partial
+  ease-factor writes and exact invalid-due-date errors. The two temporary notes,
+  model, leaf deck and empty parent deck were removed; cleanup was verified.
 - Full suite: 1044 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
@@ -120,8 +124,8 @@ Branch `main` was 70 commits
 ahead of the locally recorded `origin/main` before these commits; no fetch or push
 was made. Local agent/workspace files and the older post-request planning document
 remain outside these commits. The latest production fixes are already
-synced. Earlier batches passed their recorded live checks; the model/scheduler
-batch awaits the requested reload and live verification on Anki 26.08.1.
+synced/reloaded. The model/scheduler batch also passed its targeted live checks
+on Anki 26.08.1; no further reload is pending for this batch.
 
 ## Original session objective
 
