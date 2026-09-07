@@ -19,6 +19,14 @@ GitHub is stale (2023) and disagrees with it. Counts here come from the
 file against the registry in both directions, so an action that is registered
 but undocumented — or documented but unregistered — fails CI.
 
+The 2026-09-07 [history-based audit](parity_history_audit.md) found and fixed
+optional-argument and deprecated-alias mismatches despite the 122/122 count.
+Action inventory is not proof of complete behavioral parity.
+
+The [full-shim coverage plan](shim_behavioral_coverage.md) defines the remaining
+behavioral work, including rare actions and previously accepted deviations. The
+[execution matrix](shim_coverage_matrix.md) links all actions to observed test calls.
+
 ## Two discrepancies in upstream's own documentation
 
 **Six actions are undocumented.** `canAddNote`, `canAddNoteWithErrorDetail`,
@@ -36,15 +44,16 @@ means there are no notes to lose.
 
 ## Status meanings
 
-- **implemented** — answers over `POST /`, with a wire-shape test pinning its
-  exact JSON, including error strings.
+- **implemented** — answers over `POST /`, with parity tests for supported
+  behavior. This does not certify every optional argument, error string,
+  runtime version, or GUI state; manually verified actions are marked below.
 - **M6** — planned for the next milestone.
 - **out-of-scope** — deliberately not implemented; the reason is in the row.
 
-Where Tsunagi deviates from canonical behaviour, the row says so. Every
-deviation is one of three kinds: a read that refuses to mutate the collection,
-a canonical bug whose faithful reproduction would only destroy the caller's
-work, or malformed input rejected up front instead of after partial writes.
+Known action-specific deviations are listed below. General differences also
+include Pydantic parameter-validation messages and generic internal-error
+messages instead of upstream's raw exception strings. Malformed action and
+parameter containers return an RPC error envelope rather than HTTP 500.
 
 ### Card Actions
 
@@ -64,7 +73,7 @@ work, or malformed input rejected up front instead of after partial writes.
 | `setDueDate` | implemented |  |
 | `setEaseFactors` | implemented |  |
 | `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Native: POST /v1/cards:set-values. |
-| `suspend` | implemented | Returns false when every card is already in the target state. |
+| `suspend` | implemented | Supports the undocumented `suspend=false` reverse operation. Deviation: returns false whenever no state changes; canonical's list-removal bug can return true for multiple already-matching cards. |
 | `suspended` | implemented |  |
 | `unsuspend` | implemented | Returns null, matching canonical. |
 
@@ -81,7 +90,7 @@ work, or malformed input rejected up front instead of after partial writes.
 | `deleteDecks` | implemented |  |
 | `getDeckConfig` | implemented |  |
 | `getDeckStats` | implemented | Deviation: unknown deck names are skipped, not created. |
-| `getDecks` | implemented | Deviation: unknown card ids are dropped, not filed under Default. |
+| `getDecks` | implemented | Preserves order/duplicates and groups missing card IDs through Anki's default-deck fallback, matching upstream. |
 | `removeDeckConfigId` | implemented |  |
 | `saveDeckConfig` | implemented |  |
 | `setDeckConfigId` | implemented |  |
@@ -123,11 +132,11 @@ work, or malformed input rejected up front instead of after partial writes.
 | --- | --- | --- |
 | `addNote` | implemented |  |
 | `addNotes` | implemented |  |
-| `addTags` | implemented |  |
+| `addTags` | implemented | Supports upstream's undocumented `add=false` argument to remove tags. |
 | `canAddNote` | implemented | Not in the upstream README. |
 | `canAddNoteWithErrorDetail` | implemented | Not in the upstream README. |
-| `canAddNotes` | implemented | Deviation: does not write media during a read-only probe. |
-| `canAddNotesWithErrorDetail` | implemented | Deviation: does not write media during a read-only probe. |
+| `canAddNotes` | implemented | Matches upstream media writes during probes, including rejected duplicate/empty notes; no note is inserted. |
+| `canAddNotesWithErrorDetail` | implemented | Same media side effects as upstream; errors remain per-note. |
 | `clearUnusedTags` | implemented |  |
 | `deleteNotes` | implemented |  |
 | `findNotes` | implemented |  |
@@ -158,7 +167,7 @@ work, or malformed input rejected up front instead of after partial writes.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `apiReflect` | implemented |  |
+| `apiReflect` | implemented | Exact scope omission, validation errors, requested order and duplicate-action behavior covered by `test_shim_coverage_gaps.py`. |
 | `exportPackage` | implemented | Uses Anki's current export API, feature-detected - the signature changed between 23.10 and now. |
 | `getActiveProfile` | implemented | Manual verification only (needs a live main window). |
 | `getProfiles` | implemented | Manual verification only (needs a live main window). |
@@ -183,13 +192,13 @@ work, or malformed input rejected up front instead of after partial writes.
 | `guiDeckBrowser` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckOverview` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckReview` | implemented | Goes straight to the reviewer. Canonical routes through the overview first, which races the reviewer and can leave you on the deck page. |
-| `guiEditNote` | implemented | Deviation: opens the Browser focused on the note. Canonical ships its own standalone editor dialog, which is its UX rather than its protocol. |
+| `guiEditNote` | implemented | Full-shim gap: opens the Browser focused on the note; canonical opens its standalone editor dialog. User-visible equivalence remains required. |
 | `guiExitAnki` | implemented | Manual verification only (needs a live main window). |
 | `guiImportFile` | implemented | Manual verification only (needs a live main window). |
 | `guiPlayAudio` | implemented | Manual verification only (needs a live main window). |
 | `guiReviewActive` | implemented | Manual verification only (needs a live main window). |
 | `guiSelectCard` | implemented | Manual verification only (needs a live main window). |
-| `guiSelectNote` | implemented | Compat-only: canonical's own deprecated alias for `guiSelectCard` (it selects a card despite the name). |
+| `guiSelectNote` | implemented | Deprecated alias: accepts `note` containing a **card ID**; `guiSelectCard` accepts `card`. Fixed by the 2026-09-07 history audit. |
 | `guiSelectedNotes` | implemented | Manual verification only (needs a live main window). |
 | `guiShowAnswer` | implemented | Manual verification only (needs a live main window). |
 | `guiShowQuestion` | implemented | Manual verification only (needs a live main window). |
