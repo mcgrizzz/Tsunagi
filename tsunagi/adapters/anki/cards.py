@@ -36,6 +36,17 @@ BURIED_QUEUES = (-2, -3)  # sibling-buried, manually buried
 NOTE_WANTS = frozenset({"model_name", "css", "fields"})
 RENDER_WANTS = frozenset({"question", "answer"})
 
+# Only stable columns and expressions with the same meaning as _card_info.
+# Newer FSRS properties live in Anki's card data and use the normal reader.
+CARD_COLUMN_SQL = {
+    "id": "id", "note_id": "nid", "deck_id": "did",
+    "original_deck_id": "odid", "ord": "ord", "mod": "mod", "usn": "usn",
+    "type": "type", "queue": "queue", "due": "due", "original_due": "odue",
+    "interval": "ivl", "factor": "factor", "reps": "reps", "lapses": "lapses",
+    "left": '"left"', "flags": "flags", "flag": "flags & 7",
+    "suspended": "queue = -1", "buried": "queue in (-2, -3)",
+}
+
 
 def _deck_names(col: Collection) -> Dict[int, str]:
     # One call for the whole page; col.decks.get() per card would be a backend
@@ -183,6 +194,11 @@ def find_card_ids(col: Collection, query: str) -> List[int]:
 @as_query_op
 def get_cards_by_ids(col: Collection, ids: Sequence[int],
                      wants: Optional[Set[str]] = None) -> List[CardInfo]:
+    return _get_cards_by_ids(col, ids, wants)
+
+
+def _get_cards_by_ids(col: Collection, ids: Sequence[int],
+                      wants: Optional[Set[str]] = None) -> List[CardInfo]:
     deck_names = _deck_names(col)
     out: List[CardInfo] = []
     for cid in ids:
@@ -194,6 +210,37 @@ def get_cards_by_ids(col: Collection, ids: Sequence[int],
             raise
         out.append(_card_info(col, card, deck_names, wants))
     return out
+
+
+@as_query_op
+def get_card_rows_by_ids(col: Collection, ids: Sequence[int],
+                         wants: Optional[Set[str]] = None) -> List[Any]:
+    """Native scalar projections without per-card backend/model round trips.
+
+    Keep filtering in the shared DSL, and keep this read inside QueryOp.
+    Full rows and fields requiring Anki's objects retain the normal reader.
+    The compatibility adapter continues to return CardInfo objects.
+    """
+    if wants is None or not wants <= CARD_COLUMN_SQL.keys():
+        return _get_cards_by_ids(col, ids, wants)
+    ordered_ids = [int(cid) for cid in ids]
+    fields = ["id", *sorted(wants - {"id"})]
+    columns = ", ".join(CARD_COLUMN_SQL[field] for field in fields)
+    by_id: Dict[int, Dict[str, Any]] = {}
+    for offset in range(0, len(ordered_ids), 250):
+        chunk = ordered_ids[offset:offset + 250]
+        placeholders = ",".join("?" for _ in chunk)
+        for values in col.db.all(
+            f"select {columns} from cards where id in ({placeholders})", *chunk,
+        ):
+            row = dict(zip(fields, values))
+            for field in ("suspended", "buried"):
+                if field in row:
+                    row[field] = bool(row[field])
+            by_id[row["id"]] = row
+    # SQL IN does not preserve caller order or duplicate IDs. Missing IDs
+    # are skipped, exactly as in the object reader.
+    return [by_id[cid] for cid in ordered_ids if cid in by_id]
 
 
 @as_query_op

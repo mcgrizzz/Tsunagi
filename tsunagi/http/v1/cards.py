@@ -13,7 +13,7 @@ from ...adapters.anki.cards import (
     change_deck,
     find_card_ids,
     forget_cards,
-    get_cards_by_ids,
+    get_card_rows_by_ids,
     get_cards_of_notes,
     page_card_ids,
     reposition_cards,
@@ -57,16 +57,14 @@ def _int_id(v: Any) -> Any:
 
 
 caps = SourceCaps(
-    # No fetch_all and no columns_fetchers, for the same reason as notes:
-    # materializing every card must be unreachable, and no backend route
-    # returns a cheaper subset of a card row.
+    # ID discovery stays paginated; scalar hydration reads bounded SQL batches.
     indices=[
-        IndexSpec(path=("id",), fetch_values=get_cards_by_ids, coerce=_int_id),
+        IndexSpec(path=("id",), fetch_values=get_card_rows_by_ids, coerce=_int_id),
         IndexSpec(path=("note_id",), fetch_values=get_cards_of_notes, coerce=_int_id),
     ],
     # page_ids: bare and where-filtered listings walk the cards primary key
     # keyset-style instead of materializing every card id per page request.
-    search=SearchSpec(find_ids=find_card_ids, hydrate=get_cards_by_ids,
+    search=SearchSpec(find_ids=find_card_ids, hydrate=get_card_rows_by_ids,
                       page_ids=page_card_ids),
     # No MutationCaps: cards aren't created or deleted directly - they're
     # generated from notes by a notetype's templates. Everything a caller can

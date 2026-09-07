@@ -621,6 +621,93 @@ class TestKeysetListing:
         assert searches == ["deck:JP"]
 
 
+class TestScalarHydration:
+    def test_scalar_values_match_full_rows_without_loading_cards(self, seeded, col, monkeypatch):
+        card_ids = sorted(ids(seeded))
+        col.db.execute(
+            'update cards set queue = -2, flags = 12, due = -7, ivl = 34 where id = ?',
+            card_ids[-1],
+        )
+        fields = (
+            "id,note_id,deck_id,original_deck_id,ord,mod,usn,type,queue,due,"
+            "original_due,interval,factor,reps,lapses,left,flags,flag,suspended,buried"
+        )
+        full = seeded.get("/v1/cards").json()["items"]
+        expected = [{field: row[field] for field in fields.split(",")} for row in full]
+
+        def unexpected(*args, **kwargs):
+            pytest.fail("Scalar hydration must not load individual cards or deck names")
+
+        monkeypatch.setattr(col, "get_card", unexpected)
+        monkeypatch.setattr(col.decks, "all_names_and_ids", unexpected)
+        response = seeded.get("/v1/cards", params={"select": fields})
+        assert response.status_code == 200
+        assert response.json()["items"] == expected
+        assert response.json()["items"][-1]["buried"] is True
+        assert response.json()["items"][-1]["suspended"] is False
+
+    def test_sparse_late_matches_load_only_surviving_full_cards(self, seeded, col, monkeypatch):
+        model = col.models.by_name("Basic")
+        for index in range(260):
+            note = col.new_note(model)
+            note["Front"] = f"late-scan-{index}"
+            col.add_note(note, 1)
+        expected = sorted(col.find_cards(""))[-2:]
+        for cid in expected:
+            col.db.execute("update cards set queue = -1 where id = ?", cid)
+        loaded = []
+        original = col.get_card
+
+        def get_card(cid):
+            loaded.append(cid)
+            return original(cid)
+
+        monkeypatch.setattr(col, "get_card", get_card)
+        narrow = seeded.get("/v1/cards", params={
+            "where": "queue==-1", "select": "id,queue", "limit": 50,
+        }).json()
+        assert [row["id"] for row in narrow["items"]] == expected
+        assert narrow["next_cursor"] is None
+        assert loaded == []
+
+        seen, cursor = [], None
+        for _ in range(3):
+            params = {"where": "queue==-1", "limit": 1}
+            if cursor:
+                params["cursor"] = cursor
+            response = seeded.get("/v1/cards", params=params)
+            assert response.status_code == 200
+            body = response.json()
+            seen.extend(row["id"] for row in body["items"])
+            assert all(row["question"] is not None for row in body["items"])
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert cursor is None
+        assert seen == expected
+        assert loaded == expected
+
+    def test_scalar_adapter_preserves_order_duplicates_missing_ids_and_bounds(self, seeded, col):
+        from tsunagi.adapters.anki.cards import get_card_rows_by_ids
+
+        card_ids = sorted(ids(seeded))
+        requested = [card_ids[-1], -1, card_ids[0]] * 100
+        queries = []
+        original = col.db.all
+
+        def all_rows(sql, *args, **kwargs):
+            queries.append((sql, args))
+            return original(sql, *args, **kwargs)
+
+        col.db.all = all_rows
+        rows = get_card_rows_by_ids(requested, {"id", "queue"})
+        assert [row["id"] for row in rows] == [card_ids[-1], card_ids[0]] * 100
+        assert len(queries) == 2
+        assert all(len(args) <= 250 for _, args in queries)
+        assert get_card_rows_by_ids([], {"id"}) == []
+        assert len(queries) == 2
+
+
 class TestScopedAffectedCounts:
     def test_verbs_never_search_the_whole_collection(self, seeded, col):
         # affected-counting used to intersect against a WHOLE-collection
