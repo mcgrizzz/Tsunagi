@@ -295,7 +295,9 @@ def patch_field(col: Collection, model_id: int, field_name: str, updates: Dict[s
 
     # Special handling for rename
     if "name" in updates:
-        mm.rename_field(m, field, updates["name"])
+        # This helper saves and refreshes rewritten template references before
+        # the final save below; rename_field alone leaves the working dict stale.
+        mm.renameField(m, field, updates["name"])
 
     # Direct property updates (using Anki's names after normalization)
     copy_if_present(updates, field, [

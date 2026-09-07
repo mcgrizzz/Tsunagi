@@ -83,8 +83,18 @@ def ac_getEaseFactors(p: CardsParams) -> List[Optional[int]]:
 @registry.register("setEaseFactors", params=SetEaseFactorsParams)
 def ac_setEaseFactors(p: SetEaseFactorsParams) -> List[bool]:
     # Parallel arrays on the wire; a missing card is False, not an error.
-    entries = [{"id": cid, "factor": factor}
-               for cid, factor in zip(p.cards, p.easeFactors)]
+    entries = []
+    for index, cid in enumerate(p.cards):
+        if index >= len(p.easeFactors):
+            # Upstream skips missing cards before indexing easeFactors, and
+            # keeps earlier writes when a present card runs past the array.
+            if card_ease_factors([cid])[0] is not None:
+                set_ease_factors(entries)
+                raise ValueError("list index out of range")
+            factor = 0  # ignored by the native writer for a missing card
+        else:
+            factor = p.easeFactors[index]
+        entries.append({"id": cid, "factor": factor})
     return set_ease_factors(entries)
 
 
@@ -207,7 +217,14 @@ def ac_relearnCards(p: CardsParams) -> None:
 
 @registry.register("setDueDate", params=SetDueDateParams)
 def ac_setDueDate(p: SetDueDateParams) -> bool:
-    set_due_date(p.cards, p.days)
+    try:
+        set_due_date(p.cards, p.days)
+    except Exception as exc:
+        # The native API adds context; the shim exposes Anki's original error.
+        cause = exc.__cause__
+        if cause is not None and type(cause).__name__ in ("InvalidInput", "ValueError"):
+            raise ValueError(str(cause)) from exc
+        raise
     return True
 
 
