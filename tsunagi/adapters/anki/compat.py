@@ -1,6 +1,16 @@
 """Collection reads whose observable quirks belong to AnkiConnect's contract."""
 
-from ..ops import as_query_op
+from ..ops import as_collection_op, as_query_op
+
+
+@as_collection_op
+def update_cached_template(col, model_name, template_name, updates):
+    """Match AnkiConnect's existing-template edit: update the cache without saving."""
+    model = col.models.by_name(model_name)
+    for template in model["tmpls"]:
+        if template["name"] == template_name:
+            template.update(updates)
+            return
 
 
 @as_query_op

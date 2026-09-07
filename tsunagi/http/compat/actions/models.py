@@ -326,6 +326,7 @@ def ac_findAndReplaceInModels(p: FindAndReplaceParams) -> int:
 def ac_updateModelTemplates(p: UpdateModelTemplatesParams) -> None:
     model = _raw_model(p.model["name"])
     incoming = p.model.get("templates") or {}
+    saved = False
     for template in model["tmpls"]:
         supplied = incoming.get(template["name"])
         if not supplied:
@@ -338,6 +339,10 @@ def ac_updateModelTemplates(p: UpdateModelTemplatesParams) -> None:
             updates["afmt"] = supplied["Back"]
         if updates:
             patch_template(model["id"], template["name"], updates)
+            saved = True
+    if not saved:
+        # Canonical saves even when every supplied format is empty or unknown.
+        patch_model(model["id"], {})
 
 
 @registry.register("updateModelStyling", params=UpdateModelStylingParams)
@@ -371,9 +376,10 @@ def ac_modelTemplateAdd(p: TemplateAddParams) -> None:
 
     for existing in model["tmpls"]:
         if existing["name"] == name:
-            # DEVIATION: canonical mutates its working copy and returns without
-            # saving, so the update is silently discarded. Ours persists it.
-            patch_template(model["id"], name, updates)
+            from ....adapters.anki.compat import update_cached_template
+
+            # The change is visible through Anki's model cache but is not saved.
+            update_cached_template(p.modelName, name, updates)
             return
     create_template(model["id"], {"name": name, **updates})
 

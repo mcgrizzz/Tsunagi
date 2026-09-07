@@ -366,3 +366,110 @@ def test_delete_notes_duplicate_and_missing_ids(pair):
     nid = pair[0].find_notes("")[0]
     compare(pair, "deleteNotes", {"notes": [nid, nid, 9999999999999]})
     assert_note_and_media_state(pair)
+
+
+def mutation_state(collection):
+    """Compare cache and persisted state, excluding time metadata and allocated IDs.
+
+    New fields/templates and cards allocate IDs independently. Compare their
+    ordered definitions and match cards by note/template. Undo and Qt effects
+    need the live harness.
+    """
+    models = []
+    for model in collection.models.all():
+        model = copy.deepcopy(model)
+        model.pop("mod", None)
+        for member in model["flds"] + model["tmpls"]:
+            member.pop("id", None)
+        models.append(model)
+    collection.models._clear_cache()
+    persisted_models = []
+    for model in collection.models.all():
+        model = copy.deepcopy(model)
+        model.pop("mod", None)
+        for member in model["flds"] + model["tmpls"]:
+            member.pop("id", None)
+        persisted_models.append(model)
+    return {
+        "models": sorted(models, key=lambda model: model["id"]),
+        "persisted_models": sorted(persisted_models, key=lambda model: model["id"]),
+        "notes": collection.db.all("select id, mid, flds, tags from notes order by id"),
+        "cards": collection.db.all(
+            "select nid, did, ord, type, queue, due, ivl, factor, reps, lapses, "
+            "left, odue, odid, flags, data from cards order by nid, ord"
+        ),
+        "reviews": collection.db.all(
+            "select cid, ease, ivl, lastIvl, factor, time, type from revlog order by id"
+        ),
+    }
+
+
+def assert_mutation_state(pair):
+    actual, expected = mutation_state(pair[0]), mutation_state(pair[1])
+    assert actual == expected, first_difference(actual, expected, "collection")
+
+
+@pytest.mark.parametrize("action,params", [
+    ("updateModelStyling", {"model": {"name": "Basic", "css": ".card {color: red;}"}}),
+    ("updateModelTemplates", {"model": {"name": "Basic", "templates": {
+        "Card 1": {"Front": "{{Front}}!", "Back": "{{Back}}!"}}}}),
+    ("updateModelTemplates", {"model": {"name": "Basic", "templates": {
+        "Card 1": {"Front": "", "Back": ""}, "Unknown": {"Front": "ignored"}}}}),
+    ("modelTemplateRename", {"oldTemplateName": "Card 1", "newTemplateName": "Renamed"}),
+    ("modelTemplateReposition", {"templateName": "Card 1", "index": 0}),
+    ("modelTemplateAdd", {"template": {"Name": "Reverse", "Front": "{{Back}}", "Back": "{{Front}}"}}),
+    ("modelTemplateAdd", {"template": {"Name": "Card 1", "Front": "{{Back}}", "Back": "{{Front}}"}}),
+    ("modelFieldRename", {"oldFieldName": "Front", "newFieldName": "Question"}),
+    ("modelFieldReposition", {"fieldName": "Back", "index": 0}),
+    ("modelFieldAdd", {"fieldName": "Extra"}),
+    ("modelFieldAdd", {"fieldName": "Extra", "index": 0}),
+    ("modelFieldAdd", {"fieldName": "Back", "index": 0}),
+    ("modelFieldSetFont", {"fieldName": "Front", "font": "Arial"}),
+    ("modelFieldSetFontSize", {"fieldName": "Front", "fontSize": 24}),
+    ("modelFieldSetDescription", {"fieldName": "Front", "description": "Question text"}),
+    ("findAndReplaceInModels", {"findText": "Front", "replaceText": "Front", "css": False}),
+    ("modelFieldRemove", {"fieldName": "missing"}),
+    ("modelTemplateRemove", {"templateName": "missing"}),
+])
+def test_model_mutations(pair, action, params):
+    if "model" not in params:
+        params = {"modelName": "Basic", **params}
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["modelFieldRemove", "modelTemplateRemove"])
+def test_model_remove_added_item(pair, action):
+    if action == "modelFieldRemove":
+        compare(pair, "modelFieldAdd", {"modelName": "Basic", "fieldName": "Extra"})
+        params = {"fieldName": "Extra"}
+    else:
+        compare(pair, "modelTemplateAdd", {"modelName": "Basic", "template": {
+            "Name": "Reverse", "Front": "{{Back}}", "Back": "{{Front}}"}})
+        params = {"templateName": "Reverse"}
+    compare(pair, action, {"modelName": "Basic", **params})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action,extra", [
+    ("setEaseFactors", {"easeFactors": [2100, 2700, 2900]}),
+    ("setEaseFactors", {"easeFactors": [2100]}),
+    ("setDueDate", {"days": "5"}),
+    ("setDueDate", {"days": "0!"}),
+    ("setDueDate", {"days": "invalid"}),
+    ("forgetCards", {}),
+    ("relearnCards", {}),
+    ("suspend", {}),
+    ("unsuspend", {}),
+])
+@pytest.mark.parametrize("review_cards", [False, True])
+def test_scheduler_mutations(pair, action, extra, review_cards):
+    cards = list(pair[0].find_cards(""))
+    if review_cards:
+        for collection in pair[:2]:
+            collection.db.execute(
+                "update cards set type=2, queue=2, due=?, ivl=10, factor=2500, reps=3",
+                collection.sched.today,
+            )
+    compare(pair, action, {"cards": cards, **extra})
+    assert_mutation_state(pair)
