@@ -180,6 +180,28 @@ class TestDispatchOp:
         dispatch_op(op_changes(deck=True), None)
         assert broker.drain(token)[0]["origin"] is None
 
+    def test_undo_does_not_inherit_the_next_undoable_actions_label(self):
+        # Observed after undoing Card Batch: Anki supplies no handler, and
+        # undo_status().undo now names the earlier Update Deck operation.
+        token = broker.subscribe()
+        dispatch_op(op_changes(card=True, study_queues=True), None,
+                    label="Update Deck")
+        events = broker.drain(token)
+        assert len(events) == 1
+        assert events[0]["type"] == "op"
+        assert events[0]["origin"] is None
+        assert sorted(events[0]["changes"]) == ["card", "study_queues"]
+        assert "label" not in events[0]
+
+    def test_identified_api_operation_keeps_its_label(self):
+        token = broker.subscribe()
+        dispatch_op(op_changes(card=True), ApiOp({"card_ids": [42]}),
+                    label="Suspend")
+        event = broker.drain(token)[0]
+        assert event["label"] == "Suspend"
+        assert event["origin"] == "api"
+        assert event["card_ids"] == [42]
+
     def test_label_is_carried_when_known(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True), object(), label="Update Note")

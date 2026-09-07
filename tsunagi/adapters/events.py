@@ -145,9 +145,9 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     - no flags true -> dropped (indistinguishable from a no-op; Tsunagi ops
       whose backend call returns no OpChanges land here)
     - otherwise -> `op`, with origin "api" for Tsunagi's own mutations.
-    `label` is the (localized) name of the operation that just completed,
-    read from Anki's undo status by the hook callback - OpChanges itself
-    carries no identity, only the flags.
+    `label` comes from Anki's undo status. Only use it when a handler
+    identifies the operation: after an untagged undo it names the next
+    undoable action, not the change that just completed.
     """
     flags = _changed_flags(changes)
     if not flags:
@@ -163,7 +163,7 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     else:
         origin = "ui"
     payload: dict = {"origin": origin, "changes": flags}
-    if label:
+    if label and handler is not None:
         payload["label"] = label
     if isinstance(handler, ApiOp):
         # Identity the route attached (note_ids, ...). setdefault so details
