@@ -58,6 +58,43 @@ the unique probe prefix found no inserted notes. All ten temporary media files w
 deleted, and the prefix listing was confirmed empty afterward. The active profile
 remained `[DEV] Yomine`; no live configuration gates were changed.
 
+## Model and scheduler follow-up
+
+Current result: **164 passed, one expected failure in 165 differential cases**,
+with 63 distinct action handlers observed. Full suite: **1044 passed, 8 skipped,
+one expected failure** on Python 3.12.12 / Anki 23.10. The expected failure remains
+D11 (default local-path policy). Changed-file Ruff and whitespace checks pass.
+
+Added 38 differential cases covering template/style edits, field rename/order/add/
+remove and metadata, template addition/removal, a no-op model replacement, and scheduling
+on new and review cards (ease factors, due dates, forget, relearn, suspend/unsuspend).
+These compare model cache contents, persisted models after cache invalidation,
+note fields/tags, card scheduling columns and review rows as well as RPC responses.
+Five standalone regressions run without the reference checkout.
+
+The pass found and fixed five differences:
+
+- D14: native field renaming left stale template references in the working model.
+  Use Anki's rename-and-save helper before applying the final property save. The
+  native regression verifies rendering, persisted references and simultaneous font
+  changes; the shim continues to call the shared native mutation.
+- D15: empty/unknown template updates now save the model as upstream does, including
+  its sync metadata side effect.
+- D16: adding an existing template changes Anki's model cache without saving it.
+  Earlier documentation incorrectly described the change as simply discarded.
+  This unusual behavior is isolated in a compatibility adapter; ordinary template
+  creation still uses the native method.
+- D17: a short ease-factor array now retains prior writes and raises the same
+  error at the first present card lacking a factor. Missing cards are skipped
+  before the factor lookup. The shim still delegates writes to the native method.
+- D18: invalid due-date errors expose the original Anki message through the shim;
+  native errors retain their additional context.
+
+This is a focused mutation pass, not complete scheduler/model coverage. Remaining
+cases include model creation, more malformed inputs and replacement side effects,
+answer/partial-answer behavior, repeated suspension, review insertion and undo/Qt
+effects. The latest production changes need reload and live verification.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
@@ -78,8 +115,11 @@ These are dispatcher and collection comparisons, not HTTP transport, browser
 permission or real Qt tests. The fake main window and suppressed edit notifications
 cannot prove undo, refresh, focus or dialog behavior. This run does not establish
 complete compatibility on Anki 26.08.1; the live smoke checks above cover a subset.
-No nondeterministic ID/time normalization is used:
-the initial collection is cloned so requests address identical IDs.
+The initial collection is cloned so requests address identical IDs. RPC responses
+are compared without normalization. Model/scheduler state comparisons exclude
+model modification timestamps and field/template IDs allocated independently by
+Anki; new cards are matched by note ID and template ordinal. Sync metadata is
+retained. Existing note/card/media comparisons keep their original strict checks.
 
 ## Fixed differences
 

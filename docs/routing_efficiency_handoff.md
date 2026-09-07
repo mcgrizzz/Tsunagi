@@ -22,10 +22,14 @@ Completed:
   the tested suspended-card scans. Six native query families were exercised with
   filtering, pagination, GET/POST agreement and projection checks.
 - Upstream source/history inventory accounts for all 122 shim actions. Differential
-  coverage now exercises 45 action names in 127 cases: 126 pass, one tracks the
+  coverage now observes 63 action names in 165 cases: 164 pass, one tracks the
   default local-path gate mismatch. The original ten differences plus nullable
   media deletion flags and note-probe media side effects are fixed.
-- Full suite: 1001 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
+- Model/scheduler follow-up fixed native field-rename rendering, template save/cache
+  behavior, short ease-factor array side effects and due-date error messages. Shared
+  writes still use native methods; unsaved template cache edits stay in the shim.
+  See commit `fc18668` and the comparison results for the 38 added differential cases.
+- Full suite: 1044 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
   preserved originals, and all four probe variants wrote media on accepted/empty
@@ -37,9 +41,11 @@ Completed:
 
 Remaining, in recommended order:
 
-1. Extend upstream comparisons beyond the current 45 action names and their tested
+1. Extend upstream comparisons beyond the current 63 observed action names and their tested
    cases. Cover mutation/rollback/undo, note/media side effects, model changes,
-   scheduler edge cases and general argument binding. Existing implementation of
+   scheduler edge cases and general argument binding. Next: model creation and
+   replacement side effects, answer/partial-answer behavior, repeated suspension,
+   review insertion and undo/Qt effects. Existing implementation of
    an action is not proof of complete parity.
 2. Close GUI equivalence gaps, especially the standalone `guiEditNote` dialog;
    compare reviewer/add-note/navigation and lifecycle behavior through the shim.
@@ -98,7 +104,8 @@ Remaining, in recommended order:
    argument conventions and unusual semantics in the compatibility layer. Extend
    native methods where the operation fits their contract without importing shim
    quirks into the native API.
-10. Review and commit the accumulated workspace changes. Disposable fixtures remain
+10. Keep follow-up work in focused commits; the accumulated work is now committed.
+   Disposable fixtures remain
    retained for testing; clean them up only when no longer needed. Focused local
    commits are authorized; pushing has not been requested.
 
@@ -108,11 +115,13 @@ The [behavioral coverage plan](shim_behavioral_coverage.md) and
 Repository checkpoint (2026-09-07): accumulated tested code is now split into
 focused commits for profile switching (`0e4155d`), event shutdown (`19b8f43`),
 scalar hydration (`39af781`), shim behavior (`cf43d37`) and comparison tooling
-(`fe52579`), followed by the documentation checkpoint. Branch `main` was 70 commits
+(`fe52579`), documentation (`3f95510`) and model/scheduler fixes (`fc18668`).
+Branch `main` was 70 commits
 ahead of the locally recorded `origin/main` before these commits; no fetch or push
 was made. Local agent/workspace files and the older post-request planning document
 remain outside these commits. The latest production fixes are already
-synced/reloaded and passed their recorded live checks.
+synced. Earlier batches passed their recorded live checks; the model/scheduler
+batch awaits the requested reload and live verification on Anki 26.08.1.
 
 ## Original session objective
 

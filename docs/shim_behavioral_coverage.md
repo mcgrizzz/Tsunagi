@@ -23,10 +23,11 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1001 tests passed, 8 skipped,
-one expected failure** on the Anki 23.10 test environment, including 126 passing
-upstream comparisons and the default local-path gate mismatch. Thirteen standalone
-regression cases run without an upstream checkout. Ruff passes
+Latest run: **99/120 registered handlers observed; 1044 tests passed, 8 skipped,
+one expected failure** on the Anki 23.10 test environment, including 164 passing
+upstream comparisons across 63 observed action names and the default local-path
+gate mismatch. The model/scheduler pass added 38 differential cases and five
+standalone regressions, including a native field-rename rendering check. Ruff passes
 for the changed Python files. After reload, read-only live checks passed for the
 corrected errors, missing IDs, mixed card lists, 1002-note batching and nested deck
 names. See the [results](shim_differential_results.md) for the scope and remaining limits.
@@ -79,7 +80,7 @@ upstream behavior on the same Anki version before reproducing an obsolete quirk.
 | 1 | Media and note probes | Probe media writes now match tested valid/empty/duplicate cases, and null deleteExisting behavior is fixed. Comparisons also cover local URL downloads, base64, scalar/list media, missing fields, skip hashes, collisions and appended decode errors. The default local-path gate remains different (D11); extend failed-download and nested-option coverage. Native media tests alone do not cover shim mapping. |
 | 2 | Deck lookup side effects | `getDeckStats`, `cardReviews`, `getLatestReviewID` skip missing decks where upstream creates them. `getDecks` now matches the missing-card fallback. Compare `deckNameFromId` missing-ID fallback too. |
 | 2 | Scheduling edge cases | `areDue`/`getIntervals` differ for non-new cards without review history. `suspend` differs for multiple already-matching cards because of upstream's list mutation. Cover duplicate/missing IDs, mixed queues, negative learning intervals, filtered decks, FSRS and legacy scheduler state. |
-| 2 | Model mutation | `modelTemplateAdd` persists changes upstream discards for an existing template; `findAndReplaceInModels` saves only matches where upstream re-saves all models. Compare modification timestamps, card generation/deletion, field/template ordinals, cloze and model conversion. |
+| 2 | Model mutation | Existing-template cache-only edits, empty template-update saves and field-rename rendering now match. `findAndReplaceInModels` still saves only matches where upstream re-saves all models. Extend modification-time, card generation/deletion, field/template ordinal, creation/cloze and model-conversion comparisons. |
 | 2 | GUI transitions and collection lifecycle | `guiDeckReview` avoids upstream's overview transition; `sync` omits an obsolete `mw.onSync()` call. Compare observable behavior on supported Anki versions, including focus, completion timing and errors. |
 | 3 | Transport and browser permission | Compare HTTP status/body/headers, API-version envelopes, nested multi/key handling, empty and fragmented requests, UTF-8 byte lengths, CORS/Origin permission persistence and concurrent requests. Existing tests establish local behavior, not equality with upstream's web server. |
 
