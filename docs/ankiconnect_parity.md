@@ -70,8 +70,8 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `getEaseFactors` | implemented |  |
 | `getIntervals` | implemented | Batched. Deviation: a non-new card with no review history reports 0 (empty list with complete=true) instead of canonical's IndexError. |
 | `relearnCards` | implemented | The one action with no Anki API; a raw UPDATE, wrapped in a CollectionOp. |
-| `setDueDate` | implemented |  |
-| `setEaseFactors` | implemented |  |
+| `setDueDate` | implemented | Uses the native scheduler mutation; exposes Anki's unprefixed invalid-input message. |
+| `setEaseFactors` | implemented | Uses the native factor writer. Short arrays keep earlier writes, skip missing cards and fail at the first present card without a factor. |
 | `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Native: POST /v1/cards:set-values. |
 | `suspend` | implemented | Supports the undocumented `suspend=false` reverse operation. Deviation: returns false whenever no state changes; canonical's list-removal bug can return true for multiple already-matching cards. |
 | `suspended` | implemented |  |
@@ -108,7 +108,7 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `modelFieldFonts` | implemented |  |
 | `modelFieldNames` | implemented |  |
 | `modelFieldRemove` | implemented |  |
-| `modelFieldRename` | implemented |  |
+| `modelFieldRename` | implemented | Uses the native field mutation, fixed to preserve rewritten template references and rendering. |
 | `modelFieldReposition` | implemented |  |
 | `modelFieldSetDescription` | implemented |  |
 | `modelFieldSetFont` | implemented |  |
@@ -118,13 +118,13 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `modelNames` | implemented |  |
 | `modelNamesAndIds` | implemented |  |
 | `modelStyling` | implemented |  |
-| `modelTemplateAdd` | implemented | Deviation: persists an update to an existing template, where canonical discards it. |
+| `modelTemplateAdd` | implemented | Existing-template updates match canonical's unsaved model-cache edit; new templates use the native creation method. Cache and persisted state are compared separately. |
 | `modelTemplateRemove` | implemented |  |
 | `modelTemplateRename` | implemented |  |
 | `modelTemplateReposition` | implemented |  |
 | `modelTemplates` | implemented |  |
 | `updateModelStyling` | implemented |  |
-| `updateModelTemplates` | implemented |  |
+| `updateModelTemplates` | implemented | Empty/unknown template updates still save the model, matching canonical's sync metadata side effect. |
 
 ### Note Actions
 

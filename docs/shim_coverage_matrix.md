@@ -35,12 +35,12 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `deleteMediaFile` | 2 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `deleteNotes` | 2 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `exportPackage` | 3 | 0 | [test_v1_collection.py](../tests/test_v1_collection.py) | — |
-| `findAndReplaceInModels` | 3 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | `back` |
+| `findAndReplaceInModels` | 4 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | `back` |
 | `findCards` | 59 | 5 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `findModelsById` | 1 | 1 | [test_compat_actions.py](../tests/test_compat_actions.py) | — |
 | `findModelsByName` | 1 | 1 | [test_compat_actions.py](../tests/test_compat_actions.py) | — |
 | `findNotes` | 17 | 4 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `forgetCards` | 1 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
+| `forgetCards` | 3 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `getActiveProfile` | 1 | 0 | [test_v1_collection.py](../tests/test_v1_collection.py) | — |
 | `getCollectionStatsHTML` | 2 | 0 | [test_compat_stats.py](../tests/test_compat_stats.py) | — |
 | `getDeckConfig` | 7 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -81,29 +81,29 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `importPackage` | 1 | 0 | [test_v1_collection.py](../tests/test_v1_collection.py) | — |
 | `insertReviews` | 3 | 2 | [test_compat_stats.py](../tests/test_compat_stats.py) | — |
 | `loadProfile` | 0 | 0 | **Not observed** | — |
-| `modelFieldAdd` | 5 | 0 | [test_compat_models.py](../tests/test_compat_models.py) | — |
+| `modelFieldAdd` | 9 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelFieldDescriptions` | 3 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelFieldFonts` | 4 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelFieldNames` | 9 | 2 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `modelFieldRemove` | 1 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `modelFieldRename` | 1 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `modelFieldReposition` | 1 | 0 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `modelFieldSetDescription` | 1 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `modelFieldSetFont` | 1 | 2 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `modelFieldSetFontSize` | 1 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | — |
+| `modelFieldRemove` | 2 | 2 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelFieldRename` | 2 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelFieldReposition` | 2 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelFieldSetDescription` | 2 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelFieldSetFont` | 2 | 2 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelFieldSetFontSize` | 2 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelFieldsOnTemplates` | 2 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelNameFromId` | 1 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | — |
 | `modelNames` | 7 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_models.py](../tests/test_compat_models.py), [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelNamesAndIds` | 4 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelStyling` | 10 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `modelTemplateAdd` | 3 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `modelTemplateRemove` | 1 | 2 | [test_compat_models.py](../tests/test_compat_models.py), [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py) | — |
-| `modelTemplateRename` | 1 | 1 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `modelTemplateReposition` | 1 | 0 | [test_compat_models.py](../tests/test_compat_models.py) | — |
+| `modelTemplateAdd` | 7 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelTemplateRemove` | 2 | 3 | [test_compat_models.py](../tests/test_compat_models.py), [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelTemplateRename` | 2 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `modelTemplateReposition` | 2 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelTemplates` | 16 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `notesInfo` | 38 | 4 | [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `notesModTime` | 4 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `relearnCards` | 1 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
+| `relearnCards` | 3 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `reloadCollection` | 1 | 0 | [test_v1_collection.py](../tests/test_v1_collection.py) | — |
 | `removeDeckConfigId` | 2 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
 | `removeEmptyNotes` | 2 | 0 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
@@ -113,16 +113,16 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `retrieveMediaFile` | 5 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `saveDeckConfig` | 2 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
 | `setDeckConfigId` | 3 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
-| `setDueDate` | 2 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
-| `setEaseFactors` | 1 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
+| `setDueDate` | 6 | 3 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `setEaseFactors` | 4 | 3 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `setSpecificValueOfCard` | 11 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
 | `storeMediaFile` | 19 | 5 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `suspend` | 9 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `suspend` | 11 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `suspended` | 2 | 1 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
 | `sync` | 0 | 0 | **Not observed** | — |
-| `unsuspend` | 2 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `updateModelStyling` | 1 | 0 | [test_compat_models.py](../tests/test_compat_models.py) | — |
-| `updateModelTemplates` | 3 | 0 | [test_compat_models.py](../tests/test_compat_models.py) | — |
+| `unsuspend` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `updateModelStyling` | 2 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `updateModelTemplates` | 6 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateNote` | 7 | 1 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateNoteFields` | 9 | 1 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateNoteModel` | 1 | 1 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
