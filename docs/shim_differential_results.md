@@ -93,7 +93,22 @@ The pass found and fixed five differences:
 This is a focused mutation pass, not complete scheduler/model coverage. Remaining
 cases include model creation, more malformed inputs and replacement side effects,
 answer/partial-answer behavior, repeated suspension, review insertion and undo/Qt
-effects. The latest production changes need reload and live verification.
+effects.
+
+After the user reloaded the synced addon, targeted live checks passed on Anki
+26.08.1 using a disposable model, two notes/cards and a dedicated deck:
+
+- Native field PATCH rewrote template references and preserved rendered content.
+- An empty template update succeeded; adding an existing template immediately
+  exposed its changed front through the model-template reader.
+- A short ease-factor array returned `list index out of range` and retained only
+  the first card's factor change, verified through `getEaseFactors`.
+- Invalid due dates returned Anki's exact `invalid` error.
+
+The notes, model, leaf deck and empty parent deck were deleted and cleanup verified.
+Cache-versus-disk persistence and model sync metadata remain covered by the isolated
+comparisons, not by these live HTTP checks. No additional production changes or
+reload were needed after this verification.
 
 ## Method and limits
 
