@@ -83,10 +83,11 @@ def profiles() -> ProfileList:
     response_model=ProfileLoadResult,
     summary="Switch profile",
     description=(
-        "Closes the current profile and opens another. The collection is "
-        "unavailable while Anki switches, so requests in that window get a 503 "
-        "rather than a half-open collection. `loaded` is false when there is no "
-        "profile by that name."
+        "Schedules closing the current profile and opening another. `loaded` "
+        "confirms acceptance, not completion, and is false for an unknown name. "
+        "The server restarts during the switch; requests may encounter 503 or "
+        "a connection interruption. Reconnect and GET /v1/profiles to confirm "
+        "the active profile."
     ),
     tags=["Collection"],
     operation_id="loadProfile",
