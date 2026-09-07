@@ -30,12 +30,12 @@ def active_profile() -> Optional[str]:
 
 def load_profile(name: str) -> bool:
     """
-    Switch profiles. False when there is no such profile.
+    Schedule a profile switch. False when there is no such profile.
 
-    Closing a profile tears down `mw.col` underneath us, which is exactly what
-    the profile_will_close hook and the 503 CollectionUnavailableError path
-    exist for - requests arriving mid-switch get told to retry rather than
-    touching a dead collection.
+    Release the main-thread caller before unloading: profile_will_close stops
+    the HTTP server and waits for its in-flight requests, including this one.
+    The caller can then finish while shutdown drains the old server. Clients
+    should reconnect and check the active profile after the switch.
     """
     def _switch() -> bool:
         from aqt import mw
@@ -46,24 +46,28 @@ def load_profile(name: str) -> bool:
         if mw.pm.name == name:
             return True
 
-        if mw.isVisible():
-            mw.unloadProfileAndShowProfileManager()
-
-            # Unloading can take a while (it may sync first), and loading the
-            # next profile before that finishes corrupts the switch. Poll
-            # instead of assuming, exactly as canonical does.
-            def waiter() -> None:
-                if mw.isVisible():
-                    QTimer.singleShot(1000, waiter)
-                else:
-                    mw.pm.load(name)
-                    mw.loadProfile()
-
-            waiter()
-        else:
+        def load_target() -> None:
             mw.pm.load(name)
             mw.loadProfile()
             mw.profileDiag.closeWithoutQuitting()
+
+        def begin_switch() -> None:
+            if mw.isVisible():
+                mw.unloadProfileAndShowProfileManager()
+
+                # Unloading may sync first. Do not load the target until
+                # the old profile has finished closing.
+                def waiter() -> None:
+                    if mw.isVisible():
+                        QTimer.singleShot(1000, waiter)
+                    else:
+                        load_target()
+
+                waiter()
+            else:
+                load_target()
+
+        QTimer.singleShot(0, begin_switch)
         return True
 
     return call_on_main(_switch)
