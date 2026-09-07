@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
-from ....adapters.anki.cards import find_card_ids
 from ....adapters.anki.compat_only import (
     remove_unused_note_types,
     replace_tag_everywhere,
@@ -29,7 +28,6 @@ from ....adapters.anki.notes import (
     ac_check_note,
     ac_update_note_fields,
     delete_notes,
-    find_note_ids,
     get_notes_by_ids,
     notes_mod_times,
     patch_note,
@@ -98,7 +96,7 @@ class NotesInfoParams(BaseModel):
 
 
 class FindNotesParams(BaseModel):
-    query: Optional[str] = None
+    query: Any = None
 
 
 class DeleteNotesParams(BaseModel):
@@ -209,10 +207,10 @@ def ac_canAddNotesWithErrorDetail(p: AddNotesParams) -> List[Dict[str, Any]]:
 def _can_add(spec: NoteSpec):
     """(can_add, error_string). Never raises - one entry per input note."""
     try:
-        # Deliberate deviation: a read-only probe must not write media files
-        # into the collection (canonical does, via createNote). Yomitan
-        # strips media from probe notes anyway.
-        ac_check_note(spec.deckName, spec.modelName, spec.fields, spec.options or {})
+        # Canonical probes prepare media before duplicate/empty checks, even
+        # though they never insert the prepared note into the collection.
+        ac_check_note(spec.deckName, spec.modelName, spec.fields, spec.options or {},
+                      _resolve_media(spec))
         return True, None
     except Exception as e:
         return False, str(e)
@@ -227,9 +225,19 @@ def ac_updateNoteFields(p: UpdateNoteFieldsParams) -> None:
 
 @registry.register("notesInfo", params=NotesInfoParams)
 def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
+    from collections import Counter
+
+    from ....adapters.anki.compat import find_ids
+
     if p.notes is None and p.query is None:
         raise ValueError(NOTES_INFO_NO_INPUT)
-    ids = find_note_ids(p.query) if p.query is not None else list(p.notes)
+    ids = find_ids(p.query) if p.query is not None else list(p.notes)
+    # Upstream appends a note's cards once for each 999-ID SQL batch containing
+    # that note. Duplicate IDs inside one batch do not multiply its cards.
+    card_repetitions = Counter(
+        nid for offset in range(0, len(ids), 999)
+        for nid in set(ids[offset:offset + 999])
+    )
 
     # Chunked: a broad query can match the whole collection, and hydrating it
     # in one QueryOp would hit the op timeout (503) where canonical answers
@@ -253,23 +261,27 @@ def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
             "fields": {f.name: {"value": f.value, "order": f.ord} for f in info.fields},
             "modelName": info.model_name,
             "mod": info.mod,
-            "cards": info.cards or [],
+            "cards": (info.cards or []) * card_repetitions[nid],
         })
     return out
 
 
 @registry.register("findNotes", params=FindNotesParams)
 def ac_findNotes(p: FindNotesParams) -> List[int]:
+    from ....adapters.anki.compat import find_ids
+
     if p.query is None:
         return []
-    return find_note_ids(p.query)
+    return find_ids(p.query)
 
 
 @registry.register("findCards", params=FindNotesParams)
 def ac_findCards(p: FindNotesParams) -> List[int]:
+    from ....adapters.anki.compat import find_ids
+
     if p.query is None:
         return []
-    return find_card_ids(p.query)
+    return find_ids(p.query, cards=True)
 
 
 @registry.register("deleteNotes", params=DeleteNotesParams)
@@ -283,9 +295,14 @@ class TagsParams(BaseModel):
     tags: str          # space-separated, per AnkiConnect
 
 
-@registry.register("addTags", params=TagsParams)
-def ac_addTags(p: TagsParams) -> None:
-    add_tags(p.notes, p.tags)
+class AddTagsParams(TagsParams):
+    # Public upstream signature, although omitted from its README examples.
+    add: bool = True
+
+
+@registry.register("addTags", params=AddTagsParams)
+def ac_addTags(p: AddTagsParams) -> None:
+    (add_tags if p.add else remove_tags)(p.notes, p.tags)
     return None
 
 
@@ -302,7 +319,7 @@ def ac_getTags(params: Dict[str, Any]) -> List[str]:
 
 @registry.register("notesModTime", params=DeleteNotesParams)
 def ac_notesModTime(p: DeleteNotesParams) -> List[Dict[str, Any]]:
-    return notes_mod_times(p.notes)
+    return [item if item["mod"] is not None else {} for item in notes_mod_times(p.notes)]
 
 
 class NoteUpdateAnyParams(BaseModel):

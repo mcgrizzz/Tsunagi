@@ -127,6 +127,13 @@ def handle_ankiconnect_rpc(
     if not key_ok:
         return _error(API_KEY_ERROR)
 
+    # Malformed action/params must remain RPC errors, including inside multi.
+    # Otherwise dictionary lookup or params.get() escapes as an HTTP 500.
+    if not isinstance(action, str):
+        return _error(UNSUPPORTED_ACTION)
+    if not isinstance(params, dict):
+        return _error("'params' must be an object")
+
     # multi: dispatcher-level, recursive. Each sub-entry is a full raw request.
     if action == "multi":
         actions = params.get("actions")

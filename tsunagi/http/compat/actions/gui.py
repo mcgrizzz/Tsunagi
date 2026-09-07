@@ -81,13 +81,13 @@ def ac_guiSelectCard(p: CardParams) -> bool:
     return g.select_card(p.card)
 
 
-@registry.register("guiSelectNote", params=CardParams)
-def ac_guiSelectNote(p: CardParams) -> bool:
+@registry.register("guiSelectNote", params=NoteParams)
+def ac_guiSelectNote(p: NoteParams) -> bool:
     """
     Canonical's own deprecated alias: it selects a CARD despite the name, and
-    prints a deprecation notice. Compat-only - /v1 exposes select-card alone.
+    retains the old `note` argument. Compat-only - /v1 exposes select-card alone.
     """
-    return g.select_card(p.card)
+    return g.select_card(p.note)
 
 
 @registry.register("guiSelectedNotes")
