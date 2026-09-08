@@ -203,6 +203,26 @@ def _restart_server(mw: Any, *, enabled: bool) -> None:
                     "for details.")
 
 
+def save_settings(mw: Any, new_cfg: Dict[str, Any], *, disable_ankiconnect: bool = False) -> None:
+    """Save form settings, disabling AnkiConnect only for an explicit selection."""
+    from .dialogs import ANKICONNECT_ID, ankiconnect_status
+
+    if not disable_ankiconnect:
+        apply_config(mw, new_cfg, write=True)
+        return
+    status = ankiconnect_status(mw.addonManager)
+    if not status["installed"]:
+        raise ValueError("AnkiConnect is no longer installed. Reopen settings and try again.")
+    previous = dict(mw.addonManager.getConfig(ADDON_PACKAGE) or {})
+    apply_config(mw, new_cfg, write=True)
+    if status["enabled"]:
+        try:
+            mw.addonManager.toggleEnabled(ANKICONNECT_ID, enable=False)
+        except Exception:
+            apply_config(mw, previous, write=True)
+            raise
+
+
 def open_settings(mw: Any) -> None:
     from aqt.qt import (
         QCheckBox,
@@ -214,6 +234,7 @@ def open_settings(mw: Any) -> None:
         QLabel,
         QLineEdit,
         QPlainTextEdit,
+        QPushButton,
         QSpinBox,
         QVBoxLayout,
     )
@@ -223,6 +244,8 @@ def open_settings(mw: Any) -> None:
         saveGeom,
         showWarning,
     )
+
+    from .dialogs import ANKICONNECT_ID, ankiconnect_import_changes, ankiconnect_status
 
     # Persisted truth, not the live singleton: server-level keys the running
     # server hasn't picked up yet must display as saved.
@@ -302,6 +325,55 @@ def open_settings(mw: Any) -> None:
 
     populate(form_values_from_config(cfg))
 
+    ac_box = QGroupBox("AnkiConnect")
+    ac_layout = QVBoxLayout(ac_box)
+    ac_status = QLabel()
+    ac_status.setObjectName("ankiconnectStatus")
+    ac_status.setWordWrap(True)
+    ac_layout.addWidget(ac_status)
+    ac_details = QLabel(
+        "Import its API key and allowed website origins, then disable AnkiConnect "
+        "when you save. Tsunagi keeps its configured port. Restart Anki afterward "
+        "to stop the other add-on."
+    )
+    ac_details.setWordWrap(True)
+    ac_layout.addWidget(ac_details)
+    import_button = QPushButton("Import settings and disable AnkiConnect")
+    import_button.setObjectName("ankiconnectImport")
+    ac_layout.addWidget(import_button)
+    layout.addWidget(ac_box)
+    pending_import = False
+
+    def refresh_ankiconnect() -> None:
+        status = ankiconnect_status(mw.addonManager)
+        if not status["installed"]:
+            text = "Not installed"
+        elif status["enabled"]:
+            text = "Installed and enabled"
+        else:
+            text = "Installed and disabled (takes effect after restarting Anki)"
+        if status["installed"] and not status["config_available"]:
+            text += ". Import settings are unavailable."
+        if pending_import:
+            text += ". Import and disable are pending; click OK to apply."
+        ac_status.setText(text)
+        import_button.setEnabled(status["config_available"] and not pending_import)
+
+    def on_import() -> None:
+        nonlocal pending_import
+        ac = mw.addonManager.getConfig(ANKICONNECT_ID)
+        if ac is None:
+            refresh_ankiconnect()
+            return
+        current, _ = config_from_form(cfg, collect())
+        current.update(ankiconnect_import_changes(current, ac))
+        populate(form_values_from_config(current))
+        pending_import = True
+        refresh_ankiconnect()
+
+    import_button.clicked.connect(on_import)
+    refresh_ankiconnect()
+
     buttons = QDialogButtonBox(
         QDialogButtonBox.StandardButton.Ok
         | QDialogButtonBox.StandardButton.Cancel
@@ -316,7 +388,13 @@ def open_settings(mw: Any) -> None:
             showWarning("\n".join(errors), parent=dlg)
             return  # keep the dialog open
         new_cfg, server_restart = config_from_form(cfg, values)
-        apply_config(mw, new_cfg, write=True)
+        if pending_import:
+            new_cfg["ankiconnect_import_offered"] = True
+        try:
+            save_settings(mw, new_cfg, disable_ankiconnect=pending_import)
+        except Exception as exc:
+            showWarning(f"Could not save settings: {exc}", parent=dlg)
+            return
         dlg.accept()  # close before the restart's thread-join can block
         if server_restart:
             _restart_server(mw, enabled=bool(new_cfg.get("enabled", True)))
@@ -326,7 +404,13 @@ def open_settings(mw: Any) -> None:
     restore_btn = buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults)
     # Repopulates the form only - nothing persists until OK (matches Anki's
     # own config editor). Gates absent from DEFAULTS reset to off.
-    restore_btn.clicked.connect(lambda: populate(form_values_from_config(DEFAULTS)))
+    def restore_defaults() -> None:
+        nonlocal pending_import
+        pending_import = False
+        populate(form_values_from_config(DEFAULTS))
+        refresh_ankiconnect()
+
+    restore_btn.clicked.connect(restore_defaults)
 
     restoreGeom(dlg, _GEOM_KEY)
     dlg.finished.connect(lambda _result: saveGeom(dlg, _GEOM_KEY))
