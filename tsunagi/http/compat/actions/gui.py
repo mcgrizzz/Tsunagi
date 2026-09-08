@@ -97,7 +97,7 @@ def ac_guiSelectedNotes(params: Optional[Dict[str, Any]] = None) -> List[int]:
 
 @registry.register("guiEditNote", params=NoteParams)
 def ac_guiEditNote(p: NoteParams) -> None:
-    g.edit_note(p.note)
+    g.ac_edit_note(p.note)
     return None
 
 

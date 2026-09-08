@@ -192,7 +192,7 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `guiDeckBrowser` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckOverview` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckReview` | implemented | Goes straight to the reviewer. Canonical routes through the overview first, which races the reviewer and can leave you on the deck page. |
-| `guiEditNote` | implemented | Full-shim gap: opens the Browser focused on the note; canonical opens its standalone editor dialog. User-visible equivalence remains required. |
+| `guiEditNote` | implemented | Opens a reusable standalone Anki editor with save-before-switch/close, history, Browser search and card preview. HTTP routing and Qt lifecycle are tested; a disposable Anki 26.08.1 app smoke check also passed editor open, preview and save/close. Complete visual equivalence remains unverified. The native edit-note route still opens the Browser. |
 | `guiExitAnki` | implemented | Manual verification only (needs a live main window). |
 | `guiImportFile` | implemented | Manual verification only (needs a live main window). |
 | `guiPlayAudio` | implemented | Manual verification only (needs a live main window). |
