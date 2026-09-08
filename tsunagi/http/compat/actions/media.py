@@ -35,7 +35,8 @@ class StoreMediaFileParams(BaseModel):
     path: Optional[str] = None
     url: Optional[str] = None
     skipHash: Optional[str] = None
-    deleteExisting: Optional[bool] = True
+    # Upstream uses Python truthiness, including nonempty strings and containers.
+    deleteExisting: Any = True
 
 
 class FilenameParams(BaseModel):

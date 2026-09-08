@@ -435,7 +435,33 @@ differential files, **874 pass and 1 remains expected to fail** (D11 local-path
 policy). Registry execution remains 99/120 overall and 69 differential handlers.
 Ruff and whitespace checks pass. Reports: `/tmp/tsunagi-media-errors-full.xml`,
 `/tmp/tsunagi-media-errors-old-full.xml`; registry evidence:
-`/tmp/tsunagi-media-errors-coverage.json`. Live media verification awaits reload.
+`/tmp/tsunagi-media-errors-coverage.json`. After confirmed reload, a live local
+HTTP 404 download returned the upstream error text and preserved an existing
+disposable media file. The file was removed and its absence verified afterward.
+
+## Media replacement option values, 2026-09-08
+
+Added 84 upstream comparisons for `deleteExisting` defaults, null, booleans,
+numbers, strings and containers, plus matching `skipHash` values. Seventy-two
+exercise audio, video and picture attachments through `updateNoteFields` and
+`canAddNote`; twelve exercise standalone `storeMediaFile`. Comparisons check
+replies and resulting note/media state, including repeated and unknown field names.
+Before the fix, 35 cases failed. All 84 now pass.
+
+The shim preserves the raw replacement value so Python truthiness matches upstream.
+For example, the nonempty string `"false"` requests replacement; empty lists and
+objects do not. The default remains true for standalone storage and falsy for
+nested attachments. Matching hashes skip deletion and writing. Ten standalone
+regressions verify file contents, returned filenames and probe side effects without
+an upstream checkout. These compatibility models do not change native API inputs.
+
+Full verification: **1927 passed, 4 skipped, 1 xfailed** on Anki 26.08.1 and
+**1921 passed, 10 skipped, 1 xfailed** on Anki 23.10, both with Python 3.12.12.
+Across the two differential files, 958 comparisons pass and D11 remains the sole
+expected failure. Registry execution remains 99/120 overall and 69 differential
+handlers. Ruff and whitespace checks pass. Reports:
+`/tmp/tsunagi-media-options-full.xml`, `/tmp/tsunagi-media-options-old-full.xml`;
+coverage: `/tmp/tsunagi-media-options-coverage.json`. Live option checks await reload.
 
 ## Method and limits
 

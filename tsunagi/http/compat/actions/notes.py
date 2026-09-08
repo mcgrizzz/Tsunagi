@@ -50,7 +50,8 @@ class MediaSpec(BaseModel):
     url: Optional[str] = None
     skipHash: Optional[str] = None
     fields: Optional[List[str]] = None
-    deleteExisting: Optional[bool] = None   # note-spec default is falsy
+    # Upstream uses Python truthiness; the note-spec default is falsy.
+    deleteExisting: Any = None
 
 
 class NoteSpec(BaseModel):

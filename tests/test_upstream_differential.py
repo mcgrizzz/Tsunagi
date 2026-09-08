@@ -394,6 +394,40 @@ def test_nested_download_error_escapes_url(pair, media_url):
     assert_media_url_failure(pair, media_url + '?status=404&label=<tag>"quote"', "updateNoteFields")
 
 
+_MEDIA_REPLACEMENT_OPTIONS = [
+    {}, {"deleteExisting": None}, {"deleteExisting": False}, {"deleteExisting": True},
+    {"deleteExisting": 0}, {"deleteExisting": "false"}, {"deleteExisting": ""},
+    {"deleteExisting": []}, {"deleteExisting": [1]}, {"deleteExisting": {"value": False}},
+    {"deleteExisting": True, "skipHash": "a5ca0b5894324f8bb54bb9fffad29d1e"},
+    {"deleteExisting": "false", "skipHash": "a5ca0b5894324f8bb54bb9fffad29d1e"},
+]
+
+
+@pytest.mark.parametrize("options", _MEDIA_REPLACEMENT_OPTIONS)
+@pytest.mark.parametrize("kind", ["audio", "video", "picture"])
+@pytest.mark.parametrize("action", ["updateNoteFields", "canAddNote"])
+def test_nested_media_replacement_options(pair, options, kind, action):
+    for collection in pair[:2]:
+        collection.media.write_data("nested-media.mp3", b"original")
+    media = {"filename": "nested-media.mp3", "data": "YXVkaW8=",
+             "fields": ["Back", "Unknown", "Back"], **options}
+    if action == "updateNoteFields":
+        note = {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"}, kind: media}
+    else:
+        note = {"deckName": "Default", "modelName": "Basic",
+                "fields": {"Front": "nested media probe", "Back": "back"}, kind: media}
+    compare(pair, action, {"note": note})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("options", _MEDIA_REPLACEMENT_OPTIONS)
+def test_media_replacement_option_values(pair, options):
+    for collection in pair[:2]:
+        collection.media.write_data("replacement.mp3", b"original")
+    compare(pair, "storeMediaFile", {"filename": "replacement.mp3", "data": "YXVkaW8=", **options})
+    assert_note_and_media_state(pair)
+
+
 @pytest.mark.parametrize("change", [
     {"fields": {"Front": "changed", "Unknown": "ignored"}},
     {"fields": {}, "tags": ["new", "root::child"]},

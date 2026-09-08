@@ -23,13 +23,13 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1827 tests passed, 10 skipped,
-one expected failure** on the Anki 23.10 test environment, including 874 passing
+Latest run: **99/120 registered handlers observed; 1921 tests passed, 10 skipped,
+one expected failure** on the Anki 23.10 test environment, including 958 passing
 upstream comparisons and the default local-path gate mismatch. Differential
 behavioral calls reach 69 registered handlers. Argument-name rejection checks
 separately cover all 122 action names, without executing their bodies; these do
 not expand the registry execution count or prove GUI/lifecycle parity.
-The full Anki 26.08.1 run has **1833 passed, 4 skipped, 1 expected failure**;
+The full Anki 26.08.1 run has **1927 passed, 4 skipped, 1 expected failure**;
 the remaining skips assert 23.10-only behavior. The old environment also skips
 the two optional real-Qt lifecycle tests. Permission acceptance, ignore,
 close, repeated-request and persistence comparisons add 79 cases with simulated
@@ -38,7 +38,11 @@ empty-origin denials returned before timeout; the user confirmed closing the
 first dialog with No and Ignore selected. Timeout cleanup has headless Qt coverage.
 Media failures add 57 differential cases and nine standalone regressions covering
 statuses, redirects, invalid URLs, disconnected downloads, nested error escaping,
-existing-file preservation and configured size limits. Live media checks await reload.
+existing-file preservation and configured size limits. The live HTTP 404 error and
+existing-file preservation check passed after reload; its disposable file was removed.
+Replacement option values add 84 differential cases and ten standalone regressions:
+the shim preserves Python truthiness and checks hashes before deletion. Live option
+checks await reload.
 The raw HTTP-body batch adds 90 differential cases and 11 standalone regressions:
 empty-body discovery, exact JSON/UTF-8 errors and origin rejection now match the
 tested upstream boundaries. After reload, all 26 read-only live checks passed,
