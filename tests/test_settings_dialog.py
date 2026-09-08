@@ -17,7 +17,7 @@ from tsunagi.adapters.settings_dialog import (
 )
 
 HIDDEN_KEYS = {"ankiconnect_import_offered", "config_version",
-               "dev_watch_seconds", "gates"}
+               "dev_watch_seconds", "gates", "ankiconnect_ignore_origins"}
 
 
 class TestFieldSpec:
@@ -74,10 +74,12 @@ class TestRoundTrip:
     def test_internal_keys_pass_through_verbatim(self):
         cfg = dict(DEFAULTS)
         cfg["ankiconnect_import_offered"] = True
+        cfg["ankiconnect_ignore_origins"] = ["https://ignored.test", ["nested"]]
         values = form_values_from_config(cfg)
         values["api_key"] = "k"
         new_cfg, _ = config_from_form(cfg, values)
         assert new_cfg["ankiconnect_import_offered"] is True
+        assert new_cfg["ankiconnect_ignore_origins"] == cfg["ankiconnect_ignore_origins"]
         assert new_cfg["config_version"] == DEFAULTS["config_version"]
         assert new_cfg["dev_watch_seconds"] == DEFAULTS["dev_watch_seconds"]
 
