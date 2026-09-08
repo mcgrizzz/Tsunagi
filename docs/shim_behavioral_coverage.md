@@ -23,10 +23,13 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1147 tests passed, 8 skipped,
-one expected failure** on the Anki 23.10 test environment, including 249 passing
-upstream comparisons across 66 observed action names and the default local-path
-gate mismatch. The model/scheduler pass added 38 differential cases and five
+Latest run: **99/120 registered handlers observed; 1392 tests passed, 8 skipped,
+one expected failure** on the Anki 23.10 test environment, including 490 passing
+upstream comparisons and the default local-path gate mismatch. Differential
+behavioral calls reach 68 registered handlers. Argument-name rejection checks
+separately cover all 122 action names, without executing their bodies; these do
+not expand the registry execution count or prove GUI/lifecycle parity.
+The original model/scheduler pass added 38 differential cases and five
 standalone regressions, including a native field-rename rendering check. Ruff passes
 for the changed Python files. After reload, read-only live checks passed for the
 corrected errors, missing IDs, mixed card lists, 1002-note batching and nested deck
@@ -68,17 +71,18 @@ cases, not used to mark an entire GUI family complete.
 ## Known differences to close
 
 These are compatibility debt under the full-shim target, including differences
-previously described as intentional improvements. Resolve them in the compatibility
-layer where possible so native routes keep their documented behavior. Confirm
+previously described as intentional improvements. Resolve them only in the
+compatibility layer so native methods and routes keep their documented behavior.
+Reuse native operations without adding parity switches to their contracts. Confirm
 upstream behavior on the same Anki version before reproducing an obsolete quirk.
 
 | Priority | Surface | Difference / missing comparison |
 | --- | --- | --- |
-| 1 | RPC argument binding and errors | Pydantic coercion, ignored extra keys, missing/null/false/empty values, Python argument-binding errors, generic internal-error messages, and malformed request containers need a systematic upstream comparison. Reflection now has focused exact-response tests. |
+| 1 | RPC argument values and errors | Missing/extra argument names now match pinned signatures for all 122 actions, including rejection before mutations and permission prompting. Upstream HTTP supplies permission context. Pydantic coercion, null/false/empty and nested values, generic internal errors, malformed request containers and nested permission calls still need broader comparison. |
 | 1 | `guiEditNote` | Browser navigation currently substitutes for upstream's standalone editor. This is a user-visible gap, not an acceptable UI equivalence claim. |
 | 1 | `answerCards`, `addNotes`, `insertReviews` | Answer prefixes and tested backend/live GUI undo now match. Review duplicate/malformed-row failures are atomic in both implementations; the earlier partial-write claim was incorrect. Extend undo/grouping, malformed value types and rollback sequences. Review SQL-expression values remain outside the scalar-only fallback and are still a contract gap. |
 | 1 | Media and note probes | Probe media writes now match tested valid/empty/duplicate cases, and null deleteExisting behavior is fixed. Comparisons also cover local URL downloads, base64, scalar/list media, missing fields, skip hashes, collisions and appended decode errors. The default local-path gate remains different (D11); extend failed-download and nested-option coverage. Native media tests alone do not cover shim mapping. |
-| 2 | Deck lookup side effects | `getDeckStats`, `cardReviews`, `getLatestReviewID` skip missing decks where upstream creates them. `getDecks` now matches the missing-card fallback. Compare `deckNameFromId` missing-ID fallback too. |
+| 2 | Deck lookup edge cases | `getDeckStats`, `cardReviews`, `getLatestReviewID` now create missing decks through a shim-only resolver; native reads still create nothing. Comparisons cover nested, blank/padded names, null errors and string iteration. `getDecks` matches the missing-card fallback. Extend invalid-name sequences/partial effects and compare `deckNameFromId` missing-ID fallback. |
 | 2 | Scheduling edge cases | Empty-history errors and suspension list iteration now match, with comparisons for duplicate/missing IDs, mixed new/review/learning queues, buried/suspended cards and negative learning intervals. Extend filtered-deck, FSRS, day-learning/relearning, boundary and legacy-state coverage. |
 | 2 | Model mutation | Existing-template cache-only edits, empty template-update saves, field-rename rendering, unmatched replacement saves and creation errors now match tested cases. Extend modification-time, card generation/deletion, field/template ordinal, creation/cloze edge cases and model-conversion comparisons. |
 | 2 | GUI transitions and collection lifecycle | `guiDeckReview` avoids upstream's overview transition; `sync` omits an obsolete `mw.onSync()` call. Compare observable behavior on supported Anki versions, including focus, completion timing and errors. |
