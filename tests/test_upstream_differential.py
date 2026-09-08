@@ -478,6 +478,70 @@ def test_nested_media_storage_errors(pair, monkeypatch, selection):
     assert media_state(pair[0]) == {}
 
 
+@pytest.mark.parametrize("media", [
+    None, False, 0, "", "malformed", [], [None], {}, {"fields": ["Back"]},
+    {"filename": None, "data": "YXVkaW8=", "fields": ["Back"]},
+    {"filename": 7, "data": "YXVkaW8=", "fields": ["Back"]},
+    *({"filename": "raw.mp3", "data": value, "fields": ["Back"]}
+      for value in (None, 0, False, [], [1], {}, {"key": "value"})),
+    {"filename": "raw.mp3", "url": 7, "fields": ["Back"]},
+    *({"filename": "raw.mp3", "data": "YXVkaW8=", "skipHash": value, "fields": ["Back"]}
+      for value in (0, False, [], {"key": "value"})),
+])
+@pytest.mark.parametrize("action", ["updateNoteFields", "canAddNoteWithErrorDetail"])
+def test_nested_raw_media_values(pair, media, action):
+    if action == "updateNoteFields":
+        note = {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"}, "audio": media}
+    else:
+        note = {"deckName": "Default", "modelName": "Basic",
+                "fields": {"Front": "raw media probe", "Back": "back"}, "audio": media}
+    compare(pair, action, {"note": note})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("malformed", [False, "malformed", ["malformed"]])
+def test_malformed_attachment_keeps_earlier_media(pair, malformed):
+    media = [
+        {"filename": "prefix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
+        malformed,
+        {"filename": "suffix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
+    ]
+    note = {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"}, "picture": media}
+    compare(pair, "updateNoteFields", {"note": note})
+    assert_note_and_media_state(pair)
+    assert media_state(pair[0]) == {"prefix.mp3": b"audio"}
+
+
+@pytest.mark.parametrize("params", [
+    {"filename": None, "data": "YXVkaW8="}, {"filename": 7, "data": "YXVkaW8="},
+    *({"filename": "raw.mp3", "data": value}
+      for value in (None, 0, False, [], [1], {}, {"key": "value"})),
+    {"filename": "raw.mp3", "url": 7},
+    *({"filename": "raw.mp3", "data": "YXVkaW8=", "skipHash": value}
+      for value in (0, False, [], {"key": "value"})),
+])
+def test_raw_store_media_values(pair, params):
+    compare(pair, "storeMediaFile", params)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("filename", [None, 7])
+@pytest.mark.parametrize("delete", [False, True])
+@pytest.mark.parametrize("skip", [False, True])
+@pytest.mark.parametrize("action", ["storeMediaFile", "updateNoteFields"])
+def test_media_filename_validation_order(pair, filename, delete, skip, action):
+    media = {"filename": filename, "data": "YXVkaW8=", "deleteExisting": delete}
+    if skip:
+        media["skipHash"] = "a5ca0b5894324f8bb54bb9fffad29d1e"
+    params = media if action == "storeMediaFile" else {"note": {
+        "id": pair[0].find_notes("")[0], "fields": {"Back": "updated"},
+        "audio": {**media, "fields": ["Back"]},
+    }}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+    assert media_state(pair[0]) == {}
+
+
 @pytest.mark.parametrize("change", [
     {"fields": {"Front": "changed", "Unknown": "ignored"}},
     {"fields": {}, "tags": ["new", "root::child"]},
