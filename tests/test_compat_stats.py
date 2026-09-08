@@ -86,12 +86,14 @@ class TestCardReviews:
     def test_scoped_to_the_deck(self, reviewed):
         assert rpc(reviewed, "cardReviews", {"deck": "Other", "startID": 0})["result"] == []
 
-    def test_unknown_deck_is_empty_and_creates_nothing(self, reviewed):
-        # DEVIATION: canonical resolves with decks.id(), which CREATES the deck
-        # - a write as a side effect of a read.
+    def test_unknown_deck_is_created_only_by_shim(self, reviewed):
+        from tsunagi.adapters.anki.reviews import reviews_of_deck
+
+        assert reviews_of_deck("NoSuchDeck", 0) == []
+        assert "NoSuchDeck" not in rpc(reviewed, "deckNames")["result"]
         assert rpc(reviewed, "cardReviews",
                    {"deck": "NoSuchDeck", "startID": 0})["result"] == []
-        assert "NoSuchDeck" not in rpc(reviewed, "deckNames")["result"]
+        assert "NoSuchDeck" in rpc(reviewed, "deckNames")["result"]
 
 
 class TestLatestReviewID:
@@ -103,9 +105,13 @@ class TestLatestReviewID:
     def test_zero_without_reviews(self, reviewed):
         assert rpc(reviewed, "getLatestReviewID", {"deck": "Other"})["result"] == 0
 
-    def test_unknown_deck_is_zero_and_creates_nothing(self, reviewed):
-        assert rpc(reviewed, "getLatestReviewID", {"deck": "Nope"})["result"] == 0
+    def test_unknown_deck_is_created_only_by_shim(self, reviewed):
+        from tsunagi.adapters.anki.reviews import latest_review_id
+
+        assert latest_review_id("Nope") == 0
         assert "Nope" not in rpc(reviewed, "deckNames")["result"]
+        assert rpc(reviewed, "getLatestReviewID", {"deck": "Nope"})["result"] == 0
+        assert "Nope" in rpc(reviewed, "deckNames")["result"]
 
 
 class TestGetReviewsOfCards:

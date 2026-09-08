@@ -23,11 +23,11 @@ from ..registry import registry
 
 
 class DeckParams(BaseModel):
-    deck: str
+    deck: Any
 
 
 class CardReviewsParams(BaseModel):
-    deck: str
+    deck: Any
     startID: int = 0
 
 
@@ -56,12 +56,16 @@ def ac_getCollectionStatsHTML(p: CollectionStatsParams) -> str:
 
 @registry.register("cardReviews", params=CardReviewsParams)
 def ac_cardReviews(p: CardReviewsParams) -> List[List[Any]]:
-    return reviews_of_deck(p.deck, p.startID)
+    from ....adapters.anki.compat import resolve_deck_names
+
+    return reviews_of_deck(resolve_deck_names([p.deck])[0], p.startID)
 
 
 @registry.register("getLatestReviewID", params=DeckParams)
 def ac_getLatestReviewID(p: DeckParams) -> int:
-    return latest_review_id(p.deck)
+    from ....adapters.anki.compat import resolve_deck_names
+
+    return latest_review_id(resolve_deck_names([p.deck])[0])
 
 
 @registry.register("getReviewsOfCards", params=GetReviewsOfCardsParams)

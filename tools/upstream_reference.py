@@ -62,3 +62,25 @@ def load_reference(checkout):
     reference.startEditing = lambda: None
     reference.stopEditing = lambda: None
     return reference
+
+
+def signature_manifest(reference):
+    """Snapshot public argument names and aliases from the pinned reference."""
+    import inspect
+    import json
+
+    manifest = {}
+    for name, method in inspect.getmembers(reference, predicate=inspect.ismethod):
+        if not getattr(method, "api", False):
+            continue
+        required, optional = [], []
+        variadic = False
+        for parameter in inspect.signature(method).parameters.values():
+            if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+                variadic = True
+            else:
+                assert parameter.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD
+                target = required if parameter.default is inspect.Parameter.empty else optional
+                target.append(parameter.name)
+        manifest[name] = [required, optional, variadic, list(getattr(method, "versions", []))]
+    return json.loads(json.dumps(manifest))

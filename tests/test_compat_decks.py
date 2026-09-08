@@ -133,11 +133,18 @@ class TestDeckStats:
         assert stats["name"] == "JP"
         assert stats["new_count"] == 1 and stats["total_in_deck"] == 1
 
-    def test_unknown_deck_is_skipped_and_not_created(self, seeded):
-        # Divergence: canonical resolves names with decks.id(), so a typo
-        # silently creates a deck. A stats read must not mutate.
-        assert rpc(seeded, "getDeckStats", {"decks": ["Nope"]})["result"] == {}
+    def test_unknown_deck_is_created_only_by_shim(self, seeded):
+        from tsunagi.adapters.anki.decks import get_deck_stats
+
+        assert get_deck_stats(["Nope"]) == {}
         assert "Nope" not in rpc(seeded, "deckNames")["result"]
+        reply = rpc(seeded, "getDeckStats", {"decks": ["Nope"]})
+        assert reply["error"] is None
+        did = rpc(seeded, "deckNamesAndIds")["result"]["Nope"]
+        assert reply["result"] == {str(did): {
+            "deck_id": did, "name": "Nope", "new_count": 0,
+            "learn_count": 0, "review_count": 0, "total_in_deck": 0,
+        }}
 
 
 class TestMediaDirPath:

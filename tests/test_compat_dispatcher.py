@@ -66,8 +66,8 @@ class TestErrors:
         body = client.post("/", json={"action": "modelFieldNames", "version": 6,
                                       "params": {}}).json()
         assert body["result"] is None
-        assert "modelName" in body["error"]
-        assert "field required" in body["error"]
+        assert body["error"] == (
+            "AnkiConnect.modelFieldNames() missing 1 required positional argument: 'modelName'")
 
 
 class TestMulti:
