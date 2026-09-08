@@ -18,7 +18,7 @@ dedicated compatibility adapter. Do not add compatibility switches to native
 methods. The native field-rename/rendering fix remains a native correctness fix.
 
 Reconciled 2026-09-07 after the HTTP request-shape/multi follow-up passed automated
-checks. The earlier binding/deck batch passed live; this new batch awaits reload.
+and live checks on the reloaded addon. No reload remains pending for this batch.
 The original objective and investigation notes below are historical context.
 
 Completed:
@@ -77,7 +77,8 @@ Completed:
   accepts empty iterables and aborts on malformed children while retaining prior
   writes and skipping later entries; nested aborts remain contained by their parent.
   All production changes are confined to compatibility code and its HTTP endpoint.
-  Native methods and routes retain their contracts. Live verification awaits reload.
+  Native methods and routes retain their contracts. Live verification passed after
+  reload; the two temporary empty decks were removed and cleanup was verified.
 - Full suite: 1483 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
@@ -188,11 +189,13 @@ expected decks and returned matching stats/empty review results; null card input
 returned the expected error. The three empty leaf decks and their uniquely named
 parent were removed, and their absence was verified. No further reload is needed.
 
-The new HTTP request-shape/multi batch (`23ba094`) is committed locally and synced.
-It passed the full automated suite and requires one reload before
-`/tmp/tsunagi-request-shapes-live.py`. The script verifies outer
-null rejection, empty iterable batches, retained prefix writes/skipped suffix writes
-and nested aborts. It removes its uniquely named empty decks and verifies cleanup.
+The HTTP request-shape/multi batch (`23ba094`) is committed locally, synced and
+reloaded. `/tmp/tsunagi-request-shapes-live.py` passed on Anki 26.08.1: outer null
+parameters returned the exact schema error; empty list/object/string batches
+returned empty results; a malformed child retained the earlier deck creation and
+prevented the later creation; a nested abort returned its own error while its parent
+continued. The uniquely named parent and leaf deck were removed and their absence
+verified. No further reload is needed for this batch.
 
 ## Original session objective
 

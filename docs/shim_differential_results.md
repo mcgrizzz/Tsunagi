@@ -262,8 +262,13 @@ handlers**; overall registry execution remains **99/120**. Full suite:
 **1483 passed, 8 skipped, one expected failure** on Anki 23.10 / Python 3.12.12.
 Ruff and whitespace checks pass. Artifacts:
 `/tmp/tsunagi-request-shapes-full.xml` and `/tmp/tsunagi-request-shapes-coverage.json`.
-Live verification is pending reload; `/tmp/tsunagi-request-shapes-live.py` checks
-HTTP rejection and batch abort behavior using uniquely named disposable empty decks.
+After reload, `/tmp/tsunagi-request-shapes-live.py` passed on Anki 26.08.1: outer
+null parameters returned the exact schema error; empty list/object/string batches
+returned empty results; a malformed child retained the preceding deck creation and
+skipped the later creation; a nested abort returned its own error while the parent
+continued. The uniquely named empty parent and leaf deck were removed and their
+absence verified. No further reload is pending for this batch. These live checks
+verify responses and collection state, not all Qt refresh or undo effects.
 
 Still unverified or different: malformed JSON/empty-body transport responses,
 nested child parameter containers and version coercion, nested permission context,
