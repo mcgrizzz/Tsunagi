@@ -13,7 +13,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `addTags` | 6 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `answerCards` | 7 | 11 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `apiReflect` | 5 | 9 | [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `areDue` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `areDue` | 9 | 4 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_scheduler_review_regressions.py](../tests/test_scheduler_review_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `areSuspended` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `canAddNote` | 8 | 0 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `canAddNoteWithErrorDetail` | 6 | 0 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -47,7 +47,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `getDeckStats` | 5 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `getDecks` | 5 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `getEaseFactors` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `getIntervals` | 5 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `getIntervals` | 19 | 4 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_scheduler_review_regressions.py](../tests/test_scheduler_review_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `getLatestReviewID` | 3 | 0 | [test_compat_stats.py](../tests/test_compat_stats.py) | — |
 | `getMediaDirPath` | 1 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
 | `getMediaFilesNames` | 4 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -79,7 +79,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `guiStartCardTimer` | 0 | 0 | **Not observed** | — |
 | `guiUndo` | 0 | 0 | **Not observed** | — |
 | `importPackage` | 1 | 0 | [test_v1_collection.py](../tests/test_v1_collection.py) | — |
-| `insertReviews` | 3 | 2 | [test_compat_stats.py](../tests/test_compat_stats.py) | — |
+| `insertReviews` | 13 | 13 | [test_compat_stats.py](../tests/test_compat_stats.py), [test_scheduler_review_regressions.py](../tests/test_scheduler_review_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `loadProfile` | 0 | 0 | **Not observed** | — |
 | `modelFieldAdd` | 9 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `modelFieldDescriptions` | 3 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -117,7 +117,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `setEaseFactors` | 4 | 3 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `setSpecificValueOfCard` | 11 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
 | `storeMediaFile` | 19 | 5 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `suspend` | 11 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `suspend` | 32 | 4 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_parity_history.py](../tests/test_parity_history.py), [test_scheduler_review_regressions.py](../tests/test_scheduler_review_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `suspended` | 2 | 1 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
 | `sync` | 0 | 0 | **Not observed** | — |
 | `unsuspend` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |

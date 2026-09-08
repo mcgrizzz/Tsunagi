@@ -60,7 +60,7 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | Action | Status | Notes |
 | --- | --- | --- |
 | `answerCards` | implemented | Uses the native scheduler answer method. Missing keys and invalid ease preserve preceding answers; earlier invalid ease takes precedence over later missing keys. Responses, review rows and backend undo/redo are compared. |
-| `areDue` | implemented | Batched (one scoped search, not one per card). Deviation: a non-new card with no review history answers via the due search instead of raising IndexError like canonical. |
+| `areDue` | implemented | Batched native reader with strict history enabled by the shim. Matches upstream's error for non-new/missing cards without review history. |
 | `areSuspended` | implemented |  |
 | `cardsInfo` | implemented |  |
 | `cardsModTime` | implemented |  |
@@ -68,12 +68,12 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `findCards` | implemented |  |
 | `forgetCards` | implemented |  |
 | `getEaseFactors` | implemented |  |
-| `getIntervals` | implemented | Batched. Deviation: a non-new card with no review history reports 0 (empty list with complete=true) instead of canonical's IndexError. |
-| `relearnCards` | implemented | The one action with no Anki API; a raw UPDATE, wrapped in a CollectionOp. |
+| `getIntervals` | implemented | Batched. Missing last intervals raise the upstream error; complete=true still returns empty histories. Native fallback defaults remain unchanged. |
+| `relearnCards` | implemented | Uses a raw UPDATE, wrapped in a CollectionOp. |
 | `setDueDate` | implemented | Uses the native scheduler mutation; exposes Anki's unprefixed invalid-input message. |
 | `setEaseFactors` | implemented | Uses the native factor writer. Short arrays keep earlier writes, skip missing cards and fail at the first present card without a factor. |
 | `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Native: POST /v1/cards:set-values. |
-| `suspend` | implemented | Supports the undocumented `suspend=false` reverse operation. Deviation: returns false whenever no state changes; canonical's list-removal bug can return true for multiple already-matching cards. |
+| `suspend` | implemented | Supports suspend=false and reproduces upstream's list-removal iteration, including repeated-state return values and skipped missing-ID validation. State reads stay batched; writes use native methods. |
 | `suspended` | implemented |  |
 | `unsuspend` | implemented | Returns null, matching canonical. |
 
@@ -215,4 +215,4 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. |
 | `getNumCardsReviewedToday` | implemented | Counted from the scheduler's day cutoff. |
 | `getReviewsOfCards` | implemented | Map of card id to reviews; every requested card gets an entry. |
-| `insertReviews` | implemented | Parameterized + transactional under the hood (canonical string-interpolates); identical rows land, but a malformed row's error string is ours, not sqlite's. Native: POST /v1/reviews. |
+| `insertReviews` | implemented | Ordinary integer rows use the native writer; a scalar-only compatibility path preserves tested SQLite coercion/errors. Duplicate/malformed-row failures are atomic upstream too. SQL-expression values remain outside the scalar contract. Native: POST /v1/reviews. |

@@ -23,9 +23,9 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1083 tests passed, 8 skipped,
-one expected failure** on the Anki 23.10 test environment, including 195 passing
-upstream comparisons across 65 observed action names and the default local-path
+Latest run: **99/120 registered handlers observed; 1147 tests passed, 8 skipped,
+one expected failure** on the Anki 23.10 test environment, including 249 passing
+upstream comparisons across 66 observed action names and the default local-path
 gate mismatch. The model/scheduler pass added 38 differential cases and five
 standalone regressions, including a native field-rename rendering check. Ruff passes
 for the changed Python files. After reload, read-only live checks passed for the
@@ -76,10 +76,10 @@ upstream behavior on the same Anki version before reproducing an obsolete quirk.
 | --- | --- | --- |
 | 1 | RPC argument binding and errors | Pydantic coercion, ignored extra keys, missing/null/false/empty values, Python argument-binding errors, generic internal-error messages, and malformed request containers need a systematic upstream comparison. Reflection now has focused exact-response tests. |
 | 1 | `guiEditNote` | Browser navigation currently substitutes for upstream's standalone editor. This is a user-visible gap, not an acceptable UI equivalence claim. |
-| 1 | `answerCards`, `addNotes`, `insertReviews` | Answer prefixes now survive malformed entries and backend undo/redo matches tested success/partial-failure cases. Extend mixed queues, malformed value types and real Qt undo behavior. `insertReviews` is transactional where upstream may leave preceding writes. The existing `addNotes` rollback test covers one failure sequence only. |
+| 1 | `answerCards`, `addNotes`, `insertReviews` | Answer prefixes and tested backend/live GUI undo now match. Review duplicate/malformed-row failures are atomic in both implementations; the earlier partial-write claim was incorrect. Extend undo/grouping, malformed value types and rollback sequences. Review SQL-expression values remain outside the scalar-only fallback and are still a contract gap. |
 | 1 | Media and note probes | Probe media writes now match tested valid/empty/duplicate cases, and null deleteExisting behavior is fixed. Comparisons also cover local URL downloads, base64, scalar/list media, missing fields, skip hashes, collisions and appended decode errors. The default local-path gate remains different (D11); extend failed-download and nested-option coverage. Native media tests alone do not cover shim mapping. |
 | 2 | Deck lookup side effects | `getDeckStats`, `cardReviews`, `getLatestReviewID` skip missing decks where upstream creates them. `getDecks` now matches the missing-card fallback. Compare `deckNameFromId` missing-ID fallback too. |
-| 2 | Scheduling edge cases | `areDue`/`getIntervals` differ for non-new cards without review history. `suspend` differs for multiple already-matching cards because of upstream's list mutation. Cover duplicate/missing IDs, mixed queues, negative learning intervals, filtered decks, FSRS and legacy scheduler state. |
+| 2 | Scheduling edge cases | Empty-history errors and suspension list iteration now match, with comparisons for duplicate/missing IDs, mixed new/review/learning queues, buried/suspended cards and negative learning intervals. Extend filtered-deck, FSRS, day-learning/relearning, boundary and legacy-state coverage. |
 | 2 | Model mutation | Existing-template cache-only edits, empty template-update saves, field-rename rendering, unmatched replacement saves and creation errors now match tested cases. Extend modification-time, card generation/deletion, field/template ordinal, creation/cloze edge cases and model-conversion comparisons. |
 | 2 | GUI transitions and collection lifecycle | `guiDeckReview` avoids upstream's overview transition; `sync` omits an obsolete `mw.onSync()` call. Compare observable behavior on supported Anki versions, including focus, completion timing and errors. |
 | 3 | Transport and browser permission | Compare HTTP status/body/headers, API-version envelopes, nested multi/key handling, empty and fragmented requests, UTF-8 byte lengths, CORS/Origin permission persistence and concurrent requests. Existing tests establish local behavior, not equality with upstream's web server. |
