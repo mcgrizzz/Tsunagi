@@ -304,9 +304,15 @@ default local-path policy mismatch. Differential calls reach **69 registered
 handlers**; overall registry execution remains **99/120**. Full suite:
 **1568 passed, 8 skipped, one expected failure** on Anki 23.10 / Python 3.12.12.
 Ruff and whitespace checks pass. Artifacts: `/tmp/tsunagi-nested-rpc-full.xml` and
-`/tmp/tsunagi-nested-rpc-coverage.json`. Live verification awaits reload;
-`/tmp/tsunagi-nested-rpc-live.py` uses disposable empty decks and permission cases
-that avoid prompts/configuration changes.
+`/tmp/tsunagi-nested-rpc-coverage.json`. After reload,
+`/tmp/tsunagi-nested-rpc-live.py` passed on Anki 26.08.1: null/list/string/false child
+params returned the expected mapping errors while siblings continued; version 4.5
+kept its envelope; a null child version failed during formatting after deck creation;
+missing permission context failed and explicit allowed context returned the expected
+result. Permission cases avoided prompts/configuration changes. The uniquely named
+empty parent and leaf deck were removed and their absence verified. No further reload
+is pending for this batch. Live dialog, permission persistence and Qt/undo behavior
+remain outside these checks.
 
 ## Method and limits
 

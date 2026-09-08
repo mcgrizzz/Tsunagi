@@ -17,8 +17,8 @@ their behavior fits, and compose compatibility quirks in shim handlers or the
 dedicated compatibility adapter. Do not add compatibility switches to native
 methods. The native field-rename/rendering fix remains a native correctness fix.
 
-Reconciled 2026-09-07 after the nested request follow-up passed automated checks.
-The earlier HTTP request-shape/multi batch passed live; the nested batch awaits reload.
+Reconciled 2026-09-07 after the nested request follow-up passed automated and live
+checks on the reloaded addon. No reload remains pending for this batch.
 The original objective and investigation notes below are historical context.
 
 Completed:
@@ -87,7 +87,8 @@ Completed:
   origins. Prompt-denial tests use simulated Qt widgets and make no live settings
   changes. All production changes are in compatibility code. The portable Python
   mapping error omits the installation-specific addon module prefix; comparisons
-  remove only the reference prefix for those errors. Live verification awaits reload.
+  remove only the reference prefix for those errors. Live verification passed after
+  reload; its empty parent and leaf deck were removed and cleanup was verified.
 - Full suite: 1568 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
@@ -207,12 +208,14 @@ prevented the later creation; a nested abort returned its own error while its pa
 continued. The uniquely named parent and leaf deck were removed and their absence
 verified. No further reload is needed for this batch.
 
-The new nested request batch (`7974ba9`) is committed locally and synced. It passed
-the full automated suite and needs one reload
-before `/tmp/tsunagi-nested-rpc-live.py`. The script checks child parameter errors,
-fractional version envelopes, retained writes after version-formatting errors and
-explicit permission context. Its permission cases avoid prompts and configuration
-changes. It removes its uniquely named empty parent and leaf deck and verifies cleanup.
+The nested request batch (`7974ba9`) is committed locally, synced and reloaded.
+`/tmp/tsunagi-nested-rpc-live.py` passed on Anki 26.08.1: null/list/string/false child
+params returned the expected mapping errors while siblings continued; version 4.5
+kept its envelope; a null child version returned a formatting error after creating
+the requested deck; missing permission context failed and explicit allowed context
+returned the expected result. Permission cases avoided prompts/configuration changes.
+The uniquely named empty parent and leaf deck were removed and their absence verified.
+No further reload is needed for this batch.
 
 ## Original session objective
 
