@@ -428,6 +428,56 @@ def test_media_replacement_option_values(pair, options):
     assert_note_and_media_state(pair)
 
 
+@pytest.mark.parametrize("selection", [
+    {}, {"fields": None}, {"fields": "Back"}, {"fields": []}, {"fields": ["Back"]},
+    {"fields": ["Back", "Back"]}, {"fields": {"Back": 1}}, {"fields": 7},
+    {"fields": False}, {"fields": [7]}, {"fields": [["Back"]]},
+])
+@pytest.mark.parametrize("data", ["YXVkaW8=", "AA"])
+@pytest.mark.parametrize("action", ["updateNoteFields", "canAddNoteWithErrorDetail"])
+def test_nested_media_field_selection(pair, selection, data, action):
+    media = {"filename": "field-selection.mp3", "data": data, **selection}
+    if action == "updateNoteFields":
+        note = {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"}, "audio": media}
+    else:
+        note = {"deckName": "Default", "modelName": "Basic",
+                "fields": {"Front": "field selection probe", "Back": "back"}, "audio": media}
+    compare(pair, action, {"note": note})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("selection", [{}, {"fields": None}])
+@pytest.mark.parametrize("action", ["updateNoteFields", "canAddNoteWithErrorDetail"])
+def test_nested_media_error_keeps_prefix_and_stops_suffix(pair, selection, action):
+    media = [
+        {"filename": "prefix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
+        {"filename": "failed.mp3", "data": "AA", **selection},
+        {"filename": "suffix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
+    ]
+    if action == "updateNoteFields":
+        note = {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"}, "audio": media}
+    else:
+        note = {"deckName": "Default", "modelName": "Basic",
+                "fields": {"Front": "partial media probe", "Back": "back"}, "audio": media}
+    compare(pair, action, {"note": note})
+    assert_note_and_media_state(pair)
+    assert media_state(pair[0]) == {"prefix.mp3": b"audio"}
+
+
+@pytest.mark.parametrize("selection", [{}, {"fields": None}, {"fields": ["Back"]}, {"fields": {"Back": 1}}])
+def test_nested_media_storage_errors(pair, monkeypatch, selection):
+    def fail_write(*args, **kwargs):
+        raise OSError("<storage>&failure")
+
+    for collection in pair[:2]:
+        monkeypatch.setattr(collection.media, "write_data", fail_write)
+    media = {"filename": "failed-write.mp3", "data": "YXVkaW8=", **selection}
+    note = {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"}, "picture": media}
+    compare(pair, "updateNoteFields", {"note": note})
+    assert_note_and_media_state(pair)
+    assert media_state(pair[0]) == {}
+
+
 @pytest.mark.parametrize("change", [
     {"fields": {"Front": "changed", "Unknown": "ignored"}},
     {"fields": {}, "tags": ["new", "root::child"]},

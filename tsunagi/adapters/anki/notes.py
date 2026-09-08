@@ -480,20 +480,30 @@ def _ac_write_media(col: Collection, note: Any, media: Sequence[Dict[str, Any]])
     check (canonical order), so markup in the first field affects dedup.
     """
     for item in media:
-        if item.get("error"):
-            for field in item.get("fields") or []:
-                if field in note:
-                    note[field] += item["error"]
-            continue
-        data = item.get("data")
-        if data is None:
-            continue  # skipHash matched: store nothing, append nothing
-        if item.get("delete_existing"):
-            col.media.trash_files([item["filename"]])
-        stored = col.media.write_data(item["filename"], data)
-        for field in item.get("fields") or []:
-            if field in note:
-                note[field] += item["markup"].format(stored)
+        try:
+            if item.get("error") is not None:
+                raise ValueError(item["error"])
+            data = item.get("data")
+            if data is None:
+                continue  # skipHash matched: store nothing, append nothing
+            if item.get("delete_existing"):
+                col.media.trash_files([item["filename"]])
+            stored = col.media.write_data(item["filename"], data)
+            fields = item.get("fields")
+            if type(fields) is list:
+                for field in fields:
+                    if field in note:
+                        note[field] += item["markup"].format(stored)
+        except Exception as error:
+            message = str(error).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            try:
+                # Upstream does not guard this path by type or key presence.
+                # A missing/noniterable selection aborts the enclosing action.
+                for field in item["fields"]:
+                    if field in note:
+                        note[field] += message
+            except Exception as exc:
+                raise ValueError(str(exc)) from exc
 
 
 @as_collection_op

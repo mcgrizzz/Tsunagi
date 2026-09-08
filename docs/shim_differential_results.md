@@ -461,7 +461,37 @@ Across the two differential files, 958 comparisons pass and D11 remains the sole
 expected failure. Registry execution remains 99/120 overall and 69 differential
 handlers. Ruff and whitespace checks pass. Reports:
 `/tmp/tsunagi-media-options-full.xml`, `/tmp/tsunagi-media-options-old-full.xml`;
-coverage: `/tmp/tsunagi-media-options-coverage.json`. Live option checks await reload.
+coverage: `/tmp/tsunagi-media-options-coverage.json`. After confirmed reload, live
+checks passed for nonempty-string replacement, empty-list preservation, nested
+replacement and hash skipping. The probe added no note, and all disposable media
+files were removed with their absence verified.
+
+## Nested media field selection and storage failures, 2026-09-08
+
+Added 52 upstream comparisons: 44 cover field selections on successful and failed
+attachments, four check partial media writes when an error aborts later attachments,
+and four inject a storage failure into both implementations. The field-selection
+matrix initially had 24 mismatches; all 52 comparisons now pass. Nine standalone
+regressions check exact replies, persisted note fields and media contents without
+an upstream checkout.
+
+The shim preserves field-selection values and key presence. Successful attachments
+append markup only for lists; other selections still allow media storage. Upstream's
+error path instead iterates the provided value and can abort on a missing or
+noniterable selection. Download and storage errors share that path, with HTML
+escaping applied once. If a later attachment aborts, earlier media writes remain
+and later attachments are not written. Native note/media operations are unchanged.
+An older standalone test explicitly expected suppression of upstream's missing
+`fields` error. It now requires that error and verifies that no note is added.
+
+Full verification: **1988 passed, 4 skipped, 1 xfailed** on Anki 26.08.1 and
+**1982 passed, 10 skipped, 1 xfailed** on Anki 23.10, both with Python 3.12.12.
+Across the differential files, 1010 comparisons pass and D11 remains the sole
+expected failure. Registry execution remains 99/120 overall and 69 differential
+handlers. Ruff and whitespace checks pass. Reports:
+`/tmp/tsunagi-media-fields-full.xml`, `/tmp/tsunagi-media-fields-old-full.xml`;
+coverage: `/tmp/tsunagi-media-fields-coverage.json`. Live field-selection checks
+await reload confirmation.
 
 ## Method and limits
 

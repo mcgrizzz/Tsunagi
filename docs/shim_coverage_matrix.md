@@ -8,7 +8,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 
 | Action | Returned calls | Raised calls | Test files | Optional parameters never supplied |
 | --- | ---: | ---: | --- | --- |
-| `addNote` | 231 | 2 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_gui.py](../tests/test_compat_gui.py), [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_parity_history.py](../tests/test_parity_history.py) | — |
+| `addNote` | 230 | 3 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_gui.py](../tests/test_compat_gui.py), [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_parity_history.py](../tests/test_parity_history.py) | — |
 | `addNotes` | 1 | 3 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `addTags` | 6 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `answerCards` | 7 | 11 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -16,7 +16,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `areDue` | 9 | 5 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_scheduler_review_regressions.py](../tests/test_scheduler_review_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `areSuspended` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `canAddNote` | 63 | 0 | [test_compat_downloads.py](../tests/test_compat_downloads.py), [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `canAddNoteWithErrorDetail` | 6 | 0 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `canAddNoteWithErrorDetail` | 30 | 0 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `canAddNotes` | 18 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `canAddNotesWithErrorDetail` | 11 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `cardReviews` | 10 | 1 | [test_compat_stats.py](../tests/test_compat_stats.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -39,7 +39,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `findCards` | 61 | 5 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `findModelsById` | 1 | 1 | [test_compat_actions.py](../tests/test_compat_actions.py) | — |
 | `findModelsByName` | 1 | 1 | [test_compat_actions.py](../tests/test_compat_actions.py) | — |
-| `findNotes` | 17 | 5 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `findNotes` | 18 | 5 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `forgetCards` | 3 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `getActiveProfile` | 1 | 0 | [test_v1_collection.py](../tests/test_v1_collection.py) | — |
 | `getCollectionStatsHTML` | 2 | 0 | [test_compat_stats.py](../tests/test_compat_stats.py) | — |
@@ -124,7 +124,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `updateModelStyling` | 2 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateModelTemplates` | 6 | 0 | [test_compat_models.py](../tests/test_compat_models.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateNote` | 7 | 1 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `updateNoteFields` | 67 | 1 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `updateNoteFields` | 92 | 13 | [test_compat_downloads.py](../tests/test_compat_downloads.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateNoteModel` | 1 | 1 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
 | `updateNoteTags` | 2 | 3 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
 | `version` | 108 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_compat_http_bodies.py](../tests/test_compat_http_bodies.py), [test_parity_history.py](../tests/test_parity_history.py), [test_shim_nested_requests.py](../tests/test_shim_nested_requests.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
