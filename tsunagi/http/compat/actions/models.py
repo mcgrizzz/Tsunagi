@@ -327,12 +327,20 @@ def ac_createModel(p: CreateModelParams) -> Dict[str, Any]:
 def ac_findAndReplaceInModels(p: FindAndReplaceParams) -> int:
     from anki.errors import CardTypeError, InvalidInput
 
-    if p.modelName:
-        _raw_model(p.modelName)          # canonical's model-not-found string
     try:
-        return find_and_replace_in_models(
-            p.findText, p.replaceText, p.modelName or None, p.front, p.back, p.css,
-            save_unmatched=True)
+        models = (
+            [_raw_model(p.modelName)] if p.modelName
+            else get_raw_models(ids=[m["id"] for m in get_model_names_and_ids()]).values()
+        )
+        updated = 0
+        for model in models:
+            count = find_and_replace_in_models(
+                p.findText, p.replaceText, model["name"], p.front, p.back, p.css)
+            if not count:
+                # The extra save is an AnkiConnect side effect, owned here.
+                patch_model(model["id"], {})
+            updated += count
+        return updated
     except (CardTypeError, InvalidInput) as exc:
         raise ValueError(str(exc)) from exc
 

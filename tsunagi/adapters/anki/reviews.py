@@ -147,14 +147,10 @@ def insert_reviews(col: Collection, rows: Sequence[Sequence[Any]]) -> int:
 def reviews_of_deck(col: Collection, deck_name: str,
                     after_id: int = 0) -> List[List[Any]]:
     """
-    Rows for one deck, as arrays, for AnkiConnect's cardReviews.
+    Rows for one existing deck, as arrays, excluding its subdecks.
 
-    DEVIATION: canonical resolves the deck with `decks.id(name)`, which CREATES
-    a missing deck - a write as a side effect of a read. We resolve by name and
-    report nothing for a deck that doesn't exist.
-
-    Scoped to cards whose `did` is exactly this deck, not its subdecks, which
-    is canonical's behaviour.
+    Missing decks return no rows. The compatibility caller separately owns
+    AnkiConnect's create-on-lookup behavior.
     """
     deck = col.decks.by_name(deck_name)
     if deck is None:
@@ -248,11 +244,10 @@ def _scoped_card_ids(col: Collection, card_ids: Sequence[int], state: str) -> Se
 
 @as_query_op
 def card_intervals(col: Collection, card_ids: Sequence[int],
-                   complete: bool = False, *, strict_history: bool = False) -> List[Any]:
+                   complete: bool = False) -> List[Any]:
     """
     Intervals a card has been given, newest last. 0 for an unseen card -
     including a card put in the review queue without ever being answered.
-    strict_history rejects a missing last interval; complete history may be empty.
     """
     ids = [int(c) for c in card_ids]
     new_ids = _scoped_card_ids(col, ids, "is:new")
@@ -270,15 +265,12 @@ def card_intervals(col: Collection, card_ids: Sequence[int],
         elif complete:
             out.append(ivls.get(cid, []))
         else:
-            if strict_history and not ivls.get(cid):
-                raise ValueError("list index out of range")
             out.append(ivls[cid][-1] if ivls.get(cid) else 0)
     return out
 
 
 @as_query_op
-def cards_are_due(col: Collection, card_ids: Sequence[int], *,
-                  strict_history: bool = False) -> List[bool]:
+def cards_are_due(col: Collection, card_ids: Sequence[int]) -> List[bool]:
     """
     AnkiConnect areDue, including its revlog-based learning-card branch: an
     interval below -1200 means the card is in intraday learning, where due-ness
@@ -287,7 +279,7 @@ def cards_are_due(col: Collection, card_ids: Sequence[int], *,
     Three batch reads regardless of how many cards were asked about: one
     is:new search, one grouped revlog query, one is:due search over whatever
     is left. A reviewless non-new card falls through to the is:due search
-    unless strict_history requires an error; an unknown id defaults to False.
+    and an unknown id defaults to False.
     """
     import time as _time
 
@@ -308,8 +300,6 @@ def cards_are_due(col: Collection, card_ids: Sequence[int], *,
     for cid in ids:
         if cid in new_ids:
             out.append(True)
-        elif strict_history and cid not in last:
-            raise ValueError("list index out of range")
         elif cid in last and last[cid][1] < -1200:
             date, ivl = last[cid]
             out.append(date - ivl <= now)

@@ -167,12 +167,10 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
 @as_collection_op
 def find_and_replace_in_models(col: Collection, find_text: str, replace_text: str,
                                model_name: Optional[str] = None, front: bool = True,
-                               back: bool = True, css: bool = True, *,
-                               save_unmatched: bool = False) -> int:
+                               back: bool = True, css: bool = True) -> int:
     """
     Literal (non-regex) replace across template sides and styling.
     Returns how many models actually contained the text.
-    save_unmatched also saves untouched targets when the caller requires it.
     """
     mm = col.models
     if model_name:
@@ -197,9 +195,8 @@ def find_and_replace_in_models(col: Collection, find_text: str, replace_text: st
             if back and find_text in tmpl.get("afmt", ""):
                 hit = True
                 tmpl["afmt"] = tmpl["afmt"].replace(find_text, replace_text)
-        if hit or save_unmatched:
-            changes = mm.update_dict(m)
         if hit:
+            changes = mm.update_dict(m)
             updated += 1
     return ValueWithChanges(updated, changes) if changes is not None else updated
 

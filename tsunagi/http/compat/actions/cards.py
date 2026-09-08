@@ -39,6 +39,10 @@ class CardsInfoParams(BaseModel):
     cards: Optional[List[int]] = ...
 
 
+class DueParams(BaseModel):
+    cards: Any
+
+
 class CardParams(BaseModel):
     card: int
 
@@ -54,7 +58,7 @@ class SetEaseFactorsParams(BaseModel):
 
 
 class GetIntervalsParams(BaseModel):
-    cards: List[int]
+    cards: Any
     complete: bool = False
 
 
@@ -132,14 +136,25 @@ def ac_areSuspended(p: CardsParams) -> List[Optional[bool]]:
     return cards_suspended(p.cards)
 
 
-@registry.register("areDue", params=CardsParams)
-def ac_areDue(p: CardsParams) -> List[bool]:
-    return cards_are_due(p.cards, strict_history=True)
+@registry.register("areDue", params=DueParams)
+def ac_areDue(p: DueParams) -> List[bool]:
+    try:
+        if any(history == [] for history in card_intervals(p.cards, True)):
+            raise ValueError("list index out of range")
+        return cards_are_due(p.cards)
+    except TypeError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @registry.register("getIntervals", params=GetIntervalsParams)
 def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
-    return card_intervals(p.cards, p.complete, strict_history=True)
+    try:
+        histories = card_intervals(p.cards, True)
+        if p.complete:
+            return histories
+        return [history[-1] if isinstance(history, list) else history for history in histories]
+    except (TypeError, IndexError) as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @registry.register("cardsToNotes", params=CardsParams)
