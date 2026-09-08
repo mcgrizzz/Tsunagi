@@ -61,8 +61,8 @@ def ac_storeMediaFile(p: StoreMediaFileParams) -> Optional[str]:
         with open(p.path, "rb") as fh:
             data = fh.read()
     else:
-        from ...v1.media import _fetch_url
-        data = _fetch_url(p.url)
+        from ..downloads import download_media
+        data = download_media(p.url)
 
     # skipHash: the caller already has this content, so store nothing.
     if p.skipHash is not None and hashlib.md5(data).hexdigest() == p.skipHash:

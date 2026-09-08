@@ -122,7 +122,7 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
     plain dicts the adapter can write.
     """
     from ....adapters.settings import settings
-    from ...v1.media import _fetch_url
+    from ..downloads import download_media
 
     out: List[Dict[str, Any]] = []
     for kind in ("audio", "video", "picture"):
@@ -147,7 +147,7 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                     with open(media.path, "rb") as fh:
                         data = fh.read()
                 elif media.url:
-                    data = _fetch_url(media.url)
+                    data = download_media(media.url)
                 else:
                     raise ValueError('You must provide a "data", "path", or "url" field.')
                 if media.skipHash is not None and hashlib.md5(data).hexdigest() == media.skipHash:
