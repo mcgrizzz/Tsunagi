@@ -112,7 +112,7 @@ reload were needed after this verification.
 
 ## Creation, replacement and partial-answer follow-up
 
-Current result: **195 passed, one expected failure in 196 differential cases**,
+At this checkpoint: **195 passed, one expected failure in 196 differential cases**,
 with 65 distinct action handlers observed. Full suite: **1083 passed, 8 skipped,
 one expected failure** on Python 3.12.12 / Anki 23.10. D11 remains the sole expected
 failure (default local-path policy). Ruff and whitespace checks pass.
@@ -152,6 +152,47 @@ After reload, the installed addon passed the following checks on Anki 26.08.1:
 This live pass checks GUI undo through its endpoint, not menu labels, focus or
 grouping of longer answer batches. No production edits or further reload were
 needed after verification.
+
+## Suspension, review insertion and mixed-queue follow-up
+
+Current result: **249 passed, one expected failure in 250 differential cases**,
+covering 66 distinct action handlers. Full suite: **1147 passed, 8 skipped, one
+expected failure** on Python 3.12.12 / Anki 23.10. D11 remains the sole expected
+failure. Changed-file Ruff and whitespace checks pass.
+
+Commit `c3af5ce` adds 54 comparisons and ten standalone regressions:
+
+- D22: suspension now reproduces upstream's removal from the list being iterated.
+  Multiple already-matching cards can return true; a missing ID skipped by that
+  iteration is not validated. State lookup remains batched, and actual writes use
+  the native suspend/unsuspend methods. Tests cover both directions, duplicates,
+  empty/single/multiple lists, mixed states and visited/skipped missing IDs.
+- D23: `areDue` and last-only `getIntervals` now report upstream's empty-history
+  error for non-new or missing cards. Complete interval history may still be empty.
+  Shared native readers retain their default fallback behavior and batching; the
+  shim opts into strict history. Comparisons include mixed new/review/learning
+  cards, buried/suspended queues, duplicate IDs and negative-interval timing around
+  the -1200-second branch threshold. The test clock is fixed for both sides.
+- D24: review insertion preserves tested SQLite errors and scalar coercion rather
+  than coercing every value to an integer first. Ordinary integer rows still use
+  the native parameterized writer. Compatibility-only handling preserves floats,
+  numeric strings, booleans, missing/null values, malformed rows and SQLite error
+  text/offsets. Executable SQL fragments are rejected before database execution;
+  arbitrary SQL-expression values are not covered by this scalar-only contract.
+
+The earlier claim that upstream may retain preceding rows after these insertion
+failures was incorrect: its single INSERT is atomic. Comparisons verify the full
+revlog contents after successful inserts, duplicate IDs within a batch, conflicts
+with existing rows and malformed rows. These match the native transaction's tested
+atomic behavior. Review-insertion undo/grouping is not established by this pass.
+
+After reload, live Anki 26.08.1 checks passed for repeated suspension/reversal,
+single matching cards, skipped missing IDs, empty-history errors and complete
+history, plus integer/scalar duplicate failures and malformed-row errors. Review
+rows were checked after every failing insert and remained absent. The temporary
+notes, deck and model were removed and cleanup verified. Successful scalar storage
+is covered by the isolated real-backend tests; the live pass deliberately used
+failing inserts and left no review history behind.
 
 ## Method and limits
 

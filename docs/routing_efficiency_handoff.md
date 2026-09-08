@@ -22,7 +22,7 @@ Completed:
   the tested suspended-card scans. Six native query families were exercised with
   filtering, pagination, GET/POST agreement and projection checks.
 - Upstream source/history inventory accounts for all 122 shim actions. Differential
-  coverage now observes 65 action names in 196 cases: 195 pass, one tracks the
+  coverage now observes 66 action names in 250 cases: 249 pass, one tracks the
   default local-path gate mismatch. The original ten differences plus nullable
   media deletion flags and note-probe media side effects are fixed.
 - Model/scheduler follow-up fixed native field-rename rendering, template save/cache
@@ -42,7 +42,16 @@ Completed:
   `/v1/gui:undo` restored the tested cards' review counts after both missing-ease
   and invalid-ease failures. Temporary notes, deck and model were removed and
   their absence verified.
-- Full suite: 1083 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
+- Suspension/review follow-up (`c3af5ce`) added 54 differential cases and ten
+  standalone regressions. Repeated suspension and skipped-ID validation now
+  match upstream's list iteration. Empty-history errors use the batched native
+  readers with explicit strictness; native defaults remain unchanged. Ordinary
+  integer review inserts use the native writer, with scalar coercion/SQLite
+  diagnostics isolated in compatibility code. Both implementations were confirmed
+  atomic for the tested duplicate-ID/malformed-row failures, correcting the earlier
+  partial-write assumption. Live checks on Anki 26.08.1 passed after reload; no
+  review rows remained, and temporary notes, deck and model were removed.
+- Full suite: 1147 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
   preserved originals, and all four probe variants wrote media on accepted/empty
@@ -54,12 +63,15 @@ Completed:
 
 Remaining, in recommended order:
 
-1. Extend upstream comparisons beyond the current 65 observed action names and their tested
+1. Extend upstream comparisons beyond the current 66 observed action names and their tested
    cases. Cover mutation/rollback/undo, note/media side effects, model changes,
    scheduler edge cases and general argument binding. Creation, replacement,
-   partial answers and backend undo now have focused comparisons. Next: repeated
-   suspension, review insertion, broader malformed-input/mixed-queue cases, model
-   conversion and undo/Qt effects. Existing implementation of
+   partial answers, repeated suspension, scalar review insertion, mixed-queue reads
+   and backend undo now have focused comparisons. Next: missing-deck lookup side
+   effects, broader argument binding, filtered-deck/FSRS scheduler cases, model
+   conversion and undo/Qt effects. Review SQL-expression values remain outside the
+   scalar-only compatibility fallback and need a contract decision under full parity.
+   Existing implementation of
    an action is not proof of complete parity.
 2. Close GUI equivalence gaps, especially the standalone `guiEditNote` dialog;
    compare reviewer/add-note/navigation and lifecycle behavior through the shim.
@@ -134,10 +146,11 @@ Branch `main` was 70 commits
 ahead of the locally recorded `origin/main` before these commits; no fetch or push
 was made. Local agent/workspace files and the older post-request planning document
 remain outside these commits. The latest production fixes are already
-synced/reloaded. The creation/replacement/partial-answer batch (`06f9566`) passed
-targeted live checks on Anki 26.08.1, including `/v1/gui:undo`. The disposable-fixture
-check `/tmp/tsunagi-model-answer-live.py` completed and verified cleanup. No reload
-is pending for this batch.
+synced/reloaded. Creation/replacement/partial-answer (`06f9566`) and suspension/
+review (`c3af5ce`) batches passed targeted live checks on Anki 26.08.1. The latest
+check `/tmp/tsunagi-scheduler-reviews-live.py` completed and verified that its failed
+inserts left no review rows and its temporary fixtures were removed. No reload is
+pending for these batches.
 
 ## Original session objective
 
