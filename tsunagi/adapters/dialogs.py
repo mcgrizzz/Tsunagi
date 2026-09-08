@@ -4,6 +4,9 @@ All aqt imports are function-local so this module stays importable headless.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 ANKICONNECT_ID = "2055492159"
 
 _IMPORT_TEXT = (
@@ -14,23 +17,48 @@ _IMPORT_TEXT = (
 )
 
 
-def ask_permission_dialog(origin: str) -> bool:
+@dataclass(frozen=True)
+class PermissionDecision:
+    accepted: bool = False
+    ignore: bool = False
+
+    def __bool__(self) -> bool:
+        return self.accepted
+
+
+def ask_permission_dialog(origin: Any) -> PermissionDecision:
     """
     Blocking Yes/No prompt on the Qt main thread.
-    Returns False on deny or when the user doesn't answer within the timeout.
+    Returns the choice and whether a denied request should be ignored later.
     """
     from aqt import mw
-    from aqt.qt import QMessageBox
+    from aqt.qt import QCheckBox, QMessageBox, Qt
 
     from ..shared.errors import AnkiBusyError
     from .ops import call_on_main
 
-    def _ask() -> bool:
-        return QMessageBox.question(
-            mw,
-            "Tsunagi",
-            f"Allow {origin} to access Anki through Tsunagi?",
-        ) == QMessageBox.StandardButton.Yes
+    def _ask() -> PermissionDecision:
+        msg = QMessageBox(None)
+        msg.setWindowTitle("Tsunagi")
+        msg.setText(f'Allow "{origin}" to access Anki through Tsunagi?')
+        msg.setInformativeText(
+            "Granting access allows this website to modify your collection, "
+            "including deleting decks and notes."
+        )
+        msg.setWindowIcon(mw.windowIcon())
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+        msg.setCheckBox(QCheckBox(text=f'Ignore further requests from "{origin}"', parent=msg))
+        if hasattr(Qt, "WindowStaysOnTopHint"):
+            msg.setWindowFlags(Qt.WindowStaysOnTopHint)
+        else:
+            msg.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+        pressed = msg.exec()
+        return PermissionDecision(
+            accepted=pressed == QMessageBox.StandardButton.Yes,
+            ignore=pressed == QMessageBox.StandardButton.No and msg.checkBox().isChecked(),
+        )
 
     try:
         return call_on_main(_ask, timeout=120.0)
@@ -38,7 +66,7 @@ def ask_permission_dialog(origin: str) -> bool:
         # Timed out waiting for the user. The dialog may still be open on the
         # main thread; a late "Yes" is discarded (the waiter is gone) - the
         # client already got "denied" and can simply retry.
-        return False
+        return PermissionDecision()
 
 
 def offer_ankiconnect_import() -> None:

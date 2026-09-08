@@ -23,12 +23,16 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1669 tests passed, 8 skipped,
-one expected failure** on the Anki 23.10 test environment, including 738 passing
+Latest run: **99/120 registered handlers observed; 1761 tests passed, 8 skipped,
+one expected failure** on the Anki 23.10 test environment, including 817 passing
 upstream comparisons and the default local-path gate mismatch. Differential
 behavioral calls reach 69 registered handlers. Argument-name rejection checks
 separately cover all 122 action names, without executing their bodies; these do
 not expand the registry execution count or prove GUI/lifecycle parity.
+The full Anki 26.08.1 run has **1765 passed, 4 skipped, 1 expected failure**;
+the remaining skips assert 23.10-only behavior. Permission acceptance, ignore,
+close, repeated-request and persistence comparisons add 79 cases with simulated
+Qt choices, plus 13 standalone regressions. Real dialog interaction remains pending.
 The raw HTTP-body batch adds 90 differential cases and 11 standalone regressions:
 empty-body discovery, exact JSON/UTF-8 errors and origin rejection now match the
 tested upstream boundaries. After reload, all 26 read-only live checks passed,
@@ -83,7 +87,7 @@ upstream behavior on the same Anki version before reproducing an obsolete quirk.
 
 | Priority | Surface | Difference / missing comparison |
 | --- | --- | --- |
-| 1 | RPC argument values and errors | Missing/extra names, outer HTTP schema, malformed-child aborts, nested parameter containers, raw child versions and permission binding/denial have comparisons. Mapping errors omit the installation-specific module prefix, with the remaining text compared exactly. Broader action-value/Pydantic coercion, generic internal errors, accepted empty/non-string permission origins and ignored-origin persistence remain to compare. |
+| 1 | RPC argument values and errors | Missing/extra names, outer HTTP schema, malformed-child aborts, nested parameter containers, raw child versions and permission binding have comparisons. Permission acceptance/ignore persistence, empty/non-string nested origins, duplicate writes and repeated requests now have simulated-dialog comparisons. Mapping errors omit the installation-specific module prefix, with the remaining text compared exactly. Broader action-value/Pydantic coercion, generic internal errors and real dialog interaction remain to compare. |
 | 1 | `guiEditNote` | Browser navigation currently substitutes for upstream's standalone editor. This is a user-visible gap, not an acceptable UI equivalence claim. |
 | 1 | `answerCards`, `addNotes`, `insertReviews` | Answer prefixes and tested backend/live GUI undo now match. Review duplicate/malformed-row failures are atomic in both implementations; the earlier partial-write claim was incorrect. Extend undo/grouping, malformed value types and rollback sequences. Review SQL-expression values remain outside the scalar-only fallback and are still a contract gap. |
 | 1 | Media and note probes | Probe media writes now match tested valid/empty/duplicate cases, and null deleteExisting behavior is fixed. Comparisons also cover local URL downloads, base64, scalar/list media, missing fields, skip hashes, collisions and appended decode errors. The default local-path gate remains different (D11); extend failed-download and nested-option coverage. Native media tests alone do not cover shim mapping. |

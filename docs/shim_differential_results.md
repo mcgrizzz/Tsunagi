@@ -351,6 +351,42 @@ documentation redirect. No fixtures, permission dialogs or setting changes were
 needed. Before sync/reload, live Anki returned the old generic JSON error for an
 empty POST. No further reload or live verification is pending for this batch.
 
+## Permission persistence and Anki 26.08.1, 2026-09-08
+
+Added 79 comparisons in `tests/test_upstream_permissions.py`, executing the
+unchanged upstream permission handler with simulated Qt choices and isolated
+configuration. Before the fix, 36 failed; all 79 now pass. Thirteen standalone
+regressions exercise the HTTP endpoint, persistence across settings reloads,
+falsy ignored origins and duplicate acceptance writes without an upstream checkout.
+
+An explicitly empty HTTP Origin now prompts instead of being granted automatically.
+The dialog supports **Ignore further requests**: No with the checkbox selected
+persists a truthy origin in `ankiconnect_ignore_origins`; closing the dialog or
+denying a falsy origin does not. Allowed context takes precedence over the ignore
+list. Acceptance appends every origin exactly as upstream does, including repeated
+and non-string nested values. Those compatibility semantics remain in the shim;
+the native settings helper retains its deduplication contract. Tests compare replies,
+prompt counts, persisted snapshots and subsequent requests. No live settings were
+changed. Real Qt presentation, focus and user interaction remain to verify after reload.
+
+The full suite now passes on both backends with Python 3.12.12:
+
+| Backend | Passed | Skipped | Expected failure |
+| --- | ---: | ---: | ---: |
+| Anki 23.10 | 1761 | 8 | 1 |
+| Anki 26.08.1 | 1765 | 4 | 1 |
+
+The newer run executes the retention, optimizer and simulator cases unavailable
+on 23.10. Its four skips assert 23.10-only behavior. D11 remains the default
+local-path policy mismatch. Across both differential files there are **818 cases:
+817 passed and 1 expected failure**. Registry execution remains 99/120 overall;
+permission and multi actions bypass that registry.
+
+Reports: `/tmp/tsunagi-permissions-full.xml` and `/tmp/tsunagi-26-full.xml`;
+coverage: `/tmp/tsunagi-permissions-coverage.json` and `/tmp/tsunagi-26-coverage.json`.
+The newer interpreter is `/tmp/tsunagi-26-parity-venv/bin/python`, with
+`anki==26.8.1`, `httpx==0.27.2` and `jsonschema==4.23.0`.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
@@ -373,8 +409,8 @@ against Tsunagi's HTTP endpoint. Raw-body cases use stateless actions and do not
 need cloned collections. These are not socket-transport, browser permission or real Qt tests.
 The fake main window and suppressed edit notifications
 cannot prove GUI undo, refresh, focus or dialog behavior. Backend undo/redo has
-separate comparisons described above. This run does not establish
-complete compatibility on Anki 26.08.1; the live smoke checks above cover a subset.
+separate comparisons described above. The full automated suite now runs on
+Anki 26.08.1 as well as 23.10; this still does not establish complete compatibility.
 The initial collection is cloned so requests address identical IDs. RPC responses
 are compared without normalization except deck-stat IDs and successful model creation.
 Nested non-mapping argument errors also omit the installation-specific reference
@@ -439,7 +475,7 @@ The repository's vendored runtime dependencies must already be built.
 
 ```sh
 TSUNAGI_ANKICONNECT_CHECKOUT=/tmp/tsunagi-anki-connect-audit \
-  python -m pytest -q tests/test_upstream_differential.py
+  python -m pytest -q tests/test_upstream_differential.py tests/test_upstream_permissions.py
 ```
 
 One strict expected-failure marker remains for D11; use `--runxfail` to reproduce

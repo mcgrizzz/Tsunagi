@@ -27,6 +27,7 @@ import secrets
 import traceback
 from typing import Any, Callable, Dict, Optional
 
+from ...adapters.dialogs import PermissionDecision
 from ...shared.errors import ValidationError as TsunagiValidationError
 from .errors import (  # noqa: F401  (API_KEY_ERROR re-exported)
     ACTION_FAILED,
@@ -57,15 +58,15 @@ def _default_settings():
     return settings
 
 
-def _default_ask(origin: str) -> bool:
+def _default_ask(origin: Any) -> PermissionDecision:
     from ...adapters.dialogs import ask_permission_dialog
     return ask_permission_dialog(origin)
 
 
 def _request_permission(
-    origin: Optional[str],
+    origin: Any,
     settings: Any,
-    ask: Optional[Callable[[str], bool]],
+    ask: Optional[Callable[[Any], bool | PermissionDecision]],
     *,
     allowed: Any = _HTTP_PERMISSION,
 ) -> Dict[str, Any]:
@@ -85,13 +86,23 @@ def _request_permission(
         "version": 6,
     }
     if allowed is _HTTP_PERMISSION:
-        allowed = not origin or settings.is_origin_allowed(origin)
+        allowed = origin is None or settings.is_origin_allowed(origin)
     if allowed:
         return granted
+    if origin in settings.get("ankiconnect_ignore_origins", []):
+        return {"permission": "denied"}
     ask = ask or _default_ask
-    if ask(origin):
-        settings.add_cors_origin(origin)
+    decision = ask(origin)
+    if decision:
+        # Nested permission calls can explicitly force a prompt for an already
+        # allowed origin. Upstream appends every acceptance, including duplicates
+        # and non-string child values; keep that behavior in the shim.
+        settings.update(cors_allowlist=[*settings.get("cors_allowlist", []), origin])
         return granted
+    if origin and isinstance(decision, PermissionDecision) and decision.ignore:
+        settings.update(ankiconnect_ignore_origins=[
+            *settings.get("ankiconnect_ignore_origins", []), origin,
+        ])
     return {"permission": "denied"}
 
 
@@ -99,7 +110,7 @@ def handle_ankiconnect_rpc(
     raw: Dict[str, Any],
     origin: Optional[str] = None,
     settings: Any = None,
-    ask_permission: Optional[Callable[[str], bool]] = None,
+    ask_permission: Optional[Callable[[Any], bool | PermissionDecision]] = None,
     *,
     _nested: bool = False,
 ) -> Any:

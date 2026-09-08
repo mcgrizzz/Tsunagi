@@ -53,6 +53,17 @@ allows everything. Entries are also added automatically when you click **Yes**
 on the permission dialog (shown when a client calls the AnkiConnect
 `requestPermission` action). Remove an entry to revoke access.
 
+### `ankiconnect_ignore_origins`
+Default: `[]`. Website origins whose AnkiConnect permission requests should be
+denied without another prompt. Choosing **No** with **Ignore further requests**
+checked adds a nonempty origin to this list. Closing the dialog or denying an
+empty origin does not add an entry. Choosing **Yes** grants access and adds the
+origin to `cors_allowlist`, regardless of the checkbox.
+
+Remove an entry from this list in the add-on configuration to allow it to ask
+again. The list suppresses permission prompts; it does not revoke an existing
+allowlist grant. Changes apply immediately.
+
 ### `log_level`
 Uvicorn log level (`critical`, `error`, `warning`, `info`, `debug`).
 
