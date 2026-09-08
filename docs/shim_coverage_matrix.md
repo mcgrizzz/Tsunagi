@@ -11,7 +11,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `addNote` | 231 | 2 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_gui.py](../tests/test_compat_gui.py), [test_compat_note_tags.py](../tests/test_compat_note_tags.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_parity_history.py](../tests/test_parity_history.py) | — |
 | `addNotes` | 1 | 3 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `addTags` | 6 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
-| `answerCards` | 2 | 2 | [test_compat_cards.py](../tests/test_compat_cards.py) | — |
+| `answerCards` | 7 | 11 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `apiReflect` | 5 | 9 | [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `areDue` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `areSuspended` | 4 | 0 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -27,7 +27,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `clearUnusedTags` | 1 | 0 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
 | `cloneDeckConfigId` | 4 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
 | `createDeck` | 72 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_compat_stats.py](../tests/test_compat_stats.py) | — |
-| `createModel` | 7 | 3 | [test_compat_models.py](../tests/test_compat_models.py), [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py) | — |
+| `createModel` | 12 | 14 | [test_compat_models.py](../tests/test_compat_models.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `deckNameFromId` | 1 | 0 | [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py) | — |
 | `deckNames` | 13 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `deckNamesAndIds` | 2 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -35,7 +35,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `deleteMediaFile` | 2 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `deleteNotes` | 2 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `exportPackage` | 3 | 0 | [test_v1_collection.py](../tests/test_v1_collection.py) | — |
-| `findAndReplaceInModels` | 4 | 1 | [test_compat_models.py](../tests/test_compat_models.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | `back` |
+| `findAndReplaceInModels` | 11 | 3 | [test_compat_models.py](../tests/test_compat_models.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `findCards` | 59 | 5 | [test_compat_cards.py](../tests/test_compat_cards.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_parity_gap_regressions.py](../tests/test_parity_gap_regressions.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `findModelsById` | 1 | 1 | [test_compat_actions.py](../tests/test_compat_actions.py) | — |
 | `findModelsByName` | 1 | 1 | [test_compat_actions.py](../tests/test_compat_actions.py) | — |
