@@ -58,3 +58,37 @@ def test_compat_download_retains_size_limit(client, col, reset_settings, downloa
 
 def test_native_download_still_accepts_201(download_url):
     assert _fetch_url(download_url + "/201/declared") == b"payload"
+
+
+@pytest.mark.parametrize("replacement,skip_hash,expected_files", [
+    ("false", False, {b"audio"}),
+    ([], False, {b"original", b"audio"}),
+    ([1], False, {b"audio"}),
+    ({}, False, {b"original", b"audio"}),
+    ("false", True, {b"original"}),
+])
+@pytest.mark.parametrize("action", ["storeMediaFile", "canAddNote"])
+def test_media_replacement_preserves_raw_option_values(
+    client, col, action, replacement, skip_hash, expected_files,
+):
+    col.media.write_data("options.mp3", b"original")
+    media = {"filename": "options.mp3", "data": "YXVkaW8=", "deleteExisting": replacement}
+    if skip_hash:
+        media["skipHash"] = "a5ca0b5894324f8bb54bb9fffad29d1e"
+    params = media if action == "storeMediaFile" else {"note": {
+        "deckName": "Default", "modelName": "Basic",
+        "fields": {"Front": "media options probe", "Back": ""},
+        "audio": {**media, "fields": ["Back"]},
+    }}
+    reply = client.post("/", json={"action": action, "version": 6, "params": params}).json()
+    assert reply["error"] is None
+    if action == "canAddNote":
+        assert reply["result"] is True
+        assert col.find_notes('"Front:media options probe"') == []
+    elif skip_hash:
+        assert reply["result"] is None
+    else:
+        assert Path(col.media.dir(), reply["result"]).read_bytes() == b"audio"
+    files = list(Path(col.media.dir()).glob("*.mp3"))
+    assert len(files) == len(expected_files)
+    assert {path.read_bytes() for path in files} == expected_files
