@@ -344,10 +344,12 @@ bytes and JSON Content-Type. They do not establish equality of all CORS/transpor
 headers, JSON whitespace, preflights, fragmented socket requests or concurrency.
 The original upstream wrapper runs without a listening socket.
 
-Live verification is pending one reload of this batch. The read-only script
-`/tmp/tsunagi-http-bodies-live.py` checks 26 cases without creating fixtures,
-opening permission dialogs or changing settings. Before sync/reload, live Anki
-returned the old generic JSON error for an empty POST.
+After the user confirmed the reload of `9d50a0b`, all **26 read-only live checks**
+in `/tmp/tsunagi-http-bodies-live.py` passed: discovery, exact parser diagnostics,
+allowed/denied/empty origins, invalid permission requests and the native root
+documentation redirect. No fixtures, permission dialogs or setting changes were
+needed. Before sync/reload, live Anki returned the old generic JSON error for an
+empty POST. No further reload or live verification is pending for this batch.
 
 ## Method and limits
 

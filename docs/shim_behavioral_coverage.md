@@ -31,7 +31,8 @@ separately cover all 122 action names, without executing their bodies; these do
 not expand the registry execution count or prove GUI/lifecycle parity.
 The raw HTTP-body batch adds 90 differential cases and 11 standalone regressions:
 empty-body discovery, exact JSON/UTF-8 errors and origin rejection now match the
-tested upstream boundaries. Its live check is pending one reload. Full CORS/header,
+tested upstream boundaries. After reload, all 26 read-only live checks passed,
+without fixtures, permission prompts or setting changes. Full CORS/header,
 preflight, fragmented-request and concurrency equivalence remain unverified.
 The original model/scheduler pass added 38 differential cases and five
 standalone regressions, including a native field-rename rendering check. Ruff passes
