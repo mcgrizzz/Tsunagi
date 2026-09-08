@@ -10,7 +10,15 @@ The original handoff below is retained as historical context.
 
 ## Current status after routing and shim work
 
-Reconciled 2026-09-07 after the installed addon was reloaded and checked live.
+Architecture requirement (confirmed by the user, 2026-09-07): AnkiConnect parity
+belongs only in the shim. Native Tsunagi methods retain Tsunagi's contracts, even
+when those deliberately differ from AnkiConnect. Reuse native operations where
+their behavior fits, and compose compatibility quirks in shim handlers or the
+dedicated compatibility adapter. Do not add compatibility switches to native
+methods. The native field-rename/rendering fix remains a native correctness fix.
+
+Reconciled 2026-09-07 after the shim-only binding/deck follow-up. Earlier batches
+were reloaded and checked live; this batch's live verification is pending reload.
 The original objective and investigation notes below are historical context.
 
 Completed:
@@ -22,8 +30,9 @@ Completed:
   the tested suspended-card scans. Six native query families were exercised with
   filtering, pagination, GET/POST agreement and projection checks.
 - Upstream source/history inventory accounts for all 122 shim actions. Differential
-  coverage now observes 66 action names in 250 cases: 249 pass, one tracks the
-  default local-path gate mismatch. The original ten differences plus nullable
+  coverage now has 491 cases: 490 pass, one tracks the default local-path gate
+  mismatch. Behavioral calls reach 68 registered handlers; separate argument-name
+  rejection checks cover all 122 action names. The original ten differences plus nullable
   media deletion flags and note-probe media side effects are fixed.
 - Model/scheduler follow-up fixed native field-rename rendering, template save/cache
   behavior, short ease-factor array side effects and due-date error messages. Shared
@@ -35,8 +44,9 @@ Completed:
   model, leaf deck and empty parent deck were removed; cleanup was verified.
 - Model creation/replacement and partial-answer follow-up (`06f9566`) added 31
   differential cases and eight standalone regressions. Missing template sides and
-  Anki validation errors now match; replacement saves unmatched targets only when
-  the shim requests it; malformed answers retain the preceding valid answers.
+  Anki validation errors now match; the shim saves unmatched replacement targets;
+  malformed answers retain the preceding valid answers. The initial shared-adapter
+  compatibility switch has now been removed; the shim composes native operations.
   Backend undo/redo matched after success and partial failure. After reload, live
   Anki 26.08.1 checks passed for creation errors, replacement and partial answers.
   `/v1/gui:undo` restored the tested cards' review counts after both missing-ease
@@ -44,14 +54,23 @@ Completed:
   their absence verified.
 - Suspension/review follow-up (`c3af5ce`) added 54 differential cases and ten
   standalone regressions. Repeated suspension and skipped-ID validation now
-  match upstream's list iteration. Empty-history errors use the batched native
-  readers with explicit strictness; native defaults remain unchanged. Ordinary
+  match upstream's list iteration. Empty-history errors now use complete results
+  from the batched native readers and are raised by the shim; the initial native
+  strictness switches have been removed. Ordinary
   integer review inserts use the native writer, with scalar coercion/SQLite
   diagnostics isolated in compatibility code. Both implementations were confirmed
   atomic for the tested duplicate-ID/malformed-row failures, correcting the earlier
   partial-write assumption. Live checks on Anki 26.08.1 passed after reload; no
   review rows remained, and temporary notes, deck and model were removed.
-- Full suite: 1147 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
+- Shim-only binding/deck follow-up added 241 differential cases and four standalone
+  regressions. Missing/extra parameter names fail before mutations; permission
+  context comes from HTTP rather than client values. Missing-deck stats/review
+  lookups now create decks only in the shim, including normalized/nested names.
+  Native create-nothing reads and unmatched-model no-op writes have explicit checks.
+  Complete history reads feed shim-owned empty-history errors; no native parity
+  switches remain from these batches. `areDue` makes one extra batched history read,
+  keeping query count bounded rather than querying once per card.
+- Full suite: 1392 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
   preserved originals, and all four probe variants wrote media on accepted/empty
@@ -63,12 +82,13 @@ Completed:
 
 Remaining, in recommended order:
 
-1. Extend upstream comparisons beyond the current 66 observed action names and their tested
+1. Extend upstream comparisons beyond the current 68 observed handlers and their tested
    cases. Cover mutation/rollback/undo, note/media side effects, model changes,
    scheduler edge cases and general argument binding. Creation, replacement,
    partial answers, repeated suspension, scalar review insertion, mixed-queue reads
-   and backend undo now have focused comparisons. Next: missing-deck lookup side
-   effects, broader argument binding, filtered-deck/FSRS scheduler cases, model
+   and backend undo now have focused comparisons. Missing-deck lookups and argument
+   names are covered in the latest batch. Next: broader argument value/container
+   semantics, filtered-deck/FSRS scheduler cases, model
    conversion and undo/Qt effects. Review SQL-expression values remain outside the
    scalar-only compatibility fallback and need a contract decision under full parity.
    Existing implementation of
@@ -149,8 +169,12 @@ remain outside these commits. The latest production fixes are already
 synced/reloaded. Creation/replacement/partial-answer (`06f9566`) and suspension/
 review (`c3af5ce`) batches passed targeted live checks on Anki 26.08.1. The latest
 check `/tmp/tsunagi-scheduler-reviews-live.py` completed and verified that its failed
-inserts left no review rows and its temporary fixtures were removed. No reload is
-pending for these batches.
+inserts left no review rows and its temporary fixtures were removed. Those batches
+need no further reload. The shim-boundary refactor (`456d942`) and binding/deck fix
+(`2ae8840`) are committed locally and synced to the installed addon. The new batch
+needs one reload and the prepared
+`/tmp/tsunagi-binding-decks-live.py` check; it creates and removes only uniquely named
+empty decks and rejects malformed mutation requests before any write.
 
 ## Original session objective
 

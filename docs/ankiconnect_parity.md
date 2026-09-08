@@ -89,7 +89,7 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `deckNamesAndIds` | implemented |  |
 | `deleteDecks` | implemented |  |
 | `getDeckConfig` | implemented |  |
-| `getDeckStats` | implemented | Deviation: unknown deck names are skipped, not created. |
+| `getDeckStats` | implemented | The shim creates missing decks before reading stats, including normalized blank/padded and nested names. Native stats reads create nothing. |
 | `getDecks` | implemented | Preserves order/duplicates and groups missing card IDs through Anki's default-deck fallback, matching upstream. |
 | `removeDeckConfigId` | implemented |  |
 | `saveDeckConfig` | implemented |  |
@@ -209,9 +209,9 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `cardReviews` | implemented | Arrays in revlog column order. Deviation: canonical resolves the deck with `decks.id()`, which creates a missing deck; we resolve by name and report nothing. |
+| `cardReviews` | implemented | Arrays in revlog column order. The shim creates a missing deck and returns no rows. Both `deck` and `startID` are required. Native reads create nothing. |
 | `getCollectionStatsHTML` | implemented | Anki's own stats report. |
-| `getLatestReviewID` | implemented | Same by-name deck resolution as `cardReviews`; 0 when the deck does not exist. |
+| `getLatestReviewID` | implemented | The shim creates a missing deck and returns 0; native reads create nothing. |
 | `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. |
 | `getNumCardsReviewedToday` | implemented | Counted from the scheduler's day cutoff. |
 | `getReviewsOfCards` | implemented | Map of card id to reviews; every requested card gets an entry. |

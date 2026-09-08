@@ -194,6 +194,40 @@ notes, deck and model were removed and cleanup verified. Successful scalar stora
 is covered by the isolated real-backend tests; the live pass deliberately used
 failing inserts and left no review history behind.
 
+## Shim-only argument binding and missing-deck follow-up
+
+The user confirmed that parity belongs only in the compatibility layer. The prior
+`save_unmatched` and `strict_history` switches have been removed from native adapters.
+The shim composes ordinary native replacement/patch operations to save unmatched
+targets, and derives empty-history errors from complete native history results.
+Native reads and unmatched replacements preserve their previous behavior. The
+native field-renaming/rendering correction remains a native correctness fix.
+
+This pass adds **241 differential cases**: 122 unexpected-argument checks, 86
+missing-required-argument checks, one pinned signature-snapshot check and 32 focused
+lookup/binding/value cases. Upstream's HTTP wrapper supplies the two permission
+arguments, so the reference harness supplies them for that action too. Client
+permission values cannot override Tsunagi's origin gate. Four standalone regressions
+cover missing model scope before saves, nested rejected deletion, rejection before
+permission prompting and permission-context spoofing.
+
+Missing-deck lookups for `getDeckStats`, `cardReviews` and `getLatestReviewID` now
+create decks only in the shim. Tests compare nested/blank/padded names, string
+iteration, null errors and creation timing. Native read tests confirm no creation.
+The compatibility resolver reports newly created decks through CollectionOp changes.
+`areDue` uses one additional batched history read; it does not add per-card queries.
+
+Total: **491 differential cases: 490 pass, one expected failure** for the existing
+default local-path policy mismatch. Behavioral calls reach **68 registered handlers**;
+binding rejection covers all 122 action names before handler execution. Full suite:
+**1392 passed, 8 skipped, one expected failure** on Anki 23.10 / Python 3.12.12.
+Ruff and whitespace checks pass. Live Anki 26.08.1 verification is pending reload;
+the prepared `/tmp/tsunagi-binding-decks-live.py` uses only disposable empty decks.
+
+Remaining binding work includes value coercion, malformed request containers,
+nested permission requests and broader ordering/partial-effect comparisons. The
+signature table records parameter names, not every value/default semantic.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
@@ -216,7 +250,10 @@ cannot prove GUI undo, refresh, focus or dialog behavior. Backend undo/redo has
 separate comparisons described above. This run does not establish
 complete compatibility on Anki 26.08.1; the live smoke checks above cover a subset.
 The initial collection is cloned so requests address identical IDs. RPC responses
-are compared without normalization except successful model creation: independently
+are compared without normalization except deck-stat IDs and successful model creation.
+Deck-stat response keys and `deck_id` values are resolved to full deck names because
+missing-deck lookups allocate IDs independently; all other stats remain compared.
+For successful model creation, independently
 allocated model/field/template IDs and model modification timestamps are normalized,
 with the returned schema and other values retained. Answer tests hold measured
 review time at zero in both implementations. Model/scheduler state comparisons exclude
