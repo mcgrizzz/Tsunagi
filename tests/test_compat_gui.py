@@ -136,3 +136,47 @@ def test_native_gui_routes_are_mounted():
     assert {"/v1/gui:browse", "/v1/gui:add-cards", "/v1/gui:answer-card",
             "/v1/gui:deck-review", "/v1/gui/current-card",
             "/v1/gui/selected-notes"} <= paths
+
+
+def test_gui_edit_note_uses_standalone_but_native_uses_browser(client, col, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    import aqt
+
+    from tsunagi.adapters.anki import gui
+
+    note = col.new_note(col.models.by_name("Basic"))
+    note["Front"] = "standalone routing test"
+    col.add_note(note, col.decks.id("Default"))
+    opened, browsed = [], []
+    monkeypatch.setitem(sys.modules, "tsunagi.http.compat.edit_dialog", SimpleNamespace(
+        open_editor=lambda nid: opened.append(col.get_note(nid).id),
+    ))
+    monkeypatch.setattr(gui, "call_on_main", lambda callback: callback())
+    monkeypatch.setattr(gui, "_browse", lambda query, reorder: browsed.append(query))
+    monkeypatch.setattr(aqt, "mw", SimpleNamespace(col=col), raising=False)
+    reply = client.post("/", json={"action": "guiEditNote", "version": 6, "params": {"note": note.id}}).json()
+    assert reply == {"result": None, "error": None}
+    assert opened == [note.id]
+    assert browsed == []
+    assert gui.edit_note(note.id) is True
+    assert browsed == [f"nid:{note.id}"]
+
+
+def test_gui_edit_note_missing_id_reports_backend_error(client, col, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from anki.errors import NotFoundError
+
+    from tsunagi.adapters.anki import gui
+
+    monkeypatch.setitem(sys.modules, "tsunagi.http.compat.edit_dialog", SimpleNamespace(open_editor=col.get_note))
+    monkeypatch.setattr(gui, "call_on_main", lambda callback: callback())
+    try:
+        col.get_note(0)
+    except NotFoundError as exc:
+        expected = str(exc)
+    reply = client.post("/", json={"action": "guiEditNote", "version": 6, "params": {"note": 0}}).json()
+    assert reply == {"result": None, "error": expected}

@@ -100,12 +100,7 @@ def selected_notes() -> List[int]:
 
 def edit_note(note_id: int) -> bool:
     """
-    Open an editor showing one note.
-
-    DEVIATION: canonical ships its own standalone Edit dialog (a 458-line
-    QMainWindow with preview and history navigation). That is AnkiConnect's own
-    UX rather than part of its protocol, so we open the Browser focused on the
-    note instead - the note is editable either way.
+    Open the native API's Browser editor focused on one note.
     """
     def _edit() -> bool:
         from aqt import mw
@@ -115,6 +110,21 @@ def edit_note(note_id: int) -> bool:
         _browse(f"nid:{int(note_id)}", None)
         return True
     return call_on_main(_edit)
+
+
+def ac_edit_note(note_id: int) -> None:
+    """Open the shim's standalone editor on the UI thread."""
+    def _edit():
+        from anki.errors import NotFoundError
+
+        from ...http.compat.edit_dialog import open_editor
+
+        try:
+            open_editor(note_id)
+        except (NotFoundError, LookupError, TypeError) as exc:
+            raise ValueError(str(exc)) from exc
+
+    call_on_main(_edit)
 
 
 # ====================
