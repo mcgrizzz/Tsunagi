@@ -266,3 +266,90 @@ class TestKeysetListing:
     def test_where_filter_rides_keyset(self, reviewed):
         body = reviewed.get("/v1/reviews", params={"where": "ease==3"}).json()
         assert len(body["items"]) == 3
+
+
+class TestNativePageMeasurements:
+    @pytest.mark.parametrize("resource", ["cards", "notes", "reviews"])
+    @pytest.mark.parametrize("method", ["get", "post"])
+    @pytest.mark.parametrize("projection", ["id", None])
+    def test_first_two_pages_read_bounded_ids(self, reviewed, col, monkeypatch,
+                                              resource, method, projection):
+        """Measure real adapter SQL, including the continuation request."""
+        # Grow beyond the hydration chunk so full enumeration is detectable.
+        model = col.models.by_name("Basic")
+        for index in range(503):
+            note = col.new_note(model)
+            note["Front"] = f"page measurement {index}"
+            col.add_note(note, col.decks.id("Default"))
+        first_review = col.db.first("select * from revlog order by id limit 1")
+        for index in range(503):
+            col.db.execute(
+                "insert into revlog values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                first_review[0] + 10000 + index, *first_review[1:],
+            )
+        table = "revlog" if resource == "reviews" else resource
+        expected = col.db.list(f"select id from {table} order by id limit 14")
+        reads = []
+        original = col.db.list
+        hydrated = []
+        backend_reads = []
+        getter_name = {"cards": "get_card", "notes": "get_note"}.get(resource)
+        if getter_name:
+            original_get = getattr(col, getter_name)
+
+            def measured_get(row_id):
+                backend_reads.append(row_id)
+                return original_get(row_id)
+
+            monkeypatch.setattr(col, getter_name, measured_get)
+        original_all = col.db.all
+
+        def measured_all(sql, *args, **kwargs):
+            rows = original_all(sql, *args, **kwargs)
+            if f"from {table}" in sql.lower():
+                hydrated.append((sql, len(rows)))
+            return rows
+
+        def measured(sql, *args, **kwargs):
+            rows = original(sql, *args, **kwargs)
+            if f"from {table}" in sql.lower():
+                reads.append((sql, args, len(rows)))
+            return rows
+
+        def no_search(*args, **kwargs):
+            pytest.fail("Unfiltered pagination must not materialize an Anki search")
+
+        monkeypatch.setattr(col.db, "list", measured)
+        monkeypatch.setattr(col.db, "all", measured_all)
+        monkeypatch.setattr(col, "find_cards", no_search)
+        monkeypatch.setattr(col, "find_notes", no_search)
+        cursor = None
+        seen = []
+        for page in range(2):
+            reads.clear()
+            hydrated.clear()
+            backend_reads.clear()
+            query = {"limit": 7}
+            if projection:
+                query["select"] = projection
+            if cursor:
+                query["cursor"] = cursor
+            if method == "get":
+                response = reviewed.get(f"/v1/{resource}", params=query)
+            else:
+                response = reviewed.post(f"/v1/{resource}/query", json=query)
+            assert response.status_code == 200, response.text
+            body = response.json()
+            seen.extend(body["items"] if projection else [row["id"] for row in body["items"]])
+            cursor = body["next_cursor"]
+            assert cursor
+            assert reads, "Expected instrumentation to observe ID enumeration"
+            assert sum(count for _, _, count in reads) <= 8, reads
+            assert all("limit" in sql.lower() for sql, _, _ in reads), reads
+            hydration_count = sum(count for _, count in hydrated) + len(backend_reads)
+            assert 0 < hydration_count <= 7, (hydrated, backend_reads)
+            print(f"{resource} {method} select={projection} page={page + 1}: "
+                  f"id_queries={len(reads)}, ids_read={sum(r[2] for r in reads)}, "
+                  f"rows_hydrated={hydration_count}, "
+                  f"items={len(body['items'])}")
+        assert seen == expected

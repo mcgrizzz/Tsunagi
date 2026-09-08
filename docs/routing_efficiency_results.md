@@ -129,3 +129,39 @@ The historical 11.5-second result remains unexplained. Operation scheduling
 counts are unchanged by this patch, so unusually slow main-thread dispatch
 could still dominate a scan. Investigate that separately if it reproduces;
 do not label this patch a verified fix for that historical delay.
+
+
+## First and second native pages — 2026-09-08
+
+`TestNativePageMeasurements` in `tests/test_v1_reviews.py` instruments real
+adapter ID enumeration and row hydration over collections larger than the
+250-row hydration chunk. It exercises cards, notes and reviews, both GET and
+POST query routes, with ID-only projection and full rows. Each request returns
+seven items; the second page must continue without overlap. Anki search is
+replaced with a failing sentinel so an unfiltered request cannot quietly fall
+back to full search enumeration. SQL hydration and Anki object getters are both
+counted because full cards and notes can bypass the Python SQL wrapper. All
+24 measured pages used one bounded ID query (eight IDs including lookahead)
+and hydrated exactly seven rows. The 12 parameterized regression cases pass
+on Anki 26.08.1 and 23.10. The relevant route-factory, cards, notes, reviews
+and download/bootstrap suites passed on both backends: 245 tests each.
+
+A read-only Windows check on the installed `0163143` build returned seven IDs on
+each of the first two pages, with no overlap. These are single observations,
+not benchmark distributions:
+
+| Resource | Page 1 server duration | Page 2 server duration |
+| --- | ---: | ---: |
+| Cards | 1.288 ms | 0.961 ms |
+| Notes | 2.128 ms | 2.484 ms |
+| Reviews | 1.287 ms | 0.882 ms |
+
+Wall time including the Windows curl process was 253–259 ms per request.
+Malformed cursor text restarted page one for all three resources. This records
+the current behavior; cursor validation remains a separate contract decision.
+The earlier 11.5-second scan delay was not reproduced by these requests.
+
+The standalone `guiEditNote` change was also checked after reload in Windows:
+the user confirmed that Preview displayed the disposable card, and the probe
+note was deleted afterward. This complements the isolated Qt lifecycle and
+Anki 26.08.1 app smoke tests; complete visual parity is still unverified.
