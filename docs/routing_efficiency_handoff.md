@@ -37,8 +37,11 @@ Completed:
   differential cases and eight standalone regressions. Missing template sides and
   Anki validation errors now match; replacement saves unmatched targets only when
   the shim requests it; malformed answers retain the preceding valid answers.
-  Backend undo/redo matched after success and partial failure. Real GUI undo for
-  this batch awaits reload/live verification.
+  Backend undo/redo matched after success and partial failure. After reload, live
+  Anki 26.08.1 checks passed for creation errors, replacement and partial answers.
+  `/v1/gui:undo` restored the tested cards' review counts after both missing-ease
+  and invalid-ease failures. Temporary notes, deck and model were removed and
+  their absence verified.
 - Full suite: 1083 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
@@ -131,10 +134,10 @@ Branch `main` was 70 commits
 ahead of the locally recorded `origin/main` before these commits; no fetch or push
 was made. Local agent/workspace files and the older post-request planning document
 remain outside these commits. The latest production fixes are already
-synced. Earlier model/scheduler fixes passed targeted live checks on Anki 26.08.1.
-The creation/replacement/partial-answer batch (`06f9566`) awaits the requested
-reload and live checks, including `/v1/gui:undo`. The prepared disposable-fixture
-check is `/tmp/tsunagi-model-answer-live.py`; it cleans up its notes, deck and model.
+synced/reloaded. The creation/replacement/partial-answer batch (`06f9566`) passed
+targeted live checks on Anki 26.08.1, including `/v1/gui:undo`. The disposable-fixture
+check `/tmp/tsunagi-model-answer-live.py` completed and verified cleanup. No reload
+is pending for this batch.
 
 ## Original session objective
 

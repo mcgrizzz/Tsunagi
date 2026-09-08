@@ -136,9 +136,22 @@ additional regressions run without an upstream checkout.
 
 Backend undo/redo restores the matching collection state after a successful answer,
 a missing-ease failure and an invalid-ease failure. This proves backend behavior
-for those cases; real Qt refresh, undo action availability and grouping remain
-separate live checks. The batch is synced and awaits the requested reload; the
-prepared live check exercises `/v1/gui:undo` on this run's disposable notes only.
+for those cases; real Qt refresh and grouping require separate live checks.
+
+After reload, the installed addon passed the following checks on Anki 26.08.1:
+
+- Missing `Front`/`Back` and an invalid field reference produced the expected
+  creation errors, with no failed model left behind.
+- An unmatched replacement returned zero; a literal replacement changed the
+  template as expected. Sync-metadata equality remains an isolated-test assertion.
+- Both missing-ease and invalid-ease failures retained the first valid answer.
+  The card review counts were `[1, 0]` after each partial failure, then `[0, 0]`
+  after calling the real `/v1/gui:undo` endpoint.
+- The two temporary notes, deck and model were removed and their absence verified.
+
+This live pass checks GUI undo through its endpoint, not menu labels, focus or
+grouping of longer answer batches. No production edits or further reload were
+needed after verification.
 
 ## Method and limits
 
