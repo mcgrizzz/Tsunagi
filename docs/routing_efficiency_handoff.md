@@ -1,12 +1,140 @@
 # Routing and efficiency handoff — 2026-09-07
 
-Follow-up completed: native scalar card hydration now uses bounded SQL reads.
-Live minimized-Anki suspended scans improved from 329/383 ms median
-(narrow/full) to 55/61 ms, with matching results and cursor walks. Full suite:
-842 passed, 8 skipped; Ruff passed. The older 11.5-second delay did not
-reproduce and remains unexplained. See
-[routing_efficiency_results.md](routing_efficiency_results.md) for the evidence.
-The original handoff below is retained as historical context.
+## Next session: start here
+
+**Checkpoint:** implementation and live verification are complete through
+`f24236c` (`docs: verify nested request parity after reload`). All production
+changes are synced to installed Anki and reloaded. **No reload or live check is
+pending.** This handoff-only update requires neither a sync nor a reload.
+
+At this checkpoint, `main` is 94 commits ahead of cached `origin/main`; no
+fetch or push was performed. Tracked files were clean before this handoff edit.
+Preserve the four untracked local files: `AGENTS.md`, `CLAUDE.md`,
+`Tsunagi.code-workspace`, and `docs/post_request_system_plan.md`. A local commit
+of this handoff will advance that count by one. Focused local commits are
+authorized; pushing is not.
+
+**Architecture constraint from the user:** AnkiConnect compatibility belongs
+in the shim. Native Tsunagi methods retain their own contracts. Reuse native
+operations where appropriate, but do not add compatibility-only flags or
+coercions to native endpoints. The earlier `strict_history` and
+`save_unmatched` flags were removed; the native field-rename rendering fix is
+intentional.
+
+Latest verification:
+
+- Full suite: **1568 passed, 8 skipped, 1 xfailed**, Anki 23.10 / Python 3.12.12.
+  Ruff and `git diff --check` passed.
+- Differential suite: **649 cases: 648 passed, 1 xfailed**. Calls reach 69
+  registered handlers; combined observed coverage reaches **99/120** registry
+  handlers. There are also two dispatcher-only actions. Argument-name checks
+  cover all 122 actions but do not establish body or GUI coverage.
+- The strict xfail is D11: default local-path access policy differs (Tsunagi
+  disabled, upstream enabled). Other limitations remain; this is not a claim
+  of complete parity.
+- Live Anki **26.08.1**, profile **`[DEV] Yomine`**: nested parameter shapes,
+  fractional versions, writes before version-formatting errors, and explicit
+  nested permission context passed after the last reload. Temporary parent
+  and leaf decks were removed. No permission prompts or settings changes
+  were needed. Latest script: `/tmp/tsunagi-nested-rpc-live.py`.
+
+**Next concrete batch: malformed JSON and empty HTTP request bodies.**
+
+1. Inspect `tools/upstream_reference.py`, the pinned upstream
+   `plugin/web.py::WebServer.handlerWrapper`, and
+   `tsunagi/app.py::ankiconnect_rpc_endpoint` through jCodemunch. The reference
+   harness currently JSON-encodes a payload and returns the decoded body;
+   extend it to accept raw bytes and expose status/headers as needed. Compare
+   the original upstream HTTP wrapper, not only its dispatcher.
+2. Add differential cases for malformed JSON, empty bodies, and relevant
+   origin handling. Current shim decode failures use the generic
+   `request body is not valid JSON`; upstream's allowed empty body returns
+   `{"apiVersion":"AnkiConnect v.6"}`. Verify exact boundary behavior before
+   fixing it. Keep native root GET documentation behavior intact.
+3. Implement fixes in compatibility handling, run focused tests and the full
+   suite, refresh measured coverage, and make focused local commits. If
+   production code changes, sync one completed batch and request one reload;
+   then run disposable live checks and clean only fixtures created by them.
+
+The most recent batch preserved raw nested `params` and versions, matched
+unknown-action/binding order and write-before-version-error behavior, and
+stopped injecting outer HTTP permission context into nested calls. Upstream
+mapping-error text contains the installation module name: `compare_nested`
+normalizes only that reference prefix. The shim uses portable
+`AnkiConnect.<action>()` wording; deployment-specific prefixes are not claimed
+to be byte-identical. Denied permission dialogs were simulated against
+unchanged upstream, not exercised as real live dialogs.
+
+Runtime and reproduction:
+
+- Code index last resolved as `mcgrizzz/Tsunagi`; docs as `local/tsunagi`;
+  upstream code as `anki-connect`. Resolve the workspace afresh and follow
+  AGENTS.md navigation instructions.
+- Pinned upstream checkout: `/tmp/tsunagi-anki-connect-audit`, commit
+  `de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e` (2025-12-03). Its 658-commit
+  history was previously audited. The harness verifies the pin and clean
+  tracked plugin source.
+- Test interpreter: `/tmp/tsunagi-parity-venv/bin/python`, Python 3.12.12,
+  Anki 23.10, `httpx<0.28`, `jsonschema==4.23.0`. Check temporary paths still
+  exist; they are not durable artifacts.
+- Latest reports: `/tmp/tsunagi-nested-rpc-full.xml` and
+  `/tmp/tsunagi-nested-rpc-coverage.json`. Durable evidence and method limits:
+  [differential results](shim_differential_results.md),
+  [behavioral coverage](shim_behavioral_coverage.md), and
+  [handler coverage matrix](shim_coverage_matrix.md).
+- Reach Windows Anki using `curl.exe --noproxy '*'` at
+  `http://localhost:7777`. API key is disabled. Do not change authentication,
+  local-path access, or other settings to make tests pass.
+- Sync with `python3 tools/dev_sync.py`; user console reload is
+  `import tsunagi; tsunagi.reload_addon()`. Changes to `__init__.py` or vendored
+  libraries need a full restart. Installed add-on:
+  `/mnt/c/Users/Andrew/AppData/Roaming/Anki2/addons21/tsunagi`.
+
+```bash
+TSUNAGI_ANKICONNECT_CHECKOUT=/tmp/tsunagi-anki-connect-audit \
+  /tmp/tsunagi-parity-venv/bin/python -m pytest -q -p tools.shim_coverage \
+  --shim-coverage=/tmp/tsunagi-next-coverage.json \
+  --junitxml=/tmp/tsunagi-next-full.xml --tb=short
+python3 -m tools.shim_coverage /tmp/tsunagi-next-coverage.json docs/shim_coverage_matrix.md
+```
+
+Remaining agenda after that batch:
+
+- Permission acceptance/persistence for empty or non-string origins and the
+  ignored-origin checkbox; real dialog focus and persistence remain unverified.
+- Broader action-value coercion, failed downloads, and nested note/media
+  options; review SQL-expression inputs remain outside the scalar fallback.
+- Filtered decks, FSRS, day-learning/relearning and legacy scheduler states;
+  model conversion, cloze/card generation, undo and Qt effects.
+- GUI lifecycle/navigation, especially `guiEditNote` (currently a Browser
+  substitute), reviewer and add-note flows. Optional manual sync, events,
+  exit, timer and crash checks remain.
+- Full automated suite on Anki 26.08: the older backend skips two retention,
+  two optimizer and four simulator cases. Resolve D11 through an explicit
+  policy/migration decision, not a silent live setting change.
+- Native routing: instrument first/second keyset pages for cards, notes and
+  reviews; malformed cursors currently restart the first page in all six
+  families. The historical 11.5-second delay remains unreproduced.
+- User-requested versions/capabilities endpoint: supported API versions
+  (currently v1), add-on/Anki versions, backend FSRS support, collection FSRS
+  enabled state, and per-operation availability. `GET /v1/collection` already
+  exposes `fsrs` and `anki_version`; build a coherent discovery contract.
+- Settings popup: show AnkiConnect detected/enabled status and an explicit
+  **Import settings and disable AnkiConnect** action. Reuse API-key/origin
+  import behavior while retaining port 7777; detection alone must not disable
+  another add-on.
+- More intuitive docs/playground: guided editable examples with visible
+  requests/responses and synchronized OpenAPI; assess a custom frontend for
+  learning by doing beyond Swagger UI.
+- **Last:** final code structure, architecture and comment review after the
+  functional work.
+
+Historical routing milestone: bounded SQL scalar hydration reduced minimized
+Anki suspended-scan medians from 329/383 ms (narrow/full) to 55/61 ms, with
+matching results and cursor walks. Its then-current suite was 842 passed,
+8 skipped. See [routing results](routing_efficiency_results.md). The detailed
+status and original investigation below are retained for context; the
+checkpoint above takes precedence over older counts and workspace snapshots.
 
 ## Current status after routing and shim work
 
@@ -315,20 +443,21 @@ not establish that the live Anki adapter scans efficiently.
 - Case-sensitive path identity changed during the session. Indexing the
   lowercase current path most recently returned repo **`mcgrizzz/Tsunagi`**.
   The older uppercase path used `local/Tsunagi-eeed5b36`. Resolve afresh rather
-  than assuming either handle. Documentation index `local/Tsunagi` has been
-  stale after edits; refresh it before relying on its checklist contents.
+  than assuming either handle. The current documentation index is
+  `local/tsunagi`; refresh it after documentation edits.
 - Use `curl.exe --noproxy '*'` to reach **`http://localhost:7777`**. Linux curl
   localhost did not reach Windows Anki. User authorized all curls to this
   endpoint for the session. Follow the actual current sandbox policy.
 - **API key is currently disabled by the user**, so Yomine could be tested.
-  When enabled earlier it was `test-key-123`: native requests use
+  When authentication is enabled, native requests use
   `X-Api-Key`; shim RPC requires a body `key`, including each nested `multi`
   action. Do not re-enable the key without coordinating with the user.
 - `[DEV] Yomine` and `Tsunagi` were authorized disposable profiles. Stay on
   `[DEV] Yomine` for this investigation; no real-profile switch is needed.
-- User prefers us to execute commands and pause for small visual test steps.
-  No commits, push, or publication requested. Do not follow the checklist's
-  closing “git push” statement as authorization.
+- User prefers us to execute commands and pause only for necessary visual
+  test steps or reloads. Focused local commits are authorized. No push or
+  publication is authorized; the checklist's closing “git push” statement
+  does not grant that authorization.
 
 Read-only reproduction:
 
@@ -340,9 +469,13 @@ curl.exe --noproxy '*' --connect-timeout 3 --max-time 30 -sS \
 For broad/full responses, parse captured JSON and print only counts/timings;
 avoid flooding the conversation with rendered HTML, base64, or thousands of IDs.
 
-## Existing uncommitted work — preserve
+## Historical uncommitted-work snapshot
 
-At handoff, `git status --short` showed modified:
+This is the original investigation snapshot, not the current working tree.
+Those tracked fixes have since been committed. See the opening checkpoint
+for current status; continue to preserve unrelated/user work.
+
+At the original handoff, `git status --short` showed modified:
 
 - `docs/manual_test_plan.md`
 - `tests/test_events_broker.py`
