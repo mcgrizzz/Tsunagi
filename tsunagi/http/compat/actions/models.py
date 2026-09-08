@@ -293,10 +293,14 @@ def ac_createModel(p: CreateModelParams) -> Dict[str, Any]:
 
     templates = []
     for index, card in enumerate(p.cardTemplates, start=1):
+        try:
+            front, back = card["Front"], card["Back"]
+        except KeyError as exc:
+            raise ValueError(str(exc)) from exc
         templates.append({
             "name": card.get("Name", f"Card {index}"),
-            "qfmt": card.get("Front", ""),
-            "afmt": card.get("Back", ""),
+            "qfmt": front,
+            "afmt": back,
         })
 
     data: Dict[str, Any] = {
@@ -309,17 +313,28 @@ def ac_createModel(p: CreateModelParams) -> Dict[str, Any]:
     if p.css is not None:
         data["css"] = p.css
 
-    create_model(data)
+    from anki.errors import CardTypeError, InvalidInput
+
+    try:
+        create_model(data)
+    except (CardTypeError, InvalidInput) as exc:
+        raise ValueError(str(exc)) from exc
     # Canonical returns Anki's raw notetype dict, not a curated shape.
     return get_raw_models(names=[p.modelName])[p.modelName]
 
 
 @registry.register("findAndReplaceInModels", params=FindAndReplaceParams)
 def ac_findAndReplaceInModels(p: FindAndReplaceParams) -> int:
+    from anki.errors import CardTypeError, InvalidInput
+
     if p.modelName:
         _raw_model(p.modelName)          # canonical's model-not-found string
-    return find_and_replace_in_models(
-        p.findText, p.replaceText, p.modelName or None, p.front, p.back, p.css)
+    try:
+        return find_and_replace_in_models(
+            p.findText, p.replaceText, p.modelName or None, p.front, p.back, p.css,
+            save_unmatched=True)
+    except (CardTypeError, InvalidInput) as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @registry.register("updateModelTemplates", params=UpdateModelTemplatesParams)

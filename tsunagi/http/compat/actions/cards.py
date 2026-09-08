@@ -239,12 +239,11 @@ def ac_answerCards(p: AnswerCardsParams) -> List[bool]:
     """
     Per-card success bools; a missing card is False, an invalid ease raises.
 
-    DEVIATION: a malformed entry (missing cardId/ease) is rejected before any
-    card is answered, where canonical would apply the answers preceding it.
-    An invalid *ease* behaves exactly like canonical - same anki exception,
-    raised mid-batch with the earlier answers kept.
+    Apply the prefix before reporting a malformed entry. An invalid ease in
+    that prefix takes precedence over a later missing key, matching canonical.
     """
     entries = []
+    malformed = None
     for a in p.answers:
         try:
             entries.append({"card_id": a["cardId"], "ease": a["ease"]})
@@ -252,13 +251,17 @@ def ac_answerCards(p: AnswerCardsParams) -> List[bool]:
             # Canonical's KeyError surfaces as its str ("'cardId'"); ours must
             # be a ValueError to carry the message past the dispatcher's
             # leak-nothing default.
-            raise ValueError(str(e)) from e
+            malformed = ValueError(str(e))
+            break
     try:
-        return answer_cards(entries)
+        result = answer_cards(entries) if entries or malformed is None else []
     except Exception as e:
         if str(e) == "invalid ease":   # anki's own message, a client error
             raise ValueError("invalid ease") from e
         raise
+    if malformed is not None:
+        raise malformed
+    return result
 
 
 @registry.register("setSpecificValueOfCard")

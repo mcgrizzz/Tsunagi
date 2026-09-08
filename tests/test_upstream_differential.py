@@ -473,3 +473,122 @@ def test_scheduler_mutations(pair, action, extra, review_cards):
             )
     compare(pair, action, {"cards": cards, **extra})
     assert_mutation_state(pair)
+
+
+def normalized_created_model(model):
+    """Keep the returned schema/values; normalize independently allocated IDs/time."""
+    model = copy.deepcopy(model)
+    assert isinstance(model["id"], int) and model["id"] > 0
+    assert isinstance(model["mod"], int)
+    model["id"], model["mod"] = "<allocated>", "<timestamp>"
+    for member in model["flds"] + model["tmpls"]:
+        if isinstance(member.get("id"), int):
+            member["id"] = "<allocated>"
+    return model
+
+
+@pytest.mark.parametrize("change", [
+    {},
+    {"css": ""},
+    {"css": ".card {color: red;}"},
+    {"isCloze": True, "inOrderFields": ["Text"], "cardTemplates": [
+        {"Front": "{{cloze:Text}}", "Back": "{{cloze:Text}}"}]},
+    {"inOrderFields": []},
+    {"cardTemplates": []},
+    {"modelName": "Basic"},
+    {"inOrderFields": ["Front", "Front"]},
+    {"cardTemplates": [{"Front": "{{Missing}}", "Back": "{{Back}}"}]},
+    {"cardTemplates": [{"Back": "{{Back}}"}]},
+    {"cardTemplates": [{"Front": "{{Front}}"}]},
+    {"cardTemplates": [{"Name": "", "Front": "{{Front}}", "Back": "{{Back}}"}]},
+    {"cardTemplates": [
+        {"Name": "Same", "Front": "{{Front}}", "Back": "{{Back}}"},
+        {"Name": "Same", "Front": "{{Back}}", "Back": "{{Front}}"}]},
+])
+def test_model_creation(pair, change):
+    params = {"modelName": "Created model", "inOrderFields": ["Front", "Back"],
+              "cardTemplates": [{"Front": "{{Front}}", "Back": "{{Back}}"}], **change}
+    request = {"action": "createModel", "version": 6, "params": params}
+    expected = pair[2].handler(copy.deepcopy(request))
+    actual = handle_ankiconnect_rpc(copy.deepcopy(request))
+    actual, expected = json.loads(json.dumps(actual)), json.loads(json.dumps(expected))
+    assert actual.keys() == expected.keys()
+    assert actual["error"] == expected["error"]
+    if expected["error"] is not None:
+        assert actual == expected
+        assert_mutation_state(pair)
+        return
+    actual_model = normalized_created_model(actual["result"])
+    expected_model = normalized_created_model(expected["result"])
+    assert actual_model == expected_model, first_difference(actual_model, expected_model)
+    for collection in pair[:2]:
+        collection.models._clear_cache()
+    saved = [normalized_created_model(c.models.by_name(params["modelName"])) for c in pair[:2]]
+    assert saved[0] == saved[1], first_difference(*saved)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("params", [
+    {"modelName": "Basic", "findText": "{{Front}}", "replaceText": "changed {{Front}}"},
+    {"modelName": "Basic", "findText": "not present", "replaceText": "replacement"},
+    {"modelName": None, "findText": "not present", "replaceText": "replacement"},
+    {"modelName": None, "findText": "Arial", "replaceText": "serif", "front": False, "back": False},
+    {"modelName": "Basic", "findText": "Front", "replaceText": "Back", "front": False, "css": False},
+    {"modelName": "Basic", "findText": "", "replaceText": "", "front": False, "back": False, "css": False},
+    {"modelName": "missing", "findText": "x", "replaceText": "y"},
+])
+def test_model_replacement_side_effects(pair, params):
+    compare(pair, "findAndReplaceInModels", params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", [
+    "empty", "valid", "missing_card", "missing_card_id", "missing_ease",
+    "invalid_ease", "missing_card_without_ease", "duplicate",
+])
+def test_answer_cards_partial_mutations(pair, monkeypatch, case):
+    from anki.cards import Card
+
+    # Answer execution time is an external input, not a shim behavior difference.
+    monkeypatch.setattr(Card, "time_taken", lambda self, capped=True: 0)
+    cards = list(pair[0].find_cards(""))
+    first = {"cardId": cards[0], "ease": 4}
+    cases = {
+        "empty": [],
+        "valid": [first, {"cardId": cards[1], "ease": 4}],
+        "missing_card": [first, {"cardId": 9999999999999, "ease": 4}],
+        "missing_card_id": [first, {"ease": 4}],
+        "missing_ease": [first, {"cardId": cards[1]}],
+        "invalid_ease": [first, {"cardId": cards[1], "ease": 0}],
+        "missing_card_without_ease": [first, {"cardId": 9999999999999}],
+        "duplicate": [first, first],
+    }
+    compare(pair, "answerCards", {"answers": cases[case]})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", ["valid", "missing_ease", "invalid_ease"])
+def test_answer_cards_backend_undo_redo(pair, monkeypatch, case):
+    from anki.cards import Card
+
+    monkeypatch.setattr(Card, "time_taken", lambda self, capped=True: 0)
+    before = mutation_state(pair[0])
+    cid = pair[0].find_cards("")[0]
+    answers = [{"cardId": cid, "ease": 4}]
+    if case != "valid":
+        second = {"cardId": pair[0].find_cards("")[1]}
+        if case == "invalid_ease":
+            second["ease"] = 0
+        answers.append(second)
+    compare(pair, "answerCards", {"answers": answers})
+    assert_mutation_state(pair)
+    answered = mutation_state(pair[0])
+    assert answered != before
+    for collection in pair[:2]:
+        collection.undo()
+    assert_mutation_state(pair)
+    assert mutation_state(pair[0]) == before
+    for collection in pair[:2]:
+        collection.redo()
+    assert_mutation_state(pair)
+    assert mutation_state(pair[0]) == answered
