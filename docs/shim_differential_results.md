@@ -387,6 +387,28 @@ coverage: `/tmp/tsunagi-permissions-coverage.json` and `/tmp/tsunagi-26-coverage
 The newer interpreter is `/tmp/tsunagi-26-parity-venv/bin/python`, with
 `anki==26.8.1`, `httpx==0.27.2` and `jsonschema==4.23.0`.
 
+The subsequent live empty-origin check exposed an existing timeout lifecycle
+bug: an expired HTTP waiter returned denied while its Qt dialog remained open.
+The script then opened another dialog. That observation is **not** a successful
+live denial/persistence check. Permission timeouts now queue rejection of their
+active dialog on the UI thread and suppress an expired callback before it can
+open another window. Late dialog results are discarded. The shared native
+main-thread operation helper is unchanged.
+
+Two optional real-Qt tests in `tests/test_permission_dialog_lifecycle.py` exercise
+an active modal dialog and a request that expires while its UI callback is still
+queued. They run headlessly with PyQt6, without loading a real Anki profile.
+The live script now sends one prompt per invocation and refuses to count a
+response near the timeout as a successful manual click. A fresh reload and live
+retry are required for the lifecycle fix.
+
+Lifecycle verification on Anki 26.08.1: **1767 passed, 4 skipped, 1 xfailed**,
+including both real-Qt tests. The focused Anki 23.10 permission/settings run has
+129 passing tests. Ruff and whitespace checks pass. One earlier full run crossed
+a one-second review timestamp boundary in the existing undo/redo comparison;
+that comparison and the subsequent full run passed unchanged. The comparison
+remains strict. Final report: `/tmp/tsunagi-permission-lifecycle-full.xml`.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
