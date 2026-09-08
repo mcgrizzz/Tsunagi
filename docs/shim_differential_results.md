@@ -367,7 +367,7 @@ list. Acceptance appends every origin exactly as upstream does, including repeat
 and non-string nested values. Those compatibility semantics remain in the shim;
 the native settings helper retains its deduplication contract. Tests compare replies,
 prompt counts, persisted snapshots and subsequent requests. No live settings were
-changed. Real Qt presentation, focus and user interaction remain to verify after reload.
+changed by these automated comparisons. Live interaction is recorded below.
 
 The full suite now passes on both backends with Python 3.12.12:
 
@@ -399,8 +399,12 @@ Two optional real-Qt tests in `tests/test_permission_dialog_lifecycle.py` exerci
 an active modal dialog and a request that expires while its UI callback is still
 queued. They run headlessly with PyQt6, without loading a real Anki profile.
 The live script now sends one prompt per invocation and refuses to count a
-response near the timeout as a successful manual click. A fresh reload and live
-retry are required for the lifecycle fix.
+response near the timeout as a successful manual click. After the user confirmed
+reload, two sequential empty-origin requests returned denied before timeout. The
+user confirmed that checking Ignore and selecting No closed the first dialog;
+the second request prompted again, as required for a falsy origin. No live settings
+were changed. The Windows timeout-expiry path itself remains covered by the
+headless Qt tests rather than a manual 120-second wait.
 
 Lifecycle verification on Anki 26.08.1: **1767 passed, 4 skipped, 1 xfailed**,
 including both real-Qt tests. The focused Anki 23.10 permission/settings run has
@@ -408,6 +412,30 @@ including both real-Qt tests. The focused Anki 23.10 permission/settings run has
 a one-second review timestamp boundary in the existing undo/redo comparison;
 that comparison and the subsequent full run passed unchanged. The comparison
 remains strict. Final report: `/tmp/tsunagi-permission-lifecycle-full.xml`.
+
+## Media HTTP failures and nested errors, 2026-09-08
+
+Added 57 upstream comparisons covering HTTP 200, other 2xx responses, redirects,
+4xx/5xx failures, invalid URLs, disconnected downloads and escaped errors inside
+note fields. The status matrix covers `storeMediaFile`, `updateNoteFields` and
+`canAddNote`, comparing both replies and resulting note/media state. Before the
+fix, 22 of its 42 cases failed.
+
+The shim now uses Anki's Requests client and accepts only HTTP 200 after redirects,
+matching upstream's status and transport-error text. Downloads finish before any
+existing file is deleted. Nine standalone regressions check failed replacements,
+declared and streamed size limits, and the native API's existing HTTP 201 behavior.
+The shim retains Tsunagi's configured download timeout and size limit; these limits
+remain deliberate boundaries on the comparison with upstream.
+
+Full verification with Python 3.12.12: **1833 passed, 4 skipped, 1 xfailed** on
+Anki 26.08.1 and **1827 passed, 10 skipped, 1 xfailed** on Anki 23.10. The old
+environment additionally skips the two optional Qt lifecycle tests. Across both
+differential files, **874 pass and 1 remains expected to fail** (D11 local-path
+policy). Registry execution remains 99/120 overall and 69 differential handlers.
+Ruff and whitespace checks pass. Reports: `/tmp/tsunagi-media-errors-full.xml`,
+`/tmp/tsunagi-media-errors-old-full.xml`; registry evidence:
+`/tmp/tsunagi-media-errors-coverage.json`. Live media verification awaits reload.
 
 ## Method and limits
 

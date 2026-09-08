@@ -12,6 +12,7 @@ import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -314,7 +315,14 @@ def media_url():
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             payload = b"local HTTP media payload"
-            self.send_response(200)
+            query = parse_qs(urlsplit(self.path).query)
+            if "disconnect" in query:
+                self.connection.close()
+                return
+            status = int(query.get("status", ["200"])[0])
+            self.send_response(status)
+            if status in (301, 302, 307, 308):
+                self.send_header("Location", "/media")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
@@ -336,6 +344,54 @@ def media_url():
 def test_media_url(pair, media_url):
     compare(pair, "storeMediaFile", {"filename": "from-url.txt", "url": media_url})
     assert media_state(pair[0]) == media_state(pair[1]) == {"from-url.txt": b"local HTTP media payload"}
+
+
+@pytest.mark.parametrize("status", [200, 201, 202, 204, 206, 301, 302, 307, 308, 400, 403, 404, 429, 500])
+@pytest.mark.parametrize("action", ["storeMediaFile", "updateNoteFields", "canAddNote"])
+def test_media_http_status_and_nested_errors(pair, media_url, status, action):
+    for collection in pair[:2]:
+        collection.media.write_data("status.mp3", b"original")
+    media = {"filename": "status.mp3", "url": f"{media_url}?status={status}", "deleteExisting": True}
+    if action == "storeMediaFile":
+        params = media
+    elif action == "updateNoteFields":
+        params = {"note": {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"},
+                           "audio": {**media, "fields": ["Back"]}}}
+    else:
+        params = {"note": {"deckName": "Default", "modelName": "Basic",
+                           "fields": {"Front": "download probe", "Back": "back"},
+                           "audio": {**media, "fields": ["Back"]}}}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+    expected = b"local HTTP media payload" if status in (200, 301, 302, 307, 308) else b"original"
+    assert media_state(pair[0]) == {"status.mp3": expected}
+
+
+def assert_media_url_failure(pair, url, action):
+    media = {"filename": "invalid-url.mp3", "url": url}
+    params = media if action == "storeMediaFile" else {"note": {
+        "id": pair[0].find_notes("")[0], "fields": {"Back": "updated"},
+        "audio": {**media, "fields": ["Back"]},
+    }}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("url", [
+    "not-a-url", "http://", "https://", "://", "ftp://127.0.0.1/media", "file:///missing-media",
+])
+@pytest.mark.parametrize("action", ["storeMediaFile", "updateNoteFields"])
+def test_media_invalid_urls(pair, url, action):
+    assert_media_url_failure(pair, url, action)
+
+
+@pytest.mark.parametrize("action", ["storeMediaFile", "updateNoteFields"])
+def test_media_disconnected_download(pair, media_url, action):
+    assert_media_url_failure(pair, media_url + "?disconnect=1", action)
+
+
+def test_nested_download_error_escapes_url(pair, media_url):
+    assert_media_url_failure(pair, media_url + '?status=404&label=<tag>"quote"', "updateNoteFields")
 
 
 @pytest.mark.parametrize("change", [
