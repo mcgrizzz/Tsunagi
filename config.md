@@ -5,13 +5,23 @@ button on the add-on, or Tools → Tsunagi Settings. This page documents the
 underlying keys, which you can still edit as JSON in `meta.json` if you
 prefer.
 
-Saving the settings dialog applies everything immediately: per-request keys
+Saving the settings dialog applies Tsunagi settings immediately: per-request keys
 (`api_key`, `cors_allowlist`, the `media_*` limits and `gates`) are simply
 read live, and server-level keys (`enabled`, `host`, `port`, `prefer_port`,
 `log_level`, `op_timeout_seconds`) are applied by restarting the embedded
 server on the spot. If you edit `meta.json` as JSON instead, the server-level
 keys only take effect after restarting Anki (or switching profiles);
 `dev_watch_seconds` always needs an Anki restart.
+
+The **AnkiConnect** section shows whether the standard AnkiConnect addon is
+installed and enabled. **Import settings and disable AnkiConnect** stages its
+API key and merges allowed website origins into the form. Review the values and
+click **OK** to save and disable AnkiConnect, or **Cancel** to leave both addons
+unchanged. **Restore Defaults** also cancels a pending import-and-disable action.
+Tsunagi retains its configured port (normally 7777), and the import does not
+change optional capability gates. An empty AnkiConnect API key does not replace
+an existing Tsunagi key. Restart Anki after saving to stop an already-running
+AnkiConnect instance; detection alone never disables it.
 
 ### `enabled`
 Set to `false` to stop Tsunagi from starting its server.

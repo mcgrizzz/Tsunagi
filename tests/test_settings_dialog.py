@@ -173,3 +173,108 @@ class TestDocDrift:
         for key in DEFAULTS["gates"]:
             assert key in GATE_INFO, f"gate {key} needs a GATE_INFO entry"
             assert key in config_md, f"gate {key} is undocumented in config.md"
+
+
+class TestAnkiConnectSettings:
+    def test_detection_does_not_change_addons(self):
+        from types import SimpleNamespace
+
+        from tsunagi.adapters.dialogs import ANKICONNECT_ID, ankiconnect_status
+
+        for enabled in (True, False):
+            manager = SimpleNamespace(
+                allAddons=lambda: [ANKICONNECT_ID],
+                addon_meta=lambda _name, enabled=enabled: SimpleNamespace(enabled=enabled),
+                getConfig=lambda _name: {},
+            )
+            assert ankiconnect_status(manager) == {
+                "installed": True, "enabled": enabled, "config_available": True,
+            }
+        assert ankiconnect_status(SimpleNamespace(allAddons=lambda: [])) == {
+            "installed": False, "enabled": False, "config_available": False,
+        }
+
+    def test_import_merges_origins_without_importing_ports_or_gates(self):
+        from tsunagi.adapters.dialogs import ankiconnect_import_changes
+
+        original = {"api_key": "old", "cors_allowlist": ["http://existing"],
+                    "port": 7777, "gates": {"media_allow_local_path": False}}
+        ac = {"apiKey": "new", "webCorsOriginList": ["http://existing", "http://new"],
+              "webBindPort": 8765, "gates": {"media_allow_local_path": True}}
+        result = {**original, **ankiconnect_import_changes(original, ac)}
+        assert result["api_key"] == "new"
+        assert result["cors_allowlist"] == ["http://existing", "http://new"]
+        assert result["port"] == 7777
+        assert result["gates"] == original["gates"]
+        assert original["cors_allowlist"] == ["http://existing"]
+        assert {**original, **ankiconnect_import_changes(original, {})}["api_key"] == "old"
+
+    def test_saving_unrelated_settings_does_not_inspect_or_disable_ankiconnect(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from tsunagi.adapters import settings_dialog as dialog
+
+        calls = []
+        monkeypatch.setattr(dialog, "apply_config", lambda mw, cfg, **kwargs: calls.append(cfg))
+        dialog.save_settings(SimpleNamespace(), {"port": 7777})
+        assert calls == [{"port": 7777}]
+
+    def test_explicit_import_disables_once_after_saving(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from tsunagi.adapters import settings_dialog as dialog
+        from tsunagi.adapters.dialogs import ANKICONNECT_ID
+
+        calls = []
+        for enabled in (True, False):
+            calls.clear()
+            manager = SimpleNamespace(
+                allAddons=lambda: [ANKICONNECT_ID],
+                addon_meta=lambda _name, enabled=enabled: SimpleNamespace(enabled=enabled),
+                getConfig=lambda _name: {},
+                toggleEnabled=lambda name, enable: calls.append((name, enable)),
+            )
+            monkeypatch.setattr(dialog, "apply_config", lambda *args, **kwargs: calls.append("saved"))
+            dialog.save_settings(SimpleNamespace(addonManager=manager), {}, disable_ankiconnect=True)
+            assert calls == (["saved", (ANKICONNECT_ID, False)] if enabled else ["saved"])
+
+    def test_disable_failure_restores_previous_settings(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import pytest
+
+        from tsunagi.adapters import settings_dialog as dialog
+        from tsunagi.adapters.dialogs import ANKICONNECT_ID
+
+        writes = []
+        previous = {"api_key": "old", "port": 7777}
+
+        def fail(*args, **kwargs):
+            raise OSError("cannot write addon metadata")
+
+        manager = SimpleNamespace(
+            allAddons=lambda: [ANKICONNECT_ID],
+            addon_meta=lambda _name: SimpleNamespace(enabled=True),
+            getConfig=lambda _name: previous,
+            toggleEnabled=fail,
+        )
+        monkeypatch.setattr(dialog, "apply_config", lambda mw, cfg, **kwargs: writes.append(cfg))
+        with pytest.raises(OSError, match="cannot write"):
+            dialog.save_settings(SimpleNamespace(addonManager=manager), {"api_key": "new"},
+                                 disable_ankiconnect=True)
+        assert writes == [{"api_key": "new"}, previous]
+
+    def test_removed_addon_does_not_save_import(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import pytest
+
+        from tsunagi.adapters import settings_dialog as dialog
+
+        def fail(*args, **kwargs):
+            raise AssertionError("Settings must not be written")
+
+        monkeypatch.setattr(dialog, "apply_config", fail)
+        with pytest.raises(ValueError, match="no longer installed"):
+            dialog.save_settings(SimpleNamespace(addonManager=SimpleNamespace(allAddons=lambda: [])),
+                                 {}, disable_ankiconnect=True)

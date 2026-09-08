@@ -114,11 +114,29 @@ def offer_ankiconnect_import() -> None:
 
     changes: dict = {"ankiconnect_import_offered": True}
     if accepted:
-        if ac.get("apiKey"):
-            changes["api_key"] = ac["apiKey"]
-        merged = list(settings.get("cors_allowlist", []))
-        for origin in ac.get("webCorsOriginList") or []:
-            if origin not in merged:
-                merged.append(origin)
-        changes["cors_allowlist"] = merged
+        changes.update(ankiconnect_import_changes(
+            {"cors_allowlist": settings.get("cors_allowlist", [])}, ac))
     settings.update(**changes)
+
+
+def ankiconnect_status(manager: Any) -> dict:
+    """Inspect installation and saved enabled state without changing either."""
+    installed = ANKICONNECT_ID in manager.allAddons()
+    return {
+        "installed": installed,
+        "enabled": bool(manager.addon_meta(ANKICONNECT_ID).enabled) if installed else False,
+        "config_available": manager.getConfig(ANKICONNECT_ID) is not None if installed else False,
+    }
+
+
+def ankiconnect_import_changes(cfg: dict, ac: dict) -> dict:
+    """Share the startup offer's key/origin merge; never import ports or gates."""
+    changes: dict = {"ankiconnect_import_offered": True}
+    if ac.get("apiKey"):
+        changes["api_key"] = ac["apiKey"]
+    merged = list(cfg.get("cors_allowlist", []))
+    for origin in ac.get("webCorsOriginList") or []:
+        if origin not in merged:
+            merged.append(origin)
+    changes["cors_allowlist"] = merged
+    return changes
