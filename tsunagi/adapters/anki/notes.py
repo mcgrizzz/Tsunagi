@@ -479,16 +479,25 @@ def _ac_write_media(col: Collection, note: Any, media: Sequence[Dict[str, Any]])
     Store attachments and append their markup. Runs before the duplicate
     check (canonical order), so markup in the first field affects dedup.
     """
+    from os import fspath
+
     for item in media:
+        if "abort_error" in item:
+            raise ValueError(item["abort_error"])
         try:
             if item.get("error") is not None:
                 raise ValueError(item["error"])
             data = item.get("data")
             if data is None:
                 continue  # skipHash matched: store nothing, append nothing
+            if item.get("delete_existing") and not isinstance(item["filename"], str):
+                # Upstream's deletion protobuf rejects the type before writeData.
+                raise TypeError("bad argument type for built-in operation")
+            # Preserve legacy filename type errors before invoking the backend.
+            filename = fspath(item["filename"])
             if item.get("delete_existing"):
-                col.media.trash_files([item["filename"]])
-            stored = col.media.write_data(item["filename"], data)
+                col.media.trash_files([filename])
+            stored = col.media.write_data(filename, data)
             fields = item.get("fields")
             if type(fields) is list:
                 for field in fields:

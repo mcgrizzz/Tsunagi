@@ -30,11 +30,11 @@ _ILLEGAL = set('[]><:"/?*^\\|\0\r\n')
 
 
 class StoreMediaFileParams(BaseModel):
-    filename: str
-    data: Optional[str] = None
-    path: Optional[str] = None
-    url: Optional[str] = None
-    skipHash: Optional[str] = None
+    filename: Any = ...
+    data: Any = None
+    path: Any = None
+    url: Any = None
+    skipHash: Any = None
     # Upstream uses Python truthiness, including nonempty strings and containers.
     deleteExisting: Any = True
 
@@ -49,30 +49,37 @@ class PatternParams(BaseModel):
 
 @registry.register("storeMediaFile", params=StoreMediaFileParams)
 def ac_storeMediaFile(p: StoreMediaFileParams) -> Optional[str]:
-    if not (p.data or p.path or p.url):
-        raise ValueError(MEDIA_NO_SOURCE)
+    try:
+        if not (p.data or p.path or p.url):
+            raise ValueError(MEDIA_NO_SOURCE)
 
-    if p.data:
-        data = base64.b64decode(p.data)
-    elif p.path:
-        if not settings.gate_enabled("media_allow_local_path"):
-            raise ValueError(
-                "local 'path' uploads are disabled; enable gates.media_allow_local_path in the Tsunagi config"
-            )
-        with open(p.path, "rb") as fh:
-            data = fh.read()
-    else:
-        from ..downloads import download_media
-        data = download_media(p.url)
+        if p.data:
+            data = base64.b64decode(p.data)
+        elif p.path:
+            if not settings.gate_enabled("media_allow_local_path"):
+                raise ValueError(
+                    "local 'path' uploads are disabled; enable gates.media_allow_local_path in the Tsunagi config"
+                )
+            with open(p.path, "rb") as fh:
+                data = fh.read()
+        else:
+            from ..downloads import download_media
+            data = download_media(p.url)
 
-    # skipHash: the caller already has this content, so store nothing.
-    if p.skipHash is not None and hashlib.md5(data).hexdigest() == p.skipHash:
-        return None
+        # skipHash: the caller already has this content, so store nothing.
+        if p.skipHash is not None and hashlib.md5(data).hexdigest() == p.skipHash:
+            return None
 
-    if p.deleteExisting:
-        delete_media_file(p.filename)
-    stored, _renamed = store_media_bytes(p.filename, data)
-    return stored
+        if p.deleteExisting and not isinstance(p.filename, str):
+            # Upstream's deletion protobuf rejects the type before writeData.
+            raise TypeError("bad argument type for built-in operation")
+        filename = os.fspath(p.filename)
+        if p.deleteExisting:
+            delete_media_file(filename)
+        stored, _renamed = store_media_bytes(filename, data)
+        return stored
+    except TypeError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @registry.register("retrieveMediaFile", params=FilenameParams)

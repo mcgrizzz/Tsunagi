@@ -121,3 +121,36 @@ def test_media_field_selection_and_error_side_effects(client, col, selection, da
         assert media_file.read_bytes() == b"audio"
     else:
         assert not media_file.exists()
+
+
+@pytest.mark.parametrize("params,error", [
+    ({"filename": "raw.mp3", "data": False}, 'You must provide a "data", "path", or "url" field.'),
+    ({"filename": "raw.mp3", "data": [1]}, "argument should be a bytes-like object or ASCII string, not 'list'"),
+    ({"filename": 7, "data": "YXVkaW8="}, "bad argument type for built-in operation"),
+])
+def test_raw_store_values_do_not_create_files(client, col, params, error):
+    reply = client.post("/", json={"action": "storeMediaFile", "version": 6, "params": params}).json()
+    assert reply == {"result": None, "error": error}
+    assert list(Path(col.media.dir()).iterdir()) == []
+
+
+@pytest.mark.parametrize("malformed,error", [
+    (False, "'bool' object is not subscriptable"),
+    ("malformed", "string indices must be integers, not 'str'"),
+    (["malformed"], "list indices must be integers or slices, not str"),
+])
+def test_raw_attachment_failure_preserves_earlier_media(client, col, malformed, error):
+    note = col.new_note(col.models.by_name("Basic"))
+    note["Front"], note["Back"] = "raw attachment test", "original"
+    col.add_note(note, col.decks.id("Default"))
+    reply = client.post("/", json={"action": "updateNoteFields", "version": 6, "params": {
+        "note": {"id": note.id, "fields": {"Back": "updated"}, "audio": [
+            {"filename": "prefix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
+            malformed,
+            {"filename": "suffix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
+        ]},
+    }}).json()
+    assert reply == {"result": None, "error": error}
+    assert col.get_note(note.id)["Back"] == "original"
+    assert Path(col.media.dir(), "prefix.mp3").read_bytes() == b"audio"
+    assert not Path(col.media.dir(), "suffix.mp3").exists()

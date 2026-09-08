@@ -14,7 +14,7 @@ anki-connect). The subtle ones, all load-bearing for real clients:
 """
 import base64
 import hashlib
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -43,18 +43,6 @@ from ..errors import (
 from ..registry import registry
 
 
-class MediaSpec(BaseModel):
-    filename: str
-    data: Optional[str] = None
-    path: Optional[str] = None
-    url: Optional[str] = None
-    skipHash: Optional[str] = None
-    # Upstream appends markup only for lists; errors iterate the raw value.
-    fields: Any = None
-    # Upstream uses Python truthiness; the note-spec default is falsy.
-    deleteExisting: Any = None
-
-
 class NoteSpec(BaseModel):
     class Config:
         smart_union = True
@@ -64,9 +52,9 @@ class NoteSpec(BaseModel):
     fields: Dict[str, str]
     tags: List[str] = []
     options: Optional[Dict[str, Any]] = None
-    audio: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
-    video: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
-    picture: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
+    audio: Any = None
+    video: Any = None
+    picture: Any = None
 
 
 class NoteUpdateSpec(BaseModel):
@@ -75,9 +63,9 @@ class NoteUpdateSpec(BaseModel):
 
     id: int
     fields: Dict[str, str]
-    audio: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
-    video: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
-    picture: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
+    audio: Any = None
+    video: Any = None
+    picture: Any = None
 
 
 class AddNoteParams(BaseModel):
@@ -110,7 +98,7 @@ class DeleteNotesParams(BaseModel):
 _MARKUP = {"picture": '<img src="{}">', "audio": "[sound:{}]", "video": "[sound:{}]"}
 
 
-def _as_list(value) -> List[MediaSpec]:
+def _as_list(value) -> List[Any]:
     if value is None:
         return []
     items = value if isinstance(value, list) else [value]
@@ -118,10 +106,10 @@ def _as_list(value) -> List[MediaSpec]:
 
 
 def _resolve_media(spec) -> List[Dict[str, Any]]:
-    """
-    Download/decode every media attachment on the request thread (never
-    inside an Anki op - a slow download would hold the collection), returning
-    plain dicts the adapter can write.
+    """Resolve attachments on the request thread, outside collection operations.
+
+    Keep raw values and defer errors per attachment: upstream can write earlier
+    media before a malformed later entry aborts the enclosing action.
     """
     from ....adapters.settings import settings
     from ..downloads import download_media
@@ -130,36 +118,43 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
     for kind in ("audio", "video", "picture"):
         for media in _as_list(getattr(spec, kind, None)):
             entry: Dict[str, Any] = {
-                "kind": kind,
-                "filename": media.filename,
-                "markup": _MARKUP[kind],
-                # Absent key means falsy here - opposite of standalone
-                # storeMediaFile's default. Canonical quirk, preserved.
-                "delete_existing": bool(media.deleteExisting),
-                "data": None,
-                "error": None,
+                "kind": kind, "markup": _MARKUP[kind], "data": None, "error": None,
             }
-            if "fields" in media.__fields_set__:
-                entry["fields"] = media.fields
+            if not isinstance(media, dict):
+                try:
+                    # The upstream exception handler indexes this key even when
+                    # the attachment itself is not a mapping.
+                    media["fields"]
+                except Exception as exc:
+                    entry["abort_error"] = str(exc)
+                out.append(entry)
+                continue
+            if "fields" in media:
+                entry["fields"] = media["fields"]
             try:
-                if media.data:
-                    data = base64.b64decode(media.data)
-                elif media.path:
+                entry["filename"] = media["filename"]
+                # Unlike standalone storage, the nested default is falsy.
+                entry["delete_existing"] = bool(media.get("deleteExisting"))
+                encoded, path, url = media.get("data"), media.get("path"), media.get("url")
+                if encoded:
+                    data = base64.b64decode(encoded)
+                elif path:
                     if not settings.gate_enabled("media_allow_local_path"):
                         raise ValueError("local 'path' uploads are disabled (gates.media_allow_local_path)")
-                    with open(media.path, "rb") as fh:
+                    with open(path, "rb") as fh:
                         data = fh.read()
-                elif media.url:
-                    data = download_media(media.url)
+                elif url:
+                    data = download_media(url)
                 else:
                     raise ValueError('You must provide a "data", "path", or "url" field.')
-                if media.skipHash is not None and hashlib.md5(data).hexdigest() == media.skipHash:
-                    data = None  # caller already has it: store nothing, append nothing
+                skip_hash = media.get("skipHash")
+                if skip_hash is not None and skip_hash == hashlib.md5(data).hexdigest():
+                    data = None
                 entry["data"] = data
-            except Exception as e:
+            except Exception as exc:
                 # The adapter handles download and storage errors alike,
                 # including upstream's distinct field-selection error path.
-                entry["error"] = str(e)
+                entry["error"] = str(exc)
             out.append(entry)
     return out
 
@@ -332,9 +327,9 @@ class NoteUpdateAnyParams(BaseModel):
     id: int
     fields: Optional[Dict[str, str]] = None
     tags: Optional[List[str]] = None
-    audio: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
-    video: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
-    picture: Optional[Union[MediaSpec, List[Optional[MediaSpec]]]] = None
+    audio: Any = None
+    video: Any = None
+    picture: Any = None
 
 
 class UpdateNoteParams(BaseModel):

@@ -491,7 +491,35 @@ expected failure. Registry execution remains 99/120 overall and 69 differential
 handlers. Ruff and whitespace checks pass. Reports:
 `/tmp/tsunagi-media-fields-full.xml`, `/tmp/tsunagi-media-fields-old-full.xml`;
 coverage: `/tmp/tsunagi-media-fields-coverage.json`. Live field-selection checks
-await reload confirmation.
+passed after confirmed reload: non-list selections allowed storage, missing/null
+error selections rejected the probe, and an abort preserved earlier media while
+preventing later writes. No note was added; disposable media were removed.
+
+## Raw media values and malformed attachments, 2026-09-08
+
+Added 79 upstream comparisons for raw attachment objects, source/hash values and
+filename error order. The initial 49 nested cases had 33 mismatches and the initial
+14 standalone cases had ten; all 79 now pass in the focused run. Six standalone
+regressions check exact replies, unchanged note fields and partial media writes.
+
+Compatibility parsing now retains raw media values. Each malformed attachment
+fails at the corresponding action boundary, preserving earlier media writes.
+Falsy source values remain falsy; invalid base64 input types and non-string hashes
+follow upstream behavior. Hash matches skip filename validation, and replacement
+requests preserve deletion's error precedence over the legacy filename check.
+The unused typed attachment model was removed. Native input validation, filename
+containment and local-path gating remain unchanged. Downloads are still prepared
+on the request thread; network timing and request ordering are outside this batch's
+reply and collection/media-state comparisons.
+
+Full verification: **2073 passed, 4 skipped, 1 xfailed** on Anki 26.08.1 and
+**2067 passed, 10 skipped, 1 xfailed** on Anki 23.10, both with Python 3.12.12.
+Across the differential files, 1089 comparisons pass and D11 remains the sole
+expected failure. Registry execution remains 99/120 overall and 69 differential
+handlers. Ruff and whitespace checks pass. Reports:
+`/tmp/tsunagi-raw-media-full.xml`, `/tmp/tsunagi-raw-media-old-full.xml`;
+coverage: `/tmp/tsunagi-raw-media-coverage.json`. Raw-media live checks await
+reload confirmation.
 
 ## Method and limits
 

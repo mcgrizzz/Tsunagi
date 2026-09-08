@@ -23,13 +23,13 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1982 tests passed, 10 skipped,
-one expected failure** on the Anki 23.10 test environment, including 1010 passing
+Latest run: **99/120 registered handlers observed; 2067 tests passed, 10 skipped,
+one expected failure** on the Anki 23.10 test environment, including 1089 passing
 upstream comparisons and the default local-path gate mismatch. Differential
 behavioral calls reach 69 registered handlers. Argument-name rejection checks
 separately cover all 122 action names, without executing their bodies; these do
 not expand the registry execution count or prove GUI/lifecycle parity.
-The full Anki 26.08.1 run has **1988 passed, 4 skipped, 1 expected failure**;
+The full Anki 26.08.1 run has **2073 passed, 4 skipped, 1 expected failure**;
 the remaining skips assert 23.10-only behavior. The old environment also skips
 the two optional real-Qt lifecycle tests. Permission acceptance, ignore,
 close, repeated-request and persistence comparisons add 79 cases with simulated
@@ -45,7 +45,10 @@ the shim preserves Python truthiness and checks hashes before deletion. Live opt
 checks passed after reload and disposable media were removed; no note was added.
 Field-selection and storage-error handling add 52 differential cases and nine
 standalone regressions, covering exact errors, note fields and partial media writes.
-Live field-selection checks await reload confirmation.
+Live field-selection checks passed after reload; no note was added and disposable
+media were removed. Raw media values and malformed attachments add 79 differential
+cases and six standalone regressions, covering input coercion, filename error order
+and partial writes. Their live checks await reload confirmation.
 The raw HTTP-body batch adds 90 differential cases and 11 standalone regressions:
 empty-body discovery, exact JSON/UTF-8 errors and origin rejection now match the
 tested upstream boundaries. After reload, all 26 read-only live checks passed,
