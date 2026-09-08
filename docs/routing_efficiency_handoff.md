@@ -17,8 +17,8 @@ their behavior fits, and compose compatibility quirks in shim handlers or the
 dedicated compatibility adapter. Do not add compatibility switches to native
 methods. The native field-rename/rendering fix remains a native correctness fix.
 
-Reconciled 2026-09-07 after the shim-only binding/deck follow-up. Earlier batches
-were reloaded and checked live; this batch's live verification is pending reload.
+Reconciled 2026-09-07 after the shim-only binding/deck follow-up passed live checks
+on the reloaded addon. No reload remains pending for this batch.
 The original objective and investigation notes below are historical context.
 
 Completed:
@@ -171,10 +171,13 @@ review (`c3af5ce`) batches passed targeted live checks on Anki 26.08.1. The late
 check `/tmp/tsunagi-scheduler-reviews-live.py` completed and verified that its failed
 inserts left no review rows and its temporary fixtures were removed. Those batches
 need no further reload. The shim-boundary refactor (`456d942`) and binding/deck fix
-(`2ae8840`) are committed locally and synced to the installed addon. The new batch
-needs one reload and the prepared
-`/tmp/tsunagi-binding-decks-live.py` check; it creates and removes only uniquely named
-empty decks and rejects malformed mutation requests before any write.
+(`2ae8840`) are committed locally, synced and reloaded. The live check
+`/tmp/tsunagi-binding-decks-live.py` passed on Anki 26.08.1: missing `startID` and
+extra lookup arguments returned exact errors without creating decks; omitted model
+scope returned the expected error; all three missing-deck lookups created the
+expected decks and returned matching stats/empty review results; null card input
+returned the expected error. The three empty leaf decks and their uniquely named
+parent were removed, and their absence was verified. No further reload is needed.
 
 ## Original session objective
 
