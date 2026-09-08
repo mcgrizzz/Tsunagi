@@ -781,3 +781,98 @@ def test_all_action_required_arguments(pair, action):
     assert "required positional argument" in reply["error"]
     assert mutation_state(pair[0]) == before
     assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["version", "createDeck", "requestPermission", "unknown"])
+@pytest.mark.parametrize("params", [None, False, True, 0, 1, 1.5, "", "x", [], [{}]])
+def test_http_parameter_containers(pair, client, action, params):
+    payload = {"action": action, "version": 6, "params": params}
+    before = mutation_state(pair[0])
+    expected = pair[2].http_request(copy.deepcopy(payload))
+    response = client.post("/", json=payload)
+    assert response.status_code == 200
+    actual = response.json()
+    assert actual == expected, first_difference(actual, expected)
+    assert mutation_state(pair[0]) == before
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("payload", [
+    None, False, 0, "", "request", [], [{}], {}, {"params": None},
+    {"action": ""}, {"action": None}, {"action": []},
+    {"action": "version", "version": None}, {"action": "version", "version": False},
+    {"action": "version", "version": "6"}, {"action": "version", "version": 6.5},
+    {"action": "version", "version": 6.0},
+    {"action": False, "version": "6", "params": []},
+    {"action": "", "params": None},
+    {"action": "version", "params": ["日本語" * 40, {"z": 1, "a": 2}]},
+])
+def test_http_request_schema(pair, client, payload):
+    expected = pair[2].http_request(copy.deepcopy(payload))
+    response = client.post("/", content=json.dumps(payload), headers={"Content-Type": "application/json"})
+    assert response.status_code == 200
+    actual = response.json()
+    assert actual == expected, first_difference(actual, expected)
+    assert_mutation_state(pair)
+
+
+def test_http_schema_snapshot(upstream):
+    from tsunagi.http.compat.request_validation import REQUEST_SCHEMA
+
+    assert REQUEST_SCHEMA == upstream.request_schema
+
+
+def test_http_schema_error_precedence(upstream):
+    from itertools import product
+
+    from tsunagi.http.compat.request_validation import request_error
+
+    # Independent values and key order expose best_match selection differences.
+    values = [None, False, 0, "", [], {}, 6.0]
+    for action, version, params in product(values + ["version"], values, values):
+        for keys in [("action", "version", "params"), ("params", "version", "action")]:
+            data = dict(zip(("action", "version", "params"), (action, version, params)))
+            payload = {key: data[key] for key in keys}
+            expected = upstream.http_request(payload)
+            error = expected.get("error") if isinstance(expected, dict) else None
+            assert request_error(payload) == error, payload
+
+
+@pytest.mark.parametrize("actions", [
+    None, False, 0, 1.5, "", "x", {}, {"action": "version"}, [],
+    [None], [False], [42], ["version"], [[]], [{}], [{"action": []}],
+])
+def test_multi_action_containers(pair, actions):
+    compare(pair, "multi", {"actions": actions})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("malformed", [None, False, 42, "version", []])
+def test_multi_invalid_entry_keeps_prefix_and_stops_suffix(pair, malformed):
+    compare(pair, "multi", {"actions": [
+        {"action": "createDeck", "params": {"deck": "Shape prefix"}},
+        malformed,
+        {"action": "createDeck", "params": {"deck": "Shape suffix"}},
+    ]})
+    for col in pair[:2]:
+        assert col.decks.by_name("Shape prefix") is not None
+        assert col.decks.by_name("Shape suffix") is None
+    assert sorted(d.name for d in pair[0].decks.all_names_and_ids()) == sorted(
+        d.name for d in pair[1].decks.all_names_and_ids())
+    assert_mutation_state(pair)
+
+
+def test_multi_nested_abort_is_contained_by_parent(pair):
+    reply = compare(pair, "multi", {"actions": [
+        {"action": "multi", "version": 6, "params": {"actions": [
+            {"action": "createDeck", "params": {"deck": "Nested prefix"}},
+            None,
+            {"action": "createDeck", "params": {"deck": "Nested suffix"}},
+        ]}},
+        {"action": "version", "version": 6},
+    ]})
+    assert reply["result"][1] == {"result": 6, "error": None}
+    for col in pair[:2]:
+        assert col.decks.by_name("Nested prefix") is not None
+        assert col.decks.by_name("Nested suffix") is None
+    assert_mutation_state(pair)

@@ -153,18 +153,18 @@ def handle_ankiconnect_rpc(
 
     # multi: dispatcher-level, recursive. Each sub-entry is a full raw request.
     if action == "multi":
-        actions = params.get("actions")
-        if not isinstance(actions, list):
-            return _error("'actions' must be a list of requests")
-        subs = [
-            handle_ankiconnect_rpc(
-                sub if isinstance(sub, dict) else {},
-                origin=origin,
-                settings=settings,
-                ask_permission=ask_permission,
-            )
-            for sub in actions
-        ]
+        try:
+            # Upstream iterates directly: malformed entries abort this multi,
+            # retaining earlier writes and preventing later entries from running.
+            subs = [
+                handle_ankiconnect_rpc(
+                    sub, origin=origin, settings=settings,
+                    ask_permission=ask_permission,
+                )
+                for sub in params["actions"]
+            ]
+        except (TypeError, AttributeError) as exc:
+            return _error(str(exc))
         return _success(version, subs)
 
     if not registry.is_registered(action):

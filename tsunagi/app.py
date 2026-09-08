@@ -170,20 +170,24 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
     # The body is parsed by hand rather than declared as a typed parameter:
     # AnkiConnect clients check only `error` and then read `result`, so a
     # FastAPI 422 body ({"detail": ...}) sails past their guard and crashes
-    # them on the next property access. Every reply from this endpoint must
-    # be an envelope.
+    # them on the next property access. Errors must use the RPC envelope;
+    # successful version <= 4 replies remain bare values.
     try:
         body = await request.json()
     except Exception:
         return {"result": None, "error": "request body is not valid JSON"}
-    if not isinstance(body, dict):
-        return {"result": None, "error": "request body must be a JSON object"}
-
     origin = request.headers.get("origin")
-    if not origin_allowed_for(body.get("action", ""), origin):
+    action = body.get("action", "") if isinstance(body, dict) else ""
+    if not origin_allowed_for(action, origin):
         # Same wire response AnkiConnect gives a disallowed origin
         from fastapi import Response
         return Response(status_code=403)
+
+    from .http.compat.request_validation import request_error
+
+    error = request_error(body)
+    if error is not None:
+        return {"result": None, "error": error}
 
     # Anki work happens off the event loop: the handlers block on QueryOp /
     # CollectionOp round-trips to Anki's threads.

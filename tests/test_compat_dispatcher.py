@@ -113,11 +113,11 @@ class TestMulti:
         # inner multi is version-less -> bare list of its (bare) sub-results
         assert body == {"result": [[6]], "error": None}
 
-    def test_actions_must_be_a_list(self, client):
+    def test_nonempty_string_actions_fail_on_the_first_character(self, client):
         body = client.post("/", json={"action": "multi", "version": 6,
                                       "params": {"actions": "nope"}}).json()
         assert body["result"] is None
-        assert body["error"]
+        assert body["error"] == "'str' object has no attribute 'get'"
 
 
 class TestBrowserOrigins:
@@ -175,7 +175,9 @@ class TestAlwaysEnvelope:
 
     def test_missing_action_is_an_envelope(self, client):
         body = client.post("/", json={"version": 6}).json()
-        assert body == {"result": None, "error": UNSUPPORTED_ACTION}
+        assert body["result"] is None
+        assert body["error"].startswith("'action' is a required property\n\n")
+        assert "Failed validating 'required' in schema:" in body["error"]
 
     def test_bad_params_shape_is_an_envelope(self, client):
         # Wrong param type would be a 422 if the body were a typed parameter
