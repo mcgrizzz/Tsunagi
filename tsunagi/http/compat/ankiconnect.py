@@ -115,6 +115,16 @@ def handle_ankiconnect_rpc(
     # requestPermission is always exempt from the key/origin gates - it's how
     # a browser client bootstraps access in the first place.
     if action == "requestPermission":
+        from .signatures import validate_arguments
+
+        if not isinstance(params, dict):
+            return _error("'params' must be an object")
+        try:
+            # Upstream's HTTP wrapper supplies these two arguments from the
+            # Origin gate, overriding any client-provided values.
+            validate_arguments(action, {**params, "origin": origin, "allowed": True})
+        except ValueError as e:
+            return _error(str(e))
         return _success(version, _request_permission(origin, settings, ask_permission))
 
     # Key gate. Runs per invocation, so multi sub-actions are each gated with
@@ -133,6 +143,13 @@ def handle_ankiconnect_rpc(
         return _error(UNSUPPORTED_ACTION)
     if not isinstance(params, dict):
         return _error("'params' must be an object")
+
+    from .signatures import validate_arguments
+
+    try:
+        validate_arguments(action, params)
+    except ValueError as e:
+        return _error(str(e))
 
     # multi: dispatcher-level, recursive. Each sub-entry is a full raw request.
     if action == "multi":

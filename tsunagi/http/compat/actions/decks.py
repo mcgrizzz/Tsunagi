@@ -61,6 +61,10 @@ class DecksParams(BaseModel):
     decks: List[str]
 
 
+class DeckStatsParams(BaseModel):
+    decks: Any
+
+
 class SaveDeckConfigParams(BaseModel):
     config: Dict[str, Any]
 
@@ -169,10 +173,11 @@ def ac_removeDeckConfigId(p: RemoveDeckConfigIdParams) -> bool:
     return True
 
 
-@registry.register("getDeckStats", params=DecksParams)
-def ac_getDeckStats(p: DecksParams) -> Dict[int, Dict[str, Any]]:
-    from ....adapters.anki.compat import deck_tree_names
+@registry.register("getDeckStats", params=DeckStatsParams)
+def ac_getDeckStats(p: DeckStatsParams) -> Dict[int, Dict[str, Any]]:
+    from ....adapters.anki.compat import deck_tree_names, resolve_deck_names
 
+    decks = resolve_deck_names(p.decks)
     names = deck_tree_names()
     return {did: dict(stats, name=names[did])
-            for did, stats in get_deck_stats(p.decks).items() if did in names}
+            for did, stats in get_deck_stats(decks).items() if did in names}

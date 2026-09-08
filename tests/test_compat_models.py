@@ -140,7 +140,7 @@ class TestFindAndReplace:
         expected = self._matching(client, "20px")
         assert expected                      # guard: the premise holds
         assert rpc(client, "findAndReplaceInModels", {
-            "findText": "20px", "replaceText": "24px"})["result"] == expected
+            "modelName": None, "findText": "20px", "replaceText": "24px"})["result"] == expected
 
     def test_scoped_to_one_model(self, client):
         assert rpc(client, "findAndReplaceInModels", {
@@ -155,7 +155,7 @@ class TestFindAndReplace:
         expected = self._matching(client, "hr id=answer", key="templates")
         assert expected                      # guard: the premise holds
         assert rpc(client, "findAndReplaceInModels", {
-            "findText": "hr id=answer", "replaceText": "hr id=ANSWER",
+            "modelName": None, "findText": "hr id=answer", "replaceText": "hr id=ANSWER",
             "css": False, "front": False})["result"] == expected
 
     def test_unknown_model_is_an_error(self, client):

@@ -1,6 +1,21 @@
-"""Collection reads whose observable quirks belong to AnkiConnect's contract."""
+"""Collection operations whose observable quirks belong only to AnkiConnect."""
 
-from ..ops import as_collection_op, as_query_op
+from ..ops import ValueWithChanges, as_collection_op, as_query_op
+
+
+@as_collection_op
+def resolve_deck_names(col, names):
+    """Only the compatibility caller chooses to create decks during a lookup."""
+    from anki.collection import OpChanges
+
+    try:
+        existing = {deck.id for deck in col.decks.all_names_and_ids()}
+        ids = [col.decks.id(name) for name in names]
+        resolved = [col.decks.get(did)["name"] for did in ids]
+        # The legacy lookup discards its OpChanges; notify Qt about new decks.
+        return ValueWithChanges(resolved, OpChanges(deck=any(did not in existing for did in ids)))
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @as_collection_op

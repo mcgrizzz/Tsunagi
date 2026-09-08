@@ -17,6 +17,7 @@ import pytest
 
 from tools.upstream_reference import load_reference
 from tsunagi.http.compat.ankiconnect import handle_ankiconnect_rpc
+from tsunagi.http.compat.signatures import SIGNATURES
 
 
 @pytest.fixture(scope="module")
@@ -55,12 +56,33 @@ def pair(col, client, tmp_path, upstream):
 def compare(pair, action, params=None, version=6):
     _, _, upstream = pair
     request = {"action": action, "version": version, "params": params or {}}
-    expected = upstream.handler(copy.deepcopy(request))
+    reference_request = copy.deepcopy(request)
+    if action == "requestPermission":
+        # Match upstream's HTTP injection for a request without an Origin.
+        reference_request["params"].update(origin="", allowed=True)
+    expected = upstream.handler(reference_request)
     actual = handle_ankiconnect_rpc(copy.deepcopy(request))
     # JSON round trip reflects wire types (e.g. tuple/list, integer map keys).
     actual, expected = json.loads(json.dumps(actual)), json.loads(json.dumps(expected))
+    if action == "getDeckStats":
+        normalize_deck_stats(actual, pair[0])
+        normalize_deck_stats(expected, pair[1])
     assert actual == expected, first_difference(actual, expected)
     return actual
+
+
+def normalize_deck_stats(reply, collection):
+    """Compare all stats, replacing independently allocated deck IDs by names."""
+    if not isinstance(reply["result"], dict):
+        return
+    normalized = {}
+    for did, row in reply["result"].items():
+        full_name = collection.decks.get(int(did))["name"]
+        row = dict(row)
+        if "deck_id" in row:
+            row["deck_id"] = full_name
+        normalized[full_name] = row
+    reply["result"] = normalized
 
 
 def first_difference(actual, expected, path="response"):
@@ -681,3 +703,81 @@ def test_due_and_intervals_mixed_queues(pair, monkeypatch, action, extra, state)
             collection.db.execute("update cards set queue=?", -2 if state == "buried" else -1)
     inputs = [cards[0], 9999999999999] if state == "missing" else [*cards, cards[1]]
     compare(pair, action, {"cards": inputs, **extra})
+
+
+@pytest.mark.parametrize("action", ["getDeckStats", "cardReviews", "getLatestReviewID"])
+@pytest.mark.parametrize("name", ["Missing deck", "Missing parent::日本語", "", "  padded  "])
+def test_missing_deck_lookup_side_effects(pair, action, name):
+    params = {"decks": [name]} if action == "getDeckStats" else {"deck": name}
+    if action == "cardReviews":
+        params["startID"] = 0
+    compare(pair, action, params)
+    assert sorted(d.name for d in pair[0].decks.all_names_and_ids()) == sorted(
+        d.name for d in pair[1].decks.all_names_and_ids())
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("action,params", [
+    ("deckNames", {"unexpected": True}),
+    ("modelNames", {"unexpected": True}),
+    ("findCards", {}),
+    ("findCards", {"query": "", "unexpected": True}),
+    ("getDeckStats", {}),
+    ("cardReviews", {}),
+    ("cardReviews", {"deck": "Must not be created"}),
+    ("cardReviews", {"unexpected": True}),
+    ("getLatestReviewID", {}),
+    ("getLatestReviewID", {"deck": "Must not be created", "unexpected": True}),
+    ("findAndReplaceInModels", {"findText": "x", "replaceText": "y"}),
+    ("addTags", {"notes": [], "tags": "x", "unexpected": True}),
+])
+def test_argument_binding_before_lookup_or_mutation(pair, action, params):
+    before = mutation_state(pair[0])
+    decks_before = sorted(d.name for d in pair[0].decks.all_names_and_ids())
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+    assert mutation_state(pair[0]) == before
+    for collection in pair[:2]:
+        assert sorted(d.name for d in collection.decks.all_names_and_ids()) == decks_before
+
+
+@pytest.mark.parametrize("action,params", [
+    ("findCards", {"query": None}),
+    ("findNotes", {"query": False}),
+    ("getDeckStats", {"decks": None}),
+    ("getDeckStats", {"decks": "Default"}),
+    ("getLatestReviewID", {"deck": None}),
+    ("cardReviews", {"deck": None, "startID": 0}),
+    ("getIntervals", {"cards": None}),
+    ("areDue", {"cards": None}),
+])
+def test_lookup_parameter_values(pair, action, params):
+    compare(pair, action, params)
+    assert sorted(d.name for d in pair[0].decks.all_names_and_ids()) == sorted(
+        d.name for d in pair[1].decks.all_names_and_ids())
+
+
+def test_reference_signatures(upstream):
+    from tools.upstream_reference import signature_manifest
+
+    assert signature_manifest(upstream) == SIGNATURES
+    assert all(not spec[2] and not spec[3] for spec in SIGNATURES.values())
+
+
+@pytest.mark.parametrize("action", sorted(SIGNATURES))
+def test_all_action_unexpected_arguments(pair, action):
+    before = mutation_state(pair[0])
+    reply = compare(pair, action, {"unexpected": True})
+    assert "unexpected keyword argument" in reply["error"]
+    assert mutation_state(pair[0]) == before
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", sorted(
+    name for name, spec in SIGNATURES.items() if spec[0] and name != "requestPermission"))
+def test_all_action_required_arguments(pair, action):
+    before = mutation_state(pair[0])
+    reply = compare(pair, action)
+    assert "required positional argument" in reply["error"]
+    assert mutation_state(pair[0]) == before
+    assert_mutation_state(pair)
