@@ -100,15 +100,14 @@ def ac_setEaseFactors(p: SetEaseFactorsParams) -> List[bool]:
 
 @registry.register("suspend", params=SuspendParams)
 def ac_suspend(p: SuspendParams) -> bool:
-    """
-    False when every card is already in the requested state, True otherwise.
-
-    Canonical computes that by removing entries from the list it is iterating,
-    which skips elements; the *return value* is reproduced, the skipping is
-    not - it only ever caused redundant work.
-    """
-    states = _require_all_present(p.cards)
-    todo = [cid for cid, suspended in zip(p.cards, states) if suspended != p.suspend]
+    """Match upstream's list-removal iteration, including skipped validation."""
+    states = dict(zip(p.cards, ac_areSuspended(CardsParams(cards=p.cards))))
+    todo = list(p.cards)
+    for cid in todo:
+        if states[cid] is None:
+            _require_all_present([cid])  # same error, only for a visited ID
+        if states[cid] == p.suspend:
+            todo.remove(cid)
     if not todo:
         return False
     suspend_cards(todo) if p.suspend else unsuspend_cards(todo)
@@ -135,12 +134,12 @@ def ac_areSuspended(p: CardsParams) -> List[Optional[bool]]:
 
 @registry.register("areDue", params=CardsParams)
 def ac_areDue(p: CardsParams) -> List[bool]:
-    return cards_are_due(p.cards)
+    return cards_are_due(p.cards, strict_history=True)
 
 
 @registry.register("getIntervals", params=GetIntervalsParams)
 def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
-    return card_intervals(p.cards, p.complete)
+    return card_intervals(p.cards, p.complete, strict_history=True)
 
 
 @registry.register("cardsToNotes", params=CardsParams)

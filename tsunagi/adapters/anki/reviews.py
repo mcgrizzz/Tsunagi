@@ -248,11 +248,11 @@ def _scoped_card_ids(col: Collection, card_ids: Sequence[int], state: str) -> Se
 
 @as_query_op
 def card_intervals(col: Collection, card_ids: Sequence[int],
-                   complete: bool = False) -> List[Any]:
+                   complete: bool = False, *, strict_history: bool = False) -> List[Any]:
     """
     Intervals a card has been given, newest last. 0 for an unseen card -
-    including a card put in the review queue without ever being answered
-    (canonical crashes on that one; an empty history reads as 0, not a 500).
+    including a card put in the review queue without ever being answered.
+    strict_history rejects a missing last interval; complete history may be empty.
     """
     ids = [int(c) for c in card_ids]
     new_ids = _scoped_card_ids(col, ids, "is:new")
@@ -270,12 +270,15 @@ def card_intervals(col: Collection, card_ids: Sequence[int],
         elif complete:
             out.append(ivls.get(cid, []))
         else:
+            if strict_history and not ivls.get(cid):
+                raise ValueError("list index out of range")
             out.append(ivls[cid][-1] if ivls.get(cid) else 0)
     return out
 
 
 @as_query_op
-def cards_are_due(col: Collection, card_ids: Sequence[int]) -> List[bool]:
+def cards_are_due(col: Collection, card_ids: Sequence[int], *,
+                  strict_history: bool = False) -> List[bool]:
     """
     AnkiConnect areDue, including its revlog-based learning-card branch: an
     interval below -1200 means the card is in intraday learning, where due-ness
@@ -284,7 +287,7 @@ def cards_are_due(col: Collection, card_ids: Sequence[int]) -> List[bool]:
     Three batch reads regardless of how many cards were asked about: one
     is:new search, one grouped revlog query, one is:due search over whatever
     is left. A reviewless non-new card falls through to the is:due search
-    (canonical raises IndexError on it); an unknown id reports False.
+    unless strict_history requires an error; an unknown id defaults to False.
     """
     import time as _time
 
@@ -305,6 +308,8 @@ def cards_are_due(col: Collection, card_ids: Sequence[int]) -> List[bool]:
     for cid in ids:
         if cid in new_ids:
             out.append(True)
+        elif strict_history and cid not in last:
+            raise ValueError("list index out of range")
         elif cid in last and last[cid][1] < -1200:
             date, ivl = last[cid]
             out.append(date - ivl <= now)

@@ -4,6 +4,32 @@ from ..ops import as_collection_op, as_query_op
 
 
 @as_collection_op
+def insert_scalar_reviews(col, reviews):
+    """Preserve SQLite scalar coercion and diagnostics for legacy review rows.
+
+    Normal integer rows use the native parameterized writer. This path accepts
+    scalar tokens only, never SQL expressions/statements supplied as values.
+    Keeping the original statement text also preserves SQLite error offsets.
+    """
+    import re
+
+    scalar = re.compile(
+        r"(?:[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+        r"|0[xX][0-9a-fA-F]+|[a-zA-Z_][a-zA-Z_0-9]*|'(?:[^']|'')*'|)"
+    )
+    if len(reviews) == 0:
+        return
+    groups = []
+    for row in reviews:
+        tokens = [str(value) for value in row]
+        if any(scalar.fullmatch(token.strip()) is None for token in tokens):
+            raise ValueError("review values must be scalar SQL literals")
+        groups.append("(" + ",".join(tokens) + ")")
+    sql = "insert into revlog(id,cid,usn,ease,ivl,lastIvl,factor,time,type) values "
+    col.db.execute(sql + ",".join(groups))
+
+
+@as_collection_op
 def update_cached_template(col, model_name, template_name, updates):
     """Match AnkiConnect's existing-template edit: update the cache without saving."""
     model = col.models.by_name(model_name)

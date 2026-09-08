@@ -72,15 +72,22 @@ def ac_getReviewsOfCards(p: GetReviewsOfCardsParams) -> Dict[int, List[Dict[str,
 class InsertReviewsParams(BaseModel):
     # 9-tuples in canonical's order: [reviewTime, cardID, usn, buttonPressed,
     # newInterval, previousInterval, newFactor, reviewDuration, reviewType].
-    reviews: List[List[int]]
+    reviews: Any
 
 
 @registry.register("insertReviews", params=InsertReviewsParams)
 def ac_insertReviews(p: InsertReviewsParams) -> None:
-    """
-    Returns null, like canonical. Under the hood the rows go in parameterized
-    and transactional instead of string-interpolated, so a malformed row's
-    error message is ours rather than sqlite's - but a malformed row is an
-    error either way, and good rows produce identical revlog entries.
-    """
-    insert_reviews(p.reviews)
+    """Use the native integer writer; preserve legacy scalar values and errors."""
+    from ....adapters.anki.compat import insert_scalar_reviews
+
+    ordinary = isinstance(p.reviews, list) and all(
+        isinstance(row, list) and len(row) == 9 and all(type(value) is int for value in row)
+        for row in p.reviews
+    )
+    try:
+        if ordinary:
+            insert_reviews(p.reviews)
+        else:
+            insert_scalar_reviews(p.reviews)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
