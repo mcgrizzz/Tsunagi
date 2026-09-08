@@ -275,6 +275,39 @@ nested child parameter containers and version coercion, nested permission contex
 broader action-value coercion, browser headers and real Qt/undo effects. This batch
 does not establish complete request or transport parity.
 
+## Nested parameters, versions and permission context
+
+This follow-up adds **74 differential cases** and **eleven standalone regressions**.
+Child parameter containers are no longer replaced with an empty object; known
+actions report Python mapping errors, while unknown actions remain unsupported.
+Child API versions retain their JSON values. In particular, 4.5 keeps an envelope,
+and an invalid version can fail during response formatting after the action has
+already written. Tests verify retained deck creation, sibling continuation and
+argument errors taking precedence over version formatting.
+
+Only outer permission requests receive HTTP context. Nested calls bind their own
+`origin`/`allowed` arguments; missing arguments fail before prompting, truthy allowed
+values grant immediately, and false reaches the prompt even for an empty/local
+origin. The reference permission action runs unchanged against simulated Qt widgets;
+denials and prompt counts are compared. This does not establish real dialog parity,
+accepted empty/non-string origin persistence or the ignored-origin checkbox behavior.
+Native methods and routes are unchanged.
+
+**Error qualification limit:** Python's non-mapping `**params` error includes the
+loaded addon's module name, which depends on its installation. The shim returns
+the portable `AnkiConnect.<action>()` portion. These nested comparisons remove only
+the reference module prefix for that specific error and compare the remaining text
+exactly. They do not establish byte-for-byte equality of the installation prefix.
+
+Total: **649 differential cases: 648 pass, one expected failure** for the existing
+default local-path policy mismatch. Differential calls reach **69 registered
+handlers**; overall registry execution remains **99/120**. Full suite:
+**1568 passed, 8 skipped, one expected failure** on Anki 23.10 / Python 3.12.12.
+Ruff and whitespace checks pass. Artifacts: `/tmp/tsunagi-nested-rpc-full.xml` and
+`/tmp/tsunagi-nested-rpc-coverage.json`. Live verification awaits reload;
+`/tmp/tsunagi-nested-rpc-live.py` uses disposable empty decks and permission cases
+that avoid prompts/configuration changes.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
@@ -300,6 +333,8 @@ separate comparisons described above. This run does not establish
 complete compatibility on Anki 26.08.1; the live smoke checks above cover a subset.
 The initial collection is cloned so requests address identical IDs. RPC responses
 are compared without normalization except deck-stat IDs and successful model creation.
+Nested non-mapping argument errors also omit the installation-specific reference
+module prefix, as detailed above; all other error text remains compared.
 Deck-stat response keys and `deck_id` values are resolved to full deck names because
 missing-deck lookups allocate IDs independently; all other stats remain compared.
 For successful model creation, independently

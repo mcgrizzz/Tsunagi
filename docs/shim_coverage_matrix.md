@@ -26,10 +26,10 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `changeDeck` | 2 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
 | `clearUnusedTags` | 1 | 0 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
 | `cloneDeckConfigId` | 4 | 0 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
-| `createDeck` | 81 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_shim_request_shapes.py](../tests/test_shim_request_shapes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `createDeck` | 89 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_notes.py](../tests/test_compat_notes.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_shim_nested_requests.py](../tests/test_shim_nested_requests.py), [test_shim_request_shapes.py](../tests/test_shim_request_shapes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `createModel` | 12 | 14 | [test_compat_models.py](../tests/test_compat_models.py), [test_model_scheduler_regressions.py](../tests/test_model_scheduler_regressions.py), [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `deckNameFromId` | 1 | 0 | [test_shim_coverage_gaps.py](../tests/test_shim_coverage_gaps.py) | — |
-| `deckNames` | 15 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `deckNames` | 21 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_compat_stats.py](../tests/test_compat_stats.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `deckNamesAndIds` | 3 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_decks.py](../tests/test_compat_decks.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `deleteDecks` | 2 | 1 | [test_compat_decks.py](../tests/test_compat_decks.py) | — |
 | `deleteMediaFile` | 2 | 0 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
@@ -127,7 +127,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `updateNoteFields` | 9 | 1 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateNoteModel` | 1 | 1 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
 | `updateNoteTags` | 2 | 3 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
-| `version` | 18 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_parity_history.py](../tests/test_parity_history.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `version` | 100 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_parity_history.py](../tests/test_parity_history.py), [test_shim_nested_requests.py](../tests/test_shim_nested_requests.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 
 ## Dispatcher-only actions
 
