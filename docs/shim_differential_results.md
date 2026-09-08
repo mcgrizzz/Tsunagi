@@ -221,8 +221,14 @@ Total: **491 differential cases: 490 pass, one expected failure** for the existi
 default local-path policy mismatch. Behavioral calls reach **68 registered handlers**;
 binding rejection covers all 122 action names before handler execution. Full suite:
 **1392 passed, 8 skipped, one expected failure** on Anki 23.10 / Python 3.12.12.
-Ruff and whitespace checks pass. Live Anki 26.08.1 verification is pending reload;
-the prepared `/tmp/tsunagi-binding-decks-live.py` uses only disposable empty decks.
+Ruff and whitespace checks pass. After reload, the live Anki 26.08.1 check
+`/tmp/tsunagi-binding-decks-live.py` passed: missing/extra lookup arguments returned
+exact errors without creating decks, omitted model scope returned the expected
+error, the three missing-deck lookups created the expected parent/leaf decks with
+matching stats/empty review results, and null card input returned the expected
+error. All four temporary empty decks were removed and their absence verified.
+No further reload is pending for this batch. These live checks cover responses
+and collection state; they do not establish all Qt refresh or undo behavior.
 
 Remaining binding work includes value coercion, malformed request containers,
 nested permission requests and broader ordering/partial-effect comparisons. The
