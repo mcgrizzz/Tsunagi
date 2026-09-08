@@ -36,10 +36,16 @@ from .errors import (  # noqa: F401  (API_KEY_ERROR re-exported)
 from .registry import registry
 
 _ACTIONS_CACHE = None
+_HTTP_PERMISSION = object()
 
 
-def _success(version: int, result: Any) -> Any:
-    return result if version <= 4 else {"result": result, "error": None}
+def _success(version: Any, result: Any) -> Any:
+    try:
+        return result if version <= 4 else {"result": result, "error": None}
+    except TypeError as exc:
+        # Nested versions bypass HTTP validation. Upstream formats the response
+        # after executing the action, so a bad version does not undo its writes.
+        return _error(str(exc))
 
 
 def _error(message: str) -> Dict[str, Any]:
@@ -60,12 +66,16 @@ def _request_permission(
     origin: Optional[str],
     settings: Any,
     ask: Optional[Callable[[str], bool]],
+    *,
+    allowed: Any = _HTTP_PERMISSION,
 ) -> Dict[str, Any]:
     """
     AnkiConnect requestPermission contract (API v6).
     Known/local callers are granted without a dialog; an unknown browser
     origin triggers a main-thread Yes/No dialog and, on accept, is persisted
     to cors_allowlist (picked up live by the CORS middleware).
+    Nested requests supply `allowed` themselves; false forces the prompt even
+    for a local origin because they bypass upstream's HTTP context injection.
     """
     granted = {
         "permission": "granted",
@@ -74,9 +84,9 @@ def _request_permission(
         "requireApikey": bool(settings.get("api_key", "")),
         "version": 6,
     }
-    if not origin:  # local / non-browser client
-        return granted
-    if settings.is_origin_allowed(origin):
+    if allowed is _HTTP_PERMISSION:
+        allowed = not origin or settings.is_origin_allowed(origin)
+    if allowed:
         return granted
     ask = ask or _default_ask
     if ask(origin):
@@ -90,6 +100,8 @@ def handle_ankiconnect_rpc(
     origin: Optional[str] = None,
     settings: Any = None,
     ask_permission: Optional[Callable[[str], bool]] = None,
+    *,
+    _nested: bool = False,
 ) -> Any:
     """
     Handle an AnkiConnect-style RPC request.
@@ -99,16 +111,14 @@ def handle_ankiconnect_rpc(
         origin: value of the HTTP Origin header, if any
         settings: injectable Settings (defaults to the live singleton)
         ask_permission: injectable permission prompt (defaults to the Qt dialog)
+        _nested: internal marker for multi children that bypass HTTP context injection
 
     Returns:
         Bare result (version <= 4 success) or a {"result","error"} envelope.
     """
     action = raw.get("action", "")
-    try:
-        version = int(raw.get("version", 4))
-    except (TypeError, ValueError):
-        version = 4
-    params = raw.get("params") or {}
+    version = raw.get("version", 4)
+    params = raw.get("params", {})
     key = raw.get("key")
     settings = settings if settings is not None else _default_settings()
 
@@ -117,15 +127,20 @@ def handle_ankiconnect_rpc(
     if action == "requestPermission":
         from .signatures import validate_arguments
 
-        if not isinstance(params, dict):
-            return _error("'params' must be an object")
         try:
             # Upstream's HTTP wrapper supplies these two arguments from the
-            # Origin gate, overriding any client-provided values.
-            validate_arguments(action, {**params, "origin": origin, "allowed": True})
+            # Origin gate only for the outer request. Multi children bind their
+            # own arguments without another pass through the HTTP wrapper.
+            if not _nested and isinstance(params, dict):
+                validate_arguments(action, {**params, "origin": origin, "allowed": True})
+            else:
+                validate_arguments(action, params)
+            if _nested:
+                return _success(version, _request_permission(
+                    params["origin"], settings, ask_permission, allowed=params["allowed"]))
+            return _success(version, _request_permission(origin, settings, ask_permission))
         except ValueError as e:
             return _error(str(e))
-        return _success(version, _request_permission(origin, settings, ask_permission))
 
     # Key gate. Runs per invocation, so multi sub-actions are each gated with
     # their own key (matches AnkiConnect).
@@ -141,8 +156,8 @@ def handle_ankiconnect_rpc(
     # Otherwise dictionary lookup or params.get() escapes as an HTTP 500.
     if not isinstance(action, str):
         return _error(UNSUPPORTED_ACTION)
-    if not isinstance(params, dict):
-        return _error("'params' must be an object")
+    if action != "multi" and not registry.is_registered(action):
+        return _error(UNSUPPORTED_ACTION)
 
     from .signatures import validate_arguments
 
@@ -159,16 +174,13 @@ def handle_ankiconnect_rpc(
             subs = [
                 handle_ankiconnect_rpc(
                     sub, origin=origin, settings=settings,
-                    ask_permission=ask_permission,
+                    ask_permission=ask_permission, _nested=True,
                 )
                 for sub in params["actions"]
             ]
         except (TypeError, AttributeError) as exc:
             return _error(str(exc))
         return _success(version, subs)
-
-    if not registry.is_registered(action):
-        return _error(UNSUPPORTED_ACTION)
 
     try:
         return _success(version, registry.handle(action, params))

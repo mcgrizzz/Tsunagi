@@ -876,3 +876,122 @@ def test_multi_nested_abort_is_contained_by_parent(pair):
         assert col.decks.by_name("Nested prefix") is not None
         assert col.decks.by_name("Nested suffix") is None
     assert_mutation_state(pair)
+
+
+def compare_nested(pair, children, **kwargs):
+    """Compare nested replies, excluding the reference harness's module prefix."""
+    request = {"action": "multi", "version": 6, "params": {"actions": children}}
+    expected = pair[2].handler(copy.deepcopy(request))
+    actual = handle_ankiconnect_rpc(copy.deepcopy(request), **kwargs)
+    prefix = type(pair[2]).__module__ + "."
+
+    def portable_errors(value):
+        if isinstance(value, list):
+            return [portable_errors(item) for item in value]
+        if isinstance(value, dict):
+            return {key: (
+                item.removeprefix(prefix) if key == "error" and isinstance(item, str)
+                and item.startswith(prefix + "AnkiConnect.") and "argument after **" in item
+                else portable_errors(item)
+            ) for key, item in value.items()}
+        return value
+
+    expected = portable_errors(json.loads(json.dumps(expected)))
+    actual = json.loads(json.dumps(actual))
+    assert actual == expected, first_difference(actual, expected)
+    return actual
+
+
+@pytest.mark.parametrize("action", ["version", "createDeck", "unknown"])
+@pytest.mark.parametrize("params", [None, False, True, 0, 1, 1.5, "", "x", [], [{}]])
+def test_nested_parameter_containers(pair, action, params):
+    compare_nested(pair, [
+        {"action": action, "version": 6, "params": params},
+        {"action": "version", "version": 6},
+    ])
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["version", "unknown"])
+@pytest.mark.parametrize("version", [None, False, True, 0, 4, 4.5, 6.0, "4", "6", [], {}, "invalid"])
+def test_nested_version_values(pair, action, version):
+    compare_nested(pair, [
+        {"action": action, "version": version},
+        {"action": "version", "version": 6},
+    ])
+
+
+@pytest.mark.parametrize("version", [None, "6", [], {}])
+def test_nested_bad_version_fails_after_mutation(pair, version):
+    compare_nested(pair, [
+        {"action": "createDeck", "version": version, "params": {"deck": "Version effect"}},
+        {"action": "deckNames", "version": 6},
+    ])
+    for col in pair[:2]:
+        assert col.decks.by_name("Version effect") is not None
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("version", [None, "6"])
+def test_nested_argument_error_precedes_bad_version(pair, version):
+    compare_nested(pair, [
+        {"action": "createDeck", "version": version,
+         "params": {"deck": "Must not be created", "unexpected": True}},
+        {"action": "deckNames", "version": 6},
+    ])
+    for col in pair[:2]:
+        assert col.decks.by_name("Must not be created") is None
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("params", [
+    {}, {"origin": ""}, {"allowed": True}, {"unexpected": True},
+    {"origin": "", "allowed": True}, {"origin": None, "allowed": "yes"},
+    {"origin": "https://unknown.test", "allowed": 1}, None, [], False,
+])
+def test_nested_permission_binding(pair, params):
+    compare_nested(pair, [
+        {"action": "requestPermission", "version": 6, "params": params},
+        {"action": "version", "version": 6},
+    ])
+
+
+@pytest.mark.parametrize("origin", [None, "", "http://localhost", "https://unknown.test"])
+def test_nested_permission_false_still_prompts(pair, monkeypatch, origin):
+    from types import SimpleNamespace
+
+    prompts = []
+
+    class DeniedDialog:
+        Icon = SimpleNamespace(Question=1)
+        StandardButton = SimpleNamespace(Yes=1, No=2)
+
+        def __init__(self, parent):
+            prompts.append("upstream")
+
+        def __getattr__(self, name):
+            return lambda *args: None
+
+        def exec(self):
+            return self.StandardButton.No
+
+        def checkBox(self):
+            return SimpleNamespace(isChecked=lambda: False)
+
+    namespace = pair[2].handler.__func__.__globals__
+    monkeypatch.setitem(namespace, "QMessageBox", DeniedDialog)
+    monkeypatch.setitem(namespace, "QCheckBox", lambda **kwargs: None)
+    monkeypatch.setitem(namespace, "Qt", SimpleNamespace(WindowStaysOnTopHint=1))
+    monkeypatch.setattr(pair[2], "window", lambda: SimpleNamespace(windowIcon=lambda: None))
+
+    def deny(value):
+        assert value == origin
+        prompts.append("shim")
+        return False
+
+    reply = compare_nested(pair, [
+        {"action": "requestPermission", "version": 6,
+         "params": {"origin": origin, "allowed": False}},
+    ], ask_permission=deny)
+    assert reply["result"] == [{"result": {"permission": "denied"}, "error": None}]
+    assert prompts == ["upstream", "shim"]
