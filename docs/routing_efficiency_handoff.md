@@ -2,11 +2,11 @@
 
 ## Next session: start here
 
-**Checkpoint, 2026-09-08:** the malformed-JSON/empty-HTTP-body batch is implemented
-and passes the full automated suite. **One reload and the read-only live check
-are pending.** Run `import tsunagi; tsunagi.reload_addon()` in Anki's console,
-then execute `python3 /tmp/tsunagi-http-bodies-live.py` from WSL. The completed
-production batch is synced to installed Anki before requesting that reload.
+**Checkpoint, 2026-09-08:** the malformed-JSON/empty-HTTP-body batch (`9d50a0b`)
+is committed, synced, reloaded and verified live. **No reload or live check is
+pending.** All 26 checks in `/tmp/tsunagi-http-bodies-live.py` passed after the
+user confirmed the reload. No fixtures, permission prompts or setting changes
+were needed. This documentation-only update needs no sync or reload.
 The preceding nested-request batch was live-verified through `f24236c`.
 
 The session began on `main`, 95 commits ahead of cached `origin/main`; no
@@ -40,16 +40,14 @@ Latest verification:
   and leaf decks were removed. No permission prompts or settings changes
   were needed. Latest script: `/tmp/tsunagi-nested-rpc-live.py`.
 
-**Next concrete step: finish live verification of the HTTP-body batch.**
+**Next concrete batch: permission acceptance/persistence and ignored origins.**
 
-1. After the one reload, run `/tmp/tsunagi-http-bodies-live.py`: 26 read-only
-   checks for discovery, parser diagnostics, allowed/denied/empty origins,
-   invalid permission requests and the native root documentation redirect.
-   It creates no fixtures and requests no permission dialogs or setting changes.
-2. Record the outcome here and in `docs/shim_differential_results.md`, then
-   make a focused local documentation commit. Do not sync/reload docs-only edits.
-3. Continue with permission acceptance/persistence and ignored-origin behavior,
-   using simulated dialogs first; real dialog checks remain separate.
+Compare acceptance and persistence for empty/non-string origins and the
+ignored-origin checkbox against unchanged upstream, using simulated dialogs
+first. Keep compatibility semantics in the shim. Real dialog focus and
+persistence checks remain separate; do not change live settings to make tests
+pass. Follow the existing focused-test, full-suite, coverage and local-commit
+workflow, syncing/reloading only a completed production batch.
 
 Completed in this batch: raw-byte/status/header support in the reference harness,
 90 differential cases (63 failed before the fix; all now pass), and 11 standalone
@@ -59,7 +57,10 @@ Denied origins get an empty 403 for malformed bodies and invalid permission
 requests. Changes are confined to the compatibility POST endpoint. Native root
 GET still redirects to `/docs`. Comparisons cover status, decoded JSON, empty
 response bytes and JSON Content-Type, not all CORS/transport headers or preflights.
-The live empty-body baseline still returned the old generic error before reload.
+The live empty-body baseline returned the old generic error before reload.
+After reload, all 26 read-only checks passed: discovery, parser diagnostics,
+allowed/denied/empty origins, invalid permission requests and the native root
+documentation redirect. No fixtures were created, so no cleanup was needed.
 
 The most recent batch preserved raw nested `params` and versions, matched
 unknown-action/binding order and write-before-version-error behavior, and
