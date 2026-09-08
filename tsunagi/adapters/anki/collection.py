@@ -178,3 +178,14 @@ def import_package(col: Any, path: str) -> Dict[str, Any]:
         "imported": len(getattr(log, "new", []) or []) if log else 0,
         "updated": len(getattr(log, "updated", []) or []) if log else 0,
     }
+
+
+@as_query_op
+def collection_capabilities(col: Any) -> Dict[str, Any]:
+    """Read the setting and backend support from the same collection operation."""
+    from .fsrs import capabilities
+
+    return {
+        **capabilities(col._backend),
+        "enabled": bool(col.get_config("fsrs", default=False)),
+    }

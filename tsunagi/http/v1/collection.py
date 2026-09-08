@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body
 from ...adapters.anki.collection import (
     active_profile,
     check_database,
+    collection_capabilities,
     collection_meta,
     export_package,
     import_package,
@@ -22,6 +23,7 @@ from ...adapters.anki.collection import (
     sync_collection,
 )
 from ...shared.errors import handle_mutation_errors
+from ...shared.schemas.capabilities import Capabilities, runtime_versions
 from ...shared.schemas.collection import (
     CollectionActionResult,
     CollectionMeta,
@@ -39,6 +41,27 @@ router = APIRouter()
 
 def _stats(start: float) -> dict:
     return {"duration_ms": round((time.perf_counter() - start) * 1000, 3)}
+
+
+@router.get(
+    "/v1/capabilities",
+    response_model=Capabilities,
+    summary="Runtime versions and FSRS capabilities",
+    description=(
+        "Reports native API, addon and Anki versions, backend FSRS operation support "
+        "and the collection scheduling switch separately. Computation availability "
+        "does not require FSRS scheduling to be enabled. Unsupported options identify "
+        "backend limitations; ordinary input and history validation still applies. "
+        "Requires an open collection; use /v1/health for versions without one."
+    ),
+    tags=["Collection"],
+    operation_id="getCapabilities",
+)
+@handle_mutation_errors("capabilities")
+def capabilities() -> Capabilities:
+    start = time.perf_counter()
+    fsrs = collection_capabilities()
+    return Capabilities(versions=runtime_versions(), fsrs=fsrs, stats=_stats(start))
 
 
 @router.get(
