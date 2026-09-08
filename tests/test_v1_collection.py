@@ -130,3 +130,75 @@ class TestRedocPage:
         resp = client.get("/redoc")
         assert resp.status_code == 200
         assert "redoc@2/bundles/redoc.standalone.js" in resp.text
+
+
+class TestCapabilities:
+    def test_versions_agree_with_health_and_openapi(self, client):
+        from anki.buildinfo import version
+
+        from tsunagi.shared.version import ADDON_VERSION, API_VERSION
+
+        response = client.get("/v1/capabilities")
+        assert response.status_code == 200, response.text
+        versions = response.json()["versions"]
+        assert versions == {"api": API_VERSION, "addon": ADDON_VERSION, "anki": version}
+        health = client.get("/v1/health").json()
+        assert health["versions"] == versions
+        assert health["version"] == versions["addon"]
+        schema = client.get("/openapi.json").json()
+        assert schema["info"]["version"] == versions["addon"]
+        assert schema["paths"]["/v1/capabilities"]["get"]["operationId"] == "getCapabilities"
+
+    def test_collection_switch_does_not_disable_computations(self, client, col):
+        col.set_config("fsrs", False)
+        disabled = client.get("/v1/capabilities").json()["fsrs"]
+        assert disabled["supported"] is True
+        assert disabled["enabled"] is False
+        col.set_config("fsrs", True)
+        enabled = client.get("/v1/capabilities").json()["fsrs"]
+        assert enabled["enabled"] is True
+        assert disabled["operations"] == enabled["operations"]
+        assert client.get("/v1/collection").json()["fsrs"] is True
+
+    def test_actual_backend_support_and_legacy_options(self, client):
+        from anki.buildinfo import version
+
+        legacy = version.startswith("23.10")
+        operations = client.get("/v1/capabilities").json()["fsrs"]["operations"]
+        assert operations["compute_params"]["available"] is True
+        assert operations["evaluate_params"]["available"] is True
+        assert operations["compute_params"]["unsupported_options"] == (
+            ["current_params", "ignore_revlogs_before_ms", "num_of_relearning_steps", "health_check"]
+            if legacy else []
+        )
+        assert operations["evaluate_params"]["unsupported_options"] == (
+            ["ignore_revlogs_before_ms"] if legacy else []
+        )
+        for name in ("simulate", "simulate_workload", "optimal_retention"):
+            assert operations[name]["available"] is not legacy
+
+    def test_health_still_works_without_collection(self, client, monkeypatch):
+        import aqt
+
+        monkeypatch.setattr(aqt.mw, "col", None)
+        response = client.get("/v1/health")
+        assert response.status_code == 200
+        assert response.json()["versions"]["anki"]
+        assert client.get("/v1/capabilities").status_code == 503
+
+    def test_partial_backend_is_inspected_without_running_operations(self):
+        from types import SimpleNamespace
+
+        from tsunagi.adapters.anki.fsrs import capabilities
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("Discovery invoked a backend computation")
+
+        assert capabilities(SimpleNamespace())["supported"] is False
+        backend = SimpleNamespace(compute_optimal_retention=forbidden)
+        assert capabilities(backend)["operations"]["optimal_retention"]["available"] is False
+        backend.simulate_fsrs_review = forbidden
+        result = capabilities(backend)
+        assert result["supported"] is True
+        assert result["operations"]["optimal_retention"]["available"] is True
+        assert result["operations"]["simulate_workload"]["available"] is False

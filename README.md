@@ -191,6 +191,9 @@ Query operators (`==`, `>=`, `~=`, brackets, quotes, etc.) can be annoying to sh
 
 ## API
 
+[Runtime versions and capabilities](docs/capabilities.md) explains health
+identifiers and FSRS support discovery through `GET /v1/capabilities`.
+
 ### Query Parameters
 
 | Parameter | Type      | Default  | Description |

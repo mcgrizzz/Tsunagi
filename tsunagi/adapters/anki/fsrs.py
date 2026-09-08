@@ -33,6 +33,32 @@ _NEWER_COMPUTE_OPTIONS = (
 )
 
 
+def capabilities(backend: Any) -> Dict[str, Any]:
+    """Inspect support without starting jobs or invoking backend methods."""
+    modern_compute = hasattr(backend, "compute_fsrs_params")
+    modern_evaluate = hasattr(backend, "evaluate_params_legacy")
+    simulation = hasattr(backend, "simulate_fsrs_review")
+    operations = {
+        "compute_params": {
+            "available": modern_compute or hasattr(backend, "compute_fsrs_weights"),
+            "unsupported_options": [] if modern_compute else list(_NEWER_COMPUTE_OPTIONS),
+        },
+        "evaluate_params": {
+            "available": modern_evaluate or hasattr(backend, "evaluate_weights"),
+            "unsupported_options": [] if modern_evaluate else ["ignore_revlogs_before_ms"],
+        },
+        "simulate": {"available": simulation},
+        "simulate_workload": {"available": hasattr(backend, "simulate_fsrs_workload")},
+        "optimal_retention": {
+            "available": simulation and hasattr(backend, "compute_optimal_retention"),
+        },
+    }
+    return {
+        "supported": any(operation["available"] for operation in operations.values()),
+        "operations": operations,
+    }
+
+
 def _require(col: Collection, attr: str, feature: str) -> None:
     if not hasattr(col._backend, attr):
         raise UnsupportedAnkiVersionError(feature)

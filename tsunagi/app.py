@@ -34,6 +34,8 @@ from .http.v1.notes import router as notes_router
 from .http.v1.reviews import router as reviews_router
 from .http.v1.tags import router as tags_router
 from .shared.errors import register_exception_handlers
+from .shared.schemas.capabilities import Versions, runtime_versions
+from .shared.version import ADDON_VERSION
 
 
 def _log(msg: str) -> None: print("[tsunagi]", msg, file=sys.stdout)
@@ -41,7 +43,7 @@ def _log(msg: str) -> None: print("[tsunagi]", msg, file=sys.stdout)
 # FastAPI app with comprehensive documentation
 app = FastAPI(
     title="Tsunagi",
-    version="0.0.1",
+    version=ADDON_VERSION,
     # The default /redoc points at redoc@next on jsdelivr, which now serves
     # the restructured redoc 3 alpha - browsers refuse it (MIME mismatch under
     # nosniff). A pinned /redoc route is defined below instead.
@@ -224,7 +226,8 @@ def list_ankiconnect_actions() -> dict:
 class Health(BaseModel):
     ok: bool = Field(description="Whether the server is running")
     server: str = Field(description="Server name")
-    version: str = Field(description="API version")
+    version: str = Field(description="Legacy release version; use versions for explicit identifiers")
+    versions: Versions
     port: int = Field(description="Port number the server is listening on")
 
 @dataclass
@@ -250,7 +253,8 @@ def health() -> Health:
     return Health(
         ok=True,
         server="tsunagi",
-        version=app.version or "0.0.1",
+        version=ADDON_VERSION,
+        versions=runtime_versions(),
         port=_SERVER_STATE.port or 0
     )
 
