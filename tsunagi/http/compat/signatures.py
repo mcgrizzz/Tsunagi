@@ -5,6 +5,8 @@ The differential suite checks this against the pinned upstream methods.
 Only argument binding belongs here; action handlers own value semantics.
 """
 
+from typing import Any
+
 SIGNATURES = {'addNote': [['note'], [], False, []],
  'addNotes': [['notes'], [], False, []],
  'addTags': [['notes', 'tags'], ['add'], False, []],
@@ -131,11 +133,18 @@ SIGNATURES = {'addNote': [['note'], [], False, []],
  'updateNoteTags': [['note', 'tags'], [], False, []],
  'version': [[], [], False, []]}
 
-def validate_arguments(action: str, params: dict) -> None:
+def validate_arguments(action: str, params: Any) -> None:
     """Reject extra/missing keyword arguments before any action side effects."""
     signature = SIGNATURES.get(action)
     if signature is None:
         return
+    if not isinstance(params, dict):
+        # The installed addon module name varies. Keep the portable class/action
+        # part of Python's **kwargs diagnostic rather than a harness module name.
+        raise ValueError(
+            f"AnkiConnect.{action}() argument after ** must be a mapping, "
+            f"not {type(params).__name__}"
+        )
     required, optional, variadic, aliases = signature
     # The pinned reference has no aliases or variadic public signatures.
     # Snapshot verification requires an explicit update if upstream adds them.
