@@ -22,7 +22,7 @@ Completed:
   the tested suspended-card scans. Six native query families were exercised with
   filtering, pagination, GET/POST agreement and projection checks.
 - Upstream source/history inventory accounts for all 122 shim actions. Differential
-  coverage now observes 63 action names in 165 cases: 164 pass, one tracks the
+  coverage now observes 65 action names in 196 cases: 195 pass, one tracks the
   default local-path gate mismatch. The original ten differences plus nullable
   media deletion flags and note-probe media side effects are fixed.
 - Model/scheduler follow-up fixed native field-rename rendering, template save/cache
@@ -33,7 +33,13 @@ Completed:
   empty template-update acceptance, immediate cached-template visibility, partial
   ease-factor writes and exact invalid-due-date errors. The two temporary notes,
   model, leaf deck and empty parent deck were removed; cleanup was verified.
-- Full suite: 1044 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
+- Model creation/replacement and partial-answer follow-up (`06f9566`) added 31
+  differential cases and eight standalone regressions. Missing template sides and
+  Anki validation errors now match; replacement saves unmatched targets only when
+  the shim requests it; malformed answers retain the preceding valid answers.
+  Backend undo/redo matched after success and partial failure. Real GUI undo for
+  this batch awaits reload/live verification.
+- Full suite: 1083 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
   preserved originals, and all four probe variants wrote media on accepted/empty
@@ -45,11 +51,12 @@ Completed:
 
 Remaining, in recommended order:
 
-1. Extend upstream comparisons beyond the current 63 observed action names and their tested
+1. Extend upstream comparisons beyond the current 65 observed action names and their tested
    cases. Cover mutation/rollback/undo, note/media side effects, model changes,
-   scheduler edge cases and general argument binding. Next: model creation and
-   replacement side effects, answer/partial-answer behavior, repeated suspension,
-   review insertion and undo/Qt effects. Existing implementation of
+   scheduler edge cases and general argument binding. Creation, replacement,
+   partial answers and backend undo now have focused comparisons. Next: repeated
+   suspension, review insertion, broader malformed-input/mixed-queue cases, model
+   conversion and undo/Qt effects. Existing implementation of
    an action is not proof of complete parity.
 2. Close GUI equivalence gaps, especially the standalone `guiEditNote` dialog;
    compare reviewer/add-note/navigation and lifecycle behavior through the shim.
@@ -124,8 +131,10 @@ Branch `main` was 70 commits
 ahead of the locally recorded `origin/main` before these commits; no fetch or push
 was made. Local agent/workspace files and the older post-request planning document
 remain outside these commits. The latest production fixes are already
-synced/reloaded. The model/scheduler batch also passed its targeted live checks
-on Anki 26.08.1; no further reload is pending for this batch.
+synced. Earlier model/scheduler fixes passed targeted live checks on Anki 26.08.1.
+The creation/replacement/partial-answer batch (`06f9566`) awaits the requested
+reload and live checks, including `/v1/gui:undo`. The prepared disposable-fixture
+check is `/tmp/tsunagi-model-answer-live.py`; it cleans up its notes, deck and model.
 
 ## Original session objective
 

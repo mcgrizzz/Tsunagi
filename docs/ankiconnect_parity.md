@@ -59,7 +59,7 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `answerCards` | implemented | Real scheduler answers via POST /v1/cards:answer. Deviation: a malformed entry (missing cardId/ease) is rejected before any card is answered; canonical applies the answers preceding it. Invalid ease behaves identically (same anki exception, earlier answers kept). |
+| `answerCards` | implemented | Uses the native scheduler answer method. Missing keys and invalid ease preserve preceding answers; earlier invalid ease takes precedence over later missing keys. Responses, review rows and backend undo/redo are compared. |
 | `areDue` | implemented | Batched (one scoped search, not one per card). Deviation: a non-new card with no review history answers via the due search instead of raising IndexError like canonical. |
 | `areSuspended` | implemented |  |
 | `cardsInfo` | implemented |  |
@@ -99,8 +99,8 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `createModel` | implemented |  |
-| `findAndReplaceInModels` | implemented | Deviation: saves only models that matched, where canonical re-saves all of them. |
+| `createModel` | implemented | Requires both template sides and preserves Anki validation errors. Standard/cloze creation and failure side effects have differential coverage. |
+| `findAndReplaceInModels` | implemented | Calls the native replacement method with explicit saving of unmatched targets, matching upstream's sync metadata side effects. Native default remains save-matches-only. |
 | `findModelsById` | implemented |  |
 | `findModelsByName` | implemented |  |
 | `modelFieldAdd` | implemented |  |

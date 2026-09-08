@@ -60,7 +60,7 @@ remained `[DEV] Yomine`; no live configuration gates were changed.
 
 ## Model and scheduler follow-up
 
-Current result: **164 passed, one expected failure in 165 differential cases**,
+At this checkpoint: **164 passed, one expected failure in 165 differential cases**,
 with 63 distinct action handlers observed. Full suite: **1044 passed, 8 skipped,
 one expected failure** on Python 3.12.12 / Anki 23.10. The expected failure remains
 D11 (default local-path policy). Changed-file Ruff and whitespace checks pass.
@@ -110,6 +110,36 @@ Cache-versus-disk persistence and model sync metadata remain covered by the isol
 comparisons, not by these live HTTP checks. No additional production changes or
 reload were needed after this verification.
 
+## Creation, replacement and partial-answer follow-up
+
+Current result: **195 passed, one expected failure in 196 differential cases**,
+with 65 distinct action handlers observed. Full suite: **1083 passed, 8 skipped,
+one expected failure** on Python 3.12.12 / Anki 23.10. D11 remains the sole expected
+failure (default local-path policy). Ruff and whitespace checks pass.
+
+Commit `06f9566` adds 31 differential cases: 13 model-creation cases, seven literal
+replacement cases, eight answer sequences and three backend undo/redo cases. Eight
+additional regressions run without an upstream checkout.
+
+- D19: `createModel` now requires both template sides and returns Anki's model
+  validation errors instead of a generic failure. Successful normal/cloze models,
+  default/empty/custom CSS, duplicate names, missing sides, empty names and invalid
+  templates are compared. Failed creation must leave no model behind.
+- D20: `findAndReplaceInModels` now saves every targeted model, including nonmatches,
+  and exposes Anki template-validation errors. The shared native method provides
+  an explicit `save_unmatched` option; its default still saves only matches. Tests
+  compare both template changes and sync metadata, including all-model calls.
+- D21: `answerCards` now applies valid entries before a missing key. An invalid
+  ease earlier in the sequence takes precedence over a later missing key. Writes
+  still use the native scheduler method. Tests compare response errors, card
+  state and review rows, including missing cards and duplicate IDs.
+
+Backend undo/redo restores the matching collection state after a successful answer,
+a missing-ease failure and an invalid-ease failure. This proves backend behavior
+for those cases; real Qt refresh, undo action availability and grouping remain
+separate live checks. The batch is synced and awaits the requested reload; the
+prepared live check exercises `/v1/gui:undo` on this run's disposable notes only.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
@@ -128,10 +158,14 @@ collection is opened by this suite.
 
 These are dispatcher and collection comparisons, not HTTP transport, browser
 permission or real Qt tests. The fake main window and suppressed edit notifications
-cannot prove undo, refresh, focus or dialog behavior. This run does not establish
+cannot prove GUI undo, refresh, focus or dialog behavior. Backend undo/redo has
+separate comparisons described above. This run does not establish
 complete compatibility on Anki 26.08.1; the live smoke checks above cover a subset.
 The initial collection is cloned so requests address identical IDs. RPC responses
-are compared without normalization. Model/scheduler state comparisons exclude
+are compared without normalization except successful model creation: independently
+allocated model/field/template IDs and model modification timestamps are normalized,
+with the returned schema and other values retained. Answer tests hold measured
+review time at zero in both implementations. Model/scheduler state comparisons exclude
 model modification timestamps and field/template IDs allocated independently by
 Anki; new cards are matched by note ID and template ordinal. Sync metadata is
 retained. Existing note/card/media comparisons keep their original strict checks.
