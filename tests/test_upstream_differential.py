@@ -592,3 +592,92 @@ def test_answer_cards_backend_undo_redo(pair, monkeypatch, case):
         collection.redo()
     assert_mutation_state(pair)
     assert mutation_state(pair[0]) == answered
+
+
+@pytest.mark.parametrize("suspend", [True, False])
+@pytest.mark.parametrize("layout", [
+    "empty", "one_matching", "two_matching", "three_matching", "mixed",
+    "duplicates", "missing_visited", "missing_skipped",
+])
+def test_suspend_list_mutation(pair, suspend, layout):
+    cards = list(pair[0].find_cards(""))
+    matching_queue = -1 if suspend else 0
+    for collection in pair[:2]:
+        collection.db.execute("update cards set queue = ?", matching_queue)
+    if layout == "mixed":
+        for collection in pair[:2]:
+            collection.db.execute("update cards set queue = ? where id = ?",
+                                  0 if suspend else -1, cards[1])
+    inputs = {
+        "empty": [], "one_matching": cards[:1], "two_matching": cards[:2],
+        "three_matching": cards, "mixed": cards, "duplicates": [cards[0]] * 3,
+        "missing_visited": [9999999999999, cards[0]],
+        "missing_skipped": [cards[0], 9999999999999],
+    }
+    compare(pair, "suspend", {"cards": inputs[layout], "suspend": suspend})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", [
+    "empty", "valid", "two_rows", "duplicate_batch", "existing_conflict",
+    "short", "long", "empty_row", "float", "numeric_string", "null_value",
+    "bool_value", "non_numeric", "null_row",
+])
+def test_insert_reviews_atomicity_and_values(pair, case):
+    cid = pair[0].find_cards("")[0]
+    row = [1700000000001, cid, -1, 3, 5, 2, 2500, 1200, 1]
+    second = [1700000000002, cid, -1, 4, 10, 5, 2600, 800, 1]
+    rows = [row]
+    if case == "empty":
+        rows = []
+    elif case == "two_rows":
+        rows.append(second)
+    elif case == "duplicate_batch":
+        rows.append(row)
+    elif case == "existing_conflict":
+        for collection in pair[:2]:
+            collection.db.execute("insert into revlog values (?,?,?,?,?,?,?,?,?)", *row)
+        rows = [second, row]
+    elif case == "short":
+        rows = [row, second[:-1]]
+    elif case == "long":
+        rows = [row, second + [0]]
+    elif case == "empty_row":
+        rows = [row, []]
+    elif case == "null_row":
+        rows = [row, None]
+    elif case in {"float", "numeric_string", "null_value", "bool_value", "non_numeric"}:
+        second[6] = {"float": 2500.5, "numeric_string": "2600", "null_value": None,
+                     "bool_value": True, "non_numeric": "bad"}[case]
+        rows.append(second)
+    compare(pair, "insertReviews", {"reviews": rows})
+    assert pair[0].db.all("select * from revlog order by id") == pair[1].db.all(
+        "select * from revlog order by id")
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action,extra", [
+    ("areDue", {}), ("getIntervals", {}), ("getIntervals", {"complete": True}),
+])
+@pytest.mark.parametrize("state", [
+    "reviewless", "missing", "mixed", "long_learning_due", "long_learning_future",
+    "learning_threshold", "buried", "suspended",
+])
+def test_due_and_intervals_mixed_queues(pair, monkeypatch, action, extra, state):
+    monkeypatch.setattr("time.time", lambda: 1700000000.75)
+    cards = list(pair[0].find_cards(""))
+    for collection in pair[:2]:
+        collection.db.execute("update cards set type=2, queue=2, due=? where id=?",
+                              collection.sched.today, cards[1])
+        collection.db.execute("update cards set type=1, queue=1, due=? where id=?",
+                              1699990000, cards[2])
+        if state not in {"reviewless", "missing"}:
+            for index, cid in enumerate(cards[1:], start=1):
+                interval = {"long_learning_due": -1800, "long_learning_future": -7200,
+                            "learning_threshold": -1200}.get(state, 5)
+                collection.db.execute("insert into revlog values (?,?,?,?,?,?,?,?,?)",
+                                      1699996400000 + index, cid, -1, 3, interval, 1, 2500, 0, 1)
+        if state in {"buried", "suspended"}:
+            collection.db.execute("update cards set queue=?", -2 if state == "buried" else -1)
+    inputs = [cards[0], 9999999999999] if state == "missing" else [*cards, cards[1]]
+    compare(pair, action, {"cards": inputs, **extra})

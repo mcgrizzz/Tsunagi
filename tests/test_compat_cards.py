@@ -49,11 +49,12 @@ class TestEaseFactors:
 
 
 class TestSuspend:
-    def test_suspend_returns_true_then_false(self, cards):
+    def test_repeated_suspend_preserves_upstream_list_removal(self, cards):
         client, cids = cards
         assert rpc(client, "suspend", {"cards": cids})["result"] is True
-        # Nothing left to do the second time.
-        assert rpc(client, "suspend", {"cards": cids})["result"] is False
+        # Removing the first matching card skips the second one upstream.
+        assert rpc(client, "suspend", {"cards": cids})["result"] is True
+        assert rpc(client, "suspend", {"cards": cids[:1]})["result"] is False
 
     def test_unsuspend_returns_null(self, cards):
         client, cids = cards
@@ -293,18 +294,17 @@ class TestAreDueBatching:
         assert len(searches) <= 2               # is:new (+ maybe is:due), never per-card
         assert all(q.startswith("cid:") for q in searches)
 
-    def test_reviewless_review_card_does_not_error(self, cards):
+    def test_reviewless_review_card_matches_upstream_error(self, cards):
         # A card shoved straight into the review queue (raw column write, no
-        # revlog rows) used to hit rows[-1] on an empty list -> error.
+        # revlog rows) hits rows[-1] upstream and must report the same error.
         client, cids = cards
         rpc(client, "setSpecificValueOfCard", {
             "card": cids[0], "keys": ["type", "queue"], "newValues": [2, 2],
             "warning_check": True})
         resp = rpc(client, "areDue", {"cards": [cids[0]]})
-        assert resp["error"] is None
-        assert isinstance(resp["result"][0], bool)
+        assert resp == {"result": None, "error": "list index out of range"}
 
-    def test_get_intervals_batches_and_survives_empty_history(self, cards, col):
+    def test_get_intervals_batches_and_matches_empty_history_error(self, cards, col):
         client, cids = cards
         rpc(client, "setSpecificValueOfCard", {
             "card": cids[0], "keys": ["type", "queue"], "newValues": [2, 2],
@@ -313,6 +313,5 @@ class TestAreDueBatching:
         orig = col.find_cards
         col.find_cards = lambda q, **kw: searches.append(q) or orig(q, **kw)
         resp = rpc(client, "getIntervals", {"cards": cids})
-        assert resp["error"] is None
-        assert resp["result"] == [0, 0]         # empty history reads as 0
+        assert resp == {"result": None, "error": "list index out of range"}
         assert len(searches) == 1               # one is:new probe for the batch
