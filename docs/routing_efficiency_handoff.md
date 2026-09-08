@@ -17,8 +17,8 @@ their behavior fits, and compose compatibility quirks in shim handlers or the
 dedicated compatibility adapter. Do not add compatibility switches to native
 methods. The native field-rename/rendering fix remains a native correctness fix.
 
-Reconciled 2026-09-07 after the HTTP request-shape/multi follow-up passed automated
-and live checks on the reloaded addon. No reload remains pending for this batch.
+Reconciled 2026-09-07 after the nested request follow-up passed automated checks.
+The earlier HTTP request-shape/multi batch passed live; the nested batch awaits reload.
 The original objective and investigation notes below are historical context.
 
 Completed:
@@ -30,7 +30,7 @@ Completed:
   the tested suspended-card scans. Six native query families were exercised with
   filtering, pagination, GET/POST agreement and projection checks.
 - Upstream source/history inventory accounts for all 122 shim actions. Differential
-  coverage now has 575 cases: 574 pass, one tracks the default local-path gate
+  coverage now has 649 cases: 648 pass, one tracks the default local-path gate
   mismatch. Behavioral calls reach 69 registered handlers; separate argument-name
   rejection checks cover all 122 action names. The original ten differences plus nullable
   media deletion flags and note-probe media side effects are fixed.
@@ -79,7 +79,16 @@ Completed:
   All production changes are confined to compatibility code and its HTTP endpoint.
   Native methods and routes retain their contracts. Live verification passed after
   reload; the two temporary empty decks were removed and cleanup was verified.
-- Full suite: 1483 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
+- Nested request follow-up adds 74 differential cases and eleven standalone
+  regressions. Child parameter containers retain their values; unknown actions
+  fail before binding. Child versions are not coerced: formatting errors occur
+  after any action writes, and later siblings continue. Nested permission requests
+  bind their own origin/allowed arguments; false reaches the prompt even for local
+  origins. Prompt-denial tests use simulated Qt widgets and make no live settings
+  changes. All production changes are in compatibility code. The portable Python
+  mapping error omits the installation-specific addon module prefix; comparisons
+  remove only the reference prefix for those errors. Live verification awaits reload.
+- Full suite: 1568 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
   preserved originals, and all four probe variants wrote media on accepted/empty
@@ -97,8 +106,9 @@ Remaining, in recommended order:
    partial answers, repeated suspension, scalar review insertion, mixed-queue reads
    and backend undo now have focused comparisons. Missing-deck lookups and argument
    names, outer HTTP schema and malformed-child batch aborts now have comparisons.
-   Next: nested child parameter containers/version values, nested permission context,
-   broader action-value semantics, filtered-deck/FSRS scheduler cases, model
+   Nested child containers/version values and permission binding/denial now also
+   have comparisons. Next: malformed JSON/empty-body responses, broader action-value
+   semantics, permission persistence/ignore behavior, filtered-deck/FSRS scheduler cases, model
    conversion and undo/Qt effects. Review SQL-expression values remain outside the
    scalar-only compatibility fallback and need a contract decision under full parity.
    Existing implementation of
@@ -196,6 +206,13 @@ returned empty results; a malformed child retained the earlier deck creation and
 prevented the later creation; a nested abort returned its own error while its parent
 continued. The uniquely named parent and leaf deck were removed and their absence
 verified. No further reload is needed for this batch.
+
+The new nested request batch (`7974ba9`) is committed locally and synced. It passed
+the full automated suite and needs one reload
+before `/tmp/tsunagi-nested-rpc-live.py`. The script checks child parameter errors,
+fractional version envelopes, retained writes after version-formatting errors and
+explicit permission context. Its permission cases avoid prompts and configuration
+changes. It removes its uniquely named empty parent and leaf deck and verifies cleanup.
 
 ## Original session objective
 
