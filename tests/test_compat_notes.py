@@ -375,10 +375,11 @@ class TestNoteMedia:
         assert info["fields"]["Back"]["value"] != "dog"  # error text appended
         assert "<" not in info["fields"]["Back"]["value"].replace("&lt;", "")
 
-    def test_media_failure_without_fields_does_not_crash(self, client):
+    def test_media_failure_without_fields_matches_upstream_error(self, client):
         resp = rpc(client, "addNote", {"note": note_spec(
             front="独自", picture={"filename": "bad.png", "data": "not base64!!"})})
-        assert resp["error"] is None  # canonical raises KeyError here; we guard
+        assert resp == {"result": None, "error": "'fields'"}
+        assert rpc(client, "findNotes", {"query": "独自"}) == {"result": [], "error": None}
 
     def test_media_is_attached_before_duplicate_check(self, client):
         # Adding media to the FIRST field changes the dedup outcome

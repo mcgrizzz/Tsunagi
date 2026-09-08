@@ -49,7 +49,8 @@ class MediaSpec(BaseModel):
     path: Optional[str] = None
     url: Optional[str] = None
     skipHash: Optional[str] = None
-    fields: Optional[List[str]] = None
+    # Upstream appends markup only for lists; errors iterate the raw value.
+    fields: Any = None
     # Upstream uses Python truthiness; the note-spec default is falsy.
     deleteExisting: Any = None
 
@@ -131,7 +132,6 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
             entry: Dict[str, Any] = {
                 "kind": kind,
                 "filename": media.filename,
-                "fields": list(media.fields or []),
                 "markup": _MARKUP[kind],
                 # Absent key means falsy here - opposite of standalone
                 # storeMediaFile's default. Canonical quirk, preserved.
@@ -139,6 +139,8 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                 "data": None,
                 "error": None,
             }
+            if "fields" in media.__fields_set__:
+                entry["fields"] = media.fields
             try:
                 if media.data:
                     data = base64.b64decode(media.data)
@@ -155,10 +157,9 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                     data = None  # caller already has it: store nothing, append nothing
                 entry["data"] = data
             except Exception as e:
-                # Canonical appends the HTML-escaped message into the target
-                # fields and still creates the note.
-                entry["error"] = (str(e).replace("&", "&amp;")
-                                  .replace("<", "&lt;").replace(">", "&gt;"))
+                # The adapter handles download and storage errors alike,
+                # including upstream's distinct field-selection error path.
+                entry["error"] = str(e)
             out.append(entry)
     return out
 

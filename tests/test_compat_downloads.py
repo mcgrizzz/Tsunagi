@@ -92,3 +92,32 @@ def test_media_replacement_preserves_raw_option_values(
     files = list(Path(col.media.dir()).glob("*.mp3"))
     assert len(files) == len(expected_files)
     assert {path.read_bytes() for path in files} == expected_files
+
+
+@pytest.mark.parametrize("selection,data,error,back", [
+    ({}, "YXVkaW8=", None, "updated"),
+    ({"fields": None}, "YXVkaW8=", None, "updated"),
+    ({"fields": "Back"}, "YXVkaW8=", None, "updated"),
+    ({"fields": {"Back": 1}}, "YXVkaW8=", None, "updated"),
+    ({"fields": []}, "AA", None, "updated"),
+    ({}, "AA", "'fields'", "original"),
+    ({"fields": None}, "AA", "'NoneType' object is not iterable", "original"),
+    ({"fields": {"Back": 1}}, "AA", None, "updatedIncorrect padding"),
+    ({"fields": ["Back", "Back"]}, "AA", None, "updatedIncorrect paddingIncorrect padding"),
+])
+def test_media_field_selection_and_error_side_effects(client, col, selection, data, error, back):
+    note = col.new_note(col.models.by_name("Basic"))
+    note["Front"], note["Back"] = "media fields test", "original"
+    col.add_note(note, col.decks.id("Default"))
+    reply = client.post("/", json={"action": "updateNoteFields", "version": 6, "params": {
+        "note": {"id": note.id, "fields": {"Back": "updated"}, "audio": {
+            "filename": "selection.mp3", "data": data, **selection,
+        }},
+    }}).json()
+    assert reply == {"result": None, "error": error}
+    assert col.get_note(note.id)["Back"] == back
+    media_file = Path(col.media.dir(), "selection.mp3")
+    if data == "YXVkaW8=":
+        assert media_file.read_bytes() == b"audio"
+    else:
+        assert not media_file.exists()
