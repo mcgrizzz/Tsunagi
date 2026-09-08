@@ -234,11 +234,48 @@ Remaining binding work includes value coercion, malformed request containers,
 nested permission requests and broader ordering/partial-effect comparisons. The
 signature table records parameter names, not every value/default semantic.
 
+## HTTP request shapes and multi aborts
+
+This follow-up adds **84 differential cases** and seven standalone regressions.
+The reference harness now runs the original upstream HTTP wrapper without opening
+a socket. Comparisons exercise null/scalar/list parameter containers through the
+shim's real HTTP endpoint, outer action/version/body validation, and schema-error
+selection across 784 value/key-order combinations within one test.
+
+The fixed, shallow request schema and its diagnostics live in compatibility code;
+native routes and methods do not use it. Diagnostics are compared with
+**jsonschema 4.23.0**, installed only in the reference test environment. A snapshot
+test detects changes to upstream's schema. The installed addon gains no dependency.
+Invalid outer requests now fail before dispatch instead of treating null/false/empty
+parameters as an omitted object or coercing an invalid API version.
+
+`multi` now mirrors direct iteration: empty lists, objects and strings produce an
+empty result; non-iterable values fail; a non-request child aborts that batch,
+preserves earlier writes and prevents later entries from running. A nested batch
+returns its own error so its parent can continue. This differs from an ordinary
+child action error, which remains an entry in the result array. Tests verify these
+responses and deck side effects on separate disposable collections.
+
+Total: **575 differential cases: 574 pass, one expected failure** for the existing
+default local-path policy mismatch. Differential calls reach **69 registered
+handlers**; overall registry execution remains **99/120**. Full suite:
+**1483 passed, 8 skipped, one expected failure** on Anki 23.10 / Python 3.12.12.
+Ruff and whitespace checks pass. Artifacts:
+`/tmp/tsunagi-request-shapes-full.xml` and `/tmp/tsunagi-request-shapes-coverage.json`.
+Live verification is pending reload; `/tmp/tsunagi-request-shapes-live.py` checks
+HTTP rejection and batch abort behavior using uniquely named disposable empty decks.
+
+Still unverified or different: malformed JSON/empty-body transport responses,
+nested child parameter containers and version coercion, nested permission context,
+broader action-value coercion, browser headers and real Qt/undo effects. This batch
+does not establish complete request or transport parity.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
 and rejects tracked plugin modifications. It loads upstream's original action class,
-utility functions and RPC response formatters without starting its server or UI.
+utility functions, HTTP wrapper/schema and RPC response formatters without opening
+a listening socket or starting its UI.
 Collection access, edit notifications, logging and addon configuration are supplied
 by the harness. API settings use upstream defaults. No action implementation is
 rewritten or copied into a hand-maintained mock.
@@ -250,8 +287,9 @@ media file contents/deletion. Native Anki collection methods use the real Rust
 backend. Each case starts from freshly seeded and cloned collections. No live user
 collection is opened by this suite.
 
-These are dispatcher and collection comparisons, not HTTP transport, browser
-permission or real Qt tests. The fake main window and suppressed edit notifications
+The request-shape cases also compare the original HTTP wrapper against Tsunagi's
+HTTP endpoint. These are not socket-transport, browser permission or real Qt tests.
+The fake main window and suppressed edit notifications
 cannot prove GUI undo, refresh, focus or dialog behavior. Backend undo/redo has
 separate comparisons described above. This run does not establish
 complete compatibility on Anki 26.08.1; the live smoke checks above cover a subset.
@@ -311,7 +349,8 @@ operations, GUI, lifecycle, transport and other supported Anki versions remain i
 ## Reproduction
 
 Use Python 3.12 or newer because the pinned upstream source uses Python 3.12 f-string
-syntax. Install the project's test dependencies with `anki==23.10` and `httpx<0.28`.
+syntax. Install the project's test dependencies with `anki==23.10`, `httpx<0.28`
+and `jsonschema==4.23.0` in the reference test environment.
 The repository's vendored runtime dependencies must already be built.
 
 ```sh
