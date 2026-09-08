@@ -17,8 +17,8 @@ their behavior fits, and compose compatibility quirks in shim handlers or the
 dedicated compatibility adapter. Do not add compatibility switches to native
 methods. The native field-rename/rendering fix remains a native correctness fix.
 
-Reconciled 2026-09-07 after the shim-only binding/deck follow-up passed live checks
-on the reloaded addon. No reload remains pending for this batch.
+Reconciled 2026-09-07 after the HTTP request-shape/multi follow-up passed automated
+checks. The earlier binding/deck batch passed live; this new batch awaits reload.
 The original objective and investigation notes below are historical context.
 
 Completed:
@@ -30,8 +30,8 @@ Completed:
   the tested suspended-card scans. Six native query families were exercised with
   filtering, pagination, GET/POST agreement and projection checks.
 - Upstream source/history inventory accounts for all 122 shim actions. Differential
-  coverage now has 491 cases: 490 pass, one tracks the default local-path gate
-  mismatch. Behavioral calls reach 68 registered handlers; separate argument-name
+  coverage now has 575 cases: 574 pass, one tracks the default local-path gate
+  mismatch. Behavioral calls reach 69 registered handlers; separate argument-name
   rejection checks cover all 122 action names. The original ten differences plus nullable
   media deletion flags and note-probe media side effects are fixed.
 - Model/scheduler follow-up fixed native field-rename rendering, template save/cache
@@ -70,7 +70,15 @@ Completed:
   Complete history reads feed shim-owned empty-history errors; no native parity
   switches remain from these batches. `areDue` makes one extra batched history read,
   keeping query count bounded rather than querying once per card.
-- Full suite: 1392 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
+- HTTP request-shape/multi follow-up adds 84 differential cases and seven standalone
+  regressions. The original upstream HTTP wrapper now runs in the reference harness
+  without a listening socket. Outer schema errors, including null/scalar/list params
+  and invalid action/version values, match jsonschema 4.23.0 diagnostics. `multi`
+  accepts empty iterables and aborts on malformed children while retaining prior
+  writes and skipping later entries; nested aborts remain contained by their parent.
+  All production changes are confined to compatibility code and its HTTP endpoint.
+  Native methods and routes retain their contracts. Live verification awaits reload.
+- Full suite: 1483 passed, 8 skipped, one expected failure on Anki 23.10. The earlier
   fixes passed read-only live checks on Anki 26.08.1, including 1002-note batching.
   The latest media/probe fixes also passed live after reload: null deletion flags
   preserved originals, and all four probe variants wrote media on accepted/empty
@@ -82,13 +90,14 @@ Completed:
 
 Remaining, in recommended order:
 
-1. Extend upstream comparisons beyond the current 68 observed handlers and their tested
+1. Extend upstream comparisons beyond the current 69 observed handlers and their tested
    cases. Cover mutation/rollback/undo, note/media side effects, model changes,
    scheduler edge cases and general argument binding. Creation, replacement,
    partial answers, repeated suspension, scalar review insertion, mixed-queue reads
    and backend undo now have focused comparisons. Missing-deck lookups and argument
-   names are covered in the latest batch. Next: broader argument value/container
-   semantics, filtered-deck/FSRS scheduler cases, model
+   names, outer HTTP schema and malformed-child batch aborts now have comparisons.
+   Next: nested child parameter containers/version values, nested permission context,
+   broader action-value semantics, filtered-deck/FSRS scheduler cases, model
    conversion and undo/Qt effects. Review SQL-expression values remain outside the
    scalar-only compatibility fallback and need a contract decision under full parity.
    Existing implementation of
@@ -178,6 +187,12 @@ scope returned the expected error; all three missing-deck lookups created the
 expected decks and returned matching stats/empty review results; null card input
 returned the expected error. The three empty leaf decks and their uniquely named
 parent were removed, and their absence was verified. No further reload is needed.
+
+The new HTTP request-shape/multi batch (`23ba094`) is committed locally and synced.
+It passed the full automated suite and requires one reload before
+`/tmp/tsunagi-request-shapes-live.py`. The script verifies outer
+null rejection, empty iterable batches, retained prefix writes/skipped suffix writes
+and nested aborts. It removes its uniquely named empty decks and verifies cleanup.
 
 ## Original session objective
 

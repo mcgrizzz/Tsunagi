@@ -23,10 +23,10 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1392 tests passed, 8 skipped,
-one expected failure** on the Anki 23.10 test environment, including 490 passing
+Latest run: **99/120 registered handlers observed; 1483 tests passed, 8 skipped,
+one expected failure** on the Anki 23.10 test environment, including 574 passing
 upstream comparisons and the default local-path gate mismatch. Differential
-behavioral calls reach 68 registered handlers. Argument-name rejection checks
+behavioral calls reach 69 registered handlers. Argument-name rejection checks
 separately cover all 122 action names, without executing their bodies; these do
 not expand the registry execution count or prove GUI/lifecycle parity.
 The original model/scheduler pass added 38 differential cases and five
@@ -78,7 +78,7 @@ upstream behavior on the same Anki version before reproducing an obsolete quirk.
 
 | Priority | Surface | Difference / missing comparison |
 | --- | --- | --- |
-| 1 | RPC argument values and errors | Missing/extra argument names now match pinned signatures for all 122 actions, including rejection before mutations and permission prompting. Upstream HTTP supplies permission context. Pydantic coercion, null/false/empty and nested values, generic internal errors, malformed request containers and nested permission calls still need broader comparison. |
+| 1 | RPC argument values and errors | Missing/extra names match pinned signatures for all 122 actions. Outer HTTP schema diagnostics now match jsonschema 4.23.0; malformed multi children abort that batch, retaining earlier writes and skipping later entries. Nested parameter containers/version coercion, nested permission calls, broader Pydantic coercion and generic internal errors still need comparisons. |
 | 1 | `guiEditNote` | Browser navigation currently substitutes for upstream's standalone editor. This is a user-visible gap, not an acceptable UI equivalence claim. |
 | 1 | `answerCards`, `addNotes`, `insertReviews` | Answer prefixes and tested backend/live GUI undo now match. Review duplicate/malformed-row failures are atomic in both implementations; the earlier partial-write claim was incorrect. Extend undo/grouping, malformed value types and rollback sequences. Review SQL-expression values remain outside the scalar-only fallback and are still a contract gap. |
 | 1 | Media and note probes | Probe media writes now match tested valid/empty/duplicate cases, and null deleteExisting behavior is fixed. Comparisons also cover local URL downloads, base64, scalar/list media, missing fields, skip hashes, collisions and appended decode errors. The default local-path gate remains different (D11); extend failed-download and nested-option coverage. Native media tests alone do not cover shim mapping. |
