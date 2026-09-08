@@ -2,16 +2,18 @@
 
 ## Next session: start here
 
-**Checkpoint:** implementation and live verification are complete through
-`f24236c` (`docs: verify nested request parity after reload`). All production
-changes are synced to installed Anki and reloaded. **No reload or live check is
-pending.** This handoff-only update requires neither a sync nor a reload.
+**Checkpoint, 2026-09-08:** the malformed-JSON/empty-HTTP-body batch is implemented
+and passes the full automated suite. **One reload and the read-only live check
+are pending.** Run `import tsunagi; tsunagi.reload_addon()` in Anki's console,
+then execute `python3 /tmp/tsunagi-http-bodies-live.py` from WSL. The completed
+production batch is synced to installed Anki before requesting that reload.
+The preceding nested-request batch was live-verified through `f24236c`.
 
-At this checkpoint, `main` is 94 commits ahead of cached `origin/main`; no
-fetch or push was performed. Tracked files were clean before this handoff edit.
+The session began on `main`, 95 commits ahead of cached `origin/main`; no
+fetch or push was performed. Tracked files were clean at the start.
 Preserve the four untracked local files: `AGENTS.md`, `CLAUDE.md`,
 `Tsunagi.code-workspace`, and `docs/post_request_system_plan.md`. A local commit
-of this handoff will advance that count by one. Focused local commits are
+of this batch will advance that count by one. Focused local commits are
 authorized; pushing is not.
 
 **Architecture constraint from the user:** AnkiConnect compatibility belongs
@@ -23,9 +25,9 @@ intentional.
 
 Latest verification:
 
-- Full suite: **1568 passed, 8 skipped, 1 xfailed**, Anki 23.10 / Python 3.12.12.
+- Full suite: **1669 passed, 8 skipped, 1 xfailed**, Anki 23.10 / Python 3.12.12.
   Ruff and `git diff --check` passed.
-- Differential suite: **649 cases: 648 passed, 1 xfailed**. Calls reach 69
+- Differential suite: **739 cases: 738 passed, 1 xfailed**. Calls reach 69
   registered handlers; combined observed coverage reaches **99/120** registry
   handlers. There are also two dispatcher-only actions. Argument-name checks
   cover all 122 actions but do not establish body or GUI coverage.
@@ -38,23 +40,26 @@ Latest verification:
   and leaf decks were removed. No permission prompts or settings changes
   were needed. Latest script: `/tmp/tsunagi-nested-rpc-live.py`.
 
-**Next concrete batch: malformed JSON and empty HTTP request bodies.**
+**Next concrete step: finish live verification of the HTTP-body batch.**
 
-1. Inspect `tools/upstream_reference.py`, the pinned upstream
-   `plugin/web.py::WebServer.handlerWrapper`, and
-   `tsunagi/app.py::ankiconnect_rpc_endpoint` through jCodemunch. The reference
-   harness currently JSON-encodes a payload and returns the decoded body;
-   extend it to accept raw bytes and expose status/headers as needed. Compare
-   the original upstream HTTP wrapper, not only its dispatcher.
-2. Add differential cases for malformed JSON, empty bodies, and relevant
-   origin handling. Current shim decode failures use the generic
-   `request body is not valid JSON`; upstream's allowed empty body returns
-   `{"apiVersion":"AnkiConnect v.6"}`. Verify exact boundary behavior before
-   fixing it. Keep native root GET documentation behavior intact.
-3. Implement fixes in compatibility handling, run focused tests and the full
-   suite, refresh measured coverage, and make focused local commits. If
-   production code changes, sync one completed batch and request one reload;
-   then run disposable live checks and clean only fixtures created by them.
+1. After the one reload, run `/tmp/tsunagi-http-bodies-live.py`: 26 read-only
+   checks for discovery, parser diagnostics, allowed/denied/empty origins,
+   invalid permission requests and the native root documentation redirect.
+   It creates no fixtures and requests no permission dialogs or setting changes.
+2. Record the outcome here and in `docs/shim_differential_results.md`, then
+   make a focused local documentation commit. Do not sync/reload docs-only edits.
+3. Continue with permission acceptance/persistence and ignored-origin behavior,
+   using simulated dialogs first; real dialog checks remain separate.
+
+Completed in this batch: raw-byte/status/header support in the reference harness,
+90 differential cases (63 failed before the fix; all now pass), and 11 standalone
+regressions. Allowed empty POST bodies return `{"apiVersion":"AnkiConnect v.6"}`;
+whitespace and malformed JSON preserve exact UTF-8/JSON parser diagnostics.
+Denied origins get an empty 403 for malformed bodies and invalid permission
+requests. Changes are confined to the compatibility POST endpoint. Native root
+GET still redirects to `/docs`. Comparisons cover status, decoded JSON, empty
+response bytes and JSON Content-Type, not all CORS/transport headers or preflights.
+The live empty-body baseline still returned the old generic error before reload.
 
 The most recent batch preserved raw nested `params` and versions, matched
 unknown-action/binding order and write-before-version-error behavior, and
@@ -77,8 +82,8 @@ Runtime and reproduction:
 - Test interpreter: `/tmp/tsunagi-parity-venv/bin/python`, Python 3.12.12,
   Anki 23.10, `httpx<0.28`, `jsonschema==4.23.0`. Check temporary paths still
   exist; they are not durable artifacts.
-- Latest reports: `/tmp/tsunagi-nested-rpc-full.xml` and
-  `/tmp/tsunagi-nested-rpc-coverage.json`. Durable evidence and method limits:
+- Latest reports: `/tmp/tsunagi-http-bodies-full.xml` and
+  `/tmp/tsunagi-http-bodies-coverage.json`. Durable evidence and method limits:
   [differential results](shim_differential_results.md),
   [behavioral coverage](shim_behavioral_coverage.md), and
   [handler coverage matrix](shim_coverage_matrix.md).
@@ -136,7 +141,7 @@ matching results and cursor walks. Its then-current suite was 842 passed,
 status and original investigation below are retained for context; the
 checkpoint above takes precedence over older counts and workspace snapshots.
 
-## Current status after routing and shim work
+## Status before the HTTP-body batch (historical)
 
 Architecture requirement (confirmed by the user, 2026-09-07): AnkiConnect parity
 belongs only in the shim. Native Tsunagi methods retain Tsunagi's contracts, even
