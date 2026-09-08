@@ -158,8 +158,8 @@ class TestAlwaysEnvelope:
     Regression: AnkiConnect clients check only `error` and then read `result`.
     A FastAPI 422 body ({"detail": ...}) has neither key, so it slips past
     their guard and crashes them on the next property access (asbplayer died
-    with "Cannot read properties of undefined (reading 'length')"). Every
-    reply from POST / must be an envelope.
+    with "Cannot read properties of undefined (reading 'length')"). RPC
+    errors from allowed origins must use an envelope.
     """
 
     def test_malformed_json_is_an_envelope(self, client):

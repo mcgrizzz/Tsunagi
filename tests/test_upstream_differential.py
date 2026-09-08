@@ -816,6 +816,37 @@ def test_http_request_schema(pair, client, payload):
     assert_mutation_state(pair)
 
 
+@pytest.mark.parametrize("origin", [
+    None, "http://localhost", "chrome-extension://parity", "https://denied.test", "",
+])
+@pytest.mark.parametrize("content", [
+    b"", b" ", b"\r\n\t", b"{not json", b'{"action":',
+    b'{"action":"version",}', b'{"action":"version"} trailing',
+    b'{\n"action": "version",\n}', b'{"action":"ver\x00sion"}',
+    b"\xff", b'{"action":"\xc3("}',
+    b'\xef\xbb\xbf{"action":"version"}',
+    '{"action":"version"}'.encode("utf-16"),
+    b"null", b"[]", b'{"action":"requestPermission","params":null}',
+    b'{"action":"version","version":6}',
+    b'{"action":"version","version":6,"extra":"\xe6\x97\xa5"}',
+], ids=[
+    "empty", "space", "whitespace", "unquoted-key", "truncated",
+    "trailing-comma", "extra-data", "multiline", "control-character",
+    "invalid-utf8", "invalid-continuation", "utf8-bom", "utf16",
+    "null", "array", "invalid-permission", "valid", "valid-unicode",
+])
+def test_http_raw_bodies(upstream, client, content, origin):
+    headers = {} if origin is None else {"Origin": origin}
+    expected = upstream.http_raw_request(content, headers=headers)
+    actual = client.post("/", content=content, headers=headers)
+    assert actual.status_code == expected.status_code
+    if expected.content:
+        assert actual.json() == expected.json()
+        assert actual.headers["content-type"] == expected.headers["content-type"]
+    else:
+        assert actual.content == b""
+
+
 def test_http_schema_snapshot(upstream):
     from tsunagi.http.compat.request_validation import REQUEST_SCHEMA
 

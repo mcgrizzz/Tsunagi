@@ -127,7 +127,7 @@ A return is not proof of success or upstream parity: it can be false, an embedde
 | `updateNoteFields` | 9 | 1 | [test_compat_notes.py](../tests/test_compat_notes.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 | `updateNoteModel` | 1 | 1 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
 | `updateNoteTags` | 2 | 3 | [test_compat_note_tags.py](../tests/test_compat_note_tags.py) | — |
-| `version` | 100 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_parity_history.py](../tests/test_parity_history.py), [test_shim_nested_requests.py](../tests/test_shim_nested_requests.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
+| `version` | 108 | 0 | [test_compat_actions.py](../tests/test_compat_actions.py), [test_compat_dispatcher.py](../tests/test_compat_dispatcher.py), [test_compat_http_bodies.py](../tests/test_compat_http_bodies.py), [test_parity_history.py](../tests/test_parity_history.py), [test_shim_nested_requests.py](../tests/test_shim_nested_requests.py), [test_upstream_differential.py](../tests/test_upstream_differential.py) | — |
 
 ## Dispatcher-only actions
 

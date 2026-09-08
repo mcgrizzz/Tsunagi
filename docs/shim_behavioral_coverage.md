@@ -10,7 +10,7 @@ The [history audit](parity_history_audit.md) records source and commit-history f
 The [action inventory](ankiconnect_parity.md) records implementations and known deviations;
 “implemented” does not mean behaviorally equivalent.
 
-## Measured coverage, 2026-09-07
+## Measured coverage, 2026-09-08
 
 An opt-in pytest recorder now measures calls reaching the compatibility registry.
 The initial full run observed **97 of 120 registered handlers**. `multi` and
@@ -23,12 +23,16 @@ an extra response key, and parameter-validation error differences. The updated
 [122-action matrix](shim_coverage_matrix.md) provides per-action evidence and links
 to test files. It includes uncommon and undocumented actions.
 
-Latest run: **99/120 registered handlers observed; 1568 tests passed, 8 skipped,
-one expected failure** on the Anki 23.10 test environment, including 648 passing
+Latest run: **99/120 registered handlers observed; 1669 tests passed, 8 skipped,
+one expected failure** on the Anki 23.10 test environment, including 738 passing
 upstream comparisons and the default local-path gate mismatch. Differential
 behavioral calls reach 69 registered handlers. Argument-name rejection checks
 separately cover all 122 action names, without executing their bodies; these do
 not expand the registry execution count or prove GUI/lifecycle parity.
+The raw HTTP-body batch adds 90 differential cases and 11 standalone regressions:
+empty-body discovery, exact JSON/UTF-8 errors and origin rejection now match the
+tested upstream boundaries. Its live check is pending one reload. Full CORS/header,
+preflight, fragmented-request and concurrency equivalence remain unverified.
 The original model/scheduler pass added 38 differential cases and five
 standalone regressions, including a native field-rename rendering check. Ruff passes
 for the changed Python files. After reload, read-only live checks passed for the
@@ -86,7 +90,7 @@ upstream behavior on the same Anki version before reproducing an obsolete quirk.
 | 2 | Scheduling edge cases | Empty-history errors and suspension list iteration now match, with comparisons for duplicate/missing IDs, mixed new/review/learning queues, buried/suspended cards and negative learning intervals. Extend filtered-deck, FSRS, day-learning/relearning, boundary and legacy-state coverage. |
 | 2 | Model mutation | Existing-template cache-only edits, empty template-update saves, field-rename rendering, unmatched replacement saves and creation errors now match tested cases. Extend modification-time, card generation/deletion, field/template ordinal, creation/cloze edge cases and model-conversion comparisons. |
 | 2 | GUI transitions and collection lifecycle | `guiDeckReview` avoids upstream's overview transition; `sync` omits an obsolete `mw.onSync()` call. Compare observable behavior on supported Anki versions, including focus, completion timing and errors. |
-| 3 | Transport and browser permission | Compare HTTP status/body/headers, API-version envelopes, nested multi/key handling, empty and fragmented requests, UTF-8 byte lengths, CORS/Origin permission persistence and concurrent requests. Existing tests establish local behavior, not equality with upstream's web server. |
+| 3 | Transport and browser permission | Raw-body comparisons now cover status, decoded JSON/exact errors, empty 403 bytes and JSON Content-Type for empty/malformed/valid bodies across absent, allowed, denied and empty origins. Extend all CORS/transport headers, preflights, fragmented requests, UTF-8 byte lengths, permission persistence and concurrent requests; the reference wrapper runs without a socket. |
 
 Priorities order the work; none removes an action from scope. Exact errors and
 side effects belong to the compatibility contract even when the behavior is rare.

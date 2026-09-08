@@ -314,6 +314,41 @@ empty parent and leaf deck were removed and their absence verified. No further r
 is pending for this batch. Live dialog, permission persistence and Qt/undo behavior
 remain outside these checks.
 
+## Malformed JSON and empty HTTP bodies, 2026-09-08
+
+Added **90 differential cases** against the unchanged upstream HTTP wrapper:
+18 raw byte payloads across absent, localhost, extension, denied and explicitly
+empty origins. Before the fix, **63 failed and 27 passed**; all 90 now pass.
+The harness accepts raw bytes and request headers and exposes response status,
+headers and bytes, while retaining its existing decoded-payload convenience API.
+
+Allowed empty POST bodies return `{"apiVersion":"AnkiConnect v.6"}`. Whitespace
+is not empty. Malformed JSON, multiline/trailing-data errors, control characters,
+invalid UTF-8, UTF-8 BOMs and UTF-16 bodies retain upstream's exact decoder errors.
+Decoding explicitly uses UTF-8 rather than Python's byte-input encoding detection.
+Denied origins receive an empty 403 even for decoding/schema failures; malformed
+`requestPermission` requests cannot bypass that gate. Valid JSON and Unicode
+payloads are included as controls. All production changes are confined to the
+compatibility POST endpoint; native root GET still redirects to `/docs`.
+
+Eleven standalone regressions cover discovery, exact errors, origin rejection,
+Content-Type/charset independence and native root GET. Full suite: **1669 passed,
+8 skipped, 1 xfailed** on Anki 23.10 / Python 3.12.12. The differential file has
+**739 cases: 738 passed, 1 xfailed**. Observed handler counts remain **69** for
+differential calls and **99/120** overall. Ruff and whitespace checks pass.
+Artifacts: `/tmp/tsunagi-http-bodies-full.xml` and
+`/tmp/tsunagi-http-bodies-coverage.json`.
+
+These cases compare status, decoded JSON (including exact errors), empty response
+bytes and JSON Content-Type. They do not establish equality of all CORS/transport
+headers, JSON whitespace, preflights, fragmented socket requests or concurrency.
+The original upstream wrapper runs without a listening socket.
+
+Live verification is pending one reload of this batch. The read-only script
+`/tmp/tsunagi-http-bodies-live.py` checks 26 cases without creating fixtures,
+opening permission dialogs or changing settings. Before sync/reload, live Anki
+returned the old generic JSON error for an empty POST.
+
 ## Method and limits
 
 [upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
@@ -331,8 +366,9 @@ media file contents/deletion. Native Anki collection methods use the real Rust
 backend. Each case starts from freshly seeded and cloned collections. No live user
 collection is opened by this suite.
 
-The request-shape cases also compare the original HTTP wrapper against Tsunagi's
-HTTP endpoint. These are not socket-transport, browser permission or real Qt tests.
+The request-shape and raw-body cases also compare the original HTTP wrapper
+against Tsunagi's HTTP endpoint. Raw-body cases use stateless actions and do not
+need cloned collections. These are not socket-transport, browser permission or real Qt tests.
 The fake main window and suppressed edit notifications
 cannot prove GUI undo, refresh, focus or dialog behavior. Backend undo/redo has
 separate comparisons described above. This run does not establish
