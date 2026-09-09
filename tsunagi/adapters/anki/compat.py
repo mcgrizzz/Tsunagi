@@ -322,3 +322,105 @@ def update_model_raw(col, spec, *, templates=False):
         return ValueWithChanges(None, col.models.update_dict(model))
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+def _legacy_field_changes():
+    """The legacy saving methods discard the backend's change report."""
+    from anki.collection import OpChanges
+
+    return OpChanges(notetype=True, note=True, card=True, browser_table=True,
+                     browser_sidebar=True, note_text=True, study_queues=True, mtime=True)
+
+
+@as_collection_op
+def mutate_model_field_raw(col, model_name, action, name, value=None, index=None):
+    """Follow the model manager's legacy field operations and save order."""
+    changed = False
+    try:
+        models = col.models
+        model = models.by_name(model_name)
+        if model is None:
+            raise ValueError(f"model was not found: {model_name}")
+        result = None
+        if action == "add":
+            field_map = models.field_map(model)
+            if name not in field_map:
+                models.addField(model, models.new_field(name))
+                changed = True
+            if index is not None:
+                field = models.field_map(model)[name][1]
+                models.reposition_field(model, field, index)
+        else:
+            match = models.field_map(model).get(name)
+            if match is None:
+                raise ValueError(f"field was not found in {model_name}: {name}")
+            field = match[1]
+            if action == "rename":
+                models.renameField(model, field, value)
+                changed = True
+            elif action == "reposition":
+                models.reposition_field(model, field, index)
+            elif action == "remove":
+                models.remove_field(model, field)
+            elif action == "font":
+                if not isinstance(value, str):
+                    raise ValueError(f"font should be a string: {value}")
+                field["font"] = value
+            elif action == "size":
+                if not isinstance(value, int):
+                    raise ValueError(f"fontSize should be an integer: {value}")
+                field["size"] = value
+            elif action == "description":
+                if not isinstance(value, str):
+                    raise ValueError(f"description should be a string: {value}")
+                if "description" not in field:
+                    return (False, None)
+                field["description"] = value
+                result = True
+            else:
+                raise ValueError(f"unknown field operation: {action}")
+        changes = models.update_dict(model)
+        if changed:
+            # Legacy helpers save internally and discard their OpChanges. Include
+            # their structural effects even when the final save is a no-op.
+            changes.MergeFrom(_legacy_field_changes())
+        return ValueWithChanges((result, None), changes)
+    except Exception as exc:
+        result = (None, str(exc))
+        if changed:
+            return ValueWithChanges(result, _legacy_field_changes())
+        return result
+
+
+@as_collection_op
+def mutate_model_template_raw(col, model_name, action, name=None, value=None, index=None, spec=None):
+    """Preserve raw template values and upstream's unsaved existing-template path."""
+    try:
+        models = col.models
+        model = models.by_name(model_name)
+        if model is None:
+            raise ValueError(f"model was not found: {model_name}")
+        if action == "add":
+            name, front, back = spec["Name"], spec["Front"], spec["Back"]
+            for template in model["tmpls"]:
+                if template["name"] == name:
+                    template["qfmt"], template["afmt"] = front, back
+                    return (None, None)
+            template = models.new_template(name)
+            template["qfmt"], template["afmt"] = front, back
+            models.add_template(model, template)
+        else:
+            template = next((t for t in model["tmpls"] if t["name"] == name), None)
+            if template is None:
+                raise ValueError(f"template was not found in {model_name}: {name}")
+            if action == "rename":
+                template["name"] = value
+            elif action == "reposition":
+                models.reposition_template(model, template, index)
+            elif action == "remove":
+                models.remove_template(model, template)
+            else:
+                raise ValueError(f"unknown template operation: {action}")
+        return ValueWithChanges((None, None), models.update_dict(model))
+    except Exception as exc:
+        return (None, str(exc))
