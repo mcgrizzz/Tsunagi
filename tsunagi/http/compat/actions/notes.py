@@ -42,41 +42,16 @@ from ..errors import (
 from ..registry import registry
 
 
-class NoteSpec(BaseModel):
-    class Config:
-        smart_union = True
-
-    deckName: str
-    modelName: str
-    fields: Dict[str, str]
-    tags: List[str] = []
-    options: Any = None
-    audio: Any = None
-    video: Any = None
-    picture: Any = None
-
-
-class NoteUpdateSpec(BaseModel):
-    class Config:
-        smart_union = True
-
-    id: Any = None
-    fields: Any = None
-    audio: Any = None
-    video: Any = None
-    picture: Any = None
-
-
 class AddNoteParams(BaseModel):
-    note: NoteSpec
+    note: Any = ...
 
 
 class AddNotesParams(BaseModel):
-    notes: List[NoteSpec]
+    notes: Any = ...
 
 
 class UpdateNoteFieldsParams(BaseModel):
-    note: NoteUpdateSpec
+    note: Any = ...
 
 
 class NotesInfoParams(BaseModel):
@@ -119,7 +94,7 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
 
     out: List[Dict[str, Any]] = []
     for kind in ("audio", "video", "picture"):
-        for media in _as_list(getattr(spec, kind, None)):
+        for media in _as_list(spec.get(kind) if isinstance(spec, dict) else None):
             entry: Dict[str, Any] = {
                 "kind": kind, "markup": _MARKUP[kind], "data": None, "error": None,
             }
@@ -167,18 +142,16 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
 @registry.register("addNote", params=AddNoteParams)
 def ac_addNote(p: AddNoteParams) -> int:
     spec = p.note
-    return ac_add_note(spec.deckName, spec.modelName, spec.fields, spec.tags,
-                       (spec.options if "options" in spec.__fields_set__ else {}), _resolve_media(spec))
+    return ac_add_note(spec, _resolve_media(spec))
 
 
 @registry.register("addNotes", params=AddNotesParams)
 def ac_addNotes(p: AddNotesParams) -> List[int]:
     created: List[int] = []
     errors: List[str] = []
-    for spec in p.notes:
+    for spec in _iter_notes(p.notes):
         try:
-            created.append(ac_add_note(spec.deckName, spec.modelName, spec.fields,
-                                       spec.tags, (spec.options if "options" in spec.__fields_set__ else {}), _resolve_media(spec)))
+            created.append(ac_add_note(spec, _resolve_media(spec)))
         except Exception as e:
             errors.append(str(e))
     if errors:
@@ -191,26 +164,32 @@ def ac_addNotes(p: AddNotesParams) -> List[int]:
 
 @registry.register("canAddNotes", params=AddNotesParams)
 def ac_canAddNotes(p: AddNotesParams) -> List[bool]:
-    return [ok for ok, _err in (_can_add(spec) for spec in p.notes)]
+    return [ok for ok, _err in (_can_add(spec) for spec in _iter_notes(p.notes))]
 
 
 @registry.register("canAddNotesWithErrorDetail", params=AddNotesParams)
 def ac_canAddNotesWithErrorDetail(p: AddNotesParams) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    for spec in p.notes:
+    for spec in _iter_notes(p.notes):
         ok, err = _can_add(spec)
         # Success has NO "error" key
         out.append({"canAdd": True} if ok else {"canAdd": False, "error": err})
     return out
 
 
-def _can_add(spec: NoteSpec):
+def _iter_notes(notes):
+    try:
+        return iter(notes)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def _can_add(spec):
     """(can_add, error_string). Never raises - one entry per input note."""
     try:
         # Canonical probes prepare media before duplicate/empty checks, even
         # though they never insert the prepared note into the collection.
-        ac_check_note(spec.deckName, spec.modelName, spec.fields, (spec.options if "options" in spec.__fields_set__ else {}),
-                      _resolve_media(spec))
+        ac_check_note(spec, _resolve_media(spec))
         return True, None
     except Exception as e:
         return False, str(e)
@@ -219,10 +198,12 @@ def _can_add(spec: NoteSpec):
 @registry.register("updateNoteFields", params=UpdateNoteFieldsParams)
 def ac_updateNoteFields(p: UpdateNoteFieldsParams) -> None:
     spec = p.note
-    if "id" not in spec.__fields_set__:
-        raise ValueError("'id'")
-    ac_update_note_fields(spec.id, spec.fields, _resolve_media(spec),
-                          fields_missing="fields" not in spec.__fields_set__)
+    try:
+        note_id = spec["id"]
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+    ac_update_note_fields(note_id, spec.get("fields"), _resolve_media(spec),
+                          fields_missing="fields" not in spec)
     return None
 
 
@@ -338,32 +319,12 @@ def ac_notesModTime(p: NotesLookupParams) -> List[Dict[str, Any]]:
     return [item if item["mod"] is not None else {} for item in notes_mod_times(ids)]
 
 
-class NoteUpdateAnyParams(BaseModel):
-    """updateNote's payload: presence of a key is what dispatches."""
-    class Config:
-        extra = "allow"
-
-    id: Any = None
-    fields: Any = None
-    tags: Any = None
-    audio: Any = None
-    video: Any = None
-    picture: Any = None
-
-
 class UpdateNoteParams(BaseModel):
-    note: NoteUpdateAnyParams
-
-
-class UpdateNoteModelSpec(BaseModel):
-    id: Any = None
-    modelName: Any = None
-    fields: Any = None
-    tags: Any = None
+    note: Any = ...
 
 
 class UpdateNoteModelParams(BaseModel):
-    note: UpdateNoteModelSpec
+    note: Any = ...
 
 
 class NoteIdParams(BaseModel):
@@ -402,26 +363,25 @@ def ac_canAddNoteWithErrorDetail(p: AddNoteParams) -> Dict[str, Any]:
 @registry.register("updateNote", params=UpdateNoteParams)
 def ac_updateNote(p: UpdateNoteParams) -> None:
     spec = p.note
-    updated = False
-    if "fields" in spec.__fields_set__:
-        if "id" not in spec.__fields_set__:
-            raise ValueError("'id'")
-        ac_update_note_fields(spec.id, spec.fields, _resolve_media(spec))
-        updated = True
-    if "tags" in spec.__fields_set__:
-        if "id" not in spec.__fields_set__:
-            raise ValueError("'id'")
-        _set_note_tags(spec.id, spec.tags)
-        updated = True
-    if not updated:
-        raise ValueError(NOTE_UPDATE_NO_INPUT)
+    try:
+        updated = False
+        if "fields" in spec.keys():
+            ac_update_note_fields(spec["id"], spec["fields"], _resolve_media(spec))
+            updated = True
+        if "tags" in spec.keys():
+            _set_note_tags(spec["id"], spec["tags"])
+            updated = True
+        if not updated:
+            raise ValueError(NOTE_UPDATE_NO_INPUT)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @registry.register("updateNoteModel", params=UpdateNoteModelParams)
 def ac_updateNoteModel(p: UpdateNoteModelParams) -> None:
     from ....adapters.anki.compat import update_note_model_raw
 
-    update_note_model_raw(p.note.dict(exclude_unset=True))
+    update_note_model_raw(p.note)
 
 
 def _set_note_tags(note_id: int, tags: Any) -> None:
