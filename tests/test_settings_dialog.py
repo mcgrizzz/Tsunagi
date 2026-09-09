@@ -285,13 +285,14 @@ class TestAnkiConnectPortHandover:
     def test_explicit_import_copies_port_and_enables_tsunagi(self):
         from tsunagi.adapters.dialogs import ankiconnect_import_changes
 
-        cfg = {"enabled": False, "port": 7777}
+        cfg = {"enabled": False, "port": 7777, "prefer_port": 7777}
         ac = {"webBindPort": 8765}
         assert "port" not in ankiconnect_import_changes(cfg, ac)
+        assert "prefer_port" not in ankiconnect_import_changes(cfg, ac)
         changes = ankiconnect_import_changes(cfg, ac, include_port=True)
-        assert changes["port"] == 8765
+        assert changes["port"] == changes["prefer_port"] == 8765
         assert changes["enabled"] is True
-        assert cfg == {"enabled": False, "port": 7777}
+        assert cfg == {"enabled": False, "port": 7777, "prefer_port": 7777}
 
     def test_invalid_import_port_is_rejected_before_form_clamping(self):
         import pytest
