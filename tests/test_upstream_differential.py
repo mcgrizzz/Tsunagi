@@ -5,6 +5,7 @@ TSUNAGI_ANKICONNECT_CHECKOUT=/path/to/pinned/checkout python -m pytest -q tests/
 
 import base64
 import copy
+import gzip
 import hashlib
 import json
 import os
@@ -319,13 +320,32 @@ def media_url():
             if "disconnect" in query:
                 self.connection.close()
                 return
+            fault = query.get("fault", [""])[0]
+            if fault == "redirect-loop":
+                self.send_response(302)
+                self.send_header("Location", self.path)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             status = int(query.get("status", ["200"])[0])
             self.send_response(status)
-            if status in (301, 302, 307, 308):
+            if status in (301, 302, 303, 307, 308):
                 self.send_header("Location", "/media")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
+            if fault in ("gzip", "invalid-gzip"):
+                self.send_header("Content-Encoding", "gzip")
+                payload = gzip.compress(payload) if fault == "gzip" else b"not gzip data"
+            if fault == "empty":
+                payload = b""
+            if fault == "chunked-truncated":
+                self.send_header("Transfer-Encoding", "chunked")
+                self.end_headers()
+                self.wfile.write(b"10\r\nshort")
+            else:
+                length = len(payload) + (10 if fault == "truncated" else 0)
+                self.send_header("Content-Length", str(length))
+                self.end_headers()
+                self.wfile.write(payload)
+            self.close_connection = True
 
         def log_message(self, *args):
             pass
@@ -346,7 +366,7 @@ def test_media_url(pair, media_url):
     assert media_state(pair[0]) == media_state(pair[1]) == {"from-url.txt": b"local HTTP media payload"}
 
 
-@pytest.mark.parametrize("status", [200, 201, 202, 204, 206, 301, 302, 307, 308, 400, 403, 404, 429, 500])
+@pytest.mark.parametrize("status", [200, 201, 202, 204, 206, 301, 302, 303, 307, 308, 400, 403, 404, 429, 500])
 @pytest.mark.parametrize("action", ["storeMediaFile", "updateNoteFields", "canAddNote"])
 def test_media_http_status_and_nested_errors(pair, media_url, status, action):
     for collection in pair[:2]:
@@ -363,8 +383,32 @@ def test_media_http_status_and_nested_errors(pair, media_url, status, action):
                            "audio": {**media, "fields": ["Back"]}}}
     compare(pair, action, params)
     assert_note_and_media_state(pair)
-    expected = b"local HTTP media payload" if status in (200, 301, 302, 307, 308) else b"original"
+    expected = b"local HTTP media payload" if status in (200, 301, 302, 303, 307, 308) else b"original"
     assert media_state(pair[0]) == {"status.mp3": expected}
+
+
+@pytest.mark.parametrize("fault", [
+    "truncated", "chunked-truncated", "invalid-gzip", "redirect-loop", "gzip", "empty",
+])
+@pytest.mark.parametrize("action", ["storeMediaFile", "updateNoteFields", "canAddNote"])
+def test_media_transport_edges_preserve_collection_state(pair, media_url, fault, action):
+    for collection in pair[:2]:
+        collection.media.write_data("transport.mp3", b"original")
+    media = {"filename": "transport.mp3", "url": f"{media_url}?fault={fault}",
+             "deleteExisting": True}
+    if action == "storeMediaFile":
+        params = media
+    elif action == "updateNoteFields":
+        params = {"note": {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"},
+                           "audio": {**media, "fields": ["Back"]}}}
+    else:
+        params = {"note": {"deckName": "Default", "modelName": "Basic",
+                           "fields": {"Front": "transport probe", "Back": "back"},
+                           "audio": {**media, "fields": ["Back"]}}}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+    expected = {"gzip": b"local HTTP media payload", "empty": b""}.get(fault, b"original")
+    assert media_state(pair[0]) == {"transport.mp3": expected}
 
 
 def assert_media_url_failure(pair, url, action):
