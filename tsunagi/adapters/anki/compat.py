@@ -182,3 +182,32 @@ def reviews_for_raw_ids(col, ids):
         return {cid: reviews.get(cid, []) for cid in ids}
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def set_raw_ease_factors(col, cards, factors):
+    """Apply legacy entries in order, reporting prior writes even if one fails.
+
+    AnkiConnect skips undo entries, which also clears existing undo history.
+    The native ease-factor writer intentionally keeps its own undo behavior.
+    """
+    result = []
+    changes = None
+    error = None
+    try:
+        for index, cid in enumerate(cards):
+            try:
+                card = col.get_card(cid)
+            except Exception as exc:
+                if type(exc).__name__ != "NotFoundError":
+                    raise
+                result.append(False)
+                continue
+            card.factor = factors[index]
+            changes = col.update_card(card, skip_undo_entry=True)
+            result.append(True)
+    except Exception as exc:
+        error = str(exc)
+    # Let the operation publish earlier writes before the handler raises.
+    value = (result, error)
+    return ValueWithChanges(value, changes) if changes is not None else value

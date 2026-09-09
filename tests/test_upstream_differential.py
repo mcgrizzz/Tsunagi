@@ -745,6 +745,75 @@ def test_scheduler_mutations(pair, action, extra, review_cards):
     assert_mutation_state(pair)
 
 
+@pytest.mark.parametrize("layout", ["present", "missing-first", "missing-only", "empty"])
+@pytest.mark.parametrize("factors", [
+    None, False, True, 0, 1.5, "", "2700", {}, {"0": 2700}, [], [2700],
+    [2700, None, 2800], [2700, False, 2800], [2700, 2500.5, 2800],
+    [2700, "2500", 2800], [2700, [], 2800], [2700, {}, 2800],
+    [2700, -1, 2800], [2700, 2**32, 2800],
+])
+def test_set_ease_factor_values_and_partial_writes(pair, layout, factors):
+    cards = list(pair[0].find_cards(""))
+    missing = 9999999999999
+    ids = {"present": cards, "missing-first": [missing, *cards[:2]],
+           "missing-only": [missing], "empty": []}[layout]
+    compare(pair, "setEaseFactors", {"cards": ids, "easeFactors": factors})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", [
+    "null", "false", "scalar", "text", "empty-map", "map", "string-id",
+    "float-id", "boolean-id", "null-id", "nested-id",
+])
+def test_set_ease_card_values_and_partial_writes(pair, case):
+    cards = list(pair[0].find_cards(""))
+    ids = {
+        "null": None, "false": False, "scalar": cards[0], "text": "invalid",
+        "empty-map": {}, "map": {str(cards[0]): True},
+        "string-id": [cards[0], str(cards[1]), cards[2]],
+        "float-id": [cards[0], float(cards[1]), cards[2]],
+        "boolean-id": [cards[0], True, cards[2]],
+        "null-id": [cards[0], None, cards[2]],
+        "nested-id": [cards[0], [], cards[2]],
+    }[case]
+    compare(pair, "setEaseFactors", {"cards": ids, "easeFactors": [2700, 2600, 2800]})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", [
+    "native-success", "ignored-suffix", "late-failure", "empty", "missing-only", "early-failure",
+])
+def test_set_ease_undo_matches_upstream(pair, case):
+    cards = list(pair[0].find_cards(""))
+    seed_id = cards[0]
+    factors = [2700, 2800, 2900]
+    if case == "ignored-suffix":
+        cards = cards[:2]
+        factors[-1] = "unused"
+    elif case == "late-failure":
+        factors[1] = "invalid"
+    elif case == "empty":
+        cards = []
+    elif case == "missing-only":
+        cards = [9999999999999]
+    elif case == "early-failure":
+        factors[0] = "invalid"
+    for collection in pair[:2]:
+        card = collection.get_card(seed_id)
+        card.factor = 2500
+        collection.update_card(card)
+        assert collection.undo_status().undo
+    before = [collection.undo_status() for collection in pair[:2]]
+    compare(pair, "setEaseFactors", {"cards": cards, "easeFactors": factors})
+    assert_mutation_state(pair)
+    if case in ("empty", "missing-only", "early-failure"):
+        for collection, status in zip(pair[:2], before):
+            assert collection.undo_status() == status
+    else:
+        assert pair[0].undo_status() == pair[1].undo_status()
+        assert not pair[1].undo_status().undo
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)
