@@ -81,7 +81,11 @@ class DynamicCORSMiddleware:
         if origin is None:  # not a cross-origin browser request
             return await self.app(scope, receive, send)
 
-        allowed = self.settings.is_origin_allowed(origin)
+        # Browser POSTs from our own API reference carry Origin too. They are
+        # same-origin requests; the external-site allowlist does not apply.
+        host = headers.get("host")
+        same_origin = bool(host) and origin == f"{scope.get('scheme', 'http')}://{host}"
+        allowed = same_origin or self.settings.is_origin_allowed(origin)
         is_compat_root = scope["path"] == "/"
 
         # Preflight

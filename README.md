@@ -118,9 +118,9 @@ Dependencies are bundled with the addon. All dependencies are pure-Python (Pydan
 
 Default base URL: `http://127.0.0.1:7777`
 
-Open the base URL for the [API playground](docs/playground.md): guided read
-workflows with editable parameters and visible requests and responses. The full
-reference remains at `/docs` (Swagger) and `/redoc`.
+Open the base URL for the [Scalar API reference and playground](docs/playground.md):
+searchable endpoints, schemas, code examples and an interactive request console.
+Swagger remains at `/docs` and ReDoc at `/redoc`.
 
 ```bash
 # List all models (Anki “note types”)

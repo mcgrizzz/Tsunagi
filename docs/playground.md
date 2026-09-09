@@ -1,53 +1,41 @@
-# API playground
+# API reference and playground
 
-Open Tsunagi's base URL (by default `http://127.0.0.1:7777/`) in a browser while
-Anki is running. Start with **Find notes**:
+Open Tsunagi's base URL (by default `http://127.0.0.1:7777/`) to use the
+[Scalar API reference](https://scalar.com/products/api-references/integrations/html-js).
+It reads the running server's `/openapi.json`, so endpoint navigation, parameter
+and body schemas, response schemas and client code examples follow the API.
 
-1. Enter an Anki search, such as `tag:verb`, or leave it blank to browse notes.
-2. Choose **Find notes** to see a page of results.
-3. Choose **Show cards** beside a note to query its cards automatically.
-4. Choose **Load next page** below the results to continue the current query.
+Select an endpoint in the sidebar or search for it. Choose **Test Request** to
+open the console, edit query parameters or a JSON body, and send the request.
+The console shows the actual response and HTTP status. Requests go directly to
+the host and port of the page. Begin with a health check or a notes query with a
+small limit. Write operations change the current Anki collection.
 
-The task picker also offers cards, decks, note types, review history, server
-status, supported features, collection settings and other JSON read operations.
-See [capabilities](capabilities.md) for the difference between FSRS support and
-whether FSRS is enabled.
+If an API key is configured, enter it in Scalar's **Authentication** control.
+Native endpoints accept either `X-API-Key` or a Bearer token. Credentials are not
+persisted across page reloads. The public health route does not require a key;
+AnkiConnect RPC at `POST /` uses the `key` field in its JSON body.
 
-Search and page size appear first. **Advanced query options** contains field
-selection, filters, response format and cursors. Array parameters such as field
-filters accept one value per line. Queries start with 10 results per page;
-changing a filter clears the cursor. Search example buttons fill the search
-without sending it.
-
-Results appear as rows with a short content preview. Expand **Full JSON
-response** to see every returned field. **Request details** previews the current
-form's URL and headers; **Request that produced these results** records the
-request associated with the displayed response. Switching tasks clears the old
-results. HTTP status and elapsed time appear above the results.
-
-If authentication is enabled, open **API key (if required)** and enter your key.
-It is sent in the `X-API-Key` header, redacted from displayed requests and kept
-only until this page closes or reloads. A 401 response opens the key field.
-Requests can be cancelled and time out after 30 seconds. Opening the page only
-loads the schema; it does not query or change collection data.
-
-Operations, parameter descriptions, required fields, types and defaults come
-from the running server's `/openapi.json`. Reload the page after updating the
-add-on to load its new schema. Requests use the page's host and port. Swagger at
-`/docs` and ReDoc at `/redoc` provide the complete API, including writes, streaming
-and file downloads.
+The overview explains notes, cards, models, queries, pagination and capabilities.
+Swagger remains at `/docs`, ReDoc at `/redoc`, and the schema at `/openapi.json`.
+The Scalar browser bundle is pinned to version 1.68.0 and loaded from jsDelivr;
+it requires internet access unless already cached. If it cannot load, reference
+links remain visible. No Scalar proxy is configured; AI features and telemetry
+are disabled.
 
 ## Browser verification
 
-The optional browser check uses Chromium with disposable responses and the
-application's generated OpenAPI schema. It checks search encoding, repeated
-filters, pagination, required paths, authentication errors, cancellation,
-schema changes, text rendering and a narrow viewport.
+The optional Chromium check exercises the real Scalar bundle with the
+application's generated schema and disposable responses: editable GET parameters,
+POST JSON bodies, authentication, response display, the current server address,
+credential reset, narrow layout and a blocked-CDN fallback.
 
-Install Playwright and its Chromium browser in a separate Python environment,
-then run the tests from an environment with Tsunagi's normal test dependencies:
+Install Playwright and Chromium in a separate Python environment, then run:
 
 ```sh
 TSUNAGI_BROWSER_PYTHON=/path/to/browser-env/bin/python \
   python -m pytest -q tests/test_compat_downloads.py tests/test_playground.py
 ```
+
+For an offline browser test, set `TSUNAGI_SCALAR_BUNDLE` to a downloaded copy of
+the pinned standalone bundle. The production page still loads the pinned CDN URL.
