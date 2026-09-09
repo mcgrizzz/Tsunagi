@@ -211,3 +211,14 @@ def set_raw_ease_factors(col, cards, factors):
     # Let the operation publish earlier writes before the handler raises.
     value = (result, error)
     return ValueWithChanges(value, changes) if changes is not None else value
+
+
+@as_query_op
+def note_tags(col, note_id):
+    """Read legacy tags without coercing the note ID or losing lookup errors."""
+    try:
+        return list(col.get_note(note_id).tags)
+    except Exception as exc:
+        if type(exc).__name__ == "NotFoundError":
+            raise ValueError(f"Note was not found: {note_id}") from exc
+        raise ValueError(str(exc)) from exc
