@@ -1,34 +1,41 @@
 # API playground
 
 Open Tsunagi's base URL (by default `http://127.0.0.1:7777/`) in a browser while
-Anki is running. The landing page offers guided, editable read workflows:
+Anki is running. Start with **Find notes**:
 
-- **Check runtime and capabilities:** inspect versions, supported FSRS operations
-  and collection settings. Capability support and FSRS enablement are separate;
-  see [capabilities](capabilities.md) before choosing an FSRS operation.
-- **Find notes and their cards:** search notes with Anki syntax, then copy a note
-  ID into the card search as `nid:<ID>`.
-- **Browse collection data:** inspect decks, note types, cards and review history.
-- **Explore all JSON read operations:** choose another JSON GET operation,
-  including job status and GUI state. Streaming and file download endpoints are
-  available through the API reference.
+1. Enter an Anki search, such as `tag:verb`, or leave it blank to browse notes.
+2. Choose **Find notes** to see a page of results.
+3. Choose **Show cards** beside a note to query its cards automatically.
+4. Choose **Load next page** below the results to continue the current query.
 
-Choose a step, edit the parameters, then select **Send request**. Nothing runs
-automatically except loading the OpenAPI schema. The page displays the request
-URL and headers, HTTP status, elapsed time and response body. The response keeps
-its own request snapshot when you change the form. API keys are sent in the
-`X-API-Key` header, redacted from displayed requests and kept only in page memory.
+The task picker also offers cards, decks, note types, review history, server
+status, supported features, collection settings and other JSON read operations.
+See [capabilities](capabilities.md) for the difference between FSRS support and
+whether FSRS is enabled.
 
-Collection queries start with a limit of 10. Array parameters such as `where`
-accept one value per line. **Next page** uses the returned cursor with the same
-query; changing a filter clears the cursor. **Next step** selects the next
-operation without sending it. Requests can be cancelled and time out after 30
-seconds.
+Search and page size appear first. **Advanced query options** contains field
+selection, filters, response format and cursors. Array parameters such as field
+filters accept one value per line. Queries start with 10 results per page;
+changing a filter clears the cursor. Search example buttons fill the search
+without sending it.
+
+Results appear as rows with a short content preview. Expand **Full JSON
+response** to see every returned field. **Request details** previews the current
+form's URL and headers; **Request that produced these results** records the
+request associated with the displayed response. Switching tasks clears the old
+results. HTTP status and elapsed time appear above the results.
+
+If authentication is enabled, open **API key (if required)** and enter your key.
+It is sent in the `X-API-Key` header, redacted from displayed requests and kept
+only until this page closes or reloads. A 401 response opens the key field.
+Requests can be cancelled and time out after 30 seconds. Opening the page only
+loads the schema; it does not query or change collection data.
 
 Operations, parameter descriptions, required fields, types and defaults come
 from the running server's `/openapi.json`. Reload the page after updating the
 add-on to load its new schema. Requests use the page's host and port. Swagger at
-`/docs` and ReDoc at `/redoc` remain available for the full API, including writes.
+`/docs` and ReDoc at `/redoc` provide the complete API, including writes, streaming
+and file downloads.
 
 ## Browser verification
 
