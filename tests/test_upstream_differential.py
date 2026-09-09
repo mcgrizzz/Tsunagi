@@ -885,6 +885,56 @@ def test_update_note_fields_precede_tag_validation(pair, tags):
         assert collection.get_note(nid)["Back"] == "saved before tags"
 
 
+@pytest.mark.parametrize("action", ["addTags", "removeTags"])
+@pytest.mark.parametrize("case", [
+    "null", "false", "scalar", "string", "text", "empty-list", "empty-map", "map",
+    "string-list", "float-list", "boolean-list", "null-list", "nested-list", "mixed", "missing",
+])
+def test_bulk_tag_note_values(pair, action, case):
+    notes = list(pair[0].find_notes(""))
+    value = {
+        "null": None, "false": False, "scalar": notes[0], "string": str(notes[0]),
+        "text": "invalid", "empty-list": [], "empty-map": {}, "map": {str(notes[0]): True},
+        "string-list": [str(notes[0])], "float-list": [float(notes[0])],
+        "boolean-list": [True, False], "null-list": [None], "nested-list": [[]],
+        "mixed": [notes[0], "invalid", notes[-1]], "missing": [9999999999999],
+    }[case]
+    before = mutation_state(pair[0])
+    compare(pair, action, {"notes": value, "tags": "root::child fresh"})
+    assert_mutation_state(pair)
+    if case == "mixed":
+        assert mutation_state(pair[0]) == before
+
+
+@pytest.mark.parametrize("action", ["addTags", "removeTags"])
+@pytest.mark.parametrize("layout", ["present", "empty", "missing"])
+@pytest.mark.parametrize("tags", [None, False, 123, 1.5, [], ["tag"], {}, "", "one two", " a\tb ", "日本語", "root::*"])
+def test_bulk_tag_value_types(pair, action, layout, tags):
+    notes = list(pair[0].find_notes(""))
+    ids = {"present": notes, "empty": [], "missing": [9999999999999]}[layout]
+    compare(pair, action, {"notes": ids, "tags": tags})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("add", [None, False, True, 0, 1, "", "false", "0", [], [1], {}, {"enabled": False}])
+def test_bulk_tag_add_flag_truthiness(pair, add):
+    compare(pair, "addTags", {"notes": list(pair[0].find_notes("")),
+                             "tags": "root::child fresh", "add": add})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["addTags", "removeTags"])
+def test_bulk_tag_undo_redo(pair, action):
+    compare(pair, action, {"notes": list(pair[0].find_notes("")), "tags": "root::child fresh"})
+    assert_mutation_state(pair)
+    for collection in pair[:2]:
+        collection.undo()
+    assert_mutation_state(pair)
+    for collection in pair[:2]:
+        collection.redo()
+    assert_mutation_state(pair)
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)
