@@ -21,7 +21,12 @@ from .http.compat.ankiconnect import (
     handle_ankiconnect_rpc,
     origin_allowed_for,
 )
-from .http.middleware import ApiKeyAuthMiddleware, DynamicCORSMiddleware
+from .http.middleware import (
+    AUTH_EXEMPT_PATHS,
+    ApiKeyAuthMiddleware,
+    DynamicCORSMiddleware,
+)
+from .http.playground import API_DESCRIPTION
 from .http.v1.cards import router as cards_router
 from .http.v1.collection import router as collection_router
 from .http.v1.deck_configs import router as deck_configs_router
@@ -49,7 +54,7 @@ app = FastAPI(
     # the restructured redoc 3 alpha - browsers refuse it (MIME mismatch under
     # nosniff). A pinned /redoc route is defined below instead.
     redoc_url=None,
-    description="REST API for Anki. Query and modify models (note types), fields, and templates.",
+    description=API_DESCRIPTION,
     license_info={"name": "MIT"},
     openapi_tags=[
         {
@@ -99,6 +104,28 @@ app = FastAPI(
     ]
 )
 
+# Middleware authentication is not visible to FastAPI's schema generator.
+_generate_openapi = app.openapi
+
+
+def openapi_with_auth():
+    schema = _generate_openapi()
+    schema.setdefault("components", {}).setdefault("securitySchemes", {}).update({
+        "ApiKey": {"type": "apiKey", "in": "header", "name": "X-API-Key",
+                   "description": "Required when an API key is configured in Tsunagi settings."},
+        "BearerAuth": {"type": "http", "scheme": "bearer",
+                       "description": "Alternative to the X-API-Key header."},
+    })
+    for path, operations in schema["paths"].items():
+        if path not in AUTH_EXEMPT_PATHS:
+            for method, operation in operations.items():
+                if method in {"get", "post", "put", "patch", "delete", "head", "options"}:
+                    operation["security"] = [{"ApiKey": []}, {"BearerAuth": []}]
+    return schema
+
+
+app.openapi = openapi_with_auth
+
 app.include_router(models_router)
 app.include_router(decks_router)
 app.include_router(notes_router)
@@ -134,13 +161,13 @@ def redoc_page():
 @app.get(
     "/",
     summary="Tsunagi API landing page",
-    description="Guided API playground with links to the complete reference",
+    description="Scalar API reference and interactive request console",
     response_class=HTMLResponse,
     tags=["Health"],
     operation_id="rootLandingPage"
 )
 def root_landing_page():
-    """Serve the schema-driven playground alongside the full API reference."""
+    """Serve Scalar against the same OpenAPI document used by Swagger and ReDoc."""
     from .http.playground import PLAYGROUND_HTML
     return HTMLResponse(PLAYGROUND_HTML, headers={"Cache-Control": "no-store"})
 
