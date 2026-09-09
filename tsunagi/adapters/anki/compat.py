@@ -222,3 +222,14 @@ def note_tags(col, note_id):
         if type(exc).__name__ == "NotFoundError":
             raise ValueError(f"Note was not found: {note_id}") from exc
         raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def bulk_note_tags(col, notes, tags, add=True):
+    """Keep legacy truthiness and let Anki validate the entire raw ID batch."""
+    try:
+        operation = col.tags.bulk_add if add else col.tags.bulk_remove
+        changes = operation(notes, tags)
+        return ValueWithChanges(None, changes)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc

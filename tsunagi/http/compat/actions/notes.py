@@ -296,24 +296,28 @@ def ac_deleteNotes(p: DeleteNotesParams) -> None:
 
 
 class TagsParams(BaseModel):
-    notes: List[int]
-    tags: str          # space-separated, per AnkiConnect
+    notes: Any = ...
+    tags: Any = ...    # normally a space-separated string
 
 
 class AddTagsParams(TagsParams):
     # Public upstream signature, although omitted from its README examples.
-    add: bool = True
+    add: Any = True
 
 
 @registry.register("addTags", params=AddTagsParams)
 def ac_addTags(p: AddTagsParams) -> None:
-    (add_tags if p.add else remove_tags)(p.notes, p.tags)
+    from ....adapters.anki.compat import bulk_note_tags
+
+    bulk_note_tags(p.notes, p.tags, p.add)
     return None
 
 
 @registry.register("removeTags", params=TagsParams)
 def ac_removeTags(p: TagsParams) -> None:
-    remove_tags(p.notes, p.tags)
+    from ....adapters.anki.compat import bulk_note_tags
+
+    bulk_note_tags(p.notes, p.tags, False)
     return None
 
 
