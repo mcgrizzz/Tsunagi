@@ -349,7 +349,7 @@ def delete_notes(col: Collection, ids: Sequence[int]) -> int:
 # checks, media-before-dedup) which the native API deliberately does not.
 # ====================
 
-def _ac_options(options: Dict[str, Any]) -> Dict[str, Any]:
+def _ac_options(options: Any) -> Dict[str, Any]:
     """
     Parse a note spec's `options`, reproducing canonical's strict bool checks
     (`1` is rejected, not coerced) and its exact messages.
@@ -360,26 +360,29 @@ def _ac_options(options: Dict[str, Any]) -> Dict[str, Any]:
         OPTION_CHECK_CHILDREN_BOOL,
     )
 
-    out = {"allow_duplicate": False, "scope": None, "scope_deck": None,
-           "check_children": False, "check_all_models": False}
-    if "allowDuplicate" in options:
-        if not isinstance(options["allowDuplicate"], bool):
-            raise ValueError(OPTION_ALLOW_DUPLICATE_BOOL)
-        out["allow_duplicate"] = options["allowDuplicate"]
-    if "duplicateScope" in options:
-        out["scope"] = options["duplicateScope"]  # not type-validated by canonical
-    dso = options.get("duplicateScopeOptions") or {}
-    if "deckName" in dso:
-        out["scope_deck"] = dso["deckName"]
-    if "checkChildren" in dso:
-        if not isinstance(dso["checkChildren"], bool):
-            raise ValueError(OPTION_CHECK_CHILDREN_BOOL)
-        out["check_children"] = dso["checkChildren"]
-    if "checkAllModels" in dso:
-        if not isinstance(dso["checkAllModels"], bool):
-            raise ValueError(OPTION_CHECK_ALL_MODELS_BOOL)
-        out["check_all_models"] = dso["checkAllModels"]
-    return out
+    try:
+        out = {"allow_duplicate": False, "scope": None, "scope_deck": None,
+               "check_children": False, "check_all_models": False}
+        if "allowDuplicate" in options:
+            if not isinstance(options["allowDuplicate"], bool):
+                raise ValueError(OPTION_ALLOW_DUPLICATE_BOOL)
+            out["allow_duplicate"] = options["allowDuplicate"]
+        if "duplicateScope" in options:
+            out["scope"] = options["duplicateScope"]  # not type-validated by canonical
+        dso = options["duplicateScopeOptions"] if "duplicateScopeOptions" in options else {}
+        if "deckName" in dso:
+            out["scope_deck"] = dso["deckName"]
+        if "checkChildren" in dso:
+            if not isinstance(dso["checkChildren"], bool):
+                raise ValueError(OPTION_CHECK_CHILDREN_BOOL)
+            out["check_children"] = dso["checkChildren"]
+        if "checkAllModels" in dso:
+            if not isinstance(dso["checkAllModels"], bool):
+                raise ValueError(OPTION_CHECK_ALL_MODELS_BOOL)
+            out["check_all_models"] = dso["checkAllModels"]
+        return out
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def _ac_apply_fields(note: Any, fields: Dict[str, str]) -> None:
@@ -446,7 +449,7 @@ def _ac_duplicate_state(col: Collection, note: Any, deck: Dict[str, Any],
 
 def _ac_prepare(col: Collection, deck_name: str, model_name: str,
                 fields: Dict[str, str], tags: Sequence[str], options: Dict[str, Any]):
-    """Shared front half of createNote: resolve, fill, and check."""
+    """Resolve and fill before media processing and option validation."""
     from ...http.compat.errors import DECK_NOT_FOUND, MODEL_NOT_FOUND
 
     model = col.models.by_name(model_name)
@@ -456,11 +459,10 @@ def _ac_prepare(col: Collection, deck_name: str, model_name: str,
     if deck is None:
         raise ValueError(DECK_NOT_FOUND.format(deck_name))
 
-    opts = _ac_options(options or {})
     note = col.new_note(model)
     _ac_apply_fields(note, fields)
     note.tags = list(tags or [])
-    return note, model, deck, opts
+    return note, model, deck, options
 
 
 def _ac_finish_check(col: Collection, note: Any, deck: Dict[str, Any],
@@ -521,9 +523,9 @@ def ac_add_note(col: Collection, deck_name: str, model_name: str,
                 options: Dict[str, Any], media: Sequence[Dict[str, Any]]) -> int:
     from ...http.compat.errors import EMPTY_QUESTION
 
-    note, _model, deck, opts = _ac_prepare(col, deck_name, model_name, fields, tags, options)
+    note, _model, deck, raw_options = _ac_prepare(col, deck_name, model_name, fields, tags, options)
     _ac_write_media(col, note, media)
-    _ac_finish_check(col, note, deck, opts)
+    _ac_finish_check(col, note, deck, _ac_options(raw_options))
 
     res = col.add_note(note, int(deck["id"]))
     if int(getattr(res, "count", 1) or 0) < 1:
@@ -538,9 +540,9 @@ def ac_check_note(col: Collection, deck_name: str, model_name: str,
     """Prepare a probe, including upstream media side effects, without adding it."""
     from anki.collection import OpChanges
 
-    note, _model, deck, opts = _ac_prepare(col, deck_name, model_name, fields, [], options)
+    note, _model, deck, raw_options = _ac_prepare(col, deck_name, model_name, fields, [], options)
     _ac_write_media(col, note, media)
-    _ac_finish_check(col, note, deck, opts)
+    _ac_finish_check(col, note, deck, _ac_options(raw_options))
     return ValueWithChanges(True, OpChanges())
 
 
