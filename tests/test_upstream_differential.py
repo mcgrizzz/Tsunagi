@@ -1005,6 +1005,54 @@ def test_lookup_parameter_values(pair, action, params):
         d.name for d in pair[1].decks.all_names_and_ids())
 
 
+@pytest.mark.parametrize("action,parameter", [
+    ("cardsInfo", "cards"), ("cardsModTime", "cards"), ("getDecks", "cards"),
+    ("getReviewsOfCards", "cards"), ("getIntervals", "cards"), ("areDue", "cards"),
+    ("notesInfo", "notes"), ("notesModTime", "notes"),
+])
+@pytest.mark.parametrize("case", [
+    "null", "false", "true", "zero", "float", "empty-string", "text",
+    "empty-list", "empty-map", "map", "scalar-id", "string-id",
+    "string-list", "float-list", "boolean-list", "mixed-list", "id-map",
+    "null-list", "false-list", "nested-list", "nested-map", "fractional-id",
+])
+def test_lookup_id_value_coercion(pair, action, parameter, case):
+    ids = pair[0].find_notes("") if parameter == "notes" else pair[0].find_cards("")
+    values = {
+        "null": None, "false": False, "true": True, "zero": 0, "float": 1.5,
+        "empty-string": "", "text": "invalid", "empty-list": [], "empty-map": {},
+        "map": {"id": ids[0]}, "scalar-id": ids[0], "string-id": str(ids[0]),
+        "string-list": [str(ids[0])], "float-list": [float(ids[0])],
+        "boolean-list": [True, False], "mixed-list": [ids[0], "invalid", ids[-1]],
+        "id-map": {str(ids[0]): True}, "null-list": [None], "false-list": [False],
+        "nested-list": [[]], "nested-map": [{}], "fractional-id": [ids[0] + 0.5],
+    }
+    before = mutation_state(pair[0])
+    compare(pair, action, {parameter: values[case]})
+    assert_mutation_state(pair)
+    assert mutation_state(pair[0]) == before
+
+
+@pytest.mark.parametrize("action", ["getReviewsOfCards", "getIntervals", "areDue", "getDecks"])
+@pytest.mark.parametrize("case", ["string", "float", "mixed"])
+def test_lookup_raw_ids_with_review_history(pair, action, case):
+    cid = pair[0].find_cards("")[0]
+    for collection in pair[:2]:
+        card = collection.get_card(cid)
+        card.type = card.queue = 2
+        card.ivl = 5
+        card.due = collection.sched.today
+        collection.update_card(card)
+        collection.db.execute(
+            "insert into revlog values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            1720000000000, cid, -1, 3, 5, 1, 2500, 100, 1,
+        )
+    ids = {"string": [str(cid)], "float": [float(cid)],
+           "mixed": [cid, str(cid), float(cid), str(cid)]}[case]
+    compare(pair, action, {"cards": ids})
+    assert_mutation_state(pair)
+
+
 def test_reference_signatures(upstream):
     from tools.upstream_reference import signature_manifest
 

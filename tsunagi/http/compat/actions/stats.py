@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from ....adapters.anki.compat import raw_id_list
 from ....adapters.anki.reviews import (
     card_review_map,
     collection_stats_html,
@@ -32,7 +33,7 @@ class CardReviewsParams(BaseModel):
 
 
 class GetReviewsOfCardsParams(BaseModel):
-    cards: List[int]
+    cards: Any = ...
 
 
 class CollectionStatsParams(BaseModel):
@@ -70,7 +71,12 @@ def ac_getLatestReviewID(p: DeckParams) -> int:
 
 @registry.register("getReviewsOfCards", params=GetReviewsOfCardsParams)
 def ac_getReviewsOfCards(p: GetReviewsOfCardsParams) -> Dict[int, List[Dict[str, Any]]]:
-    return card_review_map(p.cards)
+    from ....adapters.anki.compat import reviews_for_raw_ids
+
+    ids = raw_id_list(p.cards)
+    if any(type(cid) is not int for cid in ids):
+        return reviews_for_raw_ids(ids)
+    return card_review_map(ids)
 
 
 class InsertReviewsParams(BaseModel):

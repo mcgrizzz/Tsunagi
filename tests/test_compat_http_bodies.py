@@ -40,7 +40,8 @@ def test_rpc_decoding_ignores_content_type_charset(client, content_type):
     assert response.json() == {"result": 6, "error": None}
 
 
-def test_native_root_get_still_redirects_to_documentation(client):
+def test_native_root_get_serves_documentation(client):
     response = client.get("/", follow_redirects=False)
-    assert response.status_code == 307
-    assert response.headers["location"] == "/docs"
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Scalar.createApiReference" in response.text

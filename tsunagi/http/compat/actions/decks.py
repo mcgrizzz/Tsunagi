@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from pydantic import BaseModel
 
 from ....adapters.anki.cards import change_deck
+from ....adapters.anki.compat import raw_id_list
 from ....adapters.anki.deck_configs import (
     create_deck_config,
     delete_deck_config,
@@ -40,7 +41,7 @@ class DeckIdParams(BaseModel):
 
 
 class CardsParams(BaseModel):
-    cards: List[int]
+    cards: Any = ...
 
 
 class ChangeDeckParams(BaseModel):
@@ -113,7 +114,7 @@ def ac_deckNameFromId(p: DeckIdParams) -> str:
 def ac_getDecks(p: CardsParams) -> Dict[str, List[int]]:
     from ....adapters.anki.compat import decks_for_cards
 
-    return decks_for_cards(p.cards)
+    return decks_for_cards(raw_id_list(p.cards))
 
 
 @registry.register("changeDeck", params=ChangeDeckParams)
