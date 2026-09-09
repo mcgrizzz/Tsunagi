@@ -65,19 +65,24 @@ def main():
             page.goto(origin)
             expect(page.locator('#status')).to_contain_text('Connected to')
             assert requests == [], 'Opening the page must not run a collection request'
+            expect(page.locator('#operation')).to_have_value('listNotes')
+            expect(page.locator('[data-parameter="search"]')).to_be_visible()
+            expect(page.locator('[data-parameter="where"]')).not_to_be_visible()
+            page.locator('#operation').select_option('checkHealth')
             page.locator('#run').click()
             expect(page.locator('#result-status')).to_contain_text('HTTP 200')
             assert urlsplit(requests[-1].url).path == '/v1/health'
-            page.locator('#step').click()
-            expect(page.locator('#operation')).to_have_value('getCapabilities')
+            page.locator('#operation').select_option('getCapabilities')
             page.locator('#run').click()
             expect(page.locator('#result-status')).to_contain_text('HTTP 200')
             assert urlsplit(requests[-1].url).path == '/v1/capabilities'
 
-            page.locator('#workflow').select_option('1')
-            search = page.get_by_label('search', exact=False)
+            page.locator('#operation').select_option('listNotes')
+            search = page.locator('[data-parameter="search"]')
             search.fill('deck:"日本" tag:a&b')
-            page.get_by_label('where', exact=False).fill('id>10\nid<100')
+            page.locator('#advanced summary').click()
+            page.locator('[data-parameter="where"]').fill('id>10\nid<100')
+            page.locator('#authentication summary').click()
             page.locator('#key').fill('test-secret')
             expect(page.locator('#preview')).not_to_contain_text('test-secret')
             page.locator('#run').click()
@@ -88,7 +93,8 @@ def main():
             assert query['search'] == ['deck:"日本" tag:a&b']
             assert query['where'] == ['id>10', 'id<100']
             assert query['limit'] == ['10']
-            assert page.locator('#response img').count() == 0
+            assert page.locator('#response img, #result-items img').count() == 0
+            expect(page.locator('#result-title')).to_have_text('1 result on this page')
             assert page.evaluate('window.injected') is None
             expect(page.locator('#sent')).not_to_contain_text('test-secret')
             assert page.evaluate('localStorage.length + sessionStorage.length') == 0
@@ -97,10 +103,11 @@ def main():
             assert parse_qs(urlsplit(requests[-1].url).query)['cursor'] == ['page+2/=']
             expect(page.locator('#next')).to_be_disabled()
             search.fill('nid:42')
-            expect(page.get_by_label('cursor', exact=False)).to_have_value('')
-            page.locator('#step').click()
+            expect(page.locator('[data-parameter="cursor"]')).to_have_value('')
+            page.get_by_role('button', name='Show cards', exact=True).click()
+            expect(page.locator('#result-status')).to_contain_text('HTTP 200')
+            assert parse_qs(urlsplit(requests[-1].url).query)['search'] == ['nid:42']
             expect(page.locator('#operation')).to_have_value('listCards')
-            expect(page.locator('#next')).to_be_disabled()
 
             mode['value'] = 'unauthorized'
             page.locator('#run').click()
@@ -121,7 +128,6 @@ def main():
             mode['value'] = 'success'
             page.route('**/v1/**', api)
 
-            page.locator('#workflow').select_option('3')
             page.locator('#operation').select_option('getJob')
             previous = len(requests)
             page.locator('#run').click()
@@ -138,13 +144,15 @@ def main():
             page.reload()
             expect(page.locator('#status')).to_contain_text('Connected to')
             assert page.locator('#operation option[value="getCapabilities"]').count() == 0
-            page.locator('#workflow').select_option('1')
+            page.locator('#operation').select_option('listNotes')
+            page.locator('#advanced summary').click()
             expect(page.get_by_label('new_filter', exact=False)).to_be_visible()
             page.get_by_label('new_filter', exact=False).fill('schema-driven')
             page.locator('#run').click()
             expect(page.locator('#result-status')).to_contain_text('HTTP 200')
             assert parse_qs(urlsplit(requests[-1].url).query)['new_filter'] == ['schema-driven']
             if args.screenshot:
+                page.locator('#advanced summary').click()
                 page.screenshot(path=str(args.screenshot), full_page=True)
             page.set_viewport_size({'width': 390, 'height': 844})
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
