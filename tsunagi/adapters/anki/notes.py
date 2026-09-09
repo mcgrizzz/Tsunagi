@@ -545,23 +545,24 @@ def ac_check_note(col: Collection, deck_name: str, model_name: str,
 
 
 @as_collection_op
-def ac_update_note_fields(col: Collection, note_id: int, fields: Dict[str, str],
-                          media: Sequence[Dict[str, Any]]) -> None:
+def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
+                          media: Sequence[Dict[str, Any]], *, fields_missing=False) -> None:
     from ...http.compat.errors import NOTE_NOT_FOUND
 
     try:
-        note = col.get_note(int(note_id))
-    except Exception as e:
-        if type(e).__name__ == "NotFoundError":
-            raise ValueError(NOTE_NOT_FOUND.format(note_id)) from e
-        raise
-
-    # Exact-case here, unlike createNote. Canonical asymmetry.
-    for name, value in fields.items():
-        if name in note:
-            note[name] = value
-    _ac_write_media(col, note, media)
-    return ValueWithChanges(None, col.update_note(note))
+        note = col.get_note(note_id)
+        if fields_missing:
+            raise KeyError("fields")
+        # Exact-case here, unlike createNote and updateNoteModel.
+        for name, value in fields.items():
+            if name in note:
+                note[name] = value
+        _ac_write_media(col, note, media)
+        return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True))
+    except Exception as exc:
+        if type(exc).__name__ == "NotFoundError":
+            raise ValueError(NOTE_NOT_FOUND.format(note_id)) from exc
+        raise ValueError(str(exc)) from exc
 
 
 @as_query_op

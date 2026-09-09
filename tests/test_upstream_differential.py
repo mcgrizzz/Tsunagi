@@ -935,6 +935,162 @@ def test_bulk_tag_undo_redo(pair, action):
     assert_mutation_state(pair)
 
 
+@pytest.fixture
+def replace_reference_ui(pair, monkeypatch):
+    from types import SimpleNamespace
+
+    window = pair[2].window()
+    monkeypatch.setattr(window, "progress", SimpleNamespace(start=lambda: None, finish=lambda: None), raising=False)
+    monkeypatch.setattr(window, "requireReset", lambda: None, raising=False)
+    monkeypatch.setattr(window, "reset", lambda: None, raising=False)
+
+
+@pytest.mark.parametrize("action", ["replaceTags", "replaceTagsInAllNotes"])
+@pytest.mark.parametrize("old,new", [
+    (None, "new"), (False, "new"), (123, "new"), ([], "new"), ({}, "new"),
+    ("", "new"), ("root", "new"), ("root::*", "new"), ("ROOT::CHILD", "new"),
+    ("root::child", None), ("root::child", False), ("root::child", 123),
+    ("root::child", []), ("root::child", {}), ("root::child", "two tags"),
+    ("missing", None), ("missing", []), ("root::child", ""),
+])
+def test_replace_tags_raw_values(pair, replace_reference_ui, action, old, new):
+    params = {"tag_to_replace": old, "replace_with_tag": new}
+    if action == "replaceTags":
+        params["notes"] = list(pair[0].find_notes(""))
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", [
+    "null", "false", "scalar", "string", "empty-map", "map", "string-list",
+    "float-list", "boolean-list", "null-list", "mixed", "missing",
+])
+def test_replace_tags_raw_note_ids(pair, replace_reference_ui, case):
+    ids = list(pair[0].find_notes(""))
+    notes = {"null": None, "false": False, "scalar": ids[0], "string": str(ids[0]),
+             "empty-map": {}, "map": {str(ids[0]): True}, "string-list": [str(ids[0])],
+             "float-list": [float(ids[0])], "boolean-list": [True, False],
+             "null-list": [None], "mixed": [ids[0], "invalid", ids[-1]],
+             "missing": [9999999999999, ids[0]]}[case]
+    compare(pair, "replaceTags", {"notes": notes, "tag_to_replace": "root::child",
+                                  "replace_with_tag": "renamed"})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["replaceTags", "replaceTagsInAllNotes"])
+@pytest.mark.parametrize("old", ["root::child", "missing"])
+def test_replace_tags_undo_history(pair, replace_reference_ui, action, old):
+    before = [collection.undo_status() for collection in pair[:2]]
+    params = {"tag_to_replace": old, "replace_with_tag": "renamed"}
+    if action == "replaceTags":
+        params["notes"] = list(pair[0].find_notes(""))
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+    for collection, status in zip(pair[:2], before):
+        if old == "missing":
+            assert collection.undo_status() == status
+        else:
+            assert not collection.undo_status().undo
+
+
+@pytest.mark.parametrize("action", ["updateNoteFields", "updateNote"])
+@pytest.mark.parametrize("fields", [
+    None, False, 0, "", [], ["Front"], {}, {"front": "ignored"},
+    {"Front": 123}, {"Front": None}, {"Front": False}, {"Front": []}, {"Back": "updated"},
+])
+def test_note_update_field_values(pair, action, fields):
+    compare(pair, action, {"note": {"id": pair[0].find_notes("")[0], "fields": fields}})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["updateNoteFields", "updateNote"])
+@pytest.mark.parametrize("case", ["null", "false", "zero", "string", "float", "list", "map", "missing", "no-id", "no-fields"])
+def test_note_update_id_and_field_presence(pair, action, case):
+    nid = pair[0].find_notes("")[0]
+    value = {"null": None, "false": False, "zero": 0, "string": str(nid), "float": float(nid),
+             "list": [], "map": {}, "missing": 9999999999999, "no-id": nid, "no-fields": nid}[case]
+    note = {"id": value, "fields": {"Back": "updated"}}
+    if case in ("no-id", "no-fields"):
+        note.pop("id" if case == "no-id" else "fields")
+    compare(pair, action, {"note": note})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["updateNoteFields", "updateNote"])
+def test_note_field_update_clears_undo(pair, action):
+    compare(pair, action, {"note": {"id": pair[0].find_notes("")[0], "fields": {"Back": "updated"}}})
+    assert_mutation_state(pair)
+    for collection in pair[:2]:
+        assert not collection.undo_status().undo
+
+
+@pytest.mark.parametrize("change", [
+    {}, {"id": None}, {"id": False}, {"modelName": None}, {"modelName": "Missing model"},
+    {"modelName": 123}, {"fields": None}, {"fields": {}}, {"fields": []},
+    {"fields": {"unknown": "ignored"}}, {"fields": {"Front": 123}}, {"fields": {"Front": None}},
+    {"tags": None}, {"tags": False}, {"tags": "one two"}, {"tags": []},
+    {"tags": ["one", "two"]}, {"tags": [123]}, {"tags": {"tag": True}},
+])
+def test_update_note_model_options(pair, change):
+    note = {"id": pair[0].find_notes("")[0], "modelName": "Basic", "fields": {"front": "replaced"}}
+    note.update(change)
+    reply = compare(pair, "updateNoteModel", {"note": note})
+    assert_mutation_state(pair)
+    if reply["error"] is None:
+        for collection in pair[:2]:
+            assert not collection.undo_status().undo
+
+
+@pytest.mark.parametrize("missing", [
+    ["id"], ["modelName"], ["fields"], ["id", "modelName"],
+    ["id", "fields"], ["modelName", "fields"], ["id", "modelName", "fields"],
+])
+def test_update_note_model_missing_options(pair, missing):
+    note = {"id": pair[0].find_notes("")[0], "modelName": "Basic", "fields": {"Front": "changed"}}
+    for key in missing:
+        note.pop(key)
+    compare(pair, "updateNoteModel", {"note": note})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", ["string", "float", "list", "map", "missing"])
+def test_update_note_model_raw_ids(pair, case):
+    nid = pair[0].find_notes("")[0]
+    value = {"string": str(nid), "float": float(nid), "list": [nid],
+             "map": {"id": nid}, "missing": 9999999999999}[case]
+    compare(pair, "updateNoteModel", {
+        "note": {"id": value, "modelName": "Basic", "fields": {"Front": "changed"}},
+    })
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("model_name,fields", [
+    ("Basic (and reversed card)", {"front": "changed", "BACK": "answer"}),
+    ("Cloze", {"text": "{{c1::one}} and {{c2::two}}", "Back Extra": "extra"}),
+])
+@pytest.mark.parametrize("reviewed", [False, True])
+@pytest.mark.parametrize("tags", [None, ["converted"]])
+def test_update_note_model_conversion(pair, model_name, fields, reviewed, tags):
+    nid = pair[0].find_notes("")[0]
+    if reviewed:
+        for collection in pair[:2]:
+            card = collection.get_note(nid).cards()[0]
+            card.type = card.queue = 2
+            card.ivl, card.due, card.factor, card.reps = 17, 23, 2500, 4
+            collection.update_card(card)
+    note = {"id": nid, "modelName": model_name, "fields": fields}
+    if tags is not None:
+        note["tags"] = tags
+    reply = compare(pair, "updateNoteModel", {"note": note})
+    assert reply["error"] is None
+    assert_mutation_state(pair)
+    for collection in pair[:2]:
+        updated = collection.get_note(nid)
+        assert updated.mid == collection.models.by_name(model_name)["id"]
+        assert updated.tags == (tags or [])
+        assert not collection.undo_status().undo
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)
