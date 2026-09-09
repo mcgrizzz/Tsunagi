@@ -145,6 +145,7 @@ def ankiconnect_import_changes(cfg: dict, ac: dict, *, include_port: bool = Fals
             if type(port) is not int or not 1 <= port <= 65535:
                 raise ValueError("AnkiConnect's port must be an integer between 1 and 65535.")
             changes["port"] = port
+            changes["prefer_port"] = port
         changes["enabled"] = True
     return changes
 

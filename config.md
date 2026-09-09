@@ -19,7 +19,9 @@ API key, port and allowed website origins into the form, and selects **Enable
 Tsunagi server**. Review the values and click **OK** to disable AnkiConnect, stop
 its current listener, and start Tsunagi on the imported port. **Cancel** leaves
 both addons unchanged. **Restore Defaults** also cancels a pending import-and-disable action.
-The explicit takeover imports `webBindPort` (normally 8765); optional capability
+The explicit takeover imports `webBindPort` (normally 8765) into both **Port**
+and **Preferred port**. Existing allowed origins, including unsaved form entries,
+are retained; imported origins are appended without duplicates. Optional capability
 gates are unchanged. The separate startup import-only offer keeps Tsunagi's port
 because that offer leaves AnkiConnect running. An empty AnkiConnect API key does not replace
 an existing Tsunagi key. The standard AnkiConnect timer and listener are stopped before Tsunagi restarts.

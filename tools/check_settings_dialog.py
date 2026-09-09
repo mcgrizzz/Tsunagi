@@ -18,6 +18,7 @@ from aqt.qt import (  # noqa: E402
     QDialog,
     QDialogButtonBox,
     QLabel,
+    QPlainTextEdit,  # noqa: E402
     QPushButton,
     QTimer,
     QWidget,
@@ -67,7 +68,7 @@ def check_scenario(app, scenario):
         addon_configs = {ADDON_PACKAGE: cfg}
         if scenario != "missing":
             addon_configs[ANKICONNECT_ID] = {
-                "apiKey": "imported-key", "webCorsOriginList": ["http://existing", "http://imported"],
+                "apiKey": "imported-key", "webCorsOriginList": ["http://existing", "http://imported", "http://imported"],
                 "webBindPort": server.port,
             }
         for name, config in addon_configs.items():
@@ -102,7 +103,11 @@ def check_scenario(app, scenario):
                     assert not button.isEnabled()
                 else:
                     assert status.text() == "Installed and enabled"
+                    origins = window.findChild(QPlainTextEdit)
+                    origins.setPlainText("http://existing\nhttp://unsaved")
                     button.click()
+                    assert origins.toPlainText().splitlines() == [
+                        "http://existing", "http://unsaved", "http://imported"]
                     assert "pending" in status.text()
                     assert manager.addon_meta(ANKICONNECT_ID).enabled
                     assert server.sock is not None and timer.isActive()
@@ -130,8 +135,8 @@ def check_scenario(app, scenario):
             assert not manager.addon_meta(ANKICONNECT_ID).enabled
             persisted = manager.getConfig(ADDON_PACKAGE)
             assert persisted["api_key"] == "imported-key"
-            assert persisted["cors_allowlist"] == ["http://existing", "http://imported"]
-            assert persisted["port"] == server.port
+            assert persisted["cors_allowlist"] == ["http://existing", "http://unsaved", "http://imported"]
+            assert persisted["port"] == persisted["prefer_port"] == server.port
             assert persisted["enabled"] is True
             assert server.sock is None and not timer.isActive()
             with socket.socket() as tsunagi_listener:
