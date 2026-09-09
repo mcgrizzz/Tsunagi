@@ -1296,6 +1296,143 @@ def test_model_update_undo_redo(pair, action, change):
     assert_mutation_state(pair)
 
 
+_MODEL_MEMBER_ACTIONS = [
+    ("modelFieldRename", {"oldFieldName": "Front", "newFieldName": "Renamed"}, "newFieldName"),
+    ("modelFieldReposition", {"fieldName": "Front", "index": 1}, "index"),
+    ("modelFieldAdd", {"fieldName": "Extra"}, "fieldName"),
+    ("modelFieldRemove", {"fieldName": "Back"}, "fieldName"),
+    ("modelFieldSetFont", {"fieldName": "Front", "font": "Arial"}, "font"),
+    ("modelFieldSetFontSize", {"fieldName": "Front", "fontSize": 20}, "fontSize"),
+    ("modelFieldSetDescription", {"fieldName": "Front", "description": "text"}, "description"),
+    ("modelTemplateRename", {"oldTemplateName": "Card 1", "newTemplateName": "Renamed"}, "newTemplateName"),
+    ("modelTemplateReposition", {"templateName": "Card 1", "index": 1}, "index"),
+    ("modelTemplateAdd", {"template": {"Name": "Extra", "Front": "{{Front}}", "Back": "{{Back}}"}}, "template"),
+    ("modelTemplateRemove", {"templateName": "Card 1"}, "templateName"),
+]
+
+
+@pytest.mark.parametrize("action,params,parameter", _MODEL_MEMBER_ACTIONS)
+@pytest.mark.parametrize("value", [None, False, True, 0, 1, -1, 999, 1.5, "", "1", [], {}])
+def test_model_member_raw_values(pair, action, params, parameter, value):
+    compare(pair, action, {"modelName": "Basic", **params, parameter: value})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action,params,parameter", _MODEL_MEMBER_ACTIONS)
+@pytest.mark.parametrize("name", [None, False, 123, [], {}, "Missing model"])
+def test_model_member_lookup_precedes_value_validation(pair, action, params, parameter, name):
+    compare(pair, action, {"modelName": name, **params, parameter: None})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("field", ["Extra", "Front"])
+@pytest.mark.parametrize("index", [None, False, True, -1, 99, 1.5, "1", [], {}])
+def test_model_field_add_raw_index_and_partial_write(pair, field, index):
+    compare(pair, "modelFieldAdd", {"modelName": "Basic", "fieldName": field, "index": index})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("template", [
+    {}, {"Name": "Extra"}, {"Name": "Extra", "Front": "{{Front}}"},
+    {"Name": None, "Front": "{{Front}}", "Back": "{{Back}}"},
+    {"Name": "Extra", "Front": 123, "Back": "{{Back}}"},
+    {"Name": "Card 1", "Front": 123, "Back": None},
+    {"Name": "Card 1", "Front": "", "Back": ""},
+])
+def test_model_template_add_raw_members(pair, template):
+    compare(pair, "modelTemplateAdd", {"modelName": "Basic", "template": template})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("scope", [None, "deck", "collection", "unknown"])
+@pytest.mark.parametrize("scope_deck", [None, "Parity", "Parity::日本語", "Missing deck"])
+@pytest.mark.parametrize("children", [False, True])
+@pytest.mark.parametrize("all_models", [False, True])
+@pytest.mark.parametrize("model_name,fields", [
+    ("Basic", {"Front": "alpha", "Back": "one"}),
+    ("Basic (and reversed card)", {"Front": "alpha", "Back": "one"}),
+])
+def test_duplicate_scope_decks_and_models(pair, scope, scope_deck, children, all_models, model_name, fields):
+    note = {"deckName": "Parity::日本語", "modelName": model_name, "fields": fields,
+            "options": {"duplicateScope": scope, "duplicateScopeOptions": {
+                "deckName": scope_deck, "checkChildren": children, "checkAllModels": all_models}}}
+    compare(pair, "canAddNotesWithErrorDetail", {"notes": [note]})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("options", [{}, {"duplicateScope": "deck"},
+    {"duplicateScopeOptions": {"checkAllModels": True}},
+    {"duplicateScope": "deck", "duplicateScopeOptions": {"deckName": "Missing deck"}}])
+@pytest.mark.parametrize("model_name,fields", [
+    ("Basic", {"Front": " ", "Back": "answer"}),
+    ("Basic", {"Front": "<b></b>", "Back": "answer"}),
+    ("Basic", {"Front": "<b>alpha</b>", "Back": "answer"}),
+    ("Cloze", {"Text": "plain text without deletion"}),
+    ("Cloze", {"Text": "{{c1::alpha}}"}),
+    ("Cloze", {"Text": "{{c0::alpha}}"}),
+])
+def test_duplicate_scope_empty_html_and_cloze(pair, options, model_name, fields):
+    note = {"deckName": "Parity::日本語", "modelName": model_name, "fields": fields, "options": options}
+    compare(pair, "canAddNotesWithErrorDetail", {"notes": [note]})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("action,params,parameter", [case for case in _MODEL_MEMBER_ACTIONS
+    if case[0] not in ("modelFieldAdd", "modelTemplateAdd")])
+@pytest.mark.parametrize("name", [None, False, [], {}, "Missing member"])
+def test_model_member_raw_target_names(pair, action, params, parameter, name):
+    target = next(key for key in ("oldFieldName", "fieldName", "oldTemplateName", "templateName") if key in params)
+    compare(pair, action, {"modelName": "Basic", **params, target: name})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action,params,parameter", _MODEL_MEMBER_ACTIONS)
+def test_model_member_undo_redo(pair, action, params, parameter):
+    # Give template removal/reposition two templates and generated cards.
+    if action.startswith("modelTemplate"):
+        model_name = "Basic (and reversed card)"
+        compare(pair, "updateNoteModel", {"note": {"id": pair[0].find_notes("")[0],
+            "modelName": model_name, "fields": {"Front": "front", "Back": "back"}}})
+    else:
+        model_name = "Basic"
+    if action == "modelTemplateAdd":
+        params = {**params, "template": {**params["template"], "Front": "{{Front}} extra"}}
+    reply = compare(pair, action, {"modelName": model_name, **params})
+    assert reply["error"] is None
+    assert_mutation_state(pair)
+    for c in pair[:2]:
+        c.undo()
+    assert_mutation_state(pair)
+    for c in pair[:2]:
+        c.redo()
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("scope_deck", [None, False, 123, [], {}, "Other"])
+@pytest.mark.parametrize("all_models", [False, True])
+def test_duplicate_scope_raw_deck_names(pair, scope_deck, all_models):
+    note = {"modelName": "Basic", "deckName": "Parity::日本語", "fields": {"Front": "alpha"},
+        "options": {"duplicateScope": "deck", "duplicateScopeOptions": {
+            "deckName": scope_deck, "checkAllModels": all_models}}}
+    compare(pair, "canAddNotesWithErrorDetail", {"notes": [note]})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("scope_deck", ["Parity::日本語", "Other"])
+@pytest.mark.parametrize("original_deck", [False, True])
+def test_duplicate_scope_uses_current_card_deck(pair, scope_deck, original_deck):
+    for c in pair[:2]:
+        card = c.get_note(c.find_notes("alpha")[0]).cards()[0]
+        if original_deck:
+            card.odid = card.did
+        card.did = c.decks.id("Other")
+        c.update_card(card)
+    note = {"modelName": "Basic", "deckName": "Parity::日本語", "fields": {"Front": "alpha"},
+        "options": {"duplicateScope": "deck", "duplicateScopeOptions": {"deckName": scope_deck}}}
+    compare(pair, "canAddNotesWithErrorDetail", {"notes": [note]})
+    assert_note_and_media_state(pair)
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)

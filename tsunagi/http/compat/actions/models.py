@@ -11,25 +11,14 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 from ....adapters.anki.models import (
-    create_field,
-    create_template,
-    delete_field,
-    delete_template,
     find_and_replace_in_models,
     get_model_names_and_ids,
     get_models_by_names,
     get_raw_models,
-    patch_field,
     patch_model,
-    patch_template,
-    reorder_fields,
-    reorder_templates,
 )
 from ..errors import (
-    DESCRIPTION_NOT_STRING,
     FIELD_NOT_FOUND,
-    FONT_NOT_STRING,
-    FONT_SIZE_NOT_INT,
     MODEL_NOT_FOUND,
     TEMPLATE_NOT_FOUND,
 )
@@ -73,48 +62,48 @@ class FindAndReplaceParams(BaseModel):
 
 
 class TemplateRenameParams(BaseModel):
-    modelName: str
-    oldTemplateName: str
-    newTemplateName: str
+    modelName: Any = ...
+    oldTemplateName: Any = ...
+    newTemplateName: Any = ...
 
 
 class TemplateRepositionParams(BaseModel):
-    modelName: str
-    templateName: str
-    index: int
+    modelName: Any = ...
+    templateName: Any = ...
+    index: Any = ...
 
 
 class TemplateAddParams(BaseModel):
-    modelName: str
-    template: Dict[str, str]
+    modelName: Any = ...
+    template: Any = ...
 
 
 class TemplateNameParams(BaseModel):
-    modelName: str
-    templateName: str
+    modelName: Any = ...
+    templateName: Any = ...
 
 
 class FieldRenameParams(BaseModel):
-    modelName: str
-    oldFieldName: str
-    newFieldName: str
+    modelName: Any = ...
+    oldFieldName: Any = ...
+    newFieldName: Any = ...
 
 
 class FieldRepositionParams(BaseModel):
-    modelName: str
-    fieldName: str
-    index: int
+    modelName: Any = ...
+    fieldName: Any = ...
+    index: Any = ...
 
 
 class FieldAddParams(BaseModel):
-    modelName: str
-    fieldName: str
-    index: Optional[int] = None
+    modelName: Any = ...
+    fieldName: Any = ...
+    index: Any = None
 
 
 class FieldNameParams(BaseModel):
-    modelName: str
-    fieldName: str
+    modelName: Any = ...
+    fieldName: Any = ...
 
 
 class FieldSetFontParams(FieldNameParams):
@@ -323,103 +312,72 @@ def ac_updateModelStyling(p: UpdateModelStylingParams) -> None:
 
 @registry.register("modelTemplateRename", params=TemplateRenameParams)
 def ac_modelTemplateRename(p: TemplateRenameParams) -> None:
-    model = _raw_model(p.modelName)
-    _require_template(model, p.oldTemplateName)
-    patch_template(model["id"], p.oldTemplateName, {"name": p.newTemplateName})
+    return _template_change(p, "rename", name=p.oldTemplateName, value=p.newTemplateName)
 
 
 @registry.register("modelTemplateReposition", params=TemplateRepositionParams)
 def ac_modelTemplateReposition(p: TemplateRepositionParams) -> None:
-    model = _raw_model(p.modelName)
-    _require_template(model, p.templateName)
-    names = [t["name"] for t in model["tmpls"]]
-    reorder_templates(model["id"], _moved(names, p.templateName, p.index))
+    return _template_change(p, "reposition", name=p.templateName, index=p.index)
 
 
 @registry.register("modelTemplateAdd", params=TemplateAddParams)
 def ac_modelTemplateAdd(p: TemplateAddParams) -> None:
-    model = _raw_model(p.modelName)
-    name = p.template["Name"]
-    updates = {"qfmt": p.template["Front"], "afmt": p.template["Back"]}
-
-    for existing in model["tmpls"]:
-        if existing["name"] == name:
-            from ....adapters.anki.compat import update_cached_template
-
-            # The change is visible through Anki's model cache but is not saved.
-            update_cached_template(p.modelName, name, updates)
-            return
-    create_template(model["id"], {"name": name, **updates})
+    return _template_change(p, "add", spec=p.template)
 
 
 @registry.register("modelTemplateRemove", params=TemplateNameParams)
 def ac_modelTemplateRemove(p: TemplateNameParams) -> None:
-    model = _raw_model(p.modelName)
-    _require_template(model, p.templateName)
-    delete_template(model["id"], p.templateName)
+    return _template_change(p, "remove", name=p.templateName)
 
-
-# --- field edits --------------------------------------------------------
 
 @registry.register("modelFieldRename", params=FieldRenameParams)
 def ac_modelFieldRename(p: FieldRenameParams) -> None:
-    model = _raw_model(p.modelName)
-    _require_field(model, p.oldFieldName)
-    patch_field(model["id"], p.oldFieldName, {"name": p.newFieldName})
+    return _field_change(p, "rename", p.oldFieldName, value=p.newFieldName)
 
 
 @registry.register("modelFieldReposition", params=FieldRepositionParams)
 def ac_modelFieldReposition(p: FieldRepositionParams) -> None:
-    model = _raw_model(p.modelName)
-    _require_field(model, p.fieldName)
-    names = [f["name"] for f in model["flds"]]
-    reorder_fields(model["id"], _moved(names, p.fieldName, p.index))
+    return _field_change(p, "reposition", p.fieldName, index=p.index)
 
 
 @registry.register("modelFieldAdd", params=FieldAddParams)
 def ac_modelFieldAdd(p: FieldAddParams) -> None:
-    model = _raw_model(p.modelName)
-    names = [f["name"] for f in model["flds"]]
-    if p.fieldName not in names:
-        create_field(model["id"], {"name": p.fieldName})
-        names.append(p.fieldName)
-    # Repositions even when the field already existed.
-    if p.index is not None:
-        reorder_fields(model["id"], _moved(names, p.fieldName, p.index))
+    return _field_change(p, "add", p.fieldName, index=p.index)
 
 
 @registry.register("modelFieldRemove", params=FieldNameParams)
 def ac_modelFieldRemove(p: FieldNameParams) -> None:
-    model = _raw_model(p.modelName)
-    _require_field(model, p.fieldName)
-    delete_field(model["id"], p.fieldName)
+    return _field_change(p, "remove", p.fieldName)
 
 
 @registry.register("modelFieldSetFont", params=FieldSetFontParams)
 def ac_modelFieldSetFont(p: FieldSetFontParams) -> None:
-    if not isinstance(p.font, str):
-        raise ValueError(FONT_NOT_STRING.format(p.font))
-    model = _raw_model(p.modelName)
-    _require_field(model, p.fieldName)
-    patch_field(model["id"], p.fieldName, {"font": p.font})
+    return _field_change(p, "font", p.fieldName, value=p.font)
 
 
 @registry.register("modelFieldSetFontSize", params=FieldSetFontSizeParams)
 def ac_modelFieldSetFontSize(p: FieldSetFontSizeParams) -> None:
-    # bool is an int subclass, and a bool here is a client bug, not a size.
-    if not isinstance(p.fontSize, int) or isinstance(p.fontSize, bool):
-        raise ValueError(FONT_SIZE_NOT_INT.format(p.fontSize))
-    model = _raw_model(p.modelName)
-    _require_field(model, p.fieldName)
-    patch_field(model["id"], p.fieldName, {"size": p.fontSize})
+    return _field_change(p, "size", p.fieldName, value=p.fontSize)
 
 
 @registry.register("modelFieldSetDescription", params=FieldSetDescriptionParams)
 def ac_modelFieldSetDescription(p: FieldSetDescriptionParams) -> bool:
-    if not isinstance(p.description, str):
-        raise ValueError(DESCRIPTION_NOT_STRING.format(p.description))
-    model = _raw_model(p.modelName)
-    _require_field(model, p.fieldName)
-    patch_field(model["id"], p.fieldName, {"description": p.description})
-    # Canonical returns False only on Anki too old to have the key at all.
-    return True
+    return _field_change(p, "description", p.fieldName, value=p.description)
+
+
+def _field_change(p, action, name, **kwargs):
+    from ....adapters.anki.compat import mutate_model_field_raw
+
+    result, error = mutate_model_field_raw(p.modelName, action, name, **kwargs)
+    if error is not None:
+        raise ValueError(error)
+    return result
+
+
+def _template_change(p, action, **kwargs):
+    from ....adapters.anki.compat import mutate_model_template_raw
+
+    result, error = mutate_model_template_raw(p.modelName, action, **kwargs)
+    if error is not None:
+        raise ValueError(error)
+    return result

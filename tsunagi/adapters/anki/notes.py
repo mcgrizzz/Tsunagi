@@ -408,8 +408,7 @@ def _ac_duplicate_state(col: Collection, note: Any, deck: Dict[str, Any],
     from anki.utils import field_checksum
 
     if opts["scope"] != "deck" and not opts["check_all_models"]:
-        state = fields_check_impl(col, note)
-        return state if state in (EMPTY, DUPLICATE) else NORMAL
+        return fields_check_impl(col, note) or NORMAL
 
     val = note.fields[0] if note.fields else ""
     if not val.strip():
@@ -476,6 +475,8 @@ def _ac_finish_check(col: Collection, note: Any, deck: Dict[str, Any],
         raise ValueError(NOTE_EMPTY)
     if state == DUPLICATE and not opts["allow_duplicate"]:
         raise ValueError(NOTE_DUPLICATE)
+    if state not in (NORMAL, EMPTY, DUPLICATE):
+        raise ValueError("cannot create note for unknown reason")
 
 
 def _ac_write_media(col: Collection, note: Any, media: Sequence[Dict[str, Any]]) -> None:
