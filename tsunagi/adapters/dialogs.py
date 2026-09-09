@@ -129,8 +129,8 @@ def ankiconnect_status(manager: Any) -> dict:
     }
 
 
-def ankiconnect_import_changes(cfg: dict, ac: dict) -> dict:
-    """Share the startup offer's key/origin merge; never import ports or gates."""
+def ankiconnect_import_changes(cfg: dict, ac: dict, *, include_port: bool = False) -> dict:
+    """Share key/origin merging; port takeover is explicit in settings only."""
     changes: dict = {"ankiconnect_import_offered": True}
     if ac.get("apiKey"):
         changes["api_key"] = ac["apiKey"]
@@ -139,4 +139,50 @@ def ankiconnect_import_changes(cfg: dict, ac: dict) -> dict:
         if origin not in merged:
             merged.append(origin)
     changes["cors_allowlist"] = merged
+    if include_port:
+        port = ac.get("webBindPort")
+        if port is not None:
+            if type(port) is not int or not 1 <= port <= 65535:
+                raise ValueError("AnkiConnect's port must be an integer between 1 and 65535.")
+            changes["port"] = port
+        changes["enabled"] = True
     return changes
+
+
+
+def stop_ankiconnect_server():
+    """Stop the loaded standard addon on the Qt thread; return a rollback callback."""
+    import sys
+
+    module = sys.modules.get(ANKICONNECT_ID)
+    if module is None:
+        return None
+    instance = getattr(module, "ac", None)
+    server = getattr(instance, "server", None)
+    timer = getattr(instance, "timer", None)
+    if (server is None or not hasattr(server, "sock")
+            or not callable(getattr(server, "close", None))
+            or not callable(getattr(server, "listen", None))):
+        raise RuntimeError("This AnkiConnect version cannot hand over its running server. "
+                           "Disable it and restart Anki before importing.")
+    if timer is not None and not all(callable(getattr(timer, name, None))
+                                     for name in ("stop", "start", "interval", "isActive")):
+        raise RuntimeError("This AnkiConnect timer cannot be stopped safely. Restart Anki first.")
+    was_listening = server.sock is not None
+    was_active = timer is not None and timer.isActive()
+    interval = timer.interval() if timer is not None else 0
+
+    def restore():
+        if was_listening:
+            server.listen()
+        if was_active:
+            timer.start(interval)
+
+    try:
+        if timer is not None:
+            timer.stop()
+        server.close()
+    except Exception:
+        restore()
+        raise
+    return restore

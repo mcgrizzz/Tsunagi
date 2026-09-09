@@ -203,9 +203,25 @@ def _restart_server(mw: Any, *, enabled: bool) -> None:
                     "for details.")
 
 
+def _check_handover_port(cfg: Dict[str, Any]) -> None:
+    from .config import _bindable
+
+    if not cfg.get("enabled", True):
+        return
+    host = cfg.get("host", "127.0.0.1")
+    port = int(cfg.get("port") or cfg.get("prefer_port") or 7777)
+    if _bindable(host, port):
+        return
+    from ..app import server_url
+
+    if server_url() == f"http://{host}:{port}":
+        return  # Tsunagi itself already owns the selected address.
+    raise ValueError(f"Port {port} is still in use. The AnkiConnect handover was cancelled.")
+
+
 def save_settings(mw: Any, new_cfg: Dict[str, Any], *, disable_ankiconnect: bool = False) -> None:
-    """Save form settings, disabling AnkiConnect only for an explicit selection."""
-    from .dialogs import ANKICONNECT_ID, ankiconnect_status
+    """Disable/stop AnkiConnect before committing settings for the port handover."""
+    from .dialogs import ANKICONNECT_ID, ankiconnect_status, stop_ankiconnect_server
 
     if not disable_ankiconnect:
         apply_config(mw, new_cfg, write=True)
@@ -214,13 +230,27 @@ def save_settings(mw: Any, new_cfg: Dict[str, Any], *, disable_ankiconnect: bool
     if not status["installed"]:
         raise ValueError("AnkiConnect is no longer installed. Reopen settings and try again.")
     previous = dict(mw.addonManager.getConfig(ADDON_PACKAGE) or {})
-    apply_config(mw, new_cfg, write=True)
-    if status["enabled"]:
-        try:
+    restore_server = None
+    saving = False
+    try:
+        if status["enabled"]:
             mw.addonManager.toggleEnabled(ANKICONNECT_ID, enable=False)
-        except Exception:
-            apply_config(mw, previous, write=True)
-            raise
+        restore_server = stop_ankiconnect_server()
+        _check_handover_port(new_cfg)
+        saving = True
+        apply_config(mw, new_cfg, write=True)
+    except Exception:
+        try:
+            if saving:
+                apply_config(mw, previous, write=True)
+        finally:
+            try:
+                if status["enabled"]:
+                    mw.addonManager.toggleEnabled(ANKICONNECT_ID, enable=True)
+            finally:
+                if restore_server is not None:
+                    restore_server()
+        raise
 
 
 def open_settings(mw: Any) -> None:
@@ -332,9 +362,8 @@ def open_settings(mw: Any) -> None:
     ac_status.setWordWrap(True)
     ac_layout.addWidget(ac_status)
     ac_details = QLabel(
-        "Import its API key and allowed website origins, then disable AnkiConnect "
-        "when you save. Tsunagi keeps its configured port. Restart Anki afterward "
-        "to stop the other add-on."
+        "Import its API key, allowed website origins and port. Saving disables "
+        "AnkiConnect and stops its server before enabling Tsunagi on that port."
     )
     ac_details.setWordWrap(True)
     ac_layout.addWidget(ac_details)
@@ -351,7 +380,7 @@ def open_settings(mw: Any) -> None:
         elif status["enabled"]:
             text = "Installed and enabled"
         else:
-            text = "Installed and disabled (takes effect after restarting Anki)"
+            text = "Installed and disabled"
         if status["installed"] and not status["config_available"]:
             text += ". Import settings are unavailable."
         if pending_import:
@@ -366,7 +395,11 @@ def open_settings(mw: Any) -> None:
             refresh_ankiconnect()
             return
         current, _ = config_from_form(cfg, collect())
-        current.update(ankiconnect_import_changes(current, ac))
+        try:
+            current.update(ankiconnect_import_changes(current, ac, include_port=True))
+        except ValueError as exc:
+            showWarning(str(exc), parent=dlg)
+            return
         populate(form_values_from_config(current))
         pending_import = True
         refresh_ankiconnect()
@@ -396,7 +429,7 @@ def open_settings(mw: Any) -> None:
             showWarning(f"Could not save settings: {exc}", parent=dlg)
             return
         dlg.accept()  # close before the restart's thread-join can block
-        if server_restart:
+        if server_restart or pending_import:
             _restart_server(mw, enabled=bool(new_cfg.get("enabled", True)))
 
     buttons.accepted.connect(on_ok)

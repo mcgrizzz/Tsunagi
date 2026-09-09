@@ -15,13 +15,17 @@ keys only take effect after restarting Anki (or switching profiles);
 
 The **AnkiConnect** section shows whether the standard AnkiConnect addon is
 installed and enabled. **Import settings and disable AnkiConnect** stages its
-API key and merges allowed website origins into the form. Review the values and
-click **OK** to save and disable AnkiConnect, or **Cancel** to leave both addons
-unchanged. **Restore Defaults** also cancels a pending import-and-disable action.
-Tsunagi retains its configured port (normally 7777), and the import does not
-change optional capability gates. An empty AnkiConnect API key does not replace
-an existing Tsunagi key. Restart Anki after saving to stop an already-running
-AnkiConnect instance; detection alone never disables it.
+API key, port and allowed website origins into the form, and selects **Enable
+Tsunagi server**. Review the values and click **OK** to disable AnkiConnect, stop
+its current listener, and start Tsunagi on the imported port. **Cancel** leaves
+both addons unchanged. **Restore Defaults** also cancels a pending import-and-disable action.
+The explicit takeover imports `webBindPort` (normally 8765); optional capability
+gates are unchanged. The separate startup import-only offer keeps Tsunagi's port
+because that offer leaves AnkiConnect running. An empty AnkiConnect API key does not replace
+an existing Tsunagi key. The standard AnkiConnect timer and listener are stopped before Tsunagi restarts.
+If the selected port is still occupied, the handover is cancelled and the prior
+addon state is restored. An unsupported AnkiConnect runtime requires a manual
+disable and Anki restart before importing. Detection alone never disables it.
 
 ### `enabled`
 Set to `false` to stop Tsunagi from starting its server.
