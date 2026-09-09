@@ -814,6 +814,77 @@ def test_set_ease_undo_matches_upstream(pair, case):
         assert not pair[1].undo_status().undo
 
 
+@pytest.mark.parametrize("action", ["updateNoteTags", "updateNote"])
+@pytest.mark.parametrize("tags", [
+    None, False, 1, {}, [], "", "one two", " spaced  tags ", "日本語",
+    ["one", "two"], ["Case", "case", "Case"], ["root::child", "other"],
+    ["one two", "three"], ["*", "a?b"], ["valid", None], ["valid", 1], [[], {}],
+])
+def test_replace_note_tags_values(pair, action, tags):
+    nid = pair[0].find_notes("")[0]
+    params = {"note": nid, "tags": tags} if action == "updateNoteTags" else {
+        "note": {"id": nid, "tags": tags},
+    }
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["getNoteTags", "updateNoteTags"])
+@pytest.mark.parametrize("case", [
+    "null", "false", "true", "zero", "missing", "string-id", "float-id",
+    "text", "empty-list", "list", "empty-map", "map",
+])
+def test_note_tag_id_values(pair, action, case):
+    nid = pair[0].find_notes("")[0]
+    note = {"null": None, "false": False, "true": True, "zero": 0,
+            "missing": 9999999999999, "string-id": str(nid), "float-id": float(nid),
+            "text": "invalid", "empty-list": [], "list": [nid], "empty-map": {},
+            "map": {"id": nid}}[case]
+    params = {"note": note}
+    if action == "updateNoteTags":
+        params["tags"] = ["replacement"]
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("note", [None, "invalid", [], 9999999999999])
+def test_note_tags_validation_precedes_lookup(pair, note):
+    before = mutation_state(pair[0])
+    compare(pair, "updateNoteTags", {"note": note, "tags": ["valid", None]})
+    assert_mutation_state(pair)
+    assert mutation_state(pair[0]) == before
+
+
+@pytest.mark.parametrize("action", ["updateNoteTags", "updateNote"])
+@pytest.mark.parametrize("steps", [1, 2, 3])
+def test_note_tag_replacement_undo_redo(pair, action, steps):
+    nid = pair[0].find_notes("")[0]
+    params = {"note": nid, "tags": ["one", "two"]} if action == "updateNoteTags" else {
+        "note": {"id": nid, "tags": ["one", "two"]},
+    }
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+    for _ in range(steps):
+        for collection in pair[:2]:
+            collection.undo()
+        assert_mutation_state(pair)
+    for _ in range(steps):
+        for collection in pair[:2]:
+            collection.redo()
+        assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("tags", [None, False, 1, [], "one two", ["valid", None], ["one", "two"]])
+def test_update_note_fields_precede_tag_validation(pair, tags):
+    nid = pair[0].find_notes("")[0]
+    compare(pair, "updateNote", {"note": {
+        "id": nid, "fields": {"Back": "saved before tags"}, "tags": tags,
+    }})
+    assert_mutation_state(pair)
+    for collection in pair[:2]:
+        assert collection.get_note(nid)["Back"] == "saved before tags"
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)

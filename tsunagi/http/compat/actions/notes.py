@@ -36,7 +36,6 @@ from ....adapters.anki.notes import (
 )
 from ....adapters.anki.tags import add_tags, all_tags, clear_unused_tags, remove_tags
 from ..errors import (
-    NOTE_NOT_FOUND,
     NOTE_UPDATE_NO_INPUT,
     NOTES_INFO_NO_INPUT,
     TAGS_MUST_BE_LIST,
@@ -340,7 +339,7 @@ class NoteUpdateAnyParams(BaseModel):
 
     id: int
     fields: Optional[Dict[str, str]] = None
-    tags: Optional[List[str]] = None
+    tags: Any = None
     audio: Any = None
     video: Any = None
     picture: Any = None
@@ -362,11 +361,11 @@ class UpdateNoteModelParams(BaseModel):
 
 
 class NoteIdParams(BaseModel):
-    note: int
+    note: Any = ...
 
 
 class UpdateNoteTagsParams(BaseModel):
-    note: int
+    note: Any = ...
     tags: Any
 
 
@@ -401,7 +400,7 @@ def ac_updateNote(p: UpdateNoteParams) -> None:
     if spec.fields is not None:
         ac_update_note_fields(spec.id, spec.fields, _resolve_media(spec))
         updated = True
-    if spec.tags is not None:
+    if "tags" in spec.__fields_set__:
         _set_note_tags(spec.id, spec.tags)
         updated = True
     if not updated:
@@ -420,7 +419,13 @@ def _set_note_tags(note_id: int, tags: Any) -> None:
         tags = [tags]
     if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
         raise ValueError(TAGS_MUST_BE_LIST)
-    patch_note(note_id, {"tags": tags})
+    from ....adapters.anki.compat import note_tags
+
+    # Each legacy removal/addition is an operation with its own undo entry.
+    for old_tag in note_tags(note_id):
+        remove_tags([note_id], old_tag)
+    for new_tag in tags:
+        add_tags([note_id], new_tag)
 
 
 @registry.register("updateNoteTags", params=UpdateNoteTagsParams)
@@ -430,10 +435,9 @@ def ac_updateNoteTags(p: UpdateNoteTagsParams) -> None:
 
 @registry.register("getNoteTags", params=NoteIdParams)
 def ac_getNoteTags(p: NoteIdParams) -> List[str]:
-    notes = get_notes_by_ids([p.note], {"tags"})
-    if not notes:
-        raise ValueError(NOTE_NOT_FOUND.format(p.note))
-    return list(notes[0].tags)
+    from ....adapters.anki.compat import note_tags
+
+    return note_tags(p.note)
 
 
 @registry.register("clearUnusedTags")
