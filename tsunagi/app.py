@@ -9,6 +9,7 @@ from typing import Any, Optional
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import HTMLResponse
 
 from .adapters.config import ADDON_PACKAGE, choose_port, load_config
 from .adapters.settings import apply_config, make_persist, settings
@@ -133,18 +134,15 @@ def redoc_page():
 @app.get(
     "/",
     summary="Tsunagi API landing page",
-    description="Welcome page with links to API documentation",
+    description="Guided API playground with links to the complete reference",
+    response_class=HTMLResponse,
     tags=["Health"],
     operation_id="rootLandingPage"
 )
 def root_landing_page():
-    """
-    Root landing page for Tsunagi API.
-
-    Redirects to OpenAPI documentation or provides info about available endpoints.
-    """
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/docs")
+    """Serve the schema-driven playground alongside the full API reference."""
+    from .http.playground import PLAYGROUND_HTML
+    return HTMLResponse(PLAYGROUND_HTML, headers={"Cache-Control": "no-store"})
 
 # Root POST endpoint - AnkiConnect compatibility
 @app.post(
