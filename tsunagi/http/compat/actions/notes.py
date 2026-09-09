@@ -50,7 +50,7 @@ class NoteSpec(BaseModel):
     modelName: str
     fields: Dict[str, str]
     tags: List[str] = []
-    options: Optional[Dict[str, Any]] = None
+    options: Any = None
     audio: Any = None
     video: Any = None
     picture: Any = None
@@ -168,7 +168,7 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
 def ac_addNote(p: AddNoteParams) -> int:
     spec = p.note
     return ac_add_note(spec.deckName, spec.modelName, spec.fields, spec.tags,
-                       spec.options or {}, _resolve_media(spec))
+                       (spec.options if "options" in spec.__fields_set__ else {}), _resolve_media(spec))
 
 
 @registry.register("addNotes", params=AddNotesParams)
@@ -178,7 +178,7 @@ def ac_addNotes(p: AddNotesParams) -> List[int]:
     for spec in p.notes:
         try:
             created.append(ac_add_note(spec.deckName, spec.modelName, spec.fields,
-                                       spec.tags, spec.options or {}, _resolve_media(spec)))
+                                       spec.tags, (spec.options if "options" in spec.__fields_set__ else {}), _resolve_media(spec)))
         except Exception as e:
             errors.append(str(e))
     if errors:
@@ -209,7 +209,7 @@ def _can_add(spec: NoteSpec):
     try:
         # Canonical probes prepare media before duplicate/empty checks, even
         # though they never insert the prepared note into the collection.
-        ac_check_note(spec.deckName, spec.modelName, spec.fields, spec.options or {},
+        ac_check_note(spec.deckName, spec.modelName, spec.fields, (spec.options if "options" in spec.__fields_set__ else {}),
                       _resolve_media(spec))
         return True, None
     except Exception as e:

@@ -266,3 +266,33 @@ def update_note_model_raw(col, spec):
         if type(exc).__name__ == "NotFoundError":
             raise ValueError(f"Note was not found: {nid}") from exc
         raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def create_model_raw(col, name, fields, templates, css, is_cloze):
+    """Build through Anki's model manager without native API schema coercion."""
+    try:
+        if len(fields) == 0:
+            raise ValueError("Must provide at least one field for inOrderFields")
+        if len(templates) == 0:
+            raise ValueError("Must provide at least one card for cardTemplates")
+        models = col.models
+        if name in [entry.name for entry in models.all_names_and_ids()]:
+            raise ValueError("Model name already exists")
+        model = models.new(name)
+        if is_cloze:
+            model["type"] = 1
+        for field in fields:
+            models.add_field(model, models.new_field(field))
+        if css is not None:
+            model["css"] = css
+        for index, card in enumerate(templates, start=1):
+            card_name = card["Name"] if "Name" in card else f"Card {index}"
+            template = models.new_template(card_name)
+            template["qfmt"] = card["Front"]
+            template["afmt"] = card["Back"]
+            models.add_template(model, template)
+        result = models.add(model)
+        return ValueWithChanges(model, result.changes)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc

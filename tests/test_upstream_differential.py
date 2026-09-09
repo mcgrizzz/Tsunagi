@@ -1091,6 +1091,66 @@ def test_update_note_model_conversion(pair, model_name, fields, reviewed, tags):
         assert not collection.undo_status().undo
 
 
+@pytest.mark.parametrize("action", ["addNote", "addNotes", "canAddNotes", "canAddNotesWithErrorDetail"])
+@pytest.mark.parametrize("options", [
+    None, False, True, 0, 1, "", "unknown", "allowDuplicate", [], ["unknown"],
+    ["allowDuplicate"], {},
+    {"allowDuplicate": None}, {"allowDuplicate": 1}, {"allowDuplicate": "false"},
+    {"allowDuplicate": False}, {"allowDuplicate": True},
+    {"duplicateScope": None}, {"duplicateScope": []}, {"duplicateScope": "deck"},
+    {"duplicateScopeOptions": None}, {"duplicateScopeOptions": False},
+    {"duplicateScopeOptions": 0}, {"duplicateScopeOptions": ""},
+    {"duplicateScopeOptions": []}, {"duplicateScopeOptions": ["unknown"]},
+    {"duplicateScopeOptions": "deckName"}, {"duplicateScopeOptions": ["checkChildren"]},
+    {"duplicateScopeOptions": {"checkChildren": 1}},
+    {"duplicateScopeOptions": {"checkAllModels": None}},
+    {"duplicateScopeOptions": {"checkChildren": True, "checkAllModels": True}},
+])
+def test_note_creation_option_values(pair, action, options):
+    note = {"deckName": "Parity::日本語", "modelName": "Basic",
+            "fields": {"Front": "alpha", "Back": "one"}, "options": options}
+    if action in ("addNote", "addNotes"):
+        # A duplicate never allocates an ID unless the explicit boolean allows it.
+        # Use empty content for that case, retaining an exact response comparison.
+        if isinstance(options, dict) and options.get("allowDuplicate") is True:
+            note["fields"]["Front"] = ""
+    params = {"note": note} if action == "addNote" else {"notes": [note]}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("action", ["addNote", "addNotes", "canAddNotes", "canAddNotesWithErrorDetail"])
+@pytest.mark.parametrize("options", [None, False, {"allowDuplicate": 1},
+                                     {"duplicateScopeOptions": {"checkChildren": "false"}}])
+def test_note_creation_media_precedes_option_validation(pair, action, options):
+    note = {"deckName": "Parity::日本語", "modelName": "Basic",
+            "fields": {"Front": "new note"}, "options": options,
+            "picture": {"filename": "before-options.txt", "data": "bWVkaWE=", "fields": ["Back"]}}
+    params = {"note": note} if action == "addNote" else {"notes": [note]}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("change", [
+    {"isCloze": None}, {"isCloze": 0}, {"isCloze": 1}, {"isCloze": "false"},
+    {"isCloze": []}, {"isCloze": {}}, {"css": False}, {"css": 123}, {"css": []},
+    {"inOrderFields": None}, {"inOrderFields": False}, {"inOrderFields": "Front"},
+    {"inOrderFields": [123]}, {"cardTemplates": None}, {"cardTemplates": False},
+    {"cardTemplates": [None]}, {"cardTemplates": [{"Front": 123, "Back": "answer"}]},
+    {"modelName": None}, {"modelName": False}, {"modelName": 123},
+    {"modelName": []}, {"modelName": {}}, {"css": {}},
+    {"inOrderFields": [None]}, {"inOrderFields": [False]}, {"inOrderFields": [{}]},
+    {"cardTemplates": [False]}, {"cardTemplates": [123]}, {"cardTemplates": [[]]},
+    {"cardTemplates": [{"Name": None, "Front": "{{Front}}", "Back": "{{Back}}"}]},
+    {"cardTemplates": [{"Name": 123, "Front": "{{Front}}", "Back": "{{Back}}"}]},
+    {"cardTemplates": [{"Front": "{{Front}}", "Back": None}]},
+    {"isCloze": "false", "inOrderFields": ["Text"], "cardTemplates": [
+        {"Front": "{{cloze:Text}}", "Back": "{{cloze:Text}}"}]},
+])
+def test_model_creation_raw_options(pair, change):
+    test_model_creation(pair, change)
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)

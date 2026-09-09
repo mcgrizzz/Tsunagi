@@ -12,7 +12,6 @@ from pydantic import BaseModel
 
 from ....adapters.anki.models import (
     create_field,
-    create_model,
     create_template,
     delete_field,
     delete_template,
@@ -27,13 +26,10 @@ from ....adapters.anki.models import (
     reorder_templates,
 )
 from ..errors import (
-    CREATE_MODEL_NO_FIELDS,
-    CREATE_MODEL_NO_TEMPLATES,
     DESCRIPTION_NOT_STRING,
     FIELD_NOT_FOUND,
     FONT_NOT_STRING,
     FONT_SIZE_NOT_INT,
-    MODEL_NAME_EXISTS,
     MODEL_NOT_FOUND,
     TEMPLATE_NOT_FOUND,
 )
@@ -60,11 +56,11 @@ class ModelIdParams(BaseModel):
 
 
 class CreateModelParams(BaseModel):
-    modelName: str
-    inOrderFields: List[str]
-    cardTemplates: List[Dict[str, str]]
-    css: Optional[str] = None
-    isCloze: bool = False
+    modelName: Any = ...
+    inOrderFields: Any = ...
+    cardTemplates: Any = ...
+    css: Any = None
+    isCloze: Any = False
 
 
 class FindAndReplaceParams(BaseModel):
@@ -282,45 +278,9 @@ def ac_modelStyling(p: ModelFieldNamesParams) -> Dict[str, str]:
 
 @registry.register("createModel", params=CreateModelParams)
 def ac_createModel(p: CreateModelParams) -> Dict[str, Any]:
-    if not p.inOrderFields:
-        raise ValueError(CREATE_MODEL_NO_FIELDS)
-    if not p.cardTemplates:
-        raise ValueError(CREATE_MODEL_NO_TEMPLATES)
-    # Pre-check so the bare canonical string wins over the native one, which
-    # names the model.
-    if get_raw_models(names=[p.modelName]).get(p.modelName) is not None:
-        raise ValueError(MODEL_NAME_EXISTS)
+    from ....adapters.anki.compat import create_model_raw
 
-    templates = []
-    for index, card in enumerate(p.cardTemplates, start=1):
-        try:
-            front, back = card["Front"], card["Back"]
-        except KeyError as exc:
-            raise ValueError(str(exc)) from exc
-        templates.append({
-            "name": card.get("Name", f"Card {index}"),
-            "qfmt": front,
-            "afmt": back,
-        })
-
-    data: Dict[str, Any] = {
-        "name": p.modelName,
-        "flds": [{"name": name} for name in p.inOrderFields],
-        "tmpls": templates,
-    }
-    if p.isCloze:
-        data["type"] = 1
-    if p.css is not None:
-        data["css"] = p.css
-
-    from anki.errors import CardTypeError, InvalidInput
-
-    try:
-        create_model(data)
-    except (CardTypeError, InvalidInput) as exc:
-        raise ValueError(str(exc)) from exc
-    # Canonical returns Anki's raw notetype dict, not a curated shape.
-    return get_raw_models(names=[p.modelName])[p.modelName]
+    return create_model_raw(p.modelName, p.inOrderFields, p.cardTemplates, p.css, p.isCloze)
 
 
 @registry.register("findAndReplaceInModels", params=FindAndReplaceParams)
