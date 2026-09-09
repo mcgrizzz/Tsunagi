@@ -219,13 +219,14 @@ class TestAnkiConnectSettings:
         dialog.save_settings(SimpleNamespace(), {"port": 7777})
         assert calls == [{"port": 7777}]
 
-    def test_explicit_import_disables_once_after_saving(self, monkeypatch):
+    def test_explicit_import_disables_once_before_saving(self, monkeypatch):
         from types import SimpleNamespace
 
         from tsunagi.adapters import settings_dialog as dialog
         from tsunagi.adapters.dialogs import ANKICONNECT_ID
 
         calls = []
+        monkeypatch.setattr(dialog, "_check_handover_port", lambda cfg: None)
         for enabled in (True, False):
             calls.clear()
             manager = SimpleNamespace(
@@ -236,9 +237,9 @@ class TestAnkiConnectSettings:
             )
             monkeypatch.setattr(dialog, "apply_config", lambda *args, **kwargs: calls.append("saved"))
             dialog.save_settings(SimpleNamespace(addonManager=manager), {}, disable_ankiconnect=True)
-            assert calls == (["saved", (ANKICONNECT_ID, False)] if enabled else ["saved"])
+            assert calls == ([(ANKICONNECT_ID, False), "saved"] if enabled else ["saved"])
 
-    def test_disable_failure_restores_previous_settings(self, monkeypatch):
+    def test_disable_failure_does_not_save_imported_settings(self, monkeypatch):
         from types import SimpleNamespace
 
         import pytest
@@ -262,7 +263,7 @@ class TestAnkiConnectSettings:
         with pytest.raises(OSError, match="cannot write"):
             dialog.save_settings(SimpleNamespace(addonManager=manager), {"api_key": "new"},
                                  disable_ankiconnect=True)
-        assert writes == [{"api_key": "new"}, previous]
+        assert writes == []
 
     def test_removed_addon_does_not_save_import(self, monkeypatch):
         from types import SimpleNamespace
@@ -278,3 +279,127 @@ class TestAnkiConnectSettings:
         with pytest.raises(ValueError, match="no longer installed"):
             dialog.save_settings(SimpleNamespace(addonManager=SimpleNamespace(allAddons=lambda: [])),
                                  {}, disable_ankiconnect=True)
+
+
+class TestAnkiConnectPortHandover:
+    def test_explicit_import_copies_port_and_enables_tsunagi(self):
+        from tsunagi.adapters.dialogs import ankiconnect_import_changes
+
+        cfg = {"enabled": False, "port": 7777}
+        ac = {"webBindPort": 8765}
+        assert "port" not in ankiconnect_import_changes(cfg, ac)
+        changes = ankiconnect_import_changes(cfg, ac, include_port=True)
+        assert changes["port"] == 8765
+        assert changes["enabled"] is True
+        assert cfg == {"enabled": False, "port": 7777}
+
+    def test_invalid_import_port_is_rejected_before_form_clamping(self):
+        import pytest
+
+        from tsunagi.adapters.dialogs import ankiconnect_import_changes
+
+        for port in (True, 0, -1, 65536, "8765", []):
+            with pytest.raises(ValueError, match="AnkiConnect's port"):
+                ankiconnect_import_changes({}, {"webBindPort": port}, include_port=True)
+
+    def test_live_listener_is_released_and_can_be_restored(self, monkeypatch):
+        import socket
+        import sys
+        from types import SimpleNamespace
+
+        from tsunagi.adapters.dialogs import ANKICONNECT_ID, stop_ankiconnect_server
+
+        class Server:
+            def __init__(self):
+                self.sock = None
+                self.port = 0
+                self.listen()
+
+            def listen(self):
+                self.sock = socket.socket()
+                self.sock.bind(("127.0.0.1", self.port))
+                self.port = self.sock.getsockname()[1]
+                self.sock.listen()
+
+            def close(self):
+                self.sock.close()
+                self.sock = None
+
+        server = Server()
+        events = []
+        timer = SimpleNamespace(isActive=lambda: True, interval=lambda: 25,
+                                stop=lambda: events.append("stop"),
+                                start=lambda interval: events.append(interval))
+        monkeypatch.setitem(sys.modules, ANKICONNECT_ID,
+                            SimpleNamespace(ac=SimpleNamespace(server=server, timer=timer)))
+        try:
+            restore = stop_ankiconnect_server()
+            assert server.sock is None
+            assert events == ["stop"]
+            with socket.socket() as replacement:
+                replacement.bind(("127.0.0.1", server.port))
+                replacement.listen()
+            restore()
+            assert server.sock is not None
+            assert events == ["stop", 25]
+        finally:
+            if server.sock is not None:
+                server.close()
+
+    def test_busy_port_rolls_back_disable_and_runtime_before_saving(self, monkeypatch):
+        import socket
+        from types import SimpleNamespace
+
+        import pytest
+
+        from tsunagi.adapters import dialogs
+        from tsunagi.adapters import settings_dialog as dialog
+
+        events = []
+        manager = SimpleNamespace(
+            allAddons=lambda: [dialogs.ANKICONNECT_ID],
+            addon_meta=lambda _name: SimpleNamespace(enabled=True),
+            getConfig=lambda _name: {},
+            toggleEnabled=lambda name, enable: events.append(("enabled", enable)),
+        )
+        monkeypatch.setattr(dialogs, "stop_ankiconnect_server",
+                            lambda: events.append("stop") or (lambda: events.append("restore")))
+        monkeypatch.setattr(dialog, "apply_config", lambda *a, **kw: events.append("save"))
+        with socket.socket() as other_server:
+            other_server.bind(("127.0.0.1", 0))
+            other_server.listen()
+            cfg = {"host": "127.0.0.1", "port": other_server.getsockname()[1]}
+            with pytest.raises(ValueError, match="still in use"):
+                dialog.save_settings(SimpleNamespace(addonManager=manager), cfg,
+                                     disable_ankiconnect=True)
+        assert events == [("enabled", False), "stop", ("enabled", True), "restore"]
+
+    def test_config_write_failure_restores_settings_metadata_and_server(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import pytest
+
+        from tsunagi.adapters import dialogs
+        from tsunagi.adapters import settings_dialog as dialog
+
+        previous, new = {"api_key": "old"}, {"api_key": "new"}
+        events = []
+        manager = SimpleNamespace(
+            allAddons=lambda: [dialogs.ANKICONNECT_ID],
+            addon_meta=lambda _name: SimpleNamespace(enabled=True),
+            getConfig=lambda _name: previous,
+            toggleEnabled=lambda name, enable: events.append(("enabled", enable)),
+        )
+
+        def apply(mw, cfg, **kwargs):
+            events.append(cfg)
+            if cfg == new:
+                raise OSError("config write failed")
+
+        monkeypatch.setattr(dialog, "apply_config", apply)
+        monkeypatch.setattr(dialog, "_check_handover_port", lambda cfg: None)
+        monkeypatch.setattr(dialogs, "stop_ankiconnect_server",
+                            lambda: events.append("stop") or (lambda: events.append("restore")))
+        with pytest.raises(OSError, match="config write failed"):
+            dialog.save_settings(SimpleNamespace(addonManager=manager), new, disable_ankiconnect=True)
+        assert events == [("enabled", False), "stop", new, previous, ("enabled", True), "restore"]
