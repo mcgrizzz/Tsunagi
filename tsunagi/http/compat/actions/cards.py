@@ -22,7 +22,6 @@ from ....adapters.anki.cards import (
     relearn_cards,
     set_card_values,
     set_due_date,
-    set_ease_factors,
     suspend_cards,
     unsuspend_cards,
 )
@@ -55,8 +54,8 @@ class SuspendParams(BaseModel):
 
 
 class SetEaseFactorsParams(BaseModel):
-    cards: List[int]
-    easeFactors: List[int]
+    cards: Any = ...
+    easeFactors: Any = ...
 
 
 class GetIntervalsParams(BaseModel):
@@ -97,20 +96,12 @@ def ac_getEaseFactors(p: CardsParams) -> List[Optional[int]]:
 
 @registry.register("setEaseFactors", params=SetEaseFactorsParams)
 def ac_setEaseFactors(p: SetEaseFactorsParams) -> List[bool]:
-    # Parallel arrays on the wire; a missing card is False, not an error.
-    entries = []
-    for index, cid in enumerate(p.cards):
-        if index >= len(p.easeFactors):
-            # Upstream skips missing cards before indexing easeFactors, and
-            # keeps earlier writes when a present card runs past the array.
-            if card_ease_factors([cid])[0] is not None:
-                set_ease_factors(entries)
-                raise ValueError("list index out of range")
-            factor = 0  # ignored by the native writer for a missing card
-        else:
-            factor = p.easeFactors[index]
-        entries.append({"id": cid, "factor": factor})
-    return set_ease_factors(entries)
+    from ....adapters.anki.compat import set_raw_ease_factors
+
+    result, error = set_raw_ease_factors(p.cards, p.easeFactors)
+    if error is not None:
+        raise ValueError(error)
+    return result
 
 
 @registry.register("suspend", params=SuspendParams)
