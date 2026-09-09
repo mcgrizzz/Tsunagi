@@ -233,3 +233,36 @@ def bulk_note_tags(col, notes, tags, add=True):
         return ValueWithChanges(None, changes)
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def update_note_model_raw(col, spec):
+    """Use AnkiConnect's validation, field reset and non-undoable model update."""
+    try:
+        nid = spec.get("id")
+        if not nid:
+            raise ValueError("Note ID is required")
+        model_name = spec.get("modelName")
+        if not model_name:
+            raise ValueError("Model name is required")
+        fields = spec.get("fields")
+        if not fields or not isinstance(fields, dict):
+            raise ValueError("Fields must be provided as a dictionary")
+        note = col.get_note(nid)
+        model = col.models.by_name(model_name)
+        if not model:
+            raise ValueError(f"Model '{model_name}' not found")
+        note.mid = model["id"]
+        note._fmap = col.models.field_map(model)
+        note.fields = [""] * len(model["flds"])
+        for name, value in fields.items():
+            for model_field in note.keys():
+                if name.lower() == model_field.lower():
+                    note[model_field] = value
+                    break
+        note.tags = spec.get("tags", [])
+        return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True))
+    except Exception as exc:
+        if type(exc).__name__ == "NotFoundError":
+            raise ValueError(f"Note was not found: {nid}") from exc
+        raise ValueError(str(exc)) from exc

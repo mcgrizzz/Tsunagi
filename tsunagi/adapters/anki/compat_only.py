@@ -6,7 +6,6 @@ semantics, and reshaping the native API around the difference would make the
 native API worse. They are deliberate, like `_ac_duplicate_state` and
 `relearn_cards`, not an accident of layering.
 """
-from typing import Sequence
 
 from anki.collection import Collection
 
@@ -19,54 +18,53 @@ def _replace_tag_on(col: Collection, note, old: str, new: str):
         return None
     note.remove_tag(old)
     note.add_tag(new)
-    return col.update_note(note)
+    return col.update_note(note, skip_undo_entry=True)
 
 
-@as_collection_op
-def replace_tag_on_notes(col: Collection, note_ids: Sequence[int],
-                         old: str, new: str) -> int:
-    """
-    Swap one exact tag for another on the given notes.
-
-    Compat-only. `col.tags.rename` renames a tag *and its children*, and
-    `col.tags.find_and_replace` substitutes substrings inside each tag -
-    AnkiConnect's replaceTags does neither, matching the tag exactly and
-    leaving "verb::transitive" alone when replacing "verb". Unknown note ids
-    are skipped, as canonical does.
-    """
+def _replace_tags(col, note_ids, old, new):
     changed = 0
     changes = None
-    for nid in note_ids:
-        try:
-            note = col.get_note(int(nid))
-        except Exception as e:
-            if type(e).__name__ == "NotFoundError":
+    error = None
+    try:
+        for nid in note_ids:
+            try:
+                note = col.get_note(nid)
+            except Exception as exc:
+                if type(exc).__name__ != "NotFoundError":
+                    raise
                 continue
-            raise
-        res = _replace_tag_on(col, note, old, new)
-        if res is not None:
-            changes = res
-            changed += 1
-    return ValueWithChanges(changed, changes) if changes is not None else changed
+            result = _replace_tag_on(col, note, old, new)
+            if result is not None:
+                changes = result
+                changed += 1
+    except Exception as exc:
+        error = str(exc)
+    # Publish successful earlier writes before the HTTP handler reports an error.
+    value = (changed, error)
+    return ValueWithChanges(value, changes) if changes is not None else value
 
 
 @as_collection_op
-def replace_tag_everywhere(col: Collection, old: str, new: str) -> int:
-    """replaceTagsInAllNotes - the same exact-match swap over every note."""
+def replace_tag_on_notes(col: Collection, note_ids, old, new):
+    """Replace exact tags in input order, skipping unknown notes as upstream does."""
+    return _replace_tags(col, note_ids, old, new)
+
+
+@as_collection_op
+def replace_tag_everywhere(col: Collection, old, new):
+    """Use a targeted search for ordinary tags, then retain exact-match semantics."""
     from anki.collection import SearchNode
 
-    changed = 0
-    changes = None
-    # Only the notes that actually carry the tag - the old form walked
-    # find_notes("") and loaded every note in the collection to discard
-    # nearly all of them. build_search_string handles tag escaping; the
-    # has_tag check stays, keeping the exact-match semantics identical.
-    for nid in col.find_notes(col.build_search_string(SearchNode(tag=old))):
-        res = _replace_tag_on(col, col.get_note(int(nid)), old, new)
-        if res is not None:
-            changes = res
-            changed += 1
-    return ValueWithChanges(changed, changes) if changes is not None else changed
+    try:
+        if isinstance(old, str) and old:
+            # The reference visits primary-key order; preserve it for partial writes.
+            ids = sorted(col.find_notes(col.build_search_string(SearchNode(tag=old))))
+        else:
+            # Invalid values are only evaluated when a note is actually visited.
+            ids = col.db.list("select id from notes")
+        return _replace_tags(col, ids, old, new)
+    except Exception as exc:
+        return (0, str(exc))
 
 
 @as_collection_op

@@ -31,7 +31,6 @@ from ....adapters.anki.notes import (
     delete_notes,
     get_notes_by_ids,
     notes_mod_times,
-    patch_note,
     profile_name,
 )
 from ....adapters.anki.tags import add_tags, all_tags, clear_unused_tags, remove_tags
@@ -61,8 +60,8 @@ class NoteUpdateSpec(BaseModel):
     class Config:
         smart_union = True
 
-    id: int
-    fields: Dict[str, str]
+    id: Any = None
+    fields: Any = None
     audio: Any = None
     video: Any = None
     picture: Any = None
@@ -220,7 +219,10 @@ def _can_add(spec: NoteSpec):
 @registry.register("updateNoteFields", params=UpdateNoteFieldsParams)
 def ac_updateNoteFields(p: UpdateNoteFieldsParams) -> None:
     spec = p.note
-    ac_update_note_fields(spec.id, spec.fields, _resolve_media(spec))
+    if "id" not in spec.__fields_set__:
+        raise ValueError("'id'")
+    ac_update_note_fields(spec.id, spec.fields, _resolve_media(spec),
+                          fields_missing="fields" not in spec.__fields_set__)
     return None
 
 
@@ -341,8 +343,8 @@ class NoteUpdateAnyParams(BaseModel):
     class Config:
         extra = "allow"
 
-    id: int
-    fields: Optional[Dict[str, str]] = None
+    id: Any = None
+    fields: Any = None
     tags: Any = None
     audio: Any = None
     video: Any = None
@@ -354,10 +356,10 @@ class UpdateNoteParams(BaseModel):
 
 
 class UpdateNoteModelSpec(BaseModel):
-    id: int
-    modelName: str
-    fields: Dict[str, str]
-    tags: List[str] = []
+    id: Any = None
+    modelName: Any = None
+    fields: Any = None
+    tags: Any = None
 
 
 class UpdateNoteModelParams(BaseModel):
@@ -374,14 +376,14 @@ class UpdateNoteTagsParams(BaseModel):
 
 
 class ReplaceTagsParams(BaseModel):
-    notes: List[int]
-    tag_to_replace: str
-    replace_with_tag: str
+    notes: Any = ...
+    tag_to_replace: Any = ...
+    replace_with_tag: Any = ...
 
 
 class ReplaceTagsAllParams(BaseModel):
-    tag_to_replace: str
-    replace_with_tag: str
+    tag_to_replace: Any = ...
+    replace_with_tag: Any = ...
 
 
 @registry.register("canAddNote", params=AddNoteParams)
@@ -401,10 +403,14 @@ def ac_canAddNoteWithErrorDetail(p: AddNoteParams) -> Dict[str, Any]:
 def ac_updateNote(p: UpdateNoteParams) -> None:
     spec = p.note
     updated = False
-    if spec.fields is not None:
+    if "fields" in spec.__fields_set__:
+        if "id" not in spec.__fields_set__:
+            raise ValueError("'id'")
         ac_update_note_fields(spec.id, spec.fields, _resolve_media(spec))
         updated = True
     if "tags" in spec.__fields_set__:
+        if "id" not in spec.__fields_set__:
+            raise ValueError("'id'")
         _set_note_tags(spec.id, spec.tags)
         updated = True
     if not updated:
@@ -413,9 +419,9 @@ def ac_updateNote(p: UpdateNoteParams) -> None:
 
 @registry.register("updateNoteModel", params=UpdateNoteModelParams)
 def ac_updateNoteModel(p: UpdateNoteModelParams) -> None:
-    spec = p.note
-    patch_note(spec.id, {"modelName": spec.modelName,
-                         "fields": spec.fields, "tags": spec.tags})
+    from ....adapters.anki.compat import update_note_model_raw
+
+    update_note_model_raw(p.note.dict(exclude_unset=True))
 
 
 def _set_note_tags(note_id: int, tags: Any) -> None:
@@ -452,12 +458,16 @@ def ac_clearUnusedTags(params: Dict[str, Any]) -> None:
 
 @registry.register("replaceTags", params=ReplaceTagsParams)
 def ac_replaceTags(p: ReplaceTagsParams) -> None:
-    replace_tag_on_notes(p.notes, p.tag_to_replace, p.replace_with_tag)
+    _, error = replace_tag_on_notes(p.notes, p.tag_to_replace, p.replace_with_tag)
+    if error is not None:
+        raise ValueError(error)
 
 
 @registry.register("replaceTagsInAllNotes", params=ReplaceTagsAllParams)
 def ac_replaceTagsInAllNotes(p: ReplaceTagsAllParams) -> None:
-    replace_tag_everywhere(p.tag_to_replace, p.replace_with_tag)
+    _, error = replace_tag_everywhere(p.tag_to_replace, p.replace_with_tag)
+    if error is not None:
+        raise ValueError(error)
 
 
 @registry.register("removeEmptyNotes")
