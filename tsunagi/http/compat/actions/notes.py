@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from ....adapters.anki.compat import raw_id_list
 from ....adapters.anki.compat_only import (
     remove_unused_note_types,
     replace_tag_everywhere,
@@ -81,8 +82,12 @@ class UpdateNoteFieldsParams(BaseModel):
 
 
 class NotesInfoParams(BaseModel):
-    notes: Optional[List[int]] = None
+    notes: Any = None
     query: Optional[str] = None
+
+
+class NotesLookupParams(BaseModel):
+    notes: Any = ...
 
 
 class FindNotesParams(BaseModel):
@@ -228,7 +233,11 @@ def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
 
     if p.notes is None and p.query is None:
         raise ValueError(NOTES_INFO_NO_INPUT)
-    ids = find_ids(p.query) if p.query is not None else list(p.notes)
+    ids = find_ids(p.query) if p.query is not None else raw_id_list(p.notes)
+    if any(type(nid) is not int for nid in ids):
+        from ....adapters.anki.compat import validate_object_ids
+
+        ids = validate_object_ids(ids, notes=True, note_cards=True)
     # Upstream appends a note's cards once for each 999-ID SQL batch containing
     # that note. Duplicate IDs inside one batch do not multiply its cards.
     card_repetitions = Counter(
@@ -314,9 +323,14 @@ def ac_getTags(params: Dict[str, Any]) -> List[str]:
     return all_tags()
 
 
-@registry.register("notesModTime", params=DeleteNotesParams)
-def ac_notesModTime(p: DeleteNotesParams) -> List[Dict[str, Any]]:
-    return [item if item["mod"] is not None else {} for item in notes_mod_times(p.notes)]
+@registry.register("notesModTime", params=NotesLookupParams)
+def ac_notesModTime(p: NotesLookupParams) -> List[Dict[str, Any]]:
+    from ....adapters.anki.compat import validate_object_ids
+
+    ids = raw_id_list(p.notes)
+    if any(type(nid) is not int for nid in ids):
+        ids = validate_object_ids(ids, notes=True)
+    return [item if item["mod"] is not None else {} for item in notes_mod_times(ids)]
 
 
 class NoteUpdateAnyParams(BaseModel):

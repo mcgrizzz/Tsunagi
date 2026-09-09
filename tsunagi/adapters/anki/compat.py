@@ -81,6 +81,15 @@ def deck_tree_names(col):
 @as_query_op
 def decks_for_cards(col, cards):
     """Keep request order/duplicates and Anki's missing-card deck fallback."""
+    if any(type(card) is not int for card in cards):
+        result = {}
+        try:
+            for card in cards:
+                did = col.db.scalar("select did from cards where id = ?", card)
+                result.setdefault(col.decks.get(did)["name"], []).append(card)
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+        return result
     deck_ids = {}
     for offset in range(0, len(cards), 250):
         batch = cards[offset:offset + 250]
@@ -93,3 +102,83 @@ def decks_for_cards(col, cards):
         name = col.decks.get(deck_ids.get(card))["name"]
         result.setdefault(name, []).append(card)
     return result
+
+
+def raw_id_list(values):
+    """Materialize legacy iterables without changing their elements or errors."""
+    try:
+        return list(values)
+    except TypeError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_query_op
+def validate_object_ids(col, ids, *, notes=False, note_cards=False):
+    """Let Anki diagnose raw object IDs before the native batch fetch coerces them."""
+    try:
+        if note_cards:
+            # notesInfo binds IDs to its card lookup before loading note objects.
+            for offset in range(0, len(ids), 999):
+                batch = ids[offset:offset + 999]
+                col.db.all("select id from cards where nid in ("
+                           + ",".join("?" for _ in batch) + ")", *batch)
+        load = col.get_note if notes else col.get_card
+        resolved = []
+        for value in ids:
+            if type(value) is int:
+                resolved.append(value)
+                continue
+            try:
+                resolved.append(load(value).id)
+            except Exception as exc:
+                if type(exc).__name__ != "NotFoundError":
+                    raise
+                resolved.append(0)
+        return resolved
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_query_op
+def raw_card_schedule(col, ids, *, due=False, complete=False):
+    """Retain per-ID search and SQL semantics for non-integer legacy values."""
+    import time
+
+    try:
+        result = []
+        for cid in ids:
+            if col.find_cards(f"cid:{cid} is:new"):
+                result.append(True if due else 0)
+            elif due:
+                reviewed, interval = col.db.all(
+                    "select id/1000.0, ivl from revlog where cid = ?", cid,
+                )[-1]
+                result.append(bool(col.find_cards(f"cid:{cid} is:due")) if interval >= -1200
+                              else reviewed - interval <= time.time())
+            else:
+                history = col.db.list("select ivl from revlog where cid = ?", cid)
+                result.append(history if complete else history[-1])
+        return result
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_query_op
+def reviews_for_raw_ids(col, ids):
+    """Keep SQL batching, raw map keys and key collisions from getReviewsOfCards."""
+    from .reviews import COLUMNS
+
+    keys = COLUMNS[:1] + COLUMNS[2:]
+    try:
+        reviews = {}
+        for offset in range(0, len(ids), 999):
+            batch = ids[offset:offset + 999]
+            rows = col.db.all(
+                "select cid, " + ", ".join(keys) + " from revlog where cid in ("
+                + ",".join("?" for _ in batch) + ")", *batch,
+            )
+            for cid, *row in rows:
+                reviews.setdefault(cid, []).append(dict(zip(keys, row)))
+        return {cid: reviews.get(cid, []) for cid in ids}
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc

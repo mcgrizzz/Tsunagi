@@ -26,6 +26,7 @@ from ....adapters.anki.cards import (
     suspend_cards,
     unsuspend_cards,
 )
+from ....adapters.anki.compat import raw_id_list
 from ....adapters.anki.reviews import card_intervals, cards_are_due
 from ..errors import CARD_NOT_FOUND
 from ..registry import registry
@@ -36,7 +37,8 @@ class CardsParams(BaseModel):
 
 
 class CardsInfoParams(BaseModel):
-    cards: Optional[List[int]] = ...
+    # The compatibility boundary must not coerce strings, floats or booleans.
+    cards: Any = ...
 
 
 class DueParams(BaseModel):
@@ -77,6 +79,15 @@ def _require_all_present(card_ids: List[int]) -> List[bool]:
         if state is None:
             raise ValueError(CARD_NOT_FOUND.format(cid))
     return [bool(s) for s in states]
+
+
+def _object_ids(values):
+    from ....adapters.anki.compat import validate_object_ids
+
+    ids = raw_id_list(values)
+    if any(type(value) is not int for value in ids):
+        return validate_object_ids(ids)
+    return ids
 
 
 @registry.register("getEaseFactors", params=CardsParams)
@@ -139,9 +150,14 @@ def ac_areSuspended(p: CardsParams) -> List[Optional[bool]]:
 @registry.register("areDue", params=DueParams)
 def ac_areDue(p: DueParams) -> List[bool]:
     try:
-        if any(history == [] for history in card_intervals(p.cards, True)):
+        ids = raw_id_list(p.cards)
+        if any(type(cid) is not int for cid in ids):
+            from ....adapters.anki.compat import raw_card_schedule
+
+            return raw_card_schedule(ids, due=True)
+        if any(history == [] for history in card_intervals(ids, True)):
             raise ValueError("list index out of range")
-        return cards_are_due(p.cards)
+        return cards_are_due(ids)
     except TypeError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -149,7 +165,12 @@ def ac_areDue(p: DueParams) -> List[bool]:
 @registry.register("getIntervals", params=GetIntervalsParams)
 def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
     try:
-        histories = card_intervals(p.cards, True)
+        ids = raw_id_list(p.cards)
+        if any(type(cid) is not int for cid in ids):
+            from ....adapters.anki.compat import raw_card_schedule
+
+            return raw_card_schedule(ids, complete=p.complete)
+        histories = card_intervals(ids, True)
         if p.complete:
             return histories
         return [history[-1] if isinstance(history, list) else history for history in histories]
@@ -162,9 +183,9 @@ def ac_cardsToNotes(p: CardsParams) -> List[int]:
     return notes_of_cards(p.cards)
 
 
-@registry.register("cardsModTime", params=CardsParams)
-def ac_cardsModTime(p: CardsParams) -> List[Dict[str, Any]]:
-    return cards_mod_times(p.cards)
+@registry.register("cardsModTime", params=CardsInfoParams)
+def ac_cardsModTime(p: CardsInfoParams) -> List[Dict[str, Any]]:
+    return cards_mod_times(_object_ids(p.cards))
 
 
 # Everything cardsInfo's wire shape reads - notably NOT retrievability,
@@ -180,11 +201,12 @@ _CARDS_INFO_WANTS = {
 def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
     if p.cards is None:
         raise ValueError("'NoneType' object is not iterable")
+    ids = _object_ids(p.cards)
     # Anki treats get_card(0) as constructing an unsaved card. Upstream catches
     # its missing-note error and returns an empty object at that input position.
-    by_id = {c.id: c for c in get_cards_by_ids([cid for cid in p.cards if cid], _CARDS_INFO_WANTS)}
+    by_id = {c.id: c for c in get_cards_by_ids([cid for cid in ids if cid], _CARDS_INFO_WANTS)}
     out: List[Dict[str, Any]] = []
-    for cid in p.cards:
+    for cid in ids:
         card = by_id.get(int(cid))
         if card is None:
             out.append({})  # keep input/output positions aligned
