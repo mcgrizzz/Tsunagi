@@ -1151,6 +1151,151 @@ def test_model_creation_raw_options(pair, change):
     test_model_creation(pair, change)
 
 
+@pytest.mark.parametrize("action", [
+    "addNote", "addNotes", "canAddNote", "canAddNoteWithErrorDetail",
+    "canAddNotes", "canAddNotesWithErrorDetail", "updateNote", "updateNoteFields", "updateNoteModel",
+])
+@pytest.mark.parametrize("note", [None, False, 123, "", "id", [], ["id"], {}, {"unknown": True}])
+def test_raw_note_containers(pair, action, note):
+    params = {"notes": [note]} if action in ("addNotes", "canAddNotes", "canAddNotesWithErrorDetail") else {"note": note}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("action", ["addNotes", "canAddNotes", "canAddNotesWithErrorDetail"])
+@pytest.mark.parametrize("notes", [None, False, 123, "", "xy", [], {}, {"invalid": True}])
+def test_raw_note_batch_containers(pair, action, notes):
+    compare(pair, action, {"notes": notes})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("action", ["addNote", "addNotes", "canAddNote", "canAddNoteWithErrorDetail",
+                                    "canAddNotes", "canAddNotesWithErrorDetail"])
+@pytest.mark.parametrize("change", [
+    {"modelName": None}, {"modelName": False}, {"modelName": 123}, {"modelName": []},
+    {"deckName": None}, {"deckName": False}, {"deckName": 123}, {"deckName": []},
+    {"fields": None}, {"fields": False}, {"fields": []}, {"fields": "Front"},
+    {"fields": {"Front": 123}}, {"fields": {"Front": None}}, {"fields": {"Front": False}},
+    {"fields": {"Front": []}}, {"fields": {"unknown": "ignored"}},
+    {"tags": None}, {"tags": False}, {"tags": 123}, {"tags": "one two"}, {"tags": [123]},
+])
+def test_note_creation_raw_members(pair, action, change):
+    note = {"modelName": "Basic", "deckName": "Parity::日本語",
+            "fields": {"Front": "alpha", "Back": "one"}, **change}
+    params = {"notes": [note]} if action in ("addNotes", "canAddNotes", "canAddNotesWithErrorDetail") else {"note": note}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("action", ["addNotes", "canAddNotes", "canAddNotesWithErrorDetail"])
+@pytest.mark.parametrize("malformed", [None, [], {}, {"modelName": "Missing"}])
+def test_note_batch_keeps_media_around_invalid_entry(pair, action, malformed):
+    def note(label):
+        return {"modelName": "Basic", "deckName": "Parity::日本語",
+                "fields": {"Front": label}, "picture": {
+                    "filename": label + ".txt", "data": "bWVkaWE=", "fields": ["Back"]}}
+    compare(pair, action, {"notes": [note("prefix"), malformed, note("suffix")]})
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("action", ["updateModelTemplates", "updateModelStyling"])
+@pytest.mark.parametrize("model", [None, False, 123, "", [], {}, {"name": "Missing"}, {"name": "Basic"}])
+def test_model_update_raw_containers(pair, action, model):
+    compare(pair, action, {"model": model})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("templates", [None, False, 123, "", [], {}, {"Unknown": 123},
+    {"Card 1": None}, {"Card 1": False}, {"Card 1": []}, {"Card 1": 123}, {"Card 1": "x"},
+    {"Card 1": {"Front": None}}, {"Card 1": {"Front": False}}, {"Card 1": {"Front": 123}},
+    {"Card 1": {"Front": "{{Front}} changed", "Back": ["invalid"]}},
+])
+def test_model_template_raw_values(pair, templates):
+    compare(pair, "updateModelTemplates", {"model": {"name": "Basic", "templates": templates}})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("css", [None, False, 123, "", [], {}, "body {color: red;}"])
+def test_model_styling_raw_values(pair, css):
+    compare(pair, "updateModelStyling", {"model": {"name": "Basic", "css": css}})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["addNote", "addNotes", "canAddNote", "canAddNoteWithErrorDetail",
+                                    "canAddNotes", "canAddNotesWithErrorDetail"])
+@pytest.mark.parametrize("missing", [
+    ["modelName"], ["deckName"], ["fields"], ["modelName", "deckName"],
+    ["modelName", "fields"], ["deckName", "fields"], ["modelName", "deckName", "fields"],
+])
+def test_note_creation_missing_members(pair, action, missing):
+    note = {"modelName": "Basic", "deckName": "Parity::日本語", "fields": {"Front": "new"}}
+    for key in missing:
+        note.pop(key)
+    params = {"notes": [note]} if action in ("addNotes", "canAddNotes", "canAddNotesWithErrorDetail") else {"note": note}
+    compare(pair, action, params)
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("tags", [None, False, 123, "one two", [], ["one", "two"], [123], {"one": True}])
+def test_note_creation_raw_tags_on_new_note(pair, tags):
+    note = {"modelName": "Basic", "deckName": "Parity::日本語",
+            "fields": {"Front": "brand new", "Back": "answer"}, "tags": tags}
+    request = {"action": "addNote", "version": 6, "params": {"note": note}}
+    expected = pair[2].handler(copy.deepcopy(request))
+    actual = handle_ankiconnect_rpc(copy.deepcopy(request))
+    assert actual["error"] == expected["error"]
+    if actual["error"] is not None:
+        assert actual == expected
+        assert_note_and_media_state(pair)
+        return
+    # Successful insertion allocates independent note and card IDs.
+    for response in (actual, expected):
+        assert type(response["result"]) is int and response["result"] > 0
+    notes = [c.get_note(r["result"]) for c, r in zip(pair[:2], (actual, expected))]
+    assert notes[0].fields == notes[1].fields
+    assert notes[0].tags == notes[1].tags
+    assert notes[0].mid == notes[1].mid
+    for n in notes:
+        assert len(n.cards()) == 1
+    for c, response in zip(pair[:2], (actual, expected)):
+        c.remove_notes([response["result"]])
+    assert_note_and_media_state(pair)
+
+
+@pytest.mark.parametrize("later", [123, {"Front": 123}, {"Back": 123}, None,
+                                    {"Front": "{{Back}} suffix", "Back": "{{Front}}"}])
+def test_model_template_saves_once_after_all_entries(pair, later):
+    name = "Basic (and reversed card)"
+    nid = pair[0].find_notes("")[0]
+    compare(pair, "updateNoteModel", {"note": {
+        "id": nid, "modelName": name, "fields": {"Front": "front", "Back": "back"}}})
+    compare(pair, "updateModelTemplates", {"model": {"name": name, "templates": {
+        "Card 1": {"Front": "{{Front}} prefix"}, "Card 2": later}}})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["updateModelTemplates", "updateModelStyling"])
+@pytest.mark.parametrize("name", [None, False, 123, [], {}])
+def test_model_update_raw_names(pair, action, name):
+    compare(pair, action, {"model": {"name": name, "css": "", "templates": {}}})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action,change", [
+    ("updateModelTemplates", {"templates": {"Card 1": {"Front": "{{Front}} undo check"}}}),
+    ("updateModelStyling", {"css": "body {color: red;}"}),
+])
+def test_model_update_undo_redo(pair, action, change):
+    compare(pair, action, {"model": {"name": "Basic", **change}})
+    assert_mutation_state(pair)
+    for c in pair[:2]:
+        c.undo()
+    assert_mutation_state(pair)
+    for c in pair[:2]:
+        c.redo()
+    assert_mutation_state(pair)
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)

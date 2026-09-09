@@ -447,22 +447,24 @@ def _ac_duplicate_state(col: Collection, note: Any, deck: Dict[str, Any],
     return NORMAL
 
 
-def _ac_prepare(col: Collection, deck_name: str, model_name: str,
-                fields: Dict[str, str], tags: Sequence[str], options: Dict[str, Any]):
-    """Resolve and fill before media processing and option validation."""
+def _ac_prepare(col: Collection, spec):
+    """Resolve and fill raw note input in AnkiConnect's validation order."""
     from ...http.compat.errors import DECK_NOT_FOUND, MODEL_NOT_FOUND
 
+    model_name = spec["modelName"]
     model = col.models.by_name(model_name)
     if model is None:
         raise ValueError(MODEL_NOT_FOUND.format(model_name))
+    deck_name = spec["deckName"]
     deck = col.decks.by_name(deck_name)
     if deck is None:
         raise ValueError(DECK_NOT_FOUND.format(deck_name))
 
     note = col.new_note(model)
-    _ac_apply_fields(note, fields)
-    note.tags = list(tags or [])
-    return note, model, deck, options
+    note.note_type()["did"] = deck["id"]
+    note.tags = spec.get("tags", [])
+    _ac_apply_fields(note, spec["fields"])
+    return note, model, deck, spec.get("options", {})
 
 
 def _ac_finish_check(col: Collection, note: Any, deck: Dict[str, Any],
@@ -518,32 +520,34 @@ def _ac_write_media(col: Collection, note: Any, media: Sequence[Dict[str, Any]])
 
 
 @as_collection_op
-def ac_add_note(col: Collection, deck_name: str, model_name: str,
-                fields: Dict[str, str], tags: Sequence[str],
-                options: Dict[str, Any], media: Sequence[Dict[str, Any]]) -> int:
-    from ...http.compat.errors import EMPTY_QUESTION
+def ac_add_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -> int:
+    try:
+        from ...http.compat.errors import EMPTY_QUESTION
 
-    note, _model, deck, raw_options = _ac_prepare(col, deck_name, model_name, fields, tags, options)
-    _ac_write_media(col, note, media)
-    _ac_finish_check(col, note, deck, _ac_options(raw_options))
+        note, _model, deck, raw_options = _ac_prepare(col, spec)
+        _ac_write_media(col, note, media)
+        _ac_finish_check(col, note, deck, _ac_options(raw_options))
 
-    res = col.add_note(note, int(deck["id"]))
-    if int(getattr(res, "count", 1) or 0) < 1:
-        raise ValueError(EMPTY_QUESTION)
-    return ValueWithChanges(int(note.id), res)
+        res = col.add_note(note, int(deck["id"]))
+        if int(getattr(res, "count", 1) or 0) < 1:
+            raise ValueError(EMPTY_QUESTION)
+        return ValueWithChanges(int(note.id), res)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @as_collection_op
-def ac_check_note(col: Collection, deck_name: str, model_name: str,
-                  fields: Dict[str, str], options: Dict[str, Any],
-                  media: Sequence[Dict[str, Any]] = ()) -> bool:
+def ac_check_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -> bool:
     """Prepare a probe, including upstream media side effects, without adding it."""
-    from anki.collection import OpChanges
+    try:
+        from anki.collection import OpChanges
 
-    note, _model, deck, raw_options = _ac_prepare(col, deck_name, model_name, fields, [], options)
-    _ac_write_media(col, note, media)
-    _ac_finish_check(col, note, deck, _ac_options(raw_options))
-    return ValueWithChanges(True, OpChanges())
+        note, _model, deck, raw_options = _ac_prepare(col, spec)
+        _ac_write_media(col, note, media)
+        _ac_finish_check(col, note, deck, _ac_options(raw_options))
+        return ValueWithChanges(True, OpChanges())
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @as_collection_op

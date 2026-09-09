@@ -296,3 +296,29 @@ def create_model_raw(col, name, fields, templates, css, is_cloze):
         return ValueWithChanges(model, result.changes)
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def update_model_raw(col, spec, *, templates=False):
+    """Edit the cached model and save once, preserving raw compatibility values."""
+    try:
+        name = spec["name"]
+        model = col.models.by_name(name)
+        if model is None:
+            raise ValueError(f"model was not found: {name}")
+        if templates:
+            incoming = spec["templates"]
+            for template in model["tmpls"]:
+                supplied = incoming.get(template["name"])
+                if supplied:
+                    front = supplied.get("Front")
+                    if front:
+                        template["qfmt"] = front
+                    back = supplied.get("Back")
+                    if back:
+                        template["afmt"] = back
+        else:
+            model["css"] = spec["css"]
+        return ValueWithChanges(None, col.models.update_dict(model))
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc

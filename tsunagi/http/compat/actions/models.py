@@ -130,11 +130,11 @@ class FieldSetDescriptionParams(FieldNameParams):
 
 
 class UpdateModelTemplatesParams(BaseModel):
-    model: Dict[str, Any]
+    model: Any = ...
 
 
 class UpdateModelStylingParams(BaseModel):
-    model: Dict[str, Any]
+    model: Any = ...
 
 
 # --- shared lookups -----------------------------------------------------
@@ -307,31 +307,16 @@ def ac_findAndReplaceInModels(p: FindAndReplaceParams) -> int:
 
 @registry.register("updateModelTemplates", params=UpdateModelTemplatesParams)
 def ac_updateModelTemplates(p: UpdateModelTemplatesParams) -> None:
-    model = _raw_model(p.model["name"])
-    incoming = p.model.get("templates") or {}
-    saved = False
-    for template in model["tmpls"]:
-        supplied = incoming.get(template["name"])
-        if not supplied:
-            continue                      # unknown names are silently ignored
-        updates = {}
-        # Only truthy values overwrite - canonical treats "" as "leave alone".
-        if supplied.get("Front"):
-            updates["qfmt"] = supplied["Front"]
-        if supplied.get("Back"):
-            updates["afmt"] = supplied["Back"]
-        if updates:
-            patch_template(model["id"], template["name"], updates)
-            saved = True
-    if not saved:
-        # Canonical saves even when every supplied format is empty or unknown.
-        patch_model(model["id"], {})
+    from ....adapters.anki.compat import update_model_raw
+
+    update_model_raw(p.model, templates=True)
 
 
 @registry.register("updateModelStyling", params=UpdateModelStylingParams)
 def ac_updateModelStyling(p: UpdateModelStylingParams) -> None:
-    model = _raw_model(p.model["name"])
-    patch_model(model["id"], {"css": p.model["css"]})
+    from ....adapters.anki.compat import update_model_raw
+
+    update_model_raw(p.model, templates=False)
 
 
 # --- template edits -----------------------------------------------------
