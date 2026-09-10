@@ -144,10 +144,10 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
 
 # ---- actions -----------------------------------------------------------
 
-def _resolve_note_media(spec) -> List[Dict[str, Any]]:
+def _resolve_note_media(spec, *, updating: bool = False) -> List[Dict[str, Any]]:
     # Keep validation in the adapter and downloads on this request thread.
     if isinstance(spec, dict) and any(spec.get(kind) for kind in _MARKUP):
-        ac_validate_note(spec)
+        ac_validate_note(spec, updating=updating)
     return _resolve_media(spec)
 
 
@@ -214,7 +214,7 @@ def ac_updateNoteFields(p: UpdateNoteFieldsParams) -> None:
         note_id = spec["id"]
     except Exception as exc:
         raise ValueError(str(exc)) from exc
-    ac_update_note_fields(note_id, spec.get("fields"), _resolve_media(spec),
+    ac_update_note_fields(note_id, spec.get("fields"), _resolve_note_media(spec, updating=True),
                           fields_missing="fields" not in spec)
     return None
 
@@ -378,7 +378,7 @@ def ac_updateNote(p: UpdateNoteParams) -> None:
     try:
         updated = False
         if "fields" in spec.keys():
-            ac_update_note_fields(spec["id"], spec["fields"], _resolve_media(spec))
+            ac_update_note_fields(spec["id"], spec["fields"], _resolve_note_media(spec, updating=True))
             updated = True
         if "tags" in spec.keys():
             _set_note_tags(spec["id"], spec["tags"])
