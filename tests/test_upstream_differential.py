@@ -769,6 +769,19 @@ def test_remaining_card_reads_raw_inputs(pair, action, case):
     assert_mutation_state(pair)
 
 
+@pytest.mark.parametrize("cards", [
+    [-1], [0], [999999], [2**63], [2**64], [-2**63 - 1],
+    [999999, -1], [-1, 999999], [999999, 2**63], [2**63, 999999],
+    [0, -1], [0, 2**63],
+])
+@pytest.mark.parametrize("action,extra", [
+    ("getIntervals", {"complete": False}), ("getIntervals", {"complete": "false"}),
+    ("areDue", {}),
+])
+def test_schedule_read_integer_boundaries(pair, cards, action, extra):
+    compare(pair, action, {"cards": cards, **extra})
+
+
 @pytest.mark.parametrize("complete", [None, False, True, 0, 1, -1, 1.5, "", "false", "true", [], [False], {}, {"x": False}])
 @pytest.mark.parametrize("layout", ["empty", "new", "review", "missing", "mixed", "raw"])
 def test_intervals_raw_complete_flag(pair, complete, layout):

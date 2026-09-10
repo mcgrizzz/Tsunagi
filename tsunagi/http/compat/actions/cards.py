@@ -116,7 +116,7 @@ def ac_areSuspended(p: CardsInfoParams) -> List[Optional[bool]]:
 def ac_areDue(p: DueParams) -> List[bool]:
     try:
         ids = raw_id_list(p.cards)
-        if any(type(cid) is not int for cid in ids):
+        if any(type(cid) is not int or not 0 <= cid < 2**63 for cid in ids):
             from ....adapters.anki.compat import raw_card_schedule
 
             return raw_card_schedule(ids, due=True)
@@ -131,7 +131,7 @@ def ac_areDue(p: DueParams) -> List[bool]:
 def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
     try:
         ids = raw_id_list(p.cards)
-        if any(type(cid) is not int for cid in ids):
+        if any(type(cid) is not int or not 0 <= cid < 2**63 for cid in ids):
             from ....adapters.anki.compat import raw_card_schedule
 
             return raw_card_schedule(ids, complete=p.complete)
