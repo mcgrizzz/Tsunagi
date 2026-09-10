@@ -77,6 +77,32 @@ def open_browser(query: Optional[str] = None,
     call_on_main(_browse, query, reorder)
 
 
+def ac_browse(query: Any = None, reorder: Any = None) -> List[int]:
+    """Preserve raw Qt arguments, search/sort order, and compatibility errors."""
+    def _run() -> List[int]:
+        try:
+            _browse(query, reorder)
+            return list(_mw().col.find_cards(query)) if query is not None else []
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+    return call_on_main(_run)
+
+
+def ac_select_card(card_id: Any) -> bool:
+    """Clear the current selection before passing the raw ID to the Browser."""
+    def _select() -> bool:
+        try:
+            browser = _existing_dialog("Browser")
+            if browser is None:
+                return False
+            browser.table.clear_selection()
+            browser.table.select_single_card(card_id)
+            return True
+        except Exception as exc:
+            raise ValueError(str(exc)) from exc
+    return call_on_main(_select)
+
+
 def select_card(card_id: int) -> bool:
     """False when no Browser is open - canonical does not open one here."""
     def _select() -> bool:
