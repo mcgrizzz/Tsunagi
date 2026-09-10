@@ -9,6 +9,9 @@ those are manual-checklist territory.
 """
 
 
+import pytest
+
+
 def rpc(client, action, params=None, version=6):
     body = {"action": action, "version": version}
     if params is not None:
@@ -202,3 +205,212 @@ class TestCapabilities:
         assert result["supported"] is True
         assert result["operations"]["optimal_retention"]["available"] is True
         assert result["operations"]["simulate_workload"]["available"] is False
+
+
+class TestImportChoices:
+    @staticmethod
+    def package(client, col, tmp_path):
+        seed(client)
+        col.db.execute("update cards set type=2, queue=2, due=100, ivl=21, reps=5, factor=2500")
+        cid = col.db.scalar("select id from cards limit 1")
+        col.db.execute(
+            "insert into revlog values (?, ?, -1, 3, 21, 10, 2500, 1000, 1)",
+            1700000000000, cid,
+        )
+        path = str(tmp_path / "choices.apkg")
+        response = client.post("/v1/collection:export", json={
+            "deck": "JP", "path": path, "with_scheduling": True,
+        })
+        assert response.status_code == 200, response.text
+        col.remove_notes(col.find_notes(""))
+        col.db.execute("delete from revlog")
+        return path
+
+    @pytest.mark.parametrize("saved", [False, True])
+    @pytest.mark.parametrize("choice", ["omitted", None, False, True])
+    def test_scheduling_and_history_follow_choice(self, client, col, tmp_path, saved, choice):
+        path = self.package(client, col, tmp_path)
+        # A real import establishes the saved preference, as Anki's dialog does.
+        response = client.post("/v1/collection:import", json={
+            "path": path, "with_scheduling": saved,
+        })
+        assert response.status_code == 200, response.text
+        col.remove_notes(col.find_notes(""))
+        col.db.execute("delete from revlog")
+        request = {"path": path}
+        if choice != "omitted":
+            request["with_scheduling"] = choice
+        response = client.post("/v1/collection:import", json=request)
+        assert response.status_code == 200, response.text
+        assert response.json()["imported"] == 2
+        expected = saved if choice in ("omitted", None) else choice
+        states = col.db.all("select type, queue, ivl, reps from cards")
+        assert states == ([[2, 2, 21, 5]] * 2 if expected else [[0, 0, 0, 0]] * 2)
+        assert col.db.scalar("select count(*) from revlog") == int(expected)
+        preferences = client.get("/v1/collection/import-options").json()
+        assert preferences["options"]["with_scheduling"] is expected
+
+    def test_discovery_is_read_only_and_reports_backend_support(self, client, col):
+        before = col._backend.get_import_anki_package_presets().SerializeToString()
+        response = client.get("/v1/collection/import-options")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        presets = col._backend.get_import_anki_package_presets()
+        assert presets.SerializeToString() == before
+        assert body["options"]["with_scheduling"] is presets.with_scheduling
+        supported = "with_deck_configs" in presets.DESCRIPTOR.fields_by_name
+        assert body["unsupported_options"] == ([] if supported else ["with_deck_configs"])
+        assert body["options"]["with_deck_configs"] == (
+            presets.with_deck_configs if supported else None)
+
+    @pytest.mark.parametrize("choice", ["if_newer", "always", "never"])
+    @pytest.mark.parametrize("incoming_newer", [False, True])
+    def test_note_update_rule(self, client, col, tmp_path, choice, incoming_newer):
+        seed(client)
+        path = str(tmp_path / "updates.apkg")
+        assert client.post("/v1/collection:export", json={
+            "deck": "JP", "path": path}).status_code == 200
+        col.db.execute("update notes set flds='local' || char(31) || 'back', mod=mod+?",
+                       -100 if incoming_newer else 100)
+        response = client.post("/v1/collection:import", json={
+            "path": path, "update_notes": choice,
+        })
+        assert response.status_code == 200, response.text
+        updated = choice == "always" or (choice == "if_newer" and incoming_newer)
+        assert response.json()["updated"] == (2 if updated else 0)
+        fields = {col.get_note(nid)["Front"] for nid in col.find_notes("")}
+        assert fields == ({"犬", "猫"} if updated else {"local"})
+        assert client.get("/v1/collection/import-options").json()["options"]["update_notes"] == choice
+
+    @pytest.mark.parametrize("choice", ["if_newer", "always", "never"])
+    @pytest.mark.parametrize("incoming_newer", [False, True])
+    def test_notetype_update_rule(self, client, col, tmp_path, choice, incoming_newer):
+        seed(client)
+        model = col.models.by_name("Basic")
+        original_css = model["css"]
+        original_mod = model["mod"]
+        path = str(tmp_path / "models.apkg")
+        assert client.post("/v1/collection:export", json={
+            "deck": "JP", "path": path}).status_code == 200
+        model["css"] = "/* local */"
+        col.models.update_dict(model)
+        col.db.execute("update notetypes set mtime_secs=? where id=?",
+                       original_mod + (-100 if incoming_newer else 100), model["id"])
+        col.models._cache.clear()
+        response = client.post("/v1/collection:import", json={
+            "path": path, "update_notetypes": choice,
+        })
+        assert response.status_code == 200, response.text
+        col.models._cache.clear()
+        updated = choice == "always" or (choice == "if_newer" and incoming_newer)
+        assert col.models.by_name("Basic")["css"] == (original_css if updated else "/* local */")
+
+    @pytest.mark.parametrize("choice", [False, True])
+    def test_deck_preset_choice_or_unsupported_error(self, client, col, tmp_path, choice):
+        seed(client)
+        deck = col.decks.by_name("JP")
+        config = col.decks.add_config("Package preset")
+        config["new"]["perDay"] = 7
+        col.decks.update_config(config)
+        deck["conf"] = config["id"]
+        col.decks.update_dict(deck)
+        path = str(tmp_path / "presets.apkg")
+        # The compatibility exporter includes deck presets on all tested versions.
+        assert rpc(client, "exportPackage", {
+            "deck": "JP", "path": path, "includeSched": True})["error"] is None
+        col.decks.remove_config(config["id"])
+        default_config = col.decks.get_config(1)
+        default_config["new"]["perDay"] = 42
+        col.decks.update_config(default_config)
+        supported = "with_deck_configs" in col._backend.get_import_anki_package_presets().DESCRIPTOR.fields_by_name
+        response = client.post("/v1/collection:import", json={
+            "path": path, "with_deck_configs": choice, "with_scheduling": True,
+        })
+        if not supported:
+            assert response.status_code == 400, response.text
+            assert "with_deck_configs" in response.text
+            assert col.decks.config_dict_for_deck_id(deck["id"])["new"]["perDay"] == 42
+        else:
+            assert response.status_code == 200, response.text
+            assert col.decks.config_dict_for_deck_id(deck["id"])["new"]["perDay"] == (7 if choice else 42)
+
+    @pytest.mark.parametrize("name,value", [
+        ("with_scheduling", []), ("with_deck_configs", {}),
+        ("merge_notetypes", "invalid"), ("update_notes", "sometimes"),
+        ("update_notetypes", 1),
+        ("with_schedulng", True),
+    ])
+    def test_invalid_choices_rejected_before_import(self, client, col, name, value):
+        before = col._backend.get_import_anki_package_presets().SerializeToString()
+        response = client.post("/v1/collection:import", json={
+            "path": "/missing/invalid.apkg", name: value,
+        })
+        assert response.status_code == 422, response.text
+        assert col._backend.get_import_anki_package_presets().SerializeToString() == before
+
+    def test_partial_override_preserves_other_saved_choices(self, client, col, tmp_path):
+        path = self.package(client, col, tmp_path)
+        choices = {
+            "with_scheduling": False, "merge_notetypes": True,
+            "update_notes": "never", "update_notetypes": "never",
+        }
+        response = client.post("/v1/collection:import", json={"path": path, **choices})
+        assert response.status_code == 200, response.text
+        before = client.get("/v1/collection/import-options").json()["options"]
+        response = client.post("/v1/collection:import", json={
+            "path": path, "with_scheduling": True,
+        })
+        assert response.status_code == 200, response.text
+        after = client.get("/v1/collection/import-options").json()["options"]
+        assert after == {**before, "with_scheduling": True}
+
+    def test_failed_import_does_not_save_choices(self, client, col, tmp_path):
+        before = col._backend.get_import_anki_package_presets().SerializeToString()
+        response = client.post("/v1/collection:import", json={
+            "path": str(tmp_path / "missing.apkg"), "with_scheduling": True,
+            "merge_notetypes": True, "update_notes": "never",
+        })
+        assert response.status_code != 200
+        assert col._backend.get_import_anki_package_presets().SerializeToString() == before
+
+    @pytest.mark.parametrize("merge", [False, True])
+    def test_merging_diverged_notetypes(self, client, col, tmp_path, merge):
+        seed(client)
+        model = col.models.by_name("Basic")
+        col.models.add_field(model, col.models.new_field("Incoming"))
+        col.models.update_dict(model)
+        path = str(tmp_path / "merge.apkg")
+        assert client.post("/v1/collection:export", json={
+            "deck": "JP", "path": path}).status_code == 200
+        col.models.remove_field(model, model["flds"][-1])
+        col.models.add_field(model, col.models.new_field("Local"))
+        col.models.update_dict(model)
+        response = client.post("/v1/collection:import", json={
+            "path": path, "merge_notetypes": merge, "update_notetypes": "always",
+        })
+        assert response.status_code == 200, response.text
+        col.models._cache.clear()
+        fields = {field["name"] for field in col.models.get(model["id"])["flds"]}
+        assert fields == ({"Front", "Back", "Incoming", "Local"} if merge
+                          else {"Front", "Back", "Local"})
+
+    def test_import_changes_and_undo(self, client, col, tmp_path):
+        from tsunagi.adapters.anki.collection import import_package
+
+        path = self.package(client, col, tmp_path)
+        result = import_package.__wrapped__(col, path, with_scheduling=True)
+        assert result.changes.note
+        assert result.changes.card
+        assert col.note_count() == 2
+        col.undo()
+        assert col.note_count() == 0
+        col.redo()
+        assert col.note_count() == 2
+
+    def test_openapi_exposes_choices(self, client):
+        schema = client.get("/openapi.json").json()
+        assert "get" in schema["paths"]["/v1/collection/import-options"]
+        props = schema["components"]["schemas"]["ImportRequest"]["properties"]
+        assert {"path", "with_scheduling", "with_deck_configs", "merge_notetypes",
+                "update_notes", "update_notetypes"} <= props.keys()
+        assert all(props[name]["nullable"] for name in props if name != "path")

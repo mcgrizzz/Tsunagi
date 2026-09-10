@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -40,8 +40,34 @@ class ExportRequest(BaseModel):
     with_media: bool = Field(True, description="Bundle referenced media files")
 
 
-class ImportRequest(BaseModel):
+class ImportOptions(BaseModel):
+    """Omitted or null options use Anki's saved import preferences."""
+
+    with_scheduling: Optional[bool] = Field(
+        None, nullable=True, description="Import due dates and review history. Omit or null: use Anki's saved choice.")
+    with_deck_configs: Optional[bool] = Field(
+        None, nullable=True, description=(
+            "Import deck presets. Omit or null: use Anki's saved choice. "
+            "Explicit values require backend support; inspect /v1/collection/import-options."))
+    merge_notetypes: Optional[bool] = Field(
+        None, nullable=True, description="Merge compatible note types. Omit or null: use Anki's saved choice.")
+    update_notes: Optional[Literal["if_newer", "always", "never"]] = Field(
+        None, nullable=True, description="When to update existing notes. Omit or null: use Anki's saved choice.")
+    update_notetypes: Optional[Literal["if_newer", "always", "never"]] = Field(
+        None, nullable=True, description="When to update existing note types. Omit or null: use Anki's saved choice.")
+
+
+class ImportPreferences(BaseModel):
+    options: ImportOptions
+    unsupported_options: List[str] = Field(default_factory=list)
+    stats: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ImportRequest(ImportOptions):
     path: str = Field(..., description="Source .apkg path, on the Anki machine")
+
+    class Config:
+        extra = "forbid"
 
 
 class ImportResult(BaseModel):
