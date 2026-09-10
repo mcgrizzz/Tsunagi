@@ -29,7 +29,7 @@ class DeckParams(BaseModel):
 
 class CardReviewsParams(BaseModel):
     deck: Any
-    startID: int = 0
+    startID: Any = ...
 
 
 class GetReviewsOfCardsParams(BaseModel):
@@ -59,7 +59,10 @@ def ac_getCollectionStatsHTML(p: CollectionStatsParams) -> str:
 def ac_cardReviews(p: CardReviewsParams) -> List[List[Any]]:
     from ....adapters.anki.compat import resolve_deck_names
 
-    return reviews_of_deck(resolve_deck_names([p.deck])[0], p.startID)
+    try:
+        return reviews_of_deck(resolve_deck_names([p.deck])[0], p.startID, _compat=True)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @registry.register("getLatestReviewID", params=DeckParams)

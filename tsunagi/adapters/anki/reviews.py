@@ -14,6 +14,9 @@ from anki.collection import Collection
 from ...shared.schemas.reviews import ReviewInfo
 from ..ops import as_collection_op, as_query_op
 
+# Raw review rows are needed here: Anki's GetReviewLogs returns processed
+# statistics without all revlog columns (for example, usn). Keep that storage
+# dependency in this adapter; prefer Anki APIs when they preserve the data.
 # Column order is fixed once here so every query below builds the same row.
 COLUMNS = ("id", "cid", "usn", "ease", "ivl", "lastIvl", "factor", "time", "type")
 _SELECT = "select " + ", ".join(COLUMNS) + " from revlog"
@@ -145,7 +148,7 @@ def insert_reviews(col: Collection, rows: Sequence[Sequence[Any]]) -> int:
 
 @as_query_op
 def reviews_of_deck(col: Collection, deck_name: str,
-                    after_id: int = 0) -> List[List[Any]]:
+                    after_id: Any = 0, *, _compat: bool = False) -> List[List[Any]]:
     """
     Rows for one existing deck, as arrays, excluding its subdecks.
 
@@ -157,7 +160,7 @@ def reviews_of_deck(col: Collection, deck_name: str,
         return []
     return [list(r) for r in col.db.all(
         _SELECT + " where id > ? and cid in (select id from cards where did = ?)"
-        " order by id", int(after_id), int(deck["id"]))]
+        " order by id", after_id if _compat else int(after_id), int(deck["id"]))]
 
 
 @as_query_op
