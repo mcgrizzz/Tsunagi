@@ -745,6 +745,206 @@ def test_scheduler_mutations(pair, action, extra, review_cards):
     assert_mutation_state(pair)
 
 
+@pytest.mark.parametrize("action", ["suspend", "unsuspend", "areSuspended"])
+@pytest.mark.parametrize("case", [
+    "none", "false", "integer", "empty-string", "string", "empty-dict", "dict",
+    "empty", "null-id", "zero-id", "false-id", "true-id", "float-id", "string-id",
+    "nested-id", "object-id", "missing", "duplicate", "bad-suffix", "bad-prefix",
+    "overflow-id", "underflow-id",
+])
+def test_suspension_raw_inputs(pair, action, case):
+    ids = list(pair[0].find_cards(""))
+    cid = ids[0]
+    values = {
+        "none": None, "false": False, "integer": cid,
+        "empty-string": "", "string": str(cid), "empty-dict": {},
+        "dict": {str(cid): True}, "empty": [], "null-id": [None], "zero-id": [0],
+        "false-id": [False], "true-id": [True], "float-id": [float(cid)],
+        "string-id": [str(cid)], "nested-id": [[]], "object-id": [{}],
+        "missing": [999999], "duplicate": [cid, cid],
+        "bad-suffix": [cid, None, ids[1]], "bad-prefix": [None, cid],
+    }
+    values.update({"overflow-id": [2**63], "underflow-id": [-2**63 - 1]})
+    compare(pair, action, {"cards": values[case]})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("value", [None, False, True, 0, 1, 1.5, "", "1", [], {}])
+def test_suspended_raw_input(pair, value):
+    compare(pair, "suspended", {"card": value})
+
+
+@pytest.mark.parametrize("flag", [None, False, True, 0, 1, 1.5, "", "false", [], {}, [1]])
+@pytest.mark.parametrize("suspended", [False, True])
+def test_suspension_raw_flag(pair, flag, suspended):
+    cards = list(pair[0].find_cards(""))
+    if suspended:
+        for collection in pair[:2]:
+            collection.sched.suspend_cards(cards)
+    compare(pair, "suspend", {"cards": cards, "suspend": flag})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["suspend", "unsuspend"])
+@pytest.mark.parametrize("skipped", [None, [], {}, "bad", 999999])
+def test_suspension_skips_raw_validation_after_removal(pair, action, skipped):
+    cards = list(pair[0].find_cards(""))
+    if action == "suspend":
+        for collection in pair[:2]:
+            collection.sched.suspend_cards([cards[0]])
+    compare(pair, action, {"cards": [cards[0], skipped, cards[1]]})
+    assert_mutation_state(pair)
+
+
+def assert_answer_state(pair):
+    actual, expected = mutation_state(pair[0]), mutation_state(pair[1])
+    for actual_card, expected_card in zip(actual["cards"], expected["cards"]):
+        # Intraday due times can use Rust's wall clock independently of the
+        # supplied answer timestamp. The shim runs second: permit one forward
+        # second of rollover, while comparing intervals and all other state.
+        if actual_card[4] == expected_card[4] and actual_card[4] in (1, 4):
+            if 0 <= actual_card[5] - expected_card[5] <= 1:
+                actual_card[5] = expected_card[5]
+    assert actual == expected, first_difference(actual, expected, "collection")
+
+
+@pytest.fixture()
+def answer_clock(monkeypatch):
+    from anki.cards import Card
+    from anki.scheduler import v3
+
+    answered_at = v3.int_time()
+    monkeypatch.setattr(v3, "int_time", lambda scale=1: answered_at * scale)
+
+    def time_taken(card, capped=True):
+        assert card.timer_started is not None
+        return 1234
+
+    # Both calls must start their timer. Fix the answer timestamp and elapsed
+    # time so sequential calls have identical external clock inputs.
+    monkeypatch.setattr(Card, "time_taken", time_taken)
+
+
+@pytest.mark.parametrize("answers", [None, False, True, 1, "", "x", {}, {"cardId": 1}, [], [None], [False], [1], ["x"], [[]], [{}]])
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_raw_containers(pair, answers):
+    compare(pair, "answerCards", {"answers": answers})
+    assert_answer_state(pair)
+
+
+@pytest.mark.parametrize("field", ["cardId", "ease"])
+@pytest.mark.parametrize("value", [None, False, True, 0, -1, 1.5, "", "3", [], {}])
+@pytest.mark.parametrize("prefix", [False, True])
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_raw_entry_values(pair, field, value, prefix):
+    cards = list(pair[0].find_cards(""))
+    answer = {"cardId": cards[1], "ease": 3, field: value}
+    answers = ([{"cardId": cards[0], "ease": 3}] if prefix else []) + [answer]
+    compare(pair, "answerCards", {"answers": answers})
+    assert_answer_state(pair)
+    if prefix:
+        for collection in pair[:2]:
+            assert collection.db.scalar("select count(*) from revlog where cid=?", cards[0]) == 1
+
+
+@pytest.mark.parametrize("malformed", [None, False, 1, "x", [], {}, {"cardId": 1}])
+@pytest.mark.parametrize("first_ease", [3, "3", 0])
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_raw_suffix_keeps_prefix(pair, malformed, first_ease):
+    cards = list(pair[0].find_cards(""))
+    answers = [{"cardId": cards[0], "ease": first_ease}, malformed, {"cardId": cards[1], "ease": 3}]
+    compare(pair, "answerCards", {"answers": answers})
+    assert_answer_state(pair)
+
+
+@pytest.mark.parametrize("kind", ["string", "float", "duplicate"])
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_raw_existing_ids(pair, kind):
+    cid = list(pair[0].find_cards(""))[0]
+    value = str(cid) if kind == "string" else float(cid) if kind == "float" else cid
+    answers = [{"cardId": value, "ease": 3}] * (2 if kind == "duplicate" else 1)
+    compare(pair, "answerCards", {"answers": answers})
+    assert_answer_state(pair)
+
+
+@pytest.mark.parametrize("ease", [None, [], {}, "3", 0, 99])
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_raw_missing_card_defers_ease(pair, ease):
+    cid = list(pair[0].find_cards(""))[0]
+    assert compare(pair, "answerCards", {"answers": [
+        {"cardId": 999999, "ease": ease}, {"cardId": cid, "ease": 3},
+    ]}) == {"result": [False, True], "error": None}
+    assert_answer_state(pair)
+
+
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_raw_saved_prefix_notifications(pair):
+    from tsunagi.adapters.anki.compat import answer_cards_raw
+
+    cid = list(pair[0].find_cards(""))[0]
+    answers = [{"cardId": cid, "ease": 3}, None]
+    expected = pair[2].handler({"action": "answerCards", "version": 6, "params": {"answers": answers}})
+    result = answer_cards_raw.__wrapped__(pair[0], answers)
+    assert hasattr(result, "changes"), result
+    assert result.value == (None, expected["error"])
+    assert result.changes.card
+    assert_answer_state(pair)
+
+
+@pytest.mark.parametrize("action", ["suspend", "unsuspend"])
+@pytest.mark.parametrize("state", ["new", "review", "learning", "relearning", "buried", "suspended"])
+def test_suspension_raw_state_undo(pair, action, state):
+    cards = list(pair[0].find_cards(""))
+    states = {"new": (0, 0), "review": (2, 2), "learning": (1, 1),
+              "relearning": (3, 1), "buried": (2, -2), "suspended": (2, -1)}
+    for collection in pair[:2]:
+        collection.db.execute("update cards set type=?, queue=?", *states[state])
+        collection.update_card(collection.get_card(cards[0]), skip_undo_entry=True)
+    compare(pair, action, {"cards": cards})
+    assert_mutation_state(pair)
+    statuses = [c.undo_status() for c in pair[:2]]
+    assert (statuses[0].undo, statuses[0].redo) == (statuses[1].undo, statuses[1].redo)
+    if statuses[0].undo:
+        for collection in pair[:2]:
+            collection.undo()
+        assert_mutation_state(pair)
+        for collection in pair[:2]:
+            collection.redo()
+        assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("fsrs", [False, True])
+@pytest.mark.parametrize("filtered", [None, False, True])
+@pytest.mark.parametrize("ease", [1, 3, 4])
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_raw_filtered_memory_undo(pair, fsrs, filtered, ease):
+    cards = list(pair[0].find_cards(""))
+    for collection in pair[:2]:
+        collection.set_config("fsrs", fsrs)
+        collection.db.execute(
+            "update cards set type=2, queue=2, due=?, ivl=10, factor=2500, reps=8, lapses=2, data=?",
+            collection.sched.today, json.dumps({"s": 12.0, "d": 5.0}),
+        )
+        if filtered is not None:
+            did = collection.decks.new_filtered("Parity filtered answer")
+            deck = collection.decks.get(did)
+            deck["resched"] = filtered
+            collection.decks.save(deck)
+            collection.db.execute("update decks set id=900000 where id=?", did)
+            collection.sched.rebuild_filtered_deck(900000)
+            assert collection.db.scalar("select count(*) from cards where odid != 0") == len(cards)
+        collection.update_card(collection.get_card(cards[0]), skip_undo_entry=True)
+    reply = compare(pair, "answerCards", {"answers": [{"cardId": cards[0], "ease": ease}, None]})
+    assert reply == {"result": None, "error": "'NoneType' object is not subscriptable"}
+    assert_answer_state(pair)
+    for collection in pair[:2]:
+        collection.undo()
+    assert_answer_state(pair)
+    for collection in pair[:2]:
+        collection.redo()
+    assert_answer_state(pair)
+
+
 @pytest.mark.parametrize("action", ["forgetCards", "relearnCards", "setDueDate"])
 @pytest.mark.parametrize("case", [
     "none", "false", "true", "integer", "empty-string", "string", "empty-dict",
@@ -1725,11 +1925,8 @@ def test_model_replacement_side_effects(pair, params):
     "empty", "valid", "missing_card", "missing_card_id", "missing_ease",
     "invalid_ease", "missing_card_without_ease", "duplicate",
 ])
-def test_answer_cards_partial_mutations(pair, monkeypatch, case):
-    from anki.cards import Card
-
-    # Answer execution time is an external input, not a shim behavior difference.
-    monkeypatch.setattr(Card, "time_taken", lambda self, capped=True: 0)
+@pytest.mark.usefixtures("answer_clock")
+def test_answer_cards_partial_mutations(pair, case):
     cards = list(pair[0].find_cards(""))
     first = {"cardId": cards[0], "ease": 4}
     cases = {
@@ -1743,7 +1940,7 @@ def test_answer_cards_partial_mutations(pair, monkeypatch, case):
         "duplicate": [first, first],
     }
     compare(pair, "answerCards", {"answers": cases[case]})
-    assert_mutation_state(pair)
+    assert_answer_state(pair)
 
 
 @pytest.mark.parametrize("case", ["valid", "missing_ease", "invalid_ease"])
