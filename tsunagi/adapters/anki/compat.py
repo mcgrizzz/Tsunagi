@@ -603,3 +603,41 @@ def notes_of_cards_raw(col, cards):
         return col.db.list("select distinct nid from cards where id in " + ids2str(cards))
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+@as_query_op
+def export_package_legacy(col, deck_name, path, include_sched=False):
+    """Use AnkiConnect's exporter, including its version-specific package rules."""
+    try:
+        deck = col.decks.by_name(deck_name)
+        if deck is None:
+            return False
+        from anki.exporting import AnkiPackageExporter
+
+        exporter = AnkiPackageExporter(col)
+        exporter.did = deck["id"]
+        exporter.includeSched = include_sched
+        exporter.exportInto(path)
+        return True
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def import_package_legacy(col, path):
+    """Use the supported legacy importer and refresh views after it completes."""
+    from anki.collection import OpChanges
+
+    try:
+        from anki.importing import AnkiPackageImporter
+
+        AnkiPackageImporter(col, path).run()
+        # The legacy API discards backend change metadata. Import may alter
+        # notes, models, scheduling, decks and presets, so refresh those views.
+        return ValueWithChanges(True, OpChanges(
+            card=True, note=True, notetype=True, deck=True, deck_config=True,
+            tag=True, mtime=True, browser_table=True, browser_sidebar=True,
+            note_text=True, study_queues=True,
+        ))
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
