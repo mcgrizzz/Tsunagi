@@ -575,3 +575,31 @@ def answer_cards_raw(col, answers):
     except Exception as exc:
         value = (None, str(exc))
     return ValueWithChanges(value, changes) if saved else value
+
+
+@as_query_op
+def read_ease_factors_raw(col, cards):
+    """Preserve raw card lookup behavior and missing-card result positions."""
+    from anki.errors import NotFoundError
+
+    try:
+        result = []
+        for cid in cards:
+            try:
+                result.append(col.get_card(cid).factor)
+            except NotFoundError:
+                result.append(None)
+        return result
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_query_op
+def notes_of_cards_raw(col, cards):
+    """Use upstream's integer conversion and one SQL query for distinct notes."""
+    from anki.utils import ids2str
+
+    try:
+        return col.db.list("select distinct nid from cards where id in " + ids2str(cards))
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc

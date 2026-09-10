@@ -745,6 +745,51 @@ def test_scheduler_mutations(pair, action, extra, review_cards):
     assert_mutation_state(pair)
 
 
+@pytest.mark.parametrize("action", ["getEaseFactors", "cardsToNotes"])
+@pytest.mark.parametrize("case", [
+    "none", "false", "true", "number", "fraction", "empty-string", "zero-string", "string",
+    "empty-dict", "dict", "empty", "null-id", "zero-id", "false-id", "true-id",
+    "float-id", "fraction-id", "string-id", "nested-id", "object-id", "missing",
+    "negative", "overflow", "underflow", "reverse", "duplicate", "bad-suffix", "bad-prefix",
+])
+def test_remaining_card_reads_raw_inputs(pair, action, case):
+    ids = list(pair[0].find_cards(""))
+    cid = ids[0]
+    values = {
+        "none": None, "false": False, "true": True, "number": cid, "fraction": 1.5,
+        "empty-string": "", "zero-string": "0", "string": str(cid), "empty-dict": {},
+        "dict": {str(cid): True}, "empty": [], "null-id": [None], "zero-id": [0],
+        "false-id": [False], "true-id": [True], "float-id": [float(cid)],
+        "fraction-id": [cid + 0.5], "string-id": [str(cid)], "nested-id": [[]],
+        "object-id": [{}], "missing": [999999], "negative": [-1], "overflow": [2**63],
+        "underflow": [-2**63 - 1], "reverse": list(reversed(ids)), "duplicate": [cid, cid],
+        "bad-suffix": [cid, None, ids[1]], "bad-prefix": [None, cid],
+    }
+    compare(pair, action, {"cards": values[case]})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("complete", [None, False, True, 0, 1, -1, 1.5, "", "false", "true", [], [False], {}, {"x": False}])
+@pytest.mark.parametrize("layout", ["empty", "new", "review", "missing", "mixed", "raw"])
+def test_intervals_raw_complete_flag(pair, complete, layout):
+    ids = list(pair[0].find_cards(""))
+    for collection in pair[:2]:
+        card = collection.get_card(ids[0])
+        card.type = card.queue = 2
+        card.ivl = 5
+        card.due = collection.sched.today
+        collection.update_card(card)
+        for offset, interval in enumerate([-60, 1, 5]):
+            collection.db.execute(
+                "insert into revlog values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                1720000000000 + offset, ids[0], -1, 3, interval, 1, 2500, 100, 1,
+            )
+    cards = {"empty": [], "new": [ids[1]], "review": [ids[0]], "missing": [999999],
+             "mixed": [ids[1], ids[0], 999999], "raw": [str(ids[0]), float(ids[0])]}[layout]
+    compare(pair, "getIntervals", {"cards": cards, "complete": complete})
+    assert_mutation_state(pair)
+
+
 @pytest.mark.parametrize("action", ["suspend", "unsuspend", "areSuspended"])
 @pytest.mark.parametrize("case", [
     "none", "false", "integer", "empty-string", "string", "empty-dict", "dict",
