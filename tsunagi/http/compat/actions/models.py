@@ -6,20 +6,15 @@ string-match); full models are serialized with by_alias=True so keys match
 Anki's schema11 names (flds, tmpls, sortf, ...).
 """
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from pydantic import BaseModel
 
 from ....adapters.anki.models import (
-    find_and_replace_in_models,
     get_model_names_and_ids,
-    get_models_by_names,
-    get_raw_models,
-    patch_model,
 )
 from ..errors import (
     FIELD_NOT_FOUND,
-    MODEL_NOT_FOUND,
     TEMPLATE_NOT_FOUND,
 )
 from ..registry import registry
@@ -29,19 +24,19 @@ _BRACES = re.compile(r"[{}]")
 
 
 class ModelFieldNamesParams(BaseModel):
-    modelName: str
+    modelName: Any = ...
 
 
 class FindModelsByNameParams(BaseModel):
-    modelNames: List[str]
+    modelNames: Any = ...
 
 
 class FindModelsByIdParams(BaseModel):
-    modelIds: List[int]
+    modelIds: Any = ...
 
 
 class ModelIdParams(BaseModel):
-    modelId: int
+    modelId: Any = ...
 
 
 class CreateModelParams(BaseModel):
@@ -53,12 +48,12 @@ class CreateModelParams(BaseModel):
 
 
 class FindAndReplaceParams(BaseModel):
-    modelName: Optional[str] = None
-    findText: str
-    replaceText: str
-    front: bool = True
-    back: bool = True
-    css: bool = True
+    modelName: Any = None
+    findText: Any = ...
+    replaceText: Any = ...
+    front: Any = True
+    back: Any = True
+    css: Any = True
 
 
 class TemplateRenameParams(BaseModel):
@@ -131,10 +126,9 @@ class UpdateModelStylingParams(BaseModel):
 # are different and clients match on them, so resolve here and raise those.
 
 def _raw_model(name: str) -> Dict[str, Any]:
-    model = get_raw_models(names=[name]).get(name)
-    if model is None:
-        raise ValueError(MODEL_NOT_FOUND.format(name))
-    return model
+    from ....adapters.anki.compat import read_models_raw
+
+    return read_models_raw([name])[0]
 
 
 def _require_field(model: Dict[str, Any], field_name: str) -> Dict[str, Any]:
@@ -169,10 +163,7 @@ def ac_modelNamesAndIds(params: Dict[str, Any]) -> Dict[str, int]:
 
 @registry.register("modelFieldNames", params=ModelFieldNamesParams)
 def ac_modelFieldNames(p: ModelFieldNamesParams) -> List[str]:
-    models = get_models_by_names([p.modelName])
-    if not models:
-        raise ValueError(MODEL_NOT_FOUND.format(p.modelName))
-    return [f.name for f in models[0].fields]
+    return [field["name"] for field in _raw_model(p.modelName)["flds"]]
 
 
 # findModelsBy* return Anki's raw schema11 dict, exactly as AnkiConnect does.
@@ -181,26 +172,16 @@ def ac_modelFieldNames(p: ModelFieldNamesParams) -> List[str]:
 
 @registry.register("findModelsByName", params=FindModelsByNameParams)
 def ac_findModelsByName(p: FindModelsByNameParams) -> List[Dict[str, Any]]:
-    found = get_raw_models(names=p.modelNames)
-    out: List[Dict[str, Any]] = []
-    for name in p.modelNames:  # input order; raise at FIRST missing (as AnkiConnect)
-        m = found.get(name)
-        if m is None:
-            raise ValueError(MODEL_NOT_FOUND.format(name))
-        out.append(m)
-    return out
+    from ....adapters.anki.compat import read_models_raw
+
+    return read_models_raw(p.modelNames)
 
 
 @registry.register("findModelsById", params=FindModelsByIdParams)
 def ac_findModelsById(p: FindModelsByIdParams) -> List[Dict[str, Any]]:
-    found = get_raw_models(ids=[int(i) for i in p.modelIds])
-    out: List[Dict[str, Any]] = []
-    for mid in p.modelIds:
-        m = found.get(int(mid))
-        if m is None:
-            raise ValueError(MODEL_NOT_FOUND.format(mid))
-        out.append(m)
-    return out
+    from ....adapters.anki.compat import read_models_raw
+
+    return read_models_raw(p.modelIds, by_id=True)
 
 
 # --- raw schema11 reads -------------------------------------------------
@@ -210,10 +191,9 @@ def ac_findModelsById(p: FindModelsByIdParams) -> List[Dict[str, Any]]:
 
 @registry.register("modelNameFromId", params=ModelIdParams)
 def ac_modelNameFromId(p: ModelIdParams) -> str:
-    model = get_raw_models(ids=[p.modelId]).get(p.modelId)
-    if model is None:
-        raise ValueError(MODEL_NOT_FOUND.format(p.modelId))
-    return model["name"]
+    from ....adapters.anki.compat import read_models_raw
+
+    return read_models_raw([p.modelId], by_id=True)[0]["name"]
 
 
 @registry.register("modelFieldDescriptions", params=ModelFieldNamesParams)
@@ -240,7 +220,11 @@ def ac_modelFieldsOnTemplates(p: ModelFieldNamesParams) -> Dict[str, List[List[s
         sides: List[List[str]] = []
         for side in ("qfmt", "afmt"):
             names: List[str] = []
-            for match in _FIELD_REF.findall(template[side]):
+            try:
+                matches = _FIELD_REF.findall(template[side])
+            except Exception as exc:
+                raise ValueError(str(exc)) from exc
+            for match in matches:
                 name = _BRACES.sub("", match).split(":")[-1]
                 # FrontSide is a directive, and the answer side doesn't repeat
                 # what the question already showed.
@@ -274,24 +258,12 @@ def ac_createModel(p: CreateModelParams) -> Dict[str, Any]:
 
 @registry.register("findAndReplaceInModels", params=FindAndReplaceParams)
 def ac_findAndReplaceInModels(p: FindAndReplaceParams) -> int:
-    from anki.errors import CardTypeError, InvalidInput
+    from ....adapters.anki.compat import replace_in_models_raw
 
-    try:
-        models = (
-            [_raw_model(p.modelName)] if p.modelName
-            else get_raw_models(ids=[m["id"] for m in get_model_names_and_ids()]).values()
-        )
-        updated = 0
-        for model in models:
-            count = find_and_replace_in_models(
-                p.findText, p.replaceText, model["name"], p.front, p.back, p.css)
-            if not count:
-                # The extra save is an AnkiConnect side effect, owned here.
-                patch_model(model["id"], {})
-            updated += count
-        return updated
-    except (CardTypeError, InvalidInput) as exc:
-        raise ValueError(str(exc)) from exc
+    count, error = replace_in_models_raw(p.modelName, p.findText, p.replaceText, p.front, p.back, p.css)
+    if error is not None:
+        raise ValueError(error)
+    return count
 
 
 @registry.register("updateModelTemplates", params=UpdateModelTemplatesParams)

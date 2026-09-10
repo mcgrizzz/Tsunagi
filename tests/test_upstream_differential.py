@@ -1433,6 +1433,124 @@ def test_duplicate_scope_uses_current_card_deck(pair, scope_deck, original_deck)
     assert_note_and_media_state(pair)
 
 
+@pytest.mark.parametrize("parameter", ["modelName", "findText", "replaceText", "front", "back", "css"])
+@pytest.mark.parametrize("value", [None, False, True, 0, 1, "", "false", [], {}, ["x"]])
+def test_model_find_replace_raw_values(pair, parameter, value):
+    params = {"modelName": "Basic", "findText": "{{Front}}", "replaceText": "{{Front}} changed",
+              parameter: value}
+    compare(pair, "findAndReplaceInModels", params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("flags", [False, None, "", [], {}, "false", 1])
+@pytest.mark.parametrize("find,replace", [(None, None), ("absent text", None), ("{{Front}}", None)])
+def test_model_find_replace_flags_defer_invalid_text(pair, flags, find, replace):
+    compare(pair, "findAndReplaceInModels", {"modelName": "Basic", "findText": find,
+        "replaceText": replace, "front": flags, "back": flags, "css": flags})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["modelFieldNames", "modelFieldDescriptions", "modelFieldFonts",
+    "modelFieldsOnTemplates", "modelTemplates", "modelStyling"])
+@pytest.mark.parametrize("name", [None, False, True, 0, 123, "", [], {}, "Missing model", "Basic"])
+def test_model_read_raw_names(pair, action, name):
+    compare(pair, action, {"modelName": name})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("names", [None, False, 123, "", "Basic", [], {}, {"Basic": 1},
+    [None], [False], [123], [[]], [{}], ["Basic", "Basic"], ["Missing", None], [None, "Missing"]])
+def test_model_read_raw_name_lists(pair, names):
+    compare(pair, "findModelsByName", {"modelNames": names})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", ["null", "false", "true", "zero", "negative", "missing", "string",
+    "float", "fraction", "empty-list", "empty-map", "list", "map", "invalid-string"])
+@pytest.mark.parametrize("action", ["modelNameFromId", "findModelsById"])
+@pytest.mark.parametrize("warm_cache", [False, True])
+def test_model_read_raw_ids(pair, action, case, warm_cache):
+    mid = pair[0].models.by_name("Basic")["id"]
+    value = {"null": None, "false": False, "true": True, "zero": 0, "negative": -1,
+             "missing": 9999999999999, "string": str(mid), "float": float(mid), "fraction": mid + 0.5,
+             "empty-list": [], "empty-map": {}, "list": [mid], "map": {"id": mid}, "invalid-string": "bad"}[case]
+    # Anki's model cache accepts a float equal to a cached integer key; a cold
+    # backend lookup rejects it. Compare the same cache state on both sides.
+    for c in pair[:2]:
+        c.models._clear_cache()
+        if warm_cache:
+            c.models.get(mid)
+    params = {"modelIds": [value]} if action == "findModelsById" else {"modelId": value}
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("case", ["null", "false", "scalar", "string", "empty-map", "map", "duplicates", "mixed"])
+def test_model_read_raw_id_containers(pair, case):
+    mid = pair[0].models.by_name("Basic")["id"]
+    values = {"null": None, "false": False, "scalar": mid, "string": str(mid), "empty-map": {},
+              "map": {str(mid): True}, "duplicates": [mid, mid], "mixed": [mid, "bad", None]}[case]
+    compare(pair, "findModelsById", {"modelIds": values})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("bad_part", ["css", "qfmt", "afmt"])
+def test_model_find_replace_keeps_saved_prefix(pair, bad_part):
+    for c in pair[:2]:
+        names = c.models.allNames()
+        assert len(names) > 1
+        later = c.models.by_name(names[1])
+        if bad_part == "css":
+            later["css"] = None
+        else:
+            later["tmpls"][0][bad_part] = None
+    reply = compare(pair, "findAndReplaceInModels", {"modelName": None,
+        "findText": "arial", "replaceText": "verdana"})
+    assert reply["error"] is not None
+    assert_mutation_state(pair)
+    # assert_mutation_state clears model caches; this verifies the earlier save.
+    for c in pair[:2]:
+        assert "verdana" in c.models.by_name(names[0])["css"]
+
+
+@pytest.mark.parametrize("name", [None, "Basic"])
+@pytest.mark.parametrize("find,replacement", [("not present", "replacement"), ("arial", "verdana"), ("arial", "arial")])
+def test_model_find_replace_undo_redo(pair, name, find, replacement):
+    compare(pair, "findAndReplaceInModels", {"modelName": name, "findText": find, "replaceText": replacement})
+    assert_mutation_state(pair)
+    steps = len(pair[0].models.allNames()) if name is None else 1
+    for _ in range(steps):
+        for c in pair[:2]:
+            c.undo()
+        assert_mutation_state(pair)
+    for _ in range(steps):
+        for c in pair[:2]:
+            c.redo()
+        assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["modelTemplates", "modelFieldsOnTemplates", "findModelsByName"])
+@pytest.mark.parametrize("front", [None, 123, [], ""])
+def test_model_reads_keep_unsaved_template_values(pair, action, front):
+    compare(pair, "modelTemplateAdd", {"modelName": "Basic", "template": {
+        "Name": "Card 1", "Front": front, "Back": "{{Back}}"}})
+    params = {"modelNames": ["Basic"]} if action == "findModelsByName" else {"modelName": "Basic"}
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["findModelsByName", "findModelsById"])
+def test_model_lookup_multi_keeps_cached_reference(pair, action):
+    mid = pair[0].models.by_name("Basic")["id"]
+    lookup = {"modelNames": ["Basic"]} if action == "findModelsByName" else {"modelIds": [mid]}
+    compare(pair, "multi", {"actions": [
+        {"action": action, "params": lookup},
+        {"action": "modelTemplateAdd", "params": {"modelName": "Basic", "template": {
+            "Name": "Card 1", "Front": "{{Front}} changed in batch", "Back": "{{Back}}"}}},
+    ]})
+    assert_mutation_state(pair)
+
+
 def normalized_created_model(model):
     """Keep the returned schema/values; normalize independently allocated IDs/time."""
     model = copy.deepcopy(model)

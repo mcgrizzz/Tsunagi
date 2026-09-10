@@ -424,3 +424,59 @@ def mutate_model_template_raw(col, model_name, action, name=None, value=None, in
         return ValueWithChanges((None, None), models.update_dict(model))
     except Exception as exc:
         return (None, str(exc))
+
+
+@as_query_op
+def read_models_raw(col, values, *, by_id=False):
+    """Read each raw lookup in request order, retaining Anki's first error."""
+    try:
+        result = []
+        lookup = col.models.get if by_id else col.models.by_name
+        for value in values:
+            model = lookup(value)
+            if model is None:
+                raise ValueError(f"model was not found: {value}")
+            # A later action in multi can modify an earlier lookup's result
+            # through this cached object before the whole batch is serialized.
+            result.append(model)
+        return result
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def replace_in_models_raw(col, name, find, replacement, front=True, back=True, css=True):
+    """Keep raw truthiness, per-model saves, and successful prefixes on failure."""
+    from anki.collection import OpChanges
+
+    changes = OpChanges()
+    saved = False
+    try:
+        models = col.models
+        if not name:
+            names = models.allNames()
+        else:
+            if models.by_name(name) is None:
+                raise ValueError(f"model was not found: {name}")
+            names = [name]
+        updated = 0
+        for model_name in names:
+            model = models.by_name(model_name)
+            found = False
+            if css and find in model["css"]:
+                found = True
+                model["css"] = model["css"].replace(find, replacement)
+            for template in model.get("tmpls"):
+                if front and find in template["qfmt"]:
+                    found = True
+                    template["qfmt"] = template["qfmt"].replace(find, replacement)
+                if back and find in template["afmt"]:
+                    found = True
+                    template["afmt"] = template["afmt"].replace(find, replacement)
+            changes.MergeFrom(models.update_dict(model))
+            saved = True
+            updated += found
+        return ValueWithChanges((updated, None), changes)
+    except Exception as exc:
+        result = (None, str(exc))
+        return ValueWithChanges(result, changes) if saved else result
