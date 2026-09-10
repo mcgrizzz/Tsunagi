@@ -17,6 +17,7 @@ from ...adapters.anki.collection import (
     collection_meta,
     export_package,
     import_package,
+    import_preferences,
     list_profiles,
     load_profile,
     reload_collection,
@@ -28,6 +29,7 @@ from ...shared.schemas.collection import (
     CollectionActionResult,
     CollectionMeta,
     ExportRequest,
+    ImportPreferences,
     ImportRequest,
     ImportResult,
     ProfileList,
@@ -159,13 +161,36 @@ def export(body: ExportRequest = Body(...)) -> CollectionActionResult:
     return CollectionActionResult(stats=_stats(start))
 
 
+@router.get(
+    "/v1/collection/import-options",
+    response_model=ImportPreferences,
+    summary="Read saved package import options",
+    description=(
+        "Returns Anki's saved import choices for the open collection. Unsupported "
+        "options are listed separately and have null values. Reading does not import "
+        "a file or change preferences. Pass explicit options to /v1/collection:import "
+        "to keep a reviewed choice fixed even if preferences change before the import."
+    ),
+    tags=["Collection"],
+    operation_id="getImportOptions",
+)
+@handle_mutation_errors("import-options")
+def import_options() -> ImportPreferences:
+    start = time.perf_counter()
+    return ImportPreferences(**import_preferences(), stats=_stats(start))
+
+
 @router.post(
     "/v1/collection:import",
     response_model=ImportResult,
     summary="Import a package",
     description=(
         "Merges an .apkg into the current collection. The path is resolved on "
-        "the machine running Anki."
+        "the machine running Anki. Imports immediately without an options dialog. "
+        "Omitted or null options use Anki's saved import preferences, available at "
+        "GET /v1/collection/import-options. Explicit values override those choices. "
+        "Anki remembers the resulting options after a successful import. "
+        "Unsupported explicit options are rejected before importing."
     ),
     tags=["Collection"],
     operation_id="importPackage",
@@ -173,7 +198,7 @@ def export(body: ExportRequest = Body(...)) -> CollectionActionResult:
 @handle_mutation_errors("import")
 def import_(body: ImportRequest = Body(...)) -> ImportResult:
     start = time.perf_counter()
-    out = import_package(body.path)
+    out = import_package(body.path, **body.dict(exclude={"path"}, exclude_none=True))
     return ImportResult(imported=out["imported"], updated=out["updated"],
                         stats=_stats(start))
 

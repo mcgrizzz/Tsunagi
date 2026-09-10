@@ -1,15 +1,15 @@
 """
 Collection- and profile-level operations: sync, import/export, profile switching.
 
-These act on the running application rather than on rows in the collection, so
-they go through `call_on_main` rather than QueryOp/CollectionOp. Every aqt
-import is function-local, so the module stays importable with no Qt present.
+Application actions go through `call_on_main`; collection reads and imports use
+QueryOp/CollectionOp. Every aqt import is function-local, so the module stays
+importable with no Qt present.
 """
 import inspect
 from typing import Any, Dict, List, Optional
 
 from ...shared.errors import ResourceNotFoundError, ValidationError
-from ..ops import as_query_op, call_on_main
+from ..ops import ValueWithChanges, as_collection_op, as_query_op, call_on_main
 
 SYNC_AUTH_MISSING = "sync: auth not configured"
 
@@ -167,17 +167,63 @@ def export_package(col: Any, deck_name: str, path: str,
     return True
 
 
+_IMPORT_UPDATE_CONDITIONS = {"if_newer": 0, "always": 1, "never": 2}
+_IMPORT_OPTIONS = (
+    "with_scheduling", "with_deck_configs", "merge_notetypes",
+    "update_notes", "update_notetypes",
+)
+
+
 @as_query_op
-def import_package(col: Any, path: str) -> Dict[str, Any]:
-    """Import an .apkg, merging into the current collection."""
+def import_preferences(col: Any) -> Dict[str, Any]:
+    """Read the same saved choices used by Anki's package import screen."""
+    options = col._backend.get_import_anki_package_presets()
+    supported = options.DESCRIPTOR.fields_by_name
+    conditions = {value: name for name, value in _IMPORT_UPDATE_CONDITIONS.items()}
+    values = {}
+    for name in _IMPORT_OPTIONS:
+        if name in supported:
+            value = getattr(options, name)
+            values[name] = conditions[value] if name.startswith("update_") else value
+    return {
+        "options": values,
+        "unsupported_options": [name for name in _IMPORT_OPTIONS if name not in supported],
+    }
+
+
+@as_collection_op
+def import_package(col: Any, path: str, *,
+                   with_scheduling: Optional[bool] = None,
+                   with_deck_configs: Optional[bool] = None,
+                   merge_notetypes: Optional[bool] = None,
+                   update_notes: Optional[str] = None,
+                   update_notetypes: Optional[str] = None) -> ValueWithChanges:
+    """Apply explicit overrides to saved choices and publish import changes."""
     from anki.import_export_pb2 import ImportAnkiPackageRequest
 
-    result = col.import_anki_package(ImportAnkiPackageRequest(package_path=path))
+    options = col._backend.get_import_anki_package_presets()
+    overrides = {
+        "with_scheduling": with_scheduling,
+        "with_deck_configs": with_deck_configs,
+        "merge_notetypes": merge_notetypes,
+        "update_notes": update_notes,
+        "update_notetypes": update_notetypes,
+    }
+    for name, value in overrides.items():
+        if value is None:
+            continue
+        if name not in options.DESCRIPTOR.fields_by_name:
+            raise ValidationError(f"Import option '{name}' is not supported by this Anki version")
+        if name.startswith("update_"):
+            value = _IMPORT_UPDATE_CONDITIONS[value]
+        setattr(options, name, value)
+
+    result = col.import_anki_package(ImportAnkiPackageRequest(package_path=path, options=options))
     log = getattr(result, "log", None)
-    return {
+    return ValueWithChanges({
         "imported": len(getattr(log, "new", []) or []) if log else 0,
         "updated": len(getattr(log, "updated", []) or []) if log else 0,
-    }
+    }, result.changes)
 
 
 @as_query_op
