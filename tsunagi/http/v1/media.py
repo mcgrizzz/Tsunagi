@@ -131,9 +131,10 @@ def list_media_files(
     prefix: Optional[str] = Query(default=None, description="Only names starting with this"),
     suffix: Optional[str] = Query(default=None, description="Only names ending with this (e.g. '.mp3')"),
     limit: int = Query(default=1000, ge=1, le=5000),
-    cursor: Optional[str] = Query(default=None, description="Pagination cursor from previous response"),
+    cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
 ) -> MediaList:
     start = time.perf_counter()
+    last = decode_cursor(cursor, key_type=str).get("last_key")
     files = sorted(list_media(), key=lambda f: f[0])
     if prefix:
         files = [f for f in files if f[0].startswith(prefix)]
@@ -142,7 +143,6 @@ def list_media_files(
 
     # Keyset on the filename (a string key, so paginate_keyset - which is
     # int-only - doesn't apply).
-    last = decode_cursor(cursor).get("last_key")
     if last is not None:
         files = [f for f in files if f[0] > last]
     page, more = files[:limit], len(files) > limit

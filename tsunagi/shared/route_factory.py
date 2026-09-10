@@ -175,8 +175,8 @@ def _paged_scan(
     if getattr(plan, "page_ids", None) is not None:
         return _keyset_scan(plan, limit, cursor, wants, id_getter, pred, pred_wants)
 
-    ids = sorted({int(i) for i in plan.find_ids()})
     last_key = decode_cursor(cursor).get("last_key")
+    ids = sorted({int(i) for i in plan.find_ids()})
     if last_key is not None:
         ids = ids[bisect_right(ids, last_key):]   # sorted, so no linear scan
 
@@ -349,7 +349,7 @@ def create_resource_routes(
         search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
         shape: Optional[str]  = Query(default="auto", description="Response shape: auto, object, or scalar"),
         limit: int            = Query(default=1000, ge=1, le=5000, description="Maximum number of results"),
-        cursor: Optional[str] = Query(default=None, description="Pagination cursor from previous response"),
+        cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
     ) -> Any:
         """Query resource collection with URL parameters."""
         # Keyword args: _execute_query's positional order must never be
@@ -365,7 +365,7 @@ def create_resource_routes(
         response_model=response_model,
         response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
         summary=f"Query {resource_plural} (POST)",
-        description=f"Query {resource_plural} using request body. Supports complex queries with filtering and field selection.",
+        description=f"Query {resource_plural} using request body. Supports complex queries with filtering and field selection. Omit cursor or use null to start at page one; malformed or empty cursors return 400.",
         tags=[tag],
         operation_id=f"query{resource_plural_title}"
     )
