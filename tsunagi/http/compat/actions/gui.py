@@ -5,7 +5,7 @@ Pure translation over adapters/anki/gui.py, which the /v1/gui:* routes use
 too. The adapter owns the aqt work and keeps its imports function-local, so
 this module stays importable with no Qt present.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -43,7 +43,7 @@ class GuiAddNoteSetDataParams(BaseModel):
 
 
 class EaseParams(BaseModel):
-    ease: int
+    ease: Any = ...
 
 
 class DeckParams(BaseModel):
@@ -128,14 +128,22 @@ def ac_guiAddNoteSetData(p: GuiAddNoteSetDataParams) -> Any:
 # Reviewer
 # ====================
 
+def _reviewer_call(operation: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Expose Anki's reviewer errors through the compatibility envelope."""
+    try:
+        return operation(*args, **kwargs)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
 @registry.register("guiReviewActive")
 def ac_guiReviewActive(params: Optional[Dict[str, Any]] = None) -> bool:
-    return g.review_active()
+    return _reviewer_call(g.review_active)
 
 
 @registry.register("guiCurrentCard")
 def ac_guiCurrentCard(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    card = g.current_card()
+    card = _reviewer_call(g.current_card, _compat=True)
     if card is None:
         # Canonical raises here; the native route reports null instead.
         raise ValueError("Gui review is not currently active.")
@@ -144,22 +152,22 @@ def ac_guiCurrentCard(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
 
 @registry.register("guiStartCardTimer")
 def ac_guiStartCardTimer(params: Optional[Dict[str, Any]] = None) -> bool:
-    return g.start_card_timer()
+    return _reviewer_call(g.start_card_timer)
 
 
 @registry.register("guiShowQuestion")
 def ac_guiShowQuestion(params: Optional[Dict[str, Any]] = None) -> bool:
-    return g.show_question()
+    return _reviewer_call(g.show_question)
 
 
 @registry.register("guiShowAnswer")
 def ac_guiShowAnswer(params: Optional[Dict[str, Any]] = None) -> bool:
-    return g.show_answer()
+    return _reviewer_call(g.show_answer)
 
 
 @registry.register("guiAnswerCard", params=EaseParams)
 def ac_guiAnswerCard(p: EaseParams) -> bool:
-    return g.answer_card(p.ease)
+    return _reviewer_call(g.answer_card, p.ease)
 
 
 @registry.register("guiUndo")
@@ -169,7 +177,7 @@ def ac_guiUndo(params: Optional[Dict[str, Any]] = None) -> bool:
 
 @registry.register("guiPlayAudio")
 def ac_guiPlayAudio(params: Optional[Dict[str, Any]] = None) -> bool:
-    return g.play_audio()
+    return _reviewer_call(g.play_audio)
 
 
 # ====================

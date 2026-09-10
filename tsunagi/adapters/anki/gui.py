@@ -314,7 +314,7 @@ def review_active() -> bool:
     return call_on_main(_check)
 
 
-def current_card() -> Optional[Dict[str, Any]]:
+def current_card(*, _compat: bool = False) -> Optional[Dict[str, Any]]:
     """
     The card being reviewed, or None when no review is in progress.
 
@@ -339,7 +339,8 @@ def current_card() -> Optional[Dict[str, Any]]:
             "question": card.question(),
             "answer": card.answer(),
             "buttons": buttons,
-            "nextReviews": _next_reviews(mw.col, card.id),
+            "nextReviews": ([mw.col.sched.nextIvlStr(card, ease, True) for ease in buttons]
+                            if _compat else _next_reviews(mw.col, card.id)),
             "modelName": model["name"],
             "deckName": mw.col.decks.name(card.did),
             "css": model["css"],
