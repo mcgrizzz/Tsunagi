@@ -505,3 +505,73 @@ def reschedule_cards_raw(col, cards, action, days=None):
         return ValueWithChanges(None, changes.changes if hasattr(changes, "changes") else changes)
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+@as_query_op
+def read_suspended_raw(col, cards, *, missing_ok=False):
+    """Keep raw card lookup errors and the unsaved-card behavior of ID zero."""
+    from anki.errors import NotFoundError
+
+    try:
+        result = []
+        for cid in cards:
+            try:
+                result.append(col.get_card(cid).queue == -1)
+            except NotFoundError as exc:
+                if not missing_ok:
+                    raise ValueError(f"Card was not found: {cid}") from exc
+                result.append(None)
+        return result
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def suspend_cards_raw(col, cards, suspend=True):
+    """Visit and remove raw entries in upstream order before scheduling the rest."""
+    from anki.errors import NotFoundError
+
+    try:
+        for cid in cards:
+            try:
+                state = col.get_card(cid).queue == -1
+            except NotFoundError as exc:
+                raise ValueError(f"Card was not found: {cid}") from exc
+            if state == suspend:
+                cards.remove(cid)
+        if len(cards) == 0:
+            return False
+        changes = (col.sched.suspend_cards(cards) if suspend
+                   else col.sched.unsuspend_cards(cards))
+        return ValueWithChanges(True, changes.changes if hasattr(changes, "changes") else changes)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def answer_cards_raw(col, answers):
+    """Answer in request order, retaining saved prefixes and their notifications."""
+    from anki.collection import OpChanges
+    from anki.errors import NotFoundError
+
+    changes = OpChanges()
+    saved = False
+    result = []
+    try:
+        for answer in answers:
+            try:
+                cid = answer["cardId"]
+                ease = answer["ease"]
+                card = col.get_card(cid)
+                card.start_timer()
+                change = col.sched.answerCard(card, ease)
+                if change is not None:
+                    changes.MergeFrom(change.changes if hasattr(change, "changes") else change)
+                saved = True
+                result.append(True)
+            except NotFoundError:
+                result.append(False)
+        value = (result, None)
+    except Exception as exc:
+        value = (None, str(exc))
+    return ValueWithChanges(value, changes) if saved else value
