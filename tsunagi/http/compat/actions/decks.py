@@ -10,11 +10,6 @@ from pydantic import BaseModel
 
 from ....adapters.anki.cards import change_deck
 from ....adapters.anki.compat import raw_id_list
-from ....adapters.anki.deck_configs import (
-    create_deck_config,
-    delete_deck_config,
-    get_deck_configs_by_ids,
-)
 from ....adapters.anki.decks import (
     create_deck_if_missing,
     delete_deck,
@@ -22,7 +17,6 @@ from ....adapters.anki.decks import (
     get_deck_stats,
     get_decks_by_ids,
     get_decks_by_names,
-    patch_deck,
 )
 from ..errors import DECK_NOT_FOUND, DECKS_NEED_CARDS_TOO
 from ..registry import registry
@@ -67,17 +61,17 @@ class SaveDeckConfigParams(BaseModel):
 
 
 class SetDeckConfigIdParams(BaseModel):
-    decks: List[str]
-    configId: int
+    decks: Any = ...
+    configId: Any = ...
 
 
 class CloneDeckConfigIdParams(BaseModel):
-    name: str
-    cloneFrom: int = 1
+    name: Any = ...
+    cloneFrom: Any = "1"
 
 
 class RemoveDeckConfigIdParams(BaseModel):
-    configId: int
+    configId: Any = ...
 
 
 @registry.register("deckNames")
@@ -148,27 +142,26 @@ def ac_saveDeckConfig(p: SaveDeckConfigParams) -> bool:
 
 @registry.register("setDeckConfigId", params=SetDeckConfigIdParams)
 def ac_setDeckConfigId(p: SetDeckConfigIdParams) -> bool:
-    decks = get_decks_by_names(p.decks)
-    if len(decks) != len(p.decks):
-        return False  # all-or-nothing: an unknown deck name fails the batch
-    for deck in decks:
-        patch_deck(deck.id, {"conf": p.configId})
-    return True
+    from ....adapters.anki.compat import set_deck_config_legacy
+
+    return set_deck_config_legacy(p.decks, p.configId)
 
 
 @registry.register("cloneDeckConfigId", params=CloneDeckConfigIdParams)
 def ac_cloneDeckConfigId(p: CloneDeckConfigIdParams):
-    if not get_deck_configs_by_ids([p.cloneFrom]):
-        return False
-    return create_deck_config({"name": p.name, "clone_from_id": p.cloneFrom})["id"]
+    from ....adapters.anki.compat import clone_deck_config_legacy
+
+    return clone_deck_config_legacy(p.name, p.cloneFrom)
 
 
 @registry.register("removeDeckConfigId", params=RemoveDeckConfigIdParams)
 def ac_removeDeckConfigId(p: RemoveDeckConfigIdParams) -> bool:
-    if not get_deck_configs_by_ids([p.configId]):
-        return False
-    delete_deck_config(p.configId)
-    return True
+    from ....adapters.anki.compat import remove_deck_config_legacy
+
+    result, error = remove_deck_config_legacy(p.configId)
+    if error is not None:
+        raise ValueError(error)
+    return result
 
 
 @registry.register("getDeckStats", params=DeckStatsParams)

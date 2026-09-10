@@ -674,3 +674,64 @@ def save_deck_config_legacy(col, config):
     except Exception:
         return False
     return ValueWithChanges(True, OpChanges(deck_config=True))
+
+
+@as_collection_op
+def set_deck_config_legacy(col, decks, config_id):
+    """Validate names first, then preserve sequential legacy saves and False."""
+    from anki.collection import OpChanges
+
+    try:
+        config_id = int(config_id)
+        for name in decks:
+            if name not in [deck.name for deck in col.decks.all_names_and_ids()]:
+                return False
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+    changed = False
+    for name in decks:
+        try:
+            did = str(col.decks.id(name))
+            deck = col.decks.decks[did]
+            deck["conf"] = config_id
+            col.decks.save(deck)
+            changed = True
+        except Exception:
+            return ValueWithChanges(False, OpChanges(deck=True)) if changed else False
+    return ValueWithChanges(True, OpChanges(deck=True)) if changed else True
+
+
+@as_collection_op
+def clone_deck_config_legacy(col, name, clone_from="1"):
+    """Resolve the source before passing the raw name to Anki's legacy clone."""
+    from anki.collection import OpChanges
+
+    try:
+        config_id = int(clone_from)
+        if config_id not in [config["id"] for config in col.decks.all_config()]:
+            return False
+        config = col.decks.get_config(config_id)
+        result = col.decks.add_config_returning_id(name, config)
+        return ValueWithChanges(result, OpChanges(deck_config=True))
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def remove_deck_config_legacy(col, config_id):
+    """Preserve raw removal arguments and publish changes before a later error."""
+    from anki.collection import OpChanges
+
+    try:
+        if int(config_id) not in [config["id"] for config in col.decks.all_config()]:
+            return False, None
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+    try:
+        col.decks.remove_config(config_id)
+        result = True, None
+    except Exception as exc:
+        result = None, str(exc)
+    # Removal can reset deck assignments before its final backend call fails.
+    return ValueWithChanges(result, OpChanges(deck=True, deck_config=True))
