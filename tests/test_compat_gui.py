@@ -180,3 +180,87 @@ def test_gui_edit_note_missing_id_reports_backend_error(client, col, monkeypatch
         expected = str(exc)
     reply = client.post("/", json={"action": "guiEditNote", "version": 6, "params": {"note": 0}}).json()
     assert reply == {"result": None, "error": expected}
+
+
+@pytest.mark.parametrize("value", [0, {}])
+def test_gui_browse_passes_raw_text_to_qt_before_sort_validation(client, browser, monkeypatch, value):
+    seen = []
+
+    def reject_text(text):
+        seen.append(text)
+        raise TypeError("Qt rejected search text")
+
+    monkeypatch.setattr(browser.form.searchEdit.lineEdit(), "setText", reject_text)
+    reply = rpc(client, {"query": value, "reorderCards": False})
+    assert reply == {"result": None, "error": "Qt rejected search text"}
+    assert browser.activated
+    assert seen == [value]
+    assert type(seen[0]) is type(value)
+    assert browser.sorted_by is None
+
+
+def test_gui_browse_keeps_backend_search_error(client, col, browser):
+    query = "("
+    with pytest.raises(Exception) as caught:
+        col.find_cards(query)
+    reply = rpc(client, {"query": query})
+    assert reply == {"result": None, "error": str(caught.value)}
+    assert browser.searched == [query]
+
+
+def test_gui_browse_searches_and_sorts_before_reading_ids(client, col, browser, monkeypatch):
+    events = []
+    monkeypatch.setattr(browser, "onSearch", lambda: events.append("search"))
+    monkeypatch.setattr(browser.table, "_on_sort_column_changed", lambda *_: events.append("sort"))
+
+    def find(query):
+        events.append("find")
+        return [123]
+
+    monkeypatch.setattr(col, "find_cards", find)
+    reply = rpc(client, {"query": "test", "reorderCards": {"columnId": "cardDue", "order": "ascending"}})
+    assert reply == {"result": [123], "error": None}
+    assert events == ["search", "sort", "find"]
+
+
+def test_gui_browse_supports_search_activated(client, browser, monkeypatch):
+    events = []
+    monkeypatch.delattr(browser, "onSearch")
+    monkeypatch.setattr(browser, "onSearchActivated", lambda: events.append("search"), raising=False)
+    assert rpc(client, {"query": "cid:0"}) == {"result": [], "error": None}
+    assert events == ["search"]
+
+
+@pytest.mark.parametrize("action,parameter", [("guiSelectCard", "card"), ("guiSelectNote", "note")])
+@pytest.mark.parametrize("value", [None, "123", 1.5])
+@pytest.mark.parametrize("opened", [False, True])
+def test_gui_selection_keeps_raw_id_and_closed_browser_result(client, browser, monkeypatch, action, parameter, value, opened):
+    import aqt
+
+    events = []
+    monkeypatch.setattr(aqt.dialogs, "_dialogs", {"Browser": (None, browser if opened else None)}, raising=False)
+    monkeypatch.setattr(browser.table, "clear_selection", lambda: events.append("clear"), raising=False)
+    monkeypatch.setattr(browser.table, "select_single_card", lambda card: events.append(card), raising=False)
+    reply = client.post("/", json={"action": action, "version": 6, "params": {parameter: value}}).json()
+    assert reply == {"result": opened, "error": None}
+    assert events == (["clear", value] if opened else [])
+    if opened:
+        assert type(events[-1]) is type(value)
+    assert browser.opened == []
+
+
+def test_gui_selection_keeps_clear_before_table_error(client, browser, monkeypatch):
+    import aqt
+
+    events = []
+    monkeypatch.setattr(aqt.dialogs, "_dialogs", {"Browser": (None, browser)}, raising=False)
+    monkeypatch.setattr(browser.table, "clear_selection", lambda: events.append("clear"), raising=False)
+
+    def reject(card):
+        events.append(card)
+        raise TypeError("Browser rejected card ID")
+
+    monkeypatch.setattr(browser.table, "select_single_card", reject, raising=False)
+    reply = client.post("/", json={"action": "guiSelectCard", "version": 6, "params": {"card": []}}).json()
+    assert reply == {"result": None, "error": "Browser rejected card ID"}
+    assert events == ["clear", []]

@@ -11,12 +11,11 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 from ....adapters.anki import gui as g
-from ....adapters.anki.cards import find_card_ids
 from ..registry import registry
 
 
 class GuiBrowseParams(BaseModel):
-    query: Optional[str] = None
+    query: Any = None
     # Deliberately untyped: canonical validates the shape itself and reports
     # 'reorderCards should be a dict: <value>', which a pydantic type error
     # would pre-empt with a different message.
@@ -24,7 +23,11 @@ class GuiBrowseParams(BaseModel):
 
 
 class CardParams(BaseModel):
-    card: int
+    card: Any = ...
+
+
+class SelectNoteParams(BaseModel):
+    note: Any = ...
 
 
 class NoteParams(BaseModel):
@@ -70,24 +73,21 @@ def _media_of(note: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 @registry.register("guiBrowse", params=GuiBrowseParams)
 def ac_guiBrowse(p: GuiBrowseParams) -> List[int]:
-    # Dialog first, then the ids - canonical order, so the result reflects
-    # the state after the search ran.
-    g.open_browser(p.query, p.reorderCards)
-    return find_card_ids(p.query) if p.query is not None else []
+    return g.ac_browse(p.query, p.reorderCards)
 
 
 @registry.register("guiSelectCard", params=CardParams)
 def ac_guiSelectCard(p: CardParams) -> bool:
-    return g.select_card(p.card)
+    return g.ac_select_card(p.card)
 
 
-@registry.register("guiSelectNote", params=NoteParams)
-def ac_guiSelectNote(p: NoteParams) -> bool:
+@registry.register("guiSelectNote", params=SelectNoteParams)
+def ac_guiSelectNote(p: SelectNoteParams) -> bool:
     """
     Canonical's own deprecated alias: it selects a CARD despite the name, and
     retains the old `note` argument. Compat-only - /v1 exposes select-card alone.
     """
-    return g.select_card(p.note)
+    return g.ac_select_card(p.note)
 
 
 @registry.register("guiSelectedNotes")
