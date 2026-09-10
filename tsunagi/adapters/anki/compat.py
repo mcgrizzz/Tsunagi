@@ -480,3 +480,28 @@ def replace_in_models_raw(col, name, find, replacement, front=True, back=True, c
     except Exception as exc:
         result = (None, str(exc))
         return ValueWithChanges(result, changes) if saved else result
+
+
+@as_collection_op
+def reschedule_cards_raw(col, cards, action, days=None):
+    """Let each upstream scheduling path interpret its raw inputs directly."""
+    try:
+        if action == "forget":
+            from anki.scheduler_pb2 import ScheduleCardsAsNewRequest
+
+            changes = col._backend.schedule_cards_as_new(ScheduleCardsAsNewRequest(
+                card_ids=cards, log=True, restore_position=True,
+                reset_counts=False, context=None,
+            ))
+        elif action == "relearn":
+            from anki.utils import ids2str
+
+            col.db.execute("update cards set type=3, queue=1 where id in " + ids2str(cards))
+            return None
+        elif action == "due":
+            changes = col.sched.set_due_date(cards, days, config_key=None)
+        else:
+            raise ValueError(f"unknown scheduling action: {action}")
+        return ValueWithChanges(None, changes.changes if hasattr(changes, "changes") else changes)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
