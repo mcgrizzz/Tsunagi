@@ -1,10 +1,8 @@
 """
 AnkiConnect compatibility handlers for deck actions.
 
-Thin translations over the adapters /v1/decks and /v1/deck-configs use.
-Two deliberate divergences, both because a read must not mutate:
-getDeckStats and getDecks resolve deck names to existing decks only, where
-canonical uses decks.id() and silently CREATES a deck for a typo.
+Shared adapters handle ordinary deck operations. Dedicated compatibility
+operations preserve legacy lookup, configuration and due-tree behavior.
 """
 from typing import Any, Dict, List
 
@@ -15,9 +13,7 @@ from ....adapters.anki.compat import raw_id_list
 from ....adapters.anki.deck_configs import (
     create_deck_config,
     delete_deck_config,
-    get_deck_config_for_deck,
     get_deck_configs_by_ids,
-    replace_deck_config,
 )
 from ....adapters.anki.decks import (
     create_deck_if_missing,
@@ -55,7 +51,7 @@ class DeleteDecksParams(BaseModel):
 
 
 class DeckParams(BaseModel):
-    deck: str
+    deck: Any = ...
 
 
 class DecksParams(BaseModel):
@@ -67,7 +63,7 @@ class DeckStatsParams(BaseModel):
 
 
 class SaveDeckConfigParams(BaseModel):
-    config: Dict[str, Any]
+    config: Any = ...
 
 
 class SetDeckConfigIdParams(BaseModel):
@@ -138,15 +134,16 @@ def ac_deleteDecks(p: DeleteDecksParams) -> None:
 
 @registry.register("getDeckConfig", params=DeckParams)
 def ac_getDeckConfig(p: DeckParams):
-    decks = get_decks_by_names([p.deck])
-    if not decks:
-        return False
-    return get_deck_config_for_deck(decks[0].id)
+    from ....adapters.anki.compat import get_deck_config_legacy
+
+    return get_deck_config_legacy(p.deck)
 
 
 @registry.register("saveDeckConfig", params=SaveDeckConfigParams)
 def ac_saveDeckConfig(p: SaveDeckConfigParams) -> bool:
-    return replace_deck_config(p.config)
+    from ....adapters.anki.compat import save_deck_config_legacy
+
+    return save_deck_config_legacy(p.config)
 
 
 @registry.register("setDeckConfigId", params=SetDeckConfigIdParams)

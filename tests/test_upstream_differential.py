@@ -2661,3 +2661,120 @@ def test_nested_permission_false_still_prompts(pair, monkeypatch, origin):
     ], ask_permission=deny)
     assert reply["result"] == [{"result": {"permission": "denied"}, "error": None}]
     assert prompts == ["upstream", "shim"]
+
+
+def deck_config_state(collection):
+    """Persisted preset values and deck assignments, excluding write timestamps."""
+    configs = {
+        config["id"]: {key: value for key, value in config.items() if key not in {"mod", "usn"}}
+        for config in collection.decks.all_config()
+    }
+    decks = {
+        deck.name: collection.decks.get(deck.id)
+        for deck in collection.decks.all_names_and_ids()
+    }
+    decks = {name: {key: value for key, value in deck.items() if key not in {"mod", "usn"}}
+             for name, deck in decks.items()}
+    return configs, decks
+
+
+@pytest.mark.parametrize("name", [None, False, True, 0, 1.5, [], {}, "", "missing", "Default", "default", " Default ", "Parity::日本語"])
+def test_deck_config_raw_names(pair, name):
+    compare(pair, "getDeckConfig", {"deck": name})
+    assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+
+
+@pytest.mark.parametrize("config", [None, False, True, 0, 1.5, "", "config", [], {}, [1], {"id": 1}, {"id": "1"}])
+def test_deck_config_raw_objects(pair, config):
+    compare(pair, "saveDeckConfig", {"config": config})
+    assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+
+
+@pytest.mark.parametrize("field,value", [
+    ("name", None), ("name", False), ("name", 123), ("name", []),
+    ("id", None), ("id", False), ("id", "1"), ("id", -1),
+    ("new", None), ("new", []), ("new", {}),
+    ("rev", None), ("rev", {}), ("lapse", {}),
+    ("maxTaken", "30"), ("maxTaken", -1), ("autoplay", None),
+    ("new.perDay", 7), ("new.perDay", "7"), ("new.perDay", -1),
+    ("new.delays", [1, 10]), ("new.delays", []), ("new.delays", "1 10"),
+    ("new.order", 0), ("new.order", 1), ("new.order", 3),
+    ("rev.perDay", 42), ("rev.ivlFct", 0.8), ("rev.ivlFct", "0.8"),
+    ("lapse.leechAction", 1), ("unknownOption", {"nested": True}),
+    ("mod", None), ("mod", "bad"), ("usn", None), ("usn", []),
+])
+def test_deck_config_nested_values(pair, field, value):
+    config = copy.deepcopy(pair[0].decks.get_config(1))
+    if "." in field:
+        group, key = field.split(".")
+        config[group][key] = value
+    else:
+        config[field] = value
+    compare(pair, "saveDeckConfig", {"config": config})
+    assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+
+
+@pytest.mark.parametrize("filtered", [False, True])
+def test_deck_config_read_complete_fields(pair, filtered):
+    name = "Parity::日本語"
+    if filtered:
+        for col in pair[:2]:
+            col.decks.new_filtered("Config filtered")
+        name = "Config filtered"
+    request = {"action": "getDeckConfig", "version": 6, "params": {"deck": name}}
+    actual = handle_ankiconnect_rpc(copy.deepcopy(request))
+    expected = pair[2].handler(copy.deepcopy(request))
+    if filtered:
+        for reply, col in zip((actual, expected), pair[:2]):
+            if isinstance(reply["result"], dict):
+                assert reply["result"]["id"] == col.decks.by_name(name)["id"]
+                reply["result"].pop("id")
+                reply["result"].pop("mod")
+    assert actual == expected, first_difference(actual, expected)
+
+
+@pytest.mark.parametrize("value", [True, 0, 1.0, 1.5, "", "1.0", " 1 ", [], {}, "missing", 9999999999999, 2**63])
+def test_deck_config_id_validation(pair, value):
+    config = copy.deepcopy(pair[0].decks.get_config(1))
+    config["id"] = value
+    compare(pair, "saveDeckConfig", {"config": config})
+    assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+
+
+@pytest.mark.parametrize("key", ["id", "name", "mod", "usn", "maxTaken", "autoplay", "new", "rev", "lapse"])
+def test_deck_config_missing_members(pair, key):
+    config = copy.deepcopy(pair[0].decks.get_config(1))
+    del config[key]
+    compare(pair, "saveDeckConfig", {"config": config})
+    assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+
+
+@pytest.mark.parametrize("order", [0, 1])
+def test_deck_config_save_scheduling_and_undo(pair, order):
+    config = copy.deepcopy(pair[0].decks.get_config(1))
+    config["new"]["order"] = order
+    config["new"]["perDay"] = 7
+    result = compare(pair, "saveDeckConfig", {"config": config})
+    assert result == {"result": True, "error": None}
+    assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+    assert pair[0].db.all("select id, due, queue from cards order by id") == pair[1].db.all(
+        "select id, due, queue from cards order by id")
+    statuses = [col.undo_status() for col in pair[:2]]
+    assert statuses[0].undo == statuses[1].undo
+    if statuses[0].undo:
+        for col in pair[:2]:
+            col.undo()
+        assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+        for col in pair[:2]:
+            col.redo()
+        assert deck_config_state(pair[0]) == deck_config_state(pair[1])
+
+
+def test_deck_config_save_publishes_changes(pair):
+    from tsunagi.adapters.anki.compat import save_deck_config_legacy
+
+    config = copy.deepcopy(pair[0].decks.get_config(1))
+    config["new"]["perDay"] = 7
+    result = save_deck_config_legacy.__wrapped__(pair[0], config)
+    assert result.changes.deck_config
+    assert pair[0].decks.get_config(1)["new"]["perDay"] == 7
