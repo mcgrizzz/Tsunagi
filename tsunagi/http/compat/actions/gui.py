@@ -5,7 +5,6 @@ Pure translation over adapters/anki/gui.py, which the /v1/gui:* routes use
 too. The adapter owns the aqt work and keeps its imports function-local, so
 this module stays importable with no Qt present.
 """
-from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
@@ -35,12 +34,12 @@ class NoteParams(BaseModel):
 
 
 class GuiAddCardsParams(BaseModel):
-    note: Optional[Dict[str, Any]] = None
+    note: Any = None
 
 
 class GuiAddNoteSetDataParams(BaseModel):
-    note: Dict[str, Any]
-    append: bool = False
+    note: Any = ...
+    append: Any = False
 
 
 class EaseParams(BaseModel):
@@ -55,16 +54,18 @@ class ImportFileParams(BaseModel):
     path: Optional[str] = None
 
 
-def _media_of(note: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Resolve audio/video/picture attachments off a raw note dict.
-
-    _resolve_media reads them with getattr, so wrap the dict rather than
-    duplicating the download logic.
-    """
+def _media_of(note: Any) -> List[Dict[str, Any]]:
+    """Prepare raw attachments on the request thread for the GUI adapter."""
     from .notes import _resolve_media
 
-    return _resolve_media(SimpleNamespace(**note))
+    if isinstance(note, dict):
+        return _resolve_media(note)
+    try:
+        note.get("audio")
+    except Exception as exc:
+        # Surface malformed notes when media is applied, after GUI validation.
+        return [{"abort_error": str(exc)}]
+    return []
 
 
 # ====================
@@ -107,12 +108,20 @@ def ac_guiEditNote(p: NoteParams) -> None:
 
 @registry.register("guiAddCards", params=GuiAddCardsParams)
 def ac_guiAddCards(p: GuiAddCardsParams) -> int:
-    return g.add_cards(p.note, _media_of(p.note) if p.note else None)
+    try:
+        return g.add_cards(p.note, _media_of(p.note), _compat=True)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @registry.register("guiAddNoteSetData", params=GuiAddNoteSetDataParams)
 def ac_guiAddNoteSetData(p: GuiAddNoteSetDataParams) -> Any:
-    return g.set_add_note_data(p.note, p.append, _media_of(p.note))
+    if not g.add_note_dialog_open():
+        return dict(g.ADD_DIALOG_CLOSED)
+    try:
+        return g.set_add_note_data(p.note, p.append, _media_of(p.note), _compat=True)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 # ====================

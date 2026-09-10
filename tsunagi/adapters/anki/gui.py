@@ -158,7 +158,8 @@ def ac_edit_note(note_id: int) -> None:
 # ====================
 
 def add_cards(note: Optional[Dict[str, Any]] = None,
-              media: Optional[List[Dict[str, Any]]] = None) -> int:
+              media: Optional[List[Dict[str, Any]]] = None, *,
+              _compat: bool = False) -> int:
     """
     Open the Add Cards dialog, optionally prefilled.
 
@@ -200,10 +201,19 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
         col.models.update(model)
 
         new_note = Note(col, model)
-        _ac_apply_fields(new_note, note.get("fields") or {})
+        if _compat:
+            if "fields" in note:
+                for name, value in note["fields"].items():
+                    if name in new_note:
+                        new_note[name] = value
+        else:
+            _ac_apply_fields(new_note, note.get("fields") or {})
         if media:
             _ac_write_media(col, new_note, media)
-        if note.get("tags") is not None:
+        if _compat:
+            if "tags" in note:
+                new_note.tags = note["tags"]
+        elif note.get("tags") is not None:
             new_note.tags = list(note["tags"])
 
         def show() -> None:
@@ -212,6 +222,8 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
                 deck["mid"] = saved_mid
             dialog.editor.set_note(new_note)
             dialog.activateWindow()
+            if _compat:
+                _open_dialog("AddCards")
             dialog.setAndFocusNote(dialog.editor.note)
 
         # An already-open dialog has to close first, and closing is async, so
@@ -226,8 +238,17 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
     return call_on_main(_open_filled)
 
 
+def add_note_dialog_open() -> bool:
+    """Check before preparing attachments for an existing Add Cards dialog."""
+    def _check() -> bool:
+        dialog = _existing_dialog("AddCards")
+        return dialog is not None and hasattr(dialog, "editor")
+    return call_on_main(_check)
+
+
 def set_add_note_data(note: Dict[str, Any], append: bool = False,
-                      media: Optional[List[Dict[str, Any]]] = None) -> Any:
+                      media: Optional[List[Dict[str, Any]]] = None, *,
+                      _compat: bool = False) -> Any:
     """
     Amend the open Add Cards dialog. Returns canonical's error DICT rather
     than raising when the dialog is closed - clients branch on that shape.
@@ -254,12 +275,23 @@ def set_add_note_data(note: Dict[str, Any], append: bool = False,
             dialog.set_note_type(model["id"])
 
         editor_note = dialog.editor.note
-        for name, value in (note.get("fields") or {}).items():
+        if _compat:
+            fields = note["fields"] if "fields" in note else {}
+        else:
+            fields = note.get("fields") or {}
+        for name, value in fields.items():
             if name not in editor_note:
                 raise ValidationError(f'Field "{name}" not found in current note')
             editor_note[name] = (str(editor_note[name]) + str(value)) if append else value
 
-        if note.get("tags") is not None:
+        if _compat:
+            if "tags" in note:
+                if append:
+                    tags = note["tags"] if isinstance(note["tags"], list) else [note["tags"]]
+                    editor_note.tags = list(set(editor_note.tags + tags))
+                else:
+                    editor_note.tags = note["tags"]
+        elif note.get("tags") is not None:
             tags = note["tags"] if isinstance(note["tags"], list) else [note["tags"]]
             editor_note.tags = (sorted(set(editor_note.tags) | set(tags))
                                 if append else list(tags))
