@@ -13,6 +13,14 @@ from ....adapters.anki import gui as g
 from ..registry import registry
 
 
+def _gui_call(operation: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Expose Anki's GUI errors through the compatibility envelope."""
+    try:
+        return operation(*args, **kwargs)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
 class GuiBrowseParams(BaseModel):
     query: Any = None
     # Deliberately untyped: canonical validates the shape itself and reports
@@ -47,7 +55,7 @@ class EaseParams(BaseModel):
 
 
 class DeckParams(BaseModel):
-    name: str
+    name: Any = ...
 
 
 class ImportFileParams(BaseModel):
@@ -128,22 +136,14 @@ def ac_guiAddNoteSetData(p: GuiAddNoteSetDataParams) -> Any:
 # Reviewer
 # ====================
 
-def _reviewer_call(operation: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-    """Expose Anki's reviewer errors through the compatibility envelope."""
-    try:
-        return operation(*args, **kwargs)
-    except Exception as exc:
-        raise ValueError(str(exc)) from exc
-
-
 @registry.register("guiReviewActive")
 def ac_guiReviewActive(params: Optional[Dict[str, Any]] = None) -> bool:
-    return _reviewer_call(g.review_active)
+    return _gui_call(g.review_active)
 
 
 @registry.register("guiCurrentCard")
 def ac_guiCurrentCard(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    card = _reviewer_call(g.current_card, _compat=True)
+    card = _gui_call(g.current_card, _compat=True)
     if card is None:
         # Canonical raises here; the native route reports null instead.
         raise ValueError("Gui review is not currently active.")
@@ -152,32 +152,32 @@ def ac_guiCurrentCard(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
 
 @registry.register("guiStartCardTimer")
 def ac_guiStartCardTimer(params: Optional[Dict[str, Any]] = None) -> bool:
-    return _reviewer_call(g.start_card_timer)
+    return _gui_call(g.start_card_timer)
 
 
 @registry.register("guiShowQuestion")
 def ac_guiShowQuestion(params: Optional[Dict[str, Any]] = None) -> bool:
-    return _reviewer_call(g.show_question)
+    return _gui_call(g.show_question)
 
 
 @registry.register("guiShowAnswer")
 def ac_guiShowAnswer(params: Optional[Dict[str, Any]] = None) -> bool:
-    return _reviewer_call(g.show_answer)
+    return _gui_call(g.show_answer)
 
 
 @registry.register("guiAnswerCard", params=EaseParams)
 def ac_guiAnswerCard(p: EaseParams) -> bool:
-    return _reviewer_call(g.answer_card, p.ease)
+    return _gui_call(g.answer_card, p.ease)
 
 
 @registry.register("guiUndo")
 def ac_guiUndo(params: Optional[Dict[str, Any]] = None) -> bool:
-    return g.undo()
+    return _gui_call(g.undo)
 
 
 @registry.register("guiPlayAudio")
 def ac_guiPlayAudio(params: Optional[Dict[str, Any]] = None) -> bool:
-    return _reviewer_call(g.play_audio)
+    return _gui_call(g.play_audio)
 
 
 # ====================
@@ -186,18 +186,18 @@ def ac_guiPlayAudio(params: Optional[Dict[str, Any]] = None) -> bool:
 
 @registry.register("guiDeckBrowser")
 def ac_guiDeckBrowser(params: Optional[Dict[str, Any]] = None) -> None:
-    g.deck_browser()
+    _gui_call(g.deck_browser)
     return None
 
 
 @registry.register("guiDeckOverview", params=DeckParams)
 def ac_guiDeckOverview(p: DeckParams) -> bool:
-    return g.deck_overview(p.name)
+    return _gui_call(g.deck_overview, p.name)
 
 
 @registry.register("guiDeckReview", params=DeckParams)
 def ac_guiDeckReview(p: DeckParams) -> bool:
-    return g.deck_review(p.name)
+    return _gui_call(g.deck_review, p.name)
 
 
 @registry.register("guiImportFile", params=ImportFileParams)
