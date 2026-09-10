@@ -209,7 +209,7 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `cardReviews` | implemented | Arrays in revlog column order. The shim creates a missing deck and returns no rows. Both `deck` and `startID` are required. Native reads create nothing. |
+| `cardReviews` | implemented | Arrays in revlog column order. The shim creates a missing deck and returns no rows. Both `deck` and `startID` are required. The cutoff is bound unchanged through Anki’s database API; strings are values, never SQL expressions. Native reads create nothing. |
 | `getCollectionStatsHTML` | implemented | Anki's own stats report. |
 | `getLatestReviewID` | implemented | The shim creates a missing deck and returns 0; native reads create nothing. |
 | `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. |
