@@ -9,11 +9,9 @@ from pydantic import BaseModel
 
 from ....adapters.anki.cards import (
     RISKY_CARD_COLUMNS,
-    card_ease_factors,
     cards_mod_times,
     cards_suspended,
     get_cards_by_ids,
-    notes_of_cards,
     set_card_values,
 )
 from ....adapters.anki.compat import raw_id_list
@@ -22,7 +20,7 @@ from ..registry import registry
 
 
 class CardsParams(BaseModel):
-    cards: List[int]
+    cards: Any = ...
 
 
 class CardsInfoParams(BaseModel):
@@ -50,7 +48,7 @@ class SetEaseFactorsParams(BaseModel):
 
 class GetIntervalsParams(BaseModel):
     cards: Any
-    complete: bool = False
+    complete: Any = False
 
 
 class SetDueDateParams(BaseModel):
@@ -69,7 +67,9 @@ def _object_ids(values):
 
 @registry.register("getEaseFactors", params=CardsParams)
 def ac_getEaseFactors(p: CardsParams) -> List[Optional[int]]:
-    return card_ease_factors(p.cards)
+    from ....adapters.anki.compat import read_ease_factors_raw
+
+    return read_ease_factors_raw(p.cards)
 
 
 @registry.register("setEaseFactors", params=SetEaseFactorsParams)
@@ -145,7 +145,9 @@ def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
 
 @registry.register("cardsToNotes", params=CardsParams)
 def ac_cardsToNotes(p: CardsParams) -> List[int]:
-    return notes_of_cards(p.cards)
+    from ....adapters.anki.compat import notes_of_cards_raw
+
+    return notes_of_cards_raw(p.cards)
 
 
 @registry.register("cardsModTime", params=CardsInfoParams)
