@@ -745,6 +745,181 @@ def test_scheduler_mutations(pair, action, extra, review_cards):
     assert_mutation_state(pair)
 
 
+def package_collection_state(collection):
+    """Compare imported content and scheduling without allocated IDs or mtimes."""
+    collection.models._clear_cache()
+    notes = []
+    models = {}
+    for nid in collection.find_notes(""):
+        note = collection.get_note(nid)
+        model = note.note_type()
+        models[model["name"]] = {
+            "type": model["type"], "css": model["css"],
+            "fields": [{k: v for k, v in field.items() if k != "id"} for field in model["flds"]],
+            "templates": [{k: v for k, v in template.items() if k not in ("id", "did")} for template in model["tmpls"]],
+        }
+        notes.append((note.guid, model["name"], note.fields, note.tags))
+    cards = []
+    for cid in collection.find_cards(""):
+        card = collection.get_card(cid)
+        cards.append((card.note().guid, card.ord, collection.decks.name(card.did),
+                      card.type, card.queue, card.due, card.ivl, card.factor, card.reps,
+                      card.lapses, card.left, card.odue,
+                      collection.decks.name(card.odid) if card.odid else None, card.flags, json.loads(collection.db.scalar("select data from cards where id=?", cid) or "{}")))
+    decks = {}
+    for deck in collection.decks.all_names_and_ids():
+        conf = collection.decks.config_dict_for_deck_id(deck.id)
+        decks[deck.name] = {k: v for k, v in conf.items() if k not in ("id", "mod", "usn")}
+    return {"notes": sorted(notes), "models": models, "cards": sorted(cards), "decks": decks,
+            "media": media_state(collection)}
+
+
+def read_exported_package(path, collection_path):
+    from anki.collection import Collection
+    from anki.import_export_pb2 import ImportAnkiPackageRequest
+
+    imported = Collection(str(collection_path))
+    try:
+        request = ImportAnkiPackageRequest(package_path=str(path))
+        if "options" in request.DESCRIPTOR.fields_by_name:
+            for option in ("with_scheduling", "with_deck_configs", "merge_notetypes"):
+                if option in request.options.DESCRIPTOR.fields_by_name:
+                    setattr(request.options, option, True)
+        imported.import_anki_package(request)
+        return package_collection_state(imported)
+    finally:
+        imported.close()
+
+
+@pytest.mark.parametrize("include_sched", [None, False, True, 0, 1, "", "false", [], {}, [False]])
+@pytest.mark.parametrize("deck", ["Parity", "Parity::日本語"])
+def test_package_export_preserves_options(pair, tmp_path, include_sched, deck):
+    for collection in pair[:2]:
+        model = collection.models.by_name("Basic")
+        model["name"] = "Package source"
+        collection.models.update_dict(model)
+        conf = collection.decks.get_config(1)
+        conf["new"]["perDay"] = 7
+        conf["rev"]["perDay"] = 42
+        collection.decks.update_config(conf)
+        collection.db.execute(
+            "update cards set type=2, queue=2, due=?, ivl=10, factor=2500, reps=8, lapses=2",
+            collection.sched.today + 5,
+        )
+        collection.media.write_data("package.txt", b"package media")
+        note = collection.get_note(list(collection.find_notes(""))[0])
+        note["Front"] += '<img src="package.txt">'
+        collection.update_note(note)
+    actual_path, expected_path = tmp_path / "actual.apkg", tmp_path / "expected.apkg"
+    expected = pair[2].handler({"action": "exportPackage", "version": 6, "params": {
+        "deck": deck, "path": str(expected_path), "includeSched": include_sched}})
+    actual = handle_ankiconnect_rpc({"action": "exportPackage", "version": 6, "params": {
+        "deck": deck, "path": str(actual_path), "includeSched": include_sched}})
+    assert actual == expected, first_difference(actual, expected)
+    if expected["error"] is not None:
+        assert_mutation_state(pair)
+        return
+    assert actual == {"result": True, "error": None}
+    actual_state = read_exported_package(actual_path, tmp_path / "actual-import.anki2")
+    expected_state = read_exported_package(expected_path, tmp_path / "expected-import.anki2")
+    assert actual_state == expected_state, first_difference(actual_state, expected_state, "package")
+    assert len(actual_state["notes"]) == 3
+    assert "package.txt" in actual_state["media"]
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("change", ["new-note", "note-update", "model-field", "deck-config"])
+def test_package_import_preserves_options(pair, tmp_path, change):
+    from anki.collection import Collection
+
+    source_path = tmp_path / "package-source.anki2"
+    with sqlite3.connect(pair[0].path) as db, sqlite3.connect(source_path) as target:
+        db.backup(target)
+    source = Collection(str(source_path))
+    path = tmp_path / "input.apkg"
+    try:
+        model = source.models.by_name("Basic")
+        if change == "model-field":
+            field = source.models.new_field("Extra")
+            source.models.add_field(model, field)
+            source.models.update_dict(model)
+        if change == "note-update":
+            existing = source.get_note(list(source.find_notes(""))[0])
+            existing["Back"] = "updated from package"
+            existing.tags = ["imported-tag"]
+            source.update_note(existing)
+            source.db.execute("update notes set mod=mod+100 where id=?", existing.id)
+        note = source.new_note(model)
+        note["Front"], note["Back"] = 'from package<img src="import-package.txt">', "imported back"
+        if change == "model-field":
+            note["Extra"] = "imported extra"
+        source.add_note(note, source.decks.id("Parity::日本語"))
+        source.media.write_data("import-package.txt", b"imported media")
+        source.db.execute(
+            "update cards set type=2, queue=2, due=?, ivl=10, factor=2500, reps=8, lapses=2 where nid=?",
+            source.sched.today + 5, note.id,
+        )
+        if change == "deck-config":
+            conf = source.decks.get_config(1)
+            conf["new"]["perDay"] = 7
+            conf["rev"]["perDay"] = 42
+            source.decks.update_config(conf)
+        pair[2].collection = lambda: source
+        exported = pair[2].handler({"action": "exportPackage", "version": 6, "params": {
+            "deck": "Parity", "path": str(path), "includeSched": True}})
+        assert exported == {"result": True, "error": None}
+    finally:
+        pair[2].collection = lambda: pair[1]
+        source.close()
+    assert compare(pair, "importPackage", {"path": str(path)}) == {"result": True, "error": None}
+    actual, expected = package_collection_state(pair[0]), package_collection_state(pair[1])
+    assert actual == expected, first_difference(actual, expected, "imported")
+    assert len(actual["notes"]) == 4
+    assert "import-package.txt" in actual["media"]
+
+
+@pytest.mark.parametrize("deck", [None, False, 0, 1.5, [], {}, "missing-package-deck"])
+def test_package_export_raw_deck_before_options(pair, deck):
+    compare(pair, "exportPackage", {"deck": deck, "path": None, "includeSched": []})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("path", [None, [], {}])
+def test_package_raw_paths(pair, path):
+    import re
+
+    payload = {"action": "exportPackage", "version": 6,
+               "params": {"deck": "Parity::日本語", "path": path}}
+    expected = pair[2].handler(payload)
+    actual = handle_ankiconnect_rpc(payload)
+    # The modern legacy wrapper reports an independently generated temp filename
+    # when None becomes an empty destination. Retain the rest of the error.
+    for reply in (actual, expected):
+        if reply["error"] is not None:
+            reply["error"] = re.sub(
+                r"(Failed to persist '[^']*/)[.]tmp[A-Za-z0-9]+(')",
+                r"\1.tmp<generated>\2", reply["error"],
+            )
+    assert actual == expected, first_difference(actual, expected)
+    compare(pair, "importPackage", {"path": path})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("kind", ["missing", "invalid", "empty-zip"])
+def test_package_import_file_errors(pair, tmp_path, kind):
+    import zipfile
+
+    path = tmp_path / "bad.apkg"
+    if kind == "invalid":
+        path.write_bytes(b"invalid package")
+    elif kind == "empty-zip":
+        with zipfile.ZipFile(path, "w"):
+            pass
+    reply = compare(pair, "importPackage", {"path": str(path)})
+    assert reply["error"] is not None
+    assert_mutation_state(pair)
+
+
 @pytest.mark.parametrize("action", ["getEaseFactors", "cardsToNotes"])
 @pytest.mark.parametrize("case", [
     "none", "false", "true", "number", "fraction", "empty-string", "zero-string", "string",

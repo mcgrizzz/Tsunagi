@@ -1,10 +1,7 @@
-"""
-AnkiConnect compatibility handlers for profile and collection actions.
+"""AnkiConnect profile and collection actions.
 
-Translations over adapters/anki/collection.py - the same module the
-/v1/profiles and /v1/collection:* routes use. Canonical's return shapes are
-narrower than the native ones (bare booleans, mostly), so that is what these
-hand back.
+Profile actions share native adapters. Package actions use Anki's compatibility
+APIs to retain the installed version's import/export behavior and raw arguments.
 """
 from typing import Any, Dict, List, Optional
 
@@ -12,8 +9,6 @@ from pydantic import BaseModel
 
 from ....adapters.anki.collection import (
     active_profile,
-    export_package,
-    import_package,
     list_profiles,
     load_profile,
     reload_collection,
@@ -27,13 +22,13 @@ class LoadProfileParams(BaseModel):
 
 
 class ExportPackageParams(BaseModel):
-    deck: str
-    path: str
-    includeSched: bool = False
+    deck: Any = ...
+    path: Any = ...
+    includeSched: Any = False
 
 
 class ImportPackageParams(BaseModel):
-    path: str
+    path: Any = ...
 
 
 @registry.register("getProfiles")
@@ -65,19 +60,13 @@ def ac_reloadCollection(params: Optional[Dict[str, Any]] = None) -> None:
 
 @registry.register("exportPackage", params=ExportPackageParams)
 def ac_exportPackage(p: ExportPackageParams) -> bool:
-    """
-    Canonical returns False for a missing deck rather than raising, so the
-    404 the adapter raises is translated back to that here.
-    """
-    try:
-        return export_package(p.deck, p.path, p.includeSched)
-    except Exception as e:
-        if type(e).__name__ == "ResourceNotFoundError":
-            return False
-        raise
+    from ....adapters.anki.compat import export_package_legacy
+
+    return export_package_legacy(p.deck, p.path, p.includeSched)
 
 
 @registry.register("importPackage", params=ImportPackageParams)
 def ac_importPackage(p: ImportPackageParams) -> bool:
-    import_package(p.path)
-    return True
+    from ....adapters.anki.compat import import_package_legacy
+
+    return import_package_legacy(p.path)
