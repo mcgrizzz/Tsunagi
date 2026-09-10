@@ -466,6 +466,19 @@ def _ac_prepare(col: Collection, spec):
     return note, model, deck, spec.get("options", {})
 
 
+@as_query_op
+def ac_validate_note(col: Collection, spec) -> None:
+    """Check the pre-media input before the request thread fetches attachments.
+
+    The final operation prepares again: collection state can change while a
+    download is in flight. No Anki note object crosses the operation boundary.
+    """
+    try:
+        _ac_prepare(col, spec)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def _ac_finish_check(col: Collection, note: Any, deck: Dict[str, Any],
                      opts: Dict[str, Any]) -> None:
     from ...http.compat.errors import NOTE_DUPLICATE, NOTE_EMPTY

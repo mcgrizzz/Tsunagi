@@ -28,6 +28,7 @@ from ....adapters.anki.notes import (
     ac_add_note,
     ac_check_note,
     ac_update_note_fields,
+    ac_validate_note,
     delete_notes,
     get_notes_by_ids,
     notes_mod_times,
@@ -143,10 +144,17 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
 
 # ---- actions -----------------------------------------------------------
 
+def _resolve_note_media(spec) -> List[Dict[str, Any]]:
+    # Keep validation in the adapter and downloads on this request thread.
+    if isinstance(spec, dict) and any(spec.get(kind) for kind in _MARKUP):
+        ac_validate_note(spec)
+    return _resolve_media(spec)
+
+
 @registry.register("addNote", params=AddNoteParams)
 def ac_addNote(p: AddNoteParams) -> int:
     spec = p.note
-    return ac_add_note(spec, _resolve_media(spec))
+    return ac_add_note(spec, _resolve_note_media(spec))
 
 
 @registry.register("addNotes", params=AddNotesParams)
@@ -155,7 +163,7 @@ def ac_addNotes(p: AddNotesParams) -> List[int]:
     errors: List[str] = []
     for spec in _iter_notes(p.notes):
         try:
-            created.append(ac_add_note(spec, _resolve_media(spec)))
+            created.append(ac_add_note(spec, _resolve_note_media(spec)))
         except Exception as e:
             errors.append(str(e))
     if errors:
@@ -193,7 +201,7 @@ def _can_add(spec):
     try:
         # Canonical probes prepare media before duplicate/empty checks, even
         # though they never insert the prepared note into the collection.
-        ac_check_note(spec, _resolve_media(spec))
+        ac_check_note(spec, _resolve_note_media(spec))
         return True, None
     except Exception as e:
         return False, str(e)
