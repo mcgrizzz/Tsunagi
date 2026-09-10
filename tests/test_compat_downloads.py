@@ -10,9 +10,15 @@ from tsunagi.http.v1.media import _fetch_url
 
 
 @pytest.fixture
-def download_url():
+def download_requests():
+    return []
+
+
+@pytest.fixture
+def download_url(download_requests):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            download_requests.append(self.path)
             status, length = self.path.strip("/").split("/")
             self.send_response(int(status))
             if length == "declared":
@@ -58,6 +64,32 @@ def test_compat_download_retains_size_limit(client, col, reset_settings, downloa
 
 def test_native_download_still_accepts_201(download_url):
     assert _fetch_url(download_url + "/201/declared") == b"payload"
+
+
+@pytest.mark.parametrize("action", ["addNote", "canAddNotes", "canAddNotesWithErrorDetail"])
+def test_note_downloads_follow_attachment_order(
+    client, col, download_url, download_requests, action,
+):
+    note = {
+        "deckName": "Default", "modelName": "Basic",
+        "fields": {"Front": "ordered downloads", "Back": ""},
+        "audio": [
+            {"filename": "first.mp3", "url": download_url + "/200/declared", "fields": ["Back"]},
+            {"filename": "second.mp3", "url": download_url + "/200/undeclared", "fields": ["Back"]},
+        ],
+    }
+    params = {"note": note} if action == "addNote" else {"notes": [note]}
+    reply = client.post("/", json={"action": action, "version": 6, "params": params}).json()
+    assert reply["error"] is None
+    assert download_requests == ["/200/declared", "/200/undeclared"]
+    for filename in ("first.mp3", "second.mp3"):
+        assert Path(col.media.dir(), filename).read_bytes() == b"payload"
+    ids = col.find_notes('"Front:ordered downloads"')
+    if action == "addNote":
+        assert ids == [reply["result"]]
+        assert col.get_note(ids[0])["Back"] == "[sound:first.mp3][sound:second.mp3]"
+    else:
+        assert ids == []
 
 
 @pytest.mark.parametrize("replacement,skip_hash,expected_files", [
@@ -154,3 +186,41 @@ def test_raw_attachment_failure_preserves_earlier_media(client, col, malformed, 
     assert col.get_note(note.id)["Back"] == "original"
     assert Path(col.media.dir(), "prefix.mp3").read_bytes() == b"audio"
     assert not Path(col.media.dir(), "suffix.mp3").exists()
+
+
+@pytest.mark.parametrize("action", ["addNote", "addNotes", "canAddNotesWithErrorDetail", "updateNoteFields"])
+@pytest.mark.parametrize("suffix_kind", ["audio", "picture"])
+def test_malformed_attachment_stops_later_downloads(
+    client, col, download_url, download_requests, action, suffix_kind,
+):
+    spec = {
+        "deckName": "Default", "modelName": "Basic",
+        "fields": {"Front": "download abort probe", "Back": "updated"},
+        "audio": [
+            {"filename": "prefix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
+            False,
+        ],
+    }
+    suffix = {"filename": "suffix.mp3", "url": download_url + "/200/declared", "fields": ["Back"]}
+    spec.setdefault(suffix_kind, []).append(suffix)
+    if action == "updateNoteFields":
+        note = col.new_note(col.models.by_name("Basic"))
+        note["Front"], note["Back"] = "download abort probe", "original"
+        col.add_note(note, col.decks.id("Default"))
+        spec["id"] = note.id
+    params = {"notes": [spec]} if action in ("addNotes", "canAddNotesWithErrorDetail") else {"note": spec}
+    reply = client.post("/", json={"action": action, "version": 6, "params": params}).json()
+    error = "'bool' object is not subscriptable"
+    if action == "addNotes":
+        assert reply == {"result": None, "error": str([error])}
+    elif action == "canAddNotesWithErrorDetail":
+        assert reply == {"result": [{"canAdd": False, "error": error}], "error": None}
+    else:
+        assert reply == {"result": None, "error": error}
+    assert download_requests == []
+    assert Path(col.media.dir(), "prefix.mp3").read_bytes() == b"audio"
+    assert not Path(col.media.dir(), "suffix.mp3").exists()
+    if action == "updateNoteFields":
+        assert col.get_note(note.id)["Back"] == "original"
+    else:
+        assert col.find_notes('"Front:download abort probe"') == []
