@@ -641,3 +641,36 @@ def import_package_legacy(col, path):
         ))
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+@as_query_op
+def get_deck_config_legacy(col, name):
+    """Preserve raw legacy deck lookup and the complete returned configuration."""
+    try:
+        deck = next((deck for deck in col.decks.all_names_and_ids() if deck.name == name), None)
+        if deck is None:
+            return False
+        return col.decks.config_dict_for_deck_id(deck.id)
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def save_deck_config_legacy(col, config):
+    """Keep lookup errors, then report rejected preset saves as False."""
+    from anki.collection import OpChanges
+    from anki.utils import int_time
+
+    try:
+        config_id = int(str(config["id"]))
+        if config_id not in {preset["id"] for preset in col.decks.all_config()}:
+            return False
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+    try:
+        config["mod"] = int_time()
+        config["usn"] = col.usn()
+        col.decks.save(config)
+    except Exception:
+        return False
+    return ValueWithChanges(True, OpChanges(deck_config=True))
