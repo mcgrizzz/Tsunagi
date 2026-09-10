@@ -455,17 +455,31 @@ def deck_review(name: str) -> bool:
     return call_on_main(_go)
 
 
-def import_file(path: Optional[str] = None) -> bool:
+def import_file(path: Optional[str] = None, *, _compat: bool = False) -> bool:
     """Open Anki's import dialog, on a file if one is named."""
     def _import() -> bool:
         from aqt import mw
         from aqt.import_export.importing import import_file as _do
         from aqt.import_export.importing import prompt_for_file_then_import
 
-        if path:
-            _do(mw, path)
-        else:
+        if _compat:
+            from aqt.qt import Qt
+
+            on_top = getattr(Qt, "WindowStaysOnTopHint", None)
+            if on_top is None:
+                on_top = getattr(getattr(Qt, "WindowType", None), "WindowStaysOnTopHint", None)
+            if on_top is not None:
+                try:
+                    mw.setWindowFlags(mw.windowFlags() | on_top)
+                    mw.show()
+                finally:
+                    mw.setWindowFlags(mw.windowFlags() & ~on_top)
+                    mw.show()
+
+        if path is None or (not _compat and not path):
             prompt_for_file_then_import(mw)
+        else:
+            _do(mw, path)
         return True
     return call_on_main(_import)
 
