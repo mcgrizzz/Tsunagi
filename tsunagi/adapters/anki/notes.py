@@ -467,14 +467,18 @@ def _ac_prepare(col: Collection, spec):
 
 
 @as_query_op
-def ac_validate_note(col: Collection, spec) -> None:
+def ac_validate_note(col: Collection, spec, *, updating: bool = False) -> None:
     """Check the pre-media input before the request thread fetches attachments.
 
     The final operation prepares again: collection state can change while a
     download is in flight. No Anki note object crosses the operation boundary.
     """
     try:
-        _ac_prepare(col, spec)
+        if updating:
+            _ac_prepare_update(col, spec["id"], spec.get("fields"),
+                               fields_missing="fields" not in spec)
+        else:
+            _ac_prepare(col, spec)
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 
@@ -564,9 +568,8 @@ def ac_check_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -
         raise ValueError(str(exc)) from exc
 
 
-@as_collection_op
-def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
-                          media: Sequence[Dict[str, Any]], *, fields_missing=False) -> None:
+def _ac_prepare_update(col: Collection, note_id: Any, fields: Any, *, fields_missing=False):
+    """Apply fields to an unsaved note, shared by preflight and the final write."""
     from ...http.compat.errors import NOTE_NOT_FOUND
 
     try:
@@ -577,6 +580,20 @@ def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
         for name, value in fields.items():
             if name in note:
                 note[name] = value
+        return note
+    except Exception as exc:
+        if type(exc).__name__ == "NotFoundError":
+            raise ValueError(NOTE_NOT_FOUND.format(note_id)) from exc
+        raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
+                          media: Sequence[Dict[str, Any]], *, fields_missing=False) -> None:
+    from ...http.compat.errors import NOTE_NOT_FOUND
+
+    try:
+        note = _ac_prepare_update(col, note_id, fields, fields_missing=fields_missing)
         _ac_write_media(col, note, media)
         return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True))
     except Exception as exc:
