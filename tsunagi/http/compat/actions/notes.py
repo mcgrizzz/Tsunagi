@@ -106,6 +106,10 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                 except Exception as exc:
                     entry["abort_error"] = str(exc)
                 out.append(entry)
+                if "abort_error" in entry:
+                    # The adapter will abort here after writing earlier media.
+                    # Later attachments cannot be reached, even in other kinds.
+                    return out
                 continue
             if "fields" in media:
                 entry["fields"] = media["fields"]
