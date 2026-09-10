@@ -745,6 +745,109 @@ def test_scheduler_mutations(pair, action, extra, review_cards):
     assert_mutation_state(pair)
 
 
+@pytest.mark.parametrize("action", ["forgetCards", "relearnCards", "setDueDate"])
+@pytest.mark.parametrize("case", [
+    "none", "false", "true", "integer", "empty-string", "string", "empty-dict",
+    "dict", "empty", "null-id", "false-id", "true-id", "float-id", "string-id",
+    "nested-id", "object-id", "missing", "duplicate", "bad-suffix", "bad-prefix",
+])
+def test_reschedule_raw_card_inputs(pair, action, case):
+    ids = list(pair[0].find_cards(""))
+    cid = ids[0]
+    values = {
+        "none": None, "false": False, "true": True, "integer": cid,
+        "empty-string": "", "string": str(cid), "empty-dict": {},
+        "dict": {str(cid): True}, "empty": [], "null-id": [None],
+        "false-id": [False], "true-id": [True], "float-id": [float(cid)],
+        "string-id": [str(cid)], "nested-id": [[]], "object-id": [{}],
+        "missing": [999999], "duplicate": [cid, cid],
+        "bad-suffix": [cid, None, ids[1]], "bad-prefix": [None, cid],
+    }
+    params = {"cards": values[case]}
+    if action == "setDueDate":
+        params["days"] = "5"
+    compare(pair, action, params)
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("days", [None, False, True, 0, 5, 1.5, [], {}, "", "bad", "-1", "5!", "2-2"])
+@pytest.mark.parametrize("layout", ["present", "empty", "invalid"])
+def test_reschedule_raw_days(pair, days, layout):
+    cards = list(pair[0].find_cards("")) if layout == "present" else ([] if layout == "empty" else [None])
+    compare(pair, "setDueDate", {"cards": cards, "days": days})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["forgetCards", "relearnCards", "setDueDate"])
+@pytest.mark.parametrize("state", ["learning", "day-learning", "relearning", "suspended", "buried", "filtered"])
+def test_reschedule_existing_states(pair, action, state):
+    cards = list(pair[0].find_cards(""))
+    for collection in pair[:2]:
+        collection.db.execute(
+            "update cards set type=2, queue=2, due=?, ivl=10, factor=2500, reps=8, lapses=2",
+            collection.sched.today,
+        )
+        if state == "learning":
+            collection.db.execute("update cards set type=1, queue=1, due=1700000000, left=2002")
+        elif state == "day-learning":
+            collection.db.execute("update cards set type=1, queue=3, left=1001")
+        elif state == "relearning":
+            collection.db.execute("update cards set type=3, queue=1, due=1700000000, left=1001")
+        elif state in ("suspended", "buried"):
+            collection.db.execute("update cards set queue=?", -1 if state == "suspended" else -2)
+        else:
+            # Use a fixed unused deck ID to compare actual filtered-deck metadata.
+            deck = collection.decks.new_filtered("Parity filtered")
+            collection.db.execute("update decks set id=900000 where id=?", deck)
+            collection.sched.rebuild_filtered_deck(900000)
+            assert collection.db.scalar("select count(*) from cards where odid != 0") == len(cards)
+    compare(pair, action, {"cards": cards, **({"days": "5"} if action == "setDueDate" else {})})
+    assert_mutation_state(pair)
+
+
+@pytest.mark.parametrize("action", ["forgetCards", "relearnCards", "setDueDate"])
+@pytest.mark.parametrize("fsrs", [False, True])
+@pytest.mark.parametrize("filtered", [None, False, True])
+def test_reschedule_memory_and_undo(pair, action, fsrs, filtered):
+    cards = list(pair[0].find_cards(""))
+    for collection in pair[:2]:
+        collection.set_config("fsrs", fsrs)
+        collection.db.execute(
+            "update cards set type=2, queue=2, due=?, ivl=10, factor=2500, reps=8, lapses=2, data=?",
+            collection.sched.today,
+            json.dumps({"s": 12.0, "d": 5.0, "pos": 17}),
+        )
+        if filtered is not None:
+            did = collection.decks.new_filtered("Parity filtered undo")
+            deck = collection.decks.get(did)
+            deck["resched"] = filtered
+            collection.decks.save(deck)
+            collection.db.execute("update decks set id=900000 where id=?", did)
+            collection.sched.rebuild_filtered_deck(900000)
+            assert collection.db.scalar("select count(*) from cards where odid != 0") == len(cards)
+        # Establish observable undo history before the action. Anki's raw SQL
+        # relearning clears it; scheduler operations add undoable steps.
+        collection.update_card(collection.get_card(cards[0]), skip_undo_entry=True)
+        collection.sched.suspend_cards([cards[-1]])
+    before = [c.undo_status() for c in pair[:2]]
+    assert (before[0].undo, before[0].redo) == (before[1].undo, before[1].redo)
+    compare(pair, action, {"cards": cards, **({"days": "5"} if action == "setDueDate" else {})})
+    assert_mutation_state(pair)
+    after = [c.undo_status() for c in pair[:2]]
+    assert (after[0].undo, after[0].redo) == (after[1].undo, after[1].redo)
+    if action == "relearnCards":
+        assert not after[0].undo and not after[0].redo
+        assert after[0].last_step == after[1].last_step == 0
+        return
+    assert after[0].last_step - before[0].last_step == after[1].last_step - before[1].last_step
+    for collection in pair[:2]:
+        collection.undo()
+    assert_mutation_state(pair)
+    for collection in pair[:2]:
+        collection.redo()
+    assert_mutation_state(pair)
+
+
 @pytest.mark.parametrize("layout", ["present", "missing-first", "missing-only", "empty"])
 @pytest.mark.parametrize("factors", [
     None, False, True, 0, 1.5, "", "2700", {}, {"0": 2700}, [], [2700],

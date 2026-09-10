@@ -16,12 +16,9 @@ from ....adapters.anki.cards import (
     card_ease_factors,
     cards_mod_times,
     cards_suspended,
-    forget_cards,
     get_cards_by_ids,
     notes_of_cards,
-    relearn_cards,
     set_card_values,
-    set_due_date,
     suspend_cards,
     unsuspend_cards,
 )
@@ -64,8 +61,8 @@ class GetIntervalsParams(BaseModel):
 
 
 class SetDueDateParams(BaseModel):
-    cards: List[int]
-    days: str
+    cards: Any = ...
+    days: Any = ...
 
 
 def _require_all_present(card_ids: List[int]) -> List[bool]:
@@ -231,27 +228,25 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
     return out
 
 
-@registry.register("forgetCards", params=CardsParams)
-def ac_forgetCards(p: CardsParams) -> None:
-    # restore_position=True is canonical's choice, not Anki's default.
-    forget_cards(p.cards, restore_position=True, reset_counts=False)
+@registry.register("forgetCards", params=CardsInfoParams)
+def ac_forgetCards(p: CardsInfoParams) -> None:
+    from ....adapters.anki.compat import reschedule_cards_raw
+
+    reschedule_cards_raw(p.cards, "forget")
 
 
-@registry.register("relearnCards", params=CardsParams)
-def ac_relearnCards(p: CardsParams) -> None:
-    relearn_cards(p.cards)
+@registry.register("relearnCards", params=CardsInfoParams)
+def ac_relearnCards(p: CardsInfoParams) -> None:
+    from ....adapters.anki.compat import reschedule_cards_raw
+
+    reschedule_cards_raw(p.cards, "relearn")
 
 
 @registry.register("setDueDate", params=SetDueDateParams)
 def ac_setDueDate(p: SetDueDateParams) -> bool:
-    try:
-        set_due_date(p.cards, p.days)
-    except Exception as exc:
-        # The native API adds context; the shim exposes Anki's original error.
-        cause = exc.__cause__
-        if cause is not None and type(cause).__name__ in ("InvalidInput", "ValueError"):
-            raise ValueError(str(cause)) from exc
-        raise
+    from ....adapters.anki.compat import reschedule_cards_raw
+
+    reschedule_cards_raw(p.cards, "due", p.days)
     return True
 
 
