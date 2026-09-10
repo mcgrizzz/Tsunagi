@@ -59,7 +59,7 @@ class DeckParams(BaseModel):
 
 
 class ImportFileParams(BaseModel):
-    path: Optional[str] = None
+    path: Any = None
 
 
 def _media_of(note: Any) -> List[Dict[str, Any]]:
@@ -202,7 +202,7 @@ def ac_guiDeckReview(p: DeckParams) -> bool:
 
 @registry.register("guiImportFile", params=ImportFileParams)
 def ac_guiImportFile(p: ImportFileParams) -> None:
-    g.import_file(p.path)
+    _gui_call(g.import_file, p.path, _compat=True)
     return None
 
 
@@ -210,11 +210,11 @@ def ac_guiImportFile(p: ImportFileParams) -> None:
 def ac_guiCheckDatabase(params: Optional[Dict[str, Any]] = None) -> bool:
     from ....adapters.anki.collection import check_database
 
-    check_database()
+    _gui_call(check_database)
     return True
 
 
 @registry.register("guiExitAnki")
 def ac_guiExitAnki(params: Optional[Dict[str, Any]] = None) -> None:
-    g.exit_anki()
+    _gui_call(g.exit_anki)
     return None
