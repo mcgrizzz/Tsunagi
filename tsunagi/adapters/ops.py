@@ -201,43 +201,35 @@ def as_query_op(
 
     return wrapper  # type: ignore[return-value]
 
-def collection_op_call(
+def collection_op_run_async(
     fn: Callable[Concatenate[Collection, P], R],
     /,
     *args: P.args,
-    timeout: Optional[float] = None,
+    on_success: Callable[[Any], None],
+    on_failure: Callable[[Exception], None],
     event_details: Optional[dict[str, Any]] = None,
     **kwargs: P.kwargs,
-) -> R:
-    """
-    Run 'fn(col, *args, **kwargs)' via CollectionOp in a worker thread.
-    `event_details` (note_ids etc.) rides on the op's initiator and surfaces
-    on the event stream's matching `op` event.
-    Blocks caller until done (raises AnkiBusyError on timeout). No progress UI.
-    """
-    done = threading.Event()
-    box: dict[str, Any] = {}
+) -> None:
+    """Run a write through Anki's CollectionOp, reporting completion via callbacks."""
+    # Capture identity only; collection methods still run on Anki's op thread.
+    collection = mw.col
 
     def start_on_main() -> None:
-        if mw.col is None:
-            box.setdefault("exc", CollectionUnavailableError())
-            done.set()
+        if collection is None or mw.col is not collection:
+            on_failure(CollectionUnavailableError())
             return
 
         def _success(res: Any) -> None:
             # Extract the actual value from ResultWithChanges if present
-            if hasattr(res, 'value'):
-                box.setdefault("result", res.value)
-            else:
-                box.setdefault("result", res)
-            done.set()
+            on_success(res.value if hasattr(res, 'value') else res)
 
         def _failure(exc: Exception) -> None:
-            box.setdefault("exc", exc)
-            done.set()
+            on_failure(exc)
 
         # Wrap the function to return a ResultWithChanges object
         def wrapped_op(col: Collection) -> Any:
+            if col is not collection:
+                raise CollectionUnavailableError()
             result = fn(col, *args, **kwargs)
             # If the result already has .changes, return as-is
             if hasattr(result, 'changes'):
@@ -274,11 +266,43 @@ def collection_op_call(
         except TypeError:
             op.run_in_background()  # older signature without initiator
 
-    if threading.current_thread() is threading.main_thread():
-        start_on_main()
-    else:
-        mw.taskman.run_on_main(start_on_main)
+    def dispatch() -> None:
+        try:
+            start_on_main()
+        except Exception as exc:
+            on_failure(exc)
 
+    if threading.current_thread() is threading.main_thread():
+        dispatch()
+    else:
+        try:
+            mw.taskman.run_on_main(dispatch)
+        except Exception as exc:
+            on_failure(exc)
+
+
+def collection_op_call(
+    fn: Callable[Concatenate[Collection, P], R],
+    /,
+    *args: P.args,
+    timeout: Optional[float] = None,
+    event_details: Optional[dict[str, Any]] = None,
+    **kwargs: P.kwargs,
+) -> R:
+    """Wait for a CollectionOp result, retaining the ordinary operation deadline."""
+    done = threading.Event()
+    box: dict[str, Any] = {}
+
+    def success(result: Any) -> None:
+        box["result"] = result
+        done.set()
+
+    def failure(exc: Exception) -> None:
+        box["exc"] = exc
+        done.set()
+
+    collection_op_run_async(fn, *args, on_success=success, on_failure=failure,
+                            event_details=event_details, **kwargs)
     return cast(R, _wait(done, box, timeout, "Write operation"))
 
 

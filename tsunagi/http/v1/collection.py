@@ -6,24 +6,29 @@ the running application, not a resource with rows to plan a query over. They
 follow the `resource:verb` convention already used by /v1/cards:suspend and
 /v1/models:find-replace.
 """
+import threading
 import time
+from typing import Union
 
 from fastapi import APIRouter, Body, Request
+from fastapi.responses import JSONResponse
 
+from ...adapters import ops
 from ...adapters.anki.collection import (
     active_profile,
     check_database,
     collection_capabilities,
     collection_meta,
     export_package,
-    import_package,
     import_preferences,
     list_profiles,
     load_profile,
     reload_collection,
+    submit_import_package,
     sync_collection,
 )
-from ...shared.errors import handle_mutation_errors
+from ...adapters.jobs import jobs
+from ...shared.errors import anki_error_detail, handle_mutation_errors
 from ...shared.schemas.capabilities import Capabilities, runtime_versions
 from ...shared.schemas.collection import (
     CollectionActionResult,
@@ -37,6 +42,7 @@ from ...shared.schemas.collection import (
     ProfileLoadResult,
     SyncResult,
 )
+from ...shared.schemas.fsrs import JobSubmitted
 from ..discovery import native_features, native_operations
 
 router = APIRouter()
@@ -187,6 +193,7 @@ def import_options() -> ImportPreferences:
 @router.post(
     "/v1/collection:import",
     response_model=ImportResult,
+    responses={202: {"model": JobSubmitted, "description": "Import still running; poll the job"}},
     summary="Import a package",
     description=(
         "Merges an .apkg into the current collection. The path is resolved on "
@@ -194,17 +201,53 @@ def import_options() -> ImportPreferences:
         "Omitted or null options use Anki's saved import preferences, available at "
         "GET /v1/collection/import-options. Explicit values override those choices. "
         "Anki remembers the resulting options after a successful import. "
-        "Unsupported explicit options are rejected before importing."
+        "Unsupported explicit options are rejected before importing. Returns the "
+        "result with HTTP 200 if the import completes within the operation timeout; "
+        "otherwise returns HTTP 202 with a job_id and Location header. Poll "
+        "GET /v1/jobs/{job_id}; the same import continues without restarting. "
+        "Import jobs cannot be aborted through the API. Only one import or FSRS "
+        "job may be active at once (409 otherwise). Jobs are kept in memory only."
     ),
     tags=["Collection"],
     operation_id="importPackage",
 )
 @handle_mutation_errors("import")
-def import_(body: ImportRequest = Body(...)) -> ImportResult:
+def import_(body: ImportRequest = Body(...)) -> Union[ImportResult, JSONResponse]:
     start = time.perf_counter()
-    out = import_package(body.path, **body.dict(exclude={"path"}, exclude_none=True))
-    return ImportResult(imported=out["imported"], updated=out["updated"],
-                        stats=_stats(start))
+    job = jobs.create("import_package")
+    done = threading.Event()
+    outcome = {}
+
+    def success(out):
+        result = ImportResult(imported=out["imported"], updated=out["updated"],
+                              stats=_stats(start))
+        outcome["result"] = result
+        jobs.finish(job.id, result.dict())
+        done.set()
+
+    def failure(exc):
+        outcome["error"] = exc
+        jobs.fail(job.id, anki_error_detail(exc))
+        done.set()
+
+    try:
+        submit_import_package(
+            body.path, **body.dict(exclude={"path"}, exclude_none=True),
+            on_started=lambda: jobs.mark_running(job.id),
+            on_success=success, on_failure=failure,
+        )
+    except Exception as exc:
+        failure(exc)
+
+    if done.wait(ops.OP_TIMEOUT):
+        if "error" in outcome:
+            raise outcome["error"]
+        return outcome["result"]
+
+    current = jobs.snapshot(job.id) or {"status": job.status}
+    submitted = JobSubmitted(job_id=job.id, status=current["status"], stats=_stats(start))
+    return JSONResponse(status_code=202, content=submitted.dict(),
+                        headers={"Location": f"/v1/jobs/{job.id}"})
 
 
 @router.post(
