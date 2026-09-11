@@ -1,477 +1,289 @@
 # Tsunagi
 
-> HTTP API for Anki with advanced querying and pagination
+Tsunagi (繋ぎ, “connection”) is an Anki desktop add-on that lets other apps read
+and update your collection over HTTP. It provides a native API with field
+selection, filters and pagination, plus an AnkiConnect-compatible API for
+existing integrations.
 
-**Tsunagi** (繋ぎ = “connection”) exposes your Anki collection over a small, local HTTP server so other tools can talk to it. It’s aimed at integrations, automations, and external apps that want fast, typed, queryable access to Anki data.
+The project is experimental. It targets Anki 23.10 and newer; individual features,
+especially FSRS operations, depend on the running Anki version.
 
-> **Status:** early/experimental. I’m building this in public and I’ll keep breaking things until it feels right. Once it’s complete, I’ll publish a proper comparison against AnkiConnect.
-
-## Why this exists
-
-AnkiConnect is great and battle-tested, but while building [Yomine](https://github.com/mcgrizzz/Yomine) I kept running into patterns that felt longwinded and lossy.
-
-**A concrete example: get all models and their field names.**
-
-Here's how I tackle this with AnkiConnect in Yomine:
-
-1) Fetch names + IDs  
-```json
-{"action":"modelNamesAndIds","version":6}
-```
-
-2) Then, for **each** model name, fetch field names  
-```json
-{"action":"modelFieldNames","version":6,"params":{"modelName":"Basic"}}
-```
-
-Here are some issues I have with this:
-
-- **Redundant internal work.** `modelNamesAndIds` first gathers names via `all_names_and_ids()` throws out the ids, then in a loop, looks up each model id by name. But Anki’s internal `all_names_and_ids()` already has what we want in one call to the DB, both the names and ids.
-- **Name→ID round-tripping.** `modelFieldNames` takes a single **name** as input, which forces another lookup to get the ID again.
-- **Data is thrown away.** `modelFieldNames` returns only the field **names**, even though the underlying call had richer field metadata (descriptions, fonts, ordinals, etc.). If you want any of that, you have to make more calls.
-
-**How Tsunagi handles the same task**
-
-The idea is: fewer round-trips, no unnecessary work, and you choose exactly what to keep.
-
-1) Get model names and IDs (routes to `all_names_and_ids()` under the hood):
-```bash
-curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=id,name'
-```
-
-2) In one shot, get field names for a set of IDs:
-```bash
-curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=fields[].name' \
-  --data-urlencode 'where=id in [1487718035000,1487718035001]'
-```
-
-If you need richer metadata, just ask for it:
-
-```bash
-curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=fields[].(name,ord,description,font)'
-```
-
-No special endpoints, no throwaway filtering-just `select` what you want and go.
-
-**Design goals, summarized**
-
-- **Query planner** chooses the fastest route (search/index/column/full fetch).
-- **Thread-safe** via Anki’s `QueryOp`/`CollectionOp` — reads run off the UI
-  thread, writes are undoable, and requests time out instead of hanging when
-  Anki is busy.
-- **Typed I/O** with Pydantic.
-- **Small query DSL** for filters + projections.
-- **Cursor pagination** for large scans.
-- **GET/POST parity** so URL queries and JSON bodies are equivalent.
-
-There’s also an **AnkiConnect shim** at `POST /`, so you can adopt this
-gradually without ripping anything out — see
-[AnkiConnect compatibility](#ankiconnect-compatibility).
-
-## Table of Contents
-
-- [Tsunagi](#tsunagi)
-  - [Why this exists](#why-this-exists)
-  - [Table of Contents](#table-of-contents)
-  - [Install](#install)
-    - [Dependencies](#dependencies)
-  - [Usage](#usage)
-    - [Filter Syntax](#filter-syntax)
-    - [Field Selection](#field-selection)
-    - [Pagination](#pagination)
-    - [URL Encoding Tips](#url-encoding-tips)
-  - [API](#api)
-    - [Query Parameters](#query-parameters)
-    - [Response Format](#response-format)
-    - [Endpoints](#endpoints)
-  - [Event stream](#event-stream)
-  - [Roadmap](#roadmap)
-  - [Contributing](#contributing)
-  - [Maintainers](#maintainers)
-  - [License](#license)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Move from AnkiConnect](#move-from-ankiconnect)
+- [Settings](#settings)
+- [Query your collection](#query-your-collection)
+- [Troubleshooting](#troubleshooting)
+- [Developing Tsunagi](#developing-tsunagi)
 
 ## Install
 
-Not published yet. If you’re adventurous, you can build the addon locally:
+Build an add-on package from this repository using Python 3.9 or newer with pip:
 
-```bash
-# from the repo root
+```sh
+git clone https://github.com/mcgrizzz/Tsunagi.git
+cd Tsunagi
 python tools/build_addon.py
 ```
 
-Then install the produced file in Anki. Tsunagi runs **inside Anki** and starts a local server (default: `http://127.0.0.1:7777`).
+The first build downloads the pinned runtime dependencies and creates
+`dist/tsunagi-<version>.ankiaddon`. In Anki, open **Tools → Add-ons → Install from
+file**, select that package, then restart Anki.
 
-Settings live in a dialog (Tools → Tsunagi Settings, or the add-on's Config
-button): server host/port, API key, CORS allowlist, media limits, and the
-opt-in gates for routes that are off by default. Everything applies on save —
-server-level keys by restarting the embedded server automatically. The
-underlying JSON keys are documented in `config.md`.
+Runtime dependencies are bundled in the package. End users do not need to install
+Python libraries into Anki. Tsunagi runs inside Anki and uses its active profile;
+keep Anki open while using an integration.
 
-### Dependencies
+## Quick start
 
-Dependencies are bundled with the addon. All dependencies are pure-Python (Pydantic v1.10.22, FastAPI 0.109.2), requiring no platform-specific native wheels. Requires Anki 23.10 or newer.
+1. Open **Tools → Tsunagi Settings**, or select Tsunagi in the add-ons window and
+   choose **Config**. On **Connection**, enable the server and choose a port.
+   A fresh configuration uses `127.0.0.1:7777`.
+2. Choose **Save**, then open <http://127.0.0.1:7777/> in your browser. Substitute
+   your configured port if you changed it or imported AnkiConnect settings.
+3. In the Scalar API reference, try **GET /v1/health**, then list a small number
+   of notes or note types. If you set an API key, enter it under **Authentication**.
 
-## Usage
+The request console operates on your active Anki collection. Write operations
+make real changes.
 
-Default base URL: `http://127.0.0.1:7777`
+From a terminal, check the server and list up to ten note types:
 
-Open the base URL for the [Scalar API reference and playground](docs/playground.md):
-searchable endpoints, schemas, code examples and an interactive request console.
-Swagger remains at `/docs` and ReDoc at `/redoc`.
+```sh
+curl "http://127.0.0.1:7777/v1/health"
 
-```bash
-# List all models (Anki “note types”)
-curl http://127.0.0.1:7777/v1/models
-
-# Filter by name (case-insensitive substring)
-curl --get "http://127.0.0.1:7777/v1/models" --data-urlencode 'where=name~=Basic'
-
-# Select a subset of fields
-curl --get "http://127.0.0.1:7777/v1/models" --data-urlencode 'select=id,name'
-
-# Combine selection + filtering
 curl --get "http://127.0.0.1:7777/v1/models" \
   --data-urlencode 'select=id,name' \
-  --data-urlencode 'where=type==0'
+  --data-urlencode 'limit=10'
 ```
 
-You can also send the exact same query as JSON (see [GET/POST parity](#endpoints)).
+These examples use a POSIX shell. In Windows PowerShell, use `curl.exe` for curl
+and place each command on one line instead of using the shell continuations above.
 
-### Filter Syntax
+When an API key is configured, add `-H "X-API-Key: YOUR_KEY"` to native API
+requests. `Authorization: Bearer YOUR_KEY` is also accepted. The health check
+remains accessible without a key.
 
-```text
-# Equality / comparison
-?where=id==123
-?where=sort_field>=5
+The base URL serves [Scalar](docs/playground.md). Other reference formats are
+available at `/docs` (Swagger), `/redoc` and `/openapi.json`.
 
-# Substring match (case-insensitive)
-?where=name~=Basic
+## Move from AnkiConnect
 
-# Lists
-?where=id in[123,456,789]
-?where=name not in["Basic","Cloze"]
+Existing clients can use the AnkiConnect protocol at `POST /`. You can either
+point them at Tsunagi’s host and port or import AnkiConnect’s connection settings:
 
-# Nested fields
-# (example: filter models whose fields contain a field named "Front")
-?where=fields[].name==Front
+1. Open Tsunagi Settings → **Connection**.
+2. Choose **Import AnkiConnect settings**. This fills the API key and port and
+   appends AnkiConnect’s website origins to your current list, removing duplicates.
+   Unsaved origins already entered in the form are included.
+3. Review the pending changes. **Save** disables AnkiConnect and stops its server
+   before applying Tsunagi’s settings, allowing Tsunagi to take over the port.
+   **Cancel** discards the pending import.
 
-# Multiple filters (AND semantics; repeat the param)
-?where=type==0&where=name~=medical
-```
+After a successful port handover, clients can keep their existing connection
+address. If you use a different Tsunagi port, update the client accordingly.
 
-### Field Selection
+AnkiConnect requests put the API key in the JSON body’s `key` property, rather
+than the native API’s authentication header. For example, with authentication off:
 
-```text
-# Top-level fields
-?select=id,name,type
-
-# Array projection
-?select=fields[].name
-
-# Multi-field with aliases
-?select=fields[].(name:label,ord:index)
-```
-
-> Tip: If you only select a single field, you can also set `shape=scalar` to get back an array of values instead of objects (see below).
-
-### Pagination
-
-```bash
-# First page
-curl --get "http://127.0.0.1:7777/v1/models" --data-urlencode 'limit=10'
-
-# Next page (use next_cursor from prior response)
-curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'limit=10' \
-  --data-urlencode 'cursor=eyJpZCI6MTAwfQ'
-```
-
-### URL Encoding Tips
-
-Query operators (`==`, `>=`, `~=`, brackets, quotes, etc.) can be annoying to shell-escape. Use `--data-urlencode` with curl (as shown above) to avoid surprises.
-
-## API
-
-[Runtime versions and capabilities](docs/capabilities.md) explains health
-identifiers and FSRS support discovery through `GET /v1/capabilities`.
-
-### Query Parameters
-
-| Parameter | Type      | Default  | Description |
-|-----------|-----------|----------|-------------|
-| `select`  | `string`  | -        | Comma-separated fields to return. Supports array projection and aliasing. |
-| `where`   | `string`* | -        | Filter expression. Repeat the parameter for multiple ANDed filters. |
-| `search`  | `string`  | -        | Anki search string (e.g. `deck:Japanese tag:verb`, `is:due`). Search-backed resources only (`/v1/notes`, `/v1/cards`); others return 400. |
-| `shape`   | `string`  | `auto`   | `auto` (objects), `object` (always objects), `scalar` (single-field results as values). |
-| `limit`   | `integer` | `1000`   | Items per page (1–5000). |
-| `cursor`  | `string`  | -        | Opaque pagination cursor returned by the API. |
-
-\* For POST JSON, you can pass a single string or an array of strings for `where`.
-
-Field names and bare values may be non-ASCII: `?where=fields[].value==犬` and
-`?select=単語` both work. Quote values containing spaces or punctuation:
-`?where=name=="Basic (and reversed)"`.
-
-**Filters are complete.** If a row matching your `where` exists anywhere in
-the collection, it is returned — no partial scans, no retry loops. `limit`
-bounds the *results*, not the search: `/v1/notes` enumerates ids first, then
-loads rows a batch at a time until your page is full or the collection is
-exhausted. `next_cursor` is `null` when there is genuinely nothing more.
-
-The cost is that a `where`-only query over a large collection loads notes
-until it fills the page. Pair it with `search` whenever you can — that pushes
-the narrowing into Anki's own index, and `where` then refines a much smaller
-set: `?search=tag:verb&where=fields[].value~=犬`.
-
-### Response Format
-
-```json
-{
-  "items": [ { /* your data */ } ],
-  "next_cursor": "eyJpZCI6NTAwfQ",
-  "stats": { "duration_ms": 12.5 }
-}
-```
-
-### Endpoints
-
-Every resource below supports the query parameters above, plus
-`POST {path}` (create), `PATCH {path}/{id}`, `DELETE {path}/{id}`.
-
-- **`/v1/models`** - Note types (“models” in Anki terms), with `fields` and
-  `templates` subresources (`POST/PATCH/DELETE /v1/models/{id}/fields/{name}`,
-  `PUT /v1/models/{id}/fields:order`).
-- **`/v1/decks`** - Decks. Nested names use `::`; creating `A::B` creates `A`.
-  Filtered (dynamic) decks appear in reads. Due counts (`new_count`,
-  `learn_count`, `review_count`, `total_in_deck`) come from the scheduler, so
-  they're only computed when your `select`/`where` mentions one — and then it's
-  one call for the whole page, not one per deck. `desired_retention` (the
-  per-deck FSRS override, newer Anki than 23.10; 501 there) reads and patches
-  as a fraction (`0.85`); explicit `null` clears the override.
-- **`/v1/deck-configs`** - Deck options groups. Returned as Anki's config dicts
-  verbatim (newer scheduler keys survive a read-modify-write), so `select` and
-  `where` reach into `new`/`rev`/`lapse`. `PATCH` merges recursively. Assign one
-  to a deck with `PATCH /v1/decks/{id} {"config_id": ...}`. The FSRS per-preset
-  knobs are ordinary keys here: `desiredRetention` on every supported version,
-  `fsrsParams5`/`fsrsParams6`/`weightSearch` where the running Anki has them.
-- **`/v1/notes`** - Notes. Supports `search`. `fields` come back as
-  `[{name, value, ord}]` (so `where=fields[].name==Front` works); writes accept
-  that array *or* a plain `{"Front": "犬"}` map. `cards` is only computed when
-  your `select`/`where` asks for it.
-  - **`POST /v1/notes:check`** - “can these be added?” per candidate, with
-    `duplicate_note_ids` — without adding anything.
-- **`/v1/cards`** - Cards. Supports `search`. Read-only as a resource: cards are
-  generated from notes by a model's templates, so there is no `POST` or
-  `DELETE`. `due` is passed through raw — it means a queue position, a day
-  number or a timestamp depending on `queue`. The note-derived fields
-  (`model_name`, `css`, `fields`, `question`, `answer`) and `retrievability`
-  (FSRS's recall probability right now — a backend call per card) are only
-  built when your `select`/`where` asks for them. The FSRS columns
-  (`memory_state`, `desired_retention`, `decay`, `last_review_time`) are always
-  present, null until FSRS has seen the card.
-  - Scheduling is batch verb routes, so a bulk change is one undo entry:
-    `POST /v1/cards:suspend`, `:unsuspend`, `:bury`, `:unbury`, `:forget`,
-    `:set-due-date`, `:change-deck`, `:reposition`, `:set-flag`, `:set-ease`.
-  - **`POST /v1/cards:batch`** runs several scheduling verbs in order as a
-    SINGLE undo entry ("Card Batch") — one Ctrl+Z in Anki reverts the whole
-    batch, and watchers see one `op` event carrying every card id involved.
-    Each entry is `{"op": "<verb>", ...that verb's body}`. Validation runs
-    before any write; a mid-run backend error (rare) leaves earlier steps
-    applied — one undo entry, not a transaction.
-  - **`POST /v1/cards:answer`** answers cards through the real scheduler as if
-    the button (`ease` 1-4) had been pressed in the reviewer — works on a card
-    in any state (answering a suspended card unsuspends it).
-  - **`POST /v1/cards:set-values`** writes raw card columns with no validation
-    — the escape hatch AnkiConnect calls `setSpecificValueOfCard`. Scheduling
-    and linkage columns require `force: true`.
-  - **`POST /v1/cards:set-memory-state`** overwrites per-card FSRS state
-    (stability/difficulty, desired retention, decay) — how FSRS helper tools
-    reschedule. A normal undoable write through the scheduler, but off by
-    default: enable `gates.cards_set_memory_state` in the config. Omitted
-    fields are left alone; explicit `null` clears. `decay` needs a newer Anki
-    than 23.10 (501 there).
-- **`/v1/tags`** - Tags. `GET` (with optional `prefix`), `PATCH /v1/tags/{tag}`
-  to rename and `DELETE` to remove — both apply to the tag *and its children*,
-  like Anki. Plus `POST /v1/tags:bulk-add`, `:bulk-remove` and `:clear-unused`.
-- **`/v1/media`** - Media files. `GET /v1/media/{filename}` streams raw bytes
-  with a real `Content-Type`; `POST /v1/media` takes base64 `data` or a `url`
-  (local `path` is off by default, see `gates.media_allow_local_path` in config) and
-  returns the filename Anki **actually** stored — it renames on collision.
-  Filter the listing with `prefix`/`suffix`; media is a flat namespace, not a
-  DSL-queryable resource.
-- **`/v1/reviews`** - Review history from the revlog, keyset-paginated on the
-  review timestamp. `?search=` takes Anki query syntax and means "reviews of
-  the cards this matches"; `where=card_id==...` uses an index instead.
-  `POST /v1/reviews` inserts raw rows for history imports (AnkiConnect's
-  `insertReviews`) — the rows use the same fields `GET` returns, land in one
-  transaction, and, being a write behind the scheduler's back, clear the undo
-  history and emit no event.
-- **`/v1/fsrs:*` and `/v1/jobs`** - FSRS computations, beyond anything
-  AnkiConnect exposes. `POST /v1/fsrs:compute-params` (optimize from review
-  history) and `:evaluate-params` (log loss / RMSE of given parameters) can run
-  for minutes on a real collection, so they answer **202 with a job id**:
-  poll `GET /v1/jobs/{id}` for `status` (`queued → running → done|failed|aborted`),
-  best-effort `progress {current, total}`, and the `result`; cancel with
-  `POST /v1/jobs/{id}:abort` — a 200 there guarantees the job ends `aborted`
-  (Anki's own abort flag has blind spots, so if the computation finishes
-  underneath, the result is discarded; these are pure reads, nothing is
-  written). One job runs at a time (Anki's progress and abort are global) — a
-  second submit gets a 409. Jobs live in memory only.
-  `POST /v1/fsrs:simulate`, `:simulate-workload` and `:optimal-retention` wrap
-  Anki's FSRS simulator and answer synchronously; they need a newer Anki than
-  23.10 (501 there), as do compute/evaluate options beyond `search`/`params`.
-  Anki's own sparse-history behaviour is surfaced as-is: 23.10 fails the job
-  with "Insufficient review history", newer Anki reports `done` with empty
-  `params`. While an optimization runs, Anki holds the collection lock — other
-  API calls may 503 until it finishes.
-- **`/v1/gui:*`** - Drives the running app: `:browse`, `:select-card`,
-  `:edit-note`, `:add-cards` (prefill the Add dialog — what asbplayer's "Open
-  in Anki" needs), `:set-add-note-data`, `:show-question`, `:show-answer`,
-  `:answer-card`, `:play-audio`, `:start-card-timer`, `:undo`, `:deck-browser`,
-  `:deck-overview`, `:deck-review`, `:import-file`, `:exit`, plus
-  `GET /v1/gui/current-card` and `GET /v1/gui/selected-notes`.
-- **`/v1/collection` and `/v1/profiles`** - `GET /v1/collection` (collection
-  metadata: the collection-wide FSRS switch, Anki version); `:sync`,
-  `:export`, `:import`, `:reload`, `:check-database`; `GET /v1/profiles` and
-  `POST /v1/profiles:load`.
-- **GET `/v1/health`** - Simple health check (never requires an API key).
-
-### AnkiConnect compatibility
-
-`POST /` speaks AnkiConnect's protocol, so existing tools work unchanged —
-point them at `http://127.0.0.1:7777` instead of `:8765`. Yomitan and
-asbplayer are tested end to end. The shim is a thin translation over the same
-adapters the `/v1` API uses, so there is no second path into Anki.
-
-One practical difference worth knowing: every mutation goes through Anki's
-`CollectionOp`, so writes land in the undo history and **work while the
-browser is open with the note selected** — a case that fails against
-AnkiConnect's legacy `startEditing()`/`stopEditing()` approach.
-
-`GET /actions` lists the implemented actions. **All 122 of AnkiConnect's
-actions** are in place — see
-[docs/ankiconnect_parity.md](docs/ankiconnect_parity.md) for the full table,
-the handful of deliberate behavioural deviations, and the two places
-AnkiConnect's own documentation disagrees with its code.
-
-**`/v1` is a superset.** Every action has a native equivalent, including the
-GUI ones, so nothing requires the shim. It exists for tools you don't control.
-
-**GET/POST parity**
-
-Any GET query can be expressed as a POST to the same resource with `/query`:
-
-```bash
-# GET
-curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=id,name' \
-  --data-urlencode 'where=name==Basic' \
-  --data-urlencode 'limit=20'
-
-# POST (same query as JSON)
-curl -X POST "http://127.0.0.1:7777/v1/models/query" \
+```sh
+curl "http://127.0.0.1:7777/" \
   -H "Content-Type: application/json" \
-  -d '{
-        "select": "id,name",
-        "where": ["name==Basic"],
-        "limit": 20
-      }'
+  -d '{"action":"version","version":6}'
 ```
 
-## Event stream
+`GET /actions` lists implemented actions. See the
+[compatibility notes](docs/ankiconnect_parity.md) for coverage and intentional
+behavior differences. The shim shares Tsunagi’s Anki adapters; compatibility
+handling preserves action-specific arguments, results and errors.
 
-`GET /v1/events` streams live collection events as Server-Sent Events
-(`text/event-stream`) — no extra dependencies, works with `curl -N` and the
-browser `EventSource` API. Delivery is live-only and best-effort: there is no
-replay, and a client that falls behind gets a `reset` with
-`"reason": "lagged"` after older events are dropped.
+## Settings
 
-| Event | Payload (plus `seq`, `ts` epoch ms) | Meaning |
-|---|---|---|
-| `op` | `{"origin": "api"\|"ui"\|null, "changes": ["card", "note", ...], "label": "Update Note", "note_ids": [...]}` | A completed operation; `changes` lists the true OpChanges flags and `label` (when known) is the localized name of the operation. `origin` is `"api"` for changes made through Tsunagi, `"ui"` when an Anki window acted on its own behalf, and `null` when Anki didn't attribute the operation to any window (many of its actions don't). API-origin ops also carry the ids the route knows — currently `note_ids` on note update/delete (this covers the AnkiConnect shim too, e.g. `updateNoteFields`). |
-| `review` | `{"card_id", "ease"}` | A card answered in Anki's reviewer. Fires just before the matching `op`. |
-| `sync` | `{"phase": "started"\|"finished"}` | Sync lifecycle; a finished sync is followed by a `reset`. |
-| `reset` | optionally `{"reason": "lagged"}` | Everything may have changed — refetch what you care about. |
-| `close` | `{"reason": "shutdown"\|"timeout"\|"max_events"\|"auth"}` | Final frame before the stream ends. `auth` means the API key changed after this stream connected — reconnect with the current key. |
+Changes on all tabs apply when you choose **Save**. Tsunagi restarts its API
+server when needed; ordinary settings changes do not require restarting Anki.
 
-```bash
-# Watch everything (Ctrl+C to stop); heartbeat comments every 15s
+| Tab | What you can change |
+| --- | --- |
+| **Connection** | Enable the server, host, preferred or fixed port, and AnkiConnect import. |
+| **Access** | API key, allowed website origins, local-file access and FSRS memory-state permissions. |
+| **Advanced** | Upload size, download and operation timeouts, and logging. |
+
+**Ports:** only the numeric field for the selected mode is shown. Preferred mode
+uses the saved preferred port; fixed mode uses the specified port. Neither mode
+silently switches to another port if that port is busy.
+
+**Access:** `127.0.0.1` accepts connections from this computer only. A blank API
+key allows requests without a key. Website origins are entered one per line,
+including the scheme, for example `https://app.asbplayer.dev`; `*` allows all
+origins. Origin permission and API-key authentication are separate checks.
+
+Local-file media access and rewriting FSRS memory state are off by default.
+Enable them when an integration needs those capabilities. Their scope is
+explained beside the controls.
+
+**Restore all defaults** resets every tab and cancels a pending import. It changes
+the form only until you choose Save. The underlying JSON keys, including developer
+options, are documented in [config.md](config.md).
+
+## Query your collection
+
+Notes hold content and tags. Note types, called **models** in the API, define
+fields and templates. Cards are generated from notes and hold scheduling state.
+A note with forward and reverse templates produces two cards sharing that content.
+
+For list endpoints that support querying:
+
+| Parameter | Purpose |
+| --- | --- |
+| `select` | Choose returned fields, such as `id,name`. |
+| `where` | Filter fields, such as `name~=Basic` for a case-insensitive substring. Repeat it to combine filters with AND. |
+| `search` | Use Anki browser syntax on notes, cards and reviews, such as `tag:verb` or `deck:Japanese`. |
+| `limit` | Set the page size; start with a small value such as `10`. |
+| `cursor` | Continue using the previous response’s `next_cursor`. |
+
+For example, retrieve note-type names and their field names in one request:
+
+```sh
+curl --get "http://127.0.0.1:7777/v1/models" \
+  --data-urlencode 'select=id,name,fields[].name' \
+  --data-urlencode 'limit=10'
+```
+
+Many list endpoints also accept a JSON query at `/query`. These two requests
+find up to ten notes tagged `verb` and return their IDs:
+
+```sh
+curl --get "http://127.0.0.1:7777/v1/notes" \
+  --data-urlencode 'search=tag:verb' \
+  --data-urlencode 'select=id' \
+  --data-urlencode 'limit=10'
+
+curl "http://127.0.0.1:7777/v1/notes/query" \
+  -H "Content-Type: application/json" \
+  -d '{"search":"tag:verb","select":"id","limit":10}'
+```
+
+`POST /v1/notes/query` queries notes; `POST /v1/notes` creates one. Check the
+reference for each endpoint’s supported parameters and operations.
+
+Paginated responses contain `items`, `next_cursor` and `stats`. Copy a non-null
+`next_cursor` into the next request’s `cursor`, keeping the other query parameters
+the same. Stop at `null`. Treat cursors as opaque, and omit the cursor when starting
+a new query. For large note/card queries, use `search` to narrow the candidates
+before applying additional field filters.
+
+Beyond collection queries, the API provides scheduling, media, review history,
+GUI actions, import/export, profiles and FSRS operations. Read
+[`/v1/capabilities`](docs/capabilities.md) before using version-dependent features:
+operation availability and FSRS being enabled are reported separately. For an
+asynchronous operation, poll `/v1/jobs/{job_id}` using its returned job ID.
+
+`GET /v1/events` provides live Server-Sent Events for collection activity:
+
+```sh
 curl -N "http://127.0.0.1:7777/v1/events"
-
-# Scripting: return after the next event or 30 seconds, whichever first
-curl -N "http://127.0.0.1:7777/v1/events?max_events=1&timeout=30"
 ```
 
-```js
-// EventSource can't send headers, so this route also accepts ?api_key=.
-// The page's origin must be in cors_allowlist.
-const es = new EventSource("http://127.0.0.1:7777/v1/events?api_key=...");
-es.addEventListener("review", (e) => console.log(JSON.parse(e.data)));
-es.addEventListener("op", (e) => console.log(JSON.parse(e.data)));
+Use events to trigger a refresh of relevant data. Delivery is best-effort with no
+replay; handle `reset` by refetching. Not every operation produces an event or an
+undo entry. Consult the endpoint descriptions for behavior before relying on
+undo, transactional writes or notifications.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Connection refused | Anki is open, a profile is loaded, the server is enabled, and the client uses the configured port. |
+| Port is busy | Another process may own it. If that is AnkiConnect, use the settings import/Save handover, or choose distinct ports. |
+| HTTP 401 or an API-key error | Match the configured key. Native requests use a header; AnkiConnect requests use the JSON `key` property. |
+| A website is denied access | Check its origin on the Access tab, including scheme and any port. Supplying an API key does not grant origin permission. |
+| A request times out or returns a busy error | Finish any blocking dialog or long-running operation in Anki, then retry. Operation timeout is on Advanced. |
+| An FSRS feature is unavailable | Inspect `/v1/capabilities`; support depends on the Anki version and requested options. |
+| The API works but Scalar does not load | Scalar’s browser bundle loads from a CDN. Check that connection, or use `/openapi.json` with another client. |
+
+For a bug report, include the Anki version, operating system, action or endpoint,
+expected behavior and the error response. Remove API keys and private note content.
+
+## Developing Tsunagi
+
+### Environment and build
+
+Use a virtual environment from the repository root. This follows the CI setup:
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install pytest ruff "httpx<0.28" anki
+python tools/build_addon.py
 ```
 
-**Events are invalidation signals, not change records.** Anki's change
-events carry which *kinds* of thing changed, never record ids (its own UI
-requeries on them too). They can also be chatty: Anki's editor commits an
-"Update Note" operation for roughly every keystroke, so a client should
-debounce — wait for a moment of quiet before refetching. The pattern is
-notify + refetch: on an `op` with `"note"` in `changes`, ask the API what
-changed —
+On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. On Python
+3.9, install `anki==23.10` in place of `anki`; newer Anki packages need a newer
+Python. The repository’s [CI configuration](.github/workflows/ci.yml) records its
+version matrix.
 
-```bash
-# Notes edited today / added today (Anki search syntax)
-curl --get "http://127.0.0.1:7777/v1/notes" --data-urlencode 'search=edited:1'
-curl --get "http://127.0.0.1:7777/v1/notes" --data-urlencode 'search=added:1'
+The build vendors dependencies from [tools/requirements.lock.txt](tools/requirements.lock.txt)
+into `lib/shared`, then packages the add-on into `dist`. It rebuilds those generated
+directories and updates the build timestamp in `meta.json`. Anki itself is a test
+dependency and is never bundled. After the wheel cache is populated,
+`python tools/build_addon.py --offline` builds using cached wheels.
+
+### Tests
+
+Build first so the tests can import the vendored runtime dependencies, then run:
+
+```sh
+ruff check .
+python -m pytest -q
 ```
 
-— or simply refetch whatever your app is displaying. Two exceptions carry
-identity directly: `review` (a richer hook provides the `card_id`), and
-API-origin `op` events, where Tsunagi itself knows what its route touched
-(`note_ids` on note update/delete). So in a pipeline where every writer
-goes through Tsunagi — e.g. one tool adds a note, another attaches media to
-it by id — a watcher can match `op {origin:"api", note_ids:[...]}` against
-the ids it cares about without any requery. Note creation carries no id on
-the event (the id exists only after the op; the creator gets it from the
-API response) — watchers who need creations use the refetch pattern above.
+Backend tests use temporary Anki collections. Optional Qt checks need a separate
+interpreter with `aqt` and its Qt dependencies. For example, point the settings
+check at that interpreter:
 
-Tsunagi mutations report the backend's real change flags, so an API write
-fires the same `op` Anki's own UI would — answering a card, for example, is
-`op {origin:"api", card_ids:[...]}` with `card` and `study_queues` set.
-Scheduling verbs carry `card_ids`, deck update/delete carry `deck_ids`, and
-`cards:batch` fires one `op` (label "Card Batch") with the union of its
-card ids.
-What you won't see: media writes and import/export run outside Anki's
-change-tracking (no `op` fires), raw database edits are invisible (other
-addons' — and Tsunagi's own `relearnCards` and `insertReviews`/`POST
-/v1/reviews`), deck-config saves go through a legacy Anki API that reports
-no change details, and some of Anki 23.10's own dialogs (e.g. deck options)
-don't route through change-tracking either.
+```sh
+TSUNAGI_GUI_PYTHON=/path/to/qt-env/bin/python \
+  python -m pytest -q tests/test_settings_dialog_qt.py
+```
 
-## Roadmap
+`tools/check_browser_startup.py`, `tools/check_add_cards.py` and other targeted
+Qt checks can also run with that interpreter. The shared Qt smoke harness creates
+a temporary profile. Use disposable profiles for development and GUI experiments.
+Offscreen checks do not establish Windows foreground-window behavior.
 
-- Anki Connect parity + shim
-- Event stream (SSE at `GET /v1/events`) — shipped, see above
+The `tests/test_upstream_*.py` modules are an optional AnkiConnect parity audit.
+They require an upstream checkout and are separate from ordinary regression
+coverage. Keep new regressions focused; do not grow the broad oracle suite as a
+substitute for testing Tsunagi behavior directly.
 
-If you want a specific endpoint or behavior, please open an issue.
+### Sync to a development installation
 
-## Contributing
+Install a built package first. To copy source changes into a chosen development
+add-on folder:
 
-PRs welcome! A good flow is:
+```sh
+python tools/dev_sync.py --dest /path/to/Anki2/addons21/tsunagi
+```
 
-1. Check or open an [issue](https://github.com/mcgrizzz/Tsunagi/issues) to discuss the approach.
-2. Fork and create a feature branch.
-3. Add tests if you’re touching behavior.
-4. Run the checks and open a PR.
+Add `--watch` to keep copying source edits, or `--full` after rebuilding dependencies
+to copy `lib/` too. Copying files and reloading the running add-on are separate steps:
+restart Anki, or use the development reload options documented in [config.md](config.md).
+Changes to the root `__init__.py` or bundled dependencies require a full restart.
 
-This is a solo project; I’ll review when I come up for air. Thoughtful bug reports are gold.
+### Code organization and contributions
 
-## Maintainers
+- `tsunagi/http/` contains native routes, the AnkiConnect shim and HTTP middleware.
+- `tsunagi/adapters/` integrates with Anki, including settings and operation dispatch.
+- `tsunagi/shared/` contains schemas and shared query/error handling.
+- `tools/` contains packaging, development sync and targeted checks.
 
-[@mcgrizzz](https://github.com/mcgrizzz)
+Prefer Anki’s public APIs. Keep unavoidable database access in the adapter layer,
+and account for the running Anki version. Use existing operation dispatch for
+threading and undo behavior; GUI work belongs on the Qt main thread.
 
-## License
+Discuss substantial changes in an [issue](https://github.com/mcgrizzz/Tsunagi/issues),
+add focused tests for behavior changes, and include validation results in your PR.
 
-License [MIT](LICENSE)
+## Maintainer and license
+
+Maintained by [@mcgrizzz](https://github.com/mcgrizzz). Licensed under [MIT](LICENSE).
