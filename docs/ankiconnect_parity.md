@@ -23,9 +23,14 @@ The 2026-09-07 [history-based audit](parity_history_audit.md) found and fixed
 optional-argument and deprecated-alias mismatches despite the 122/122 count.
 Action inventory is not proof of complete behavioral parity.
 
-The [full-shim coverage plan](shim_behavioral_coverage.md) defines the remaining
-behavioral work, including rare actions and previously accepted deviations. The
-[execution matrix](shim_coverage_matrix.md) links all actions to observed test calls.
+The [coverage plan](shim_behavioral_coverage.md) and
+[execution matrix](shim_coverage_matrix.md) record the historical audit work.
+The broad upstream comparisons and their shared fixtures are archived in Git at
+`eea649e` (the `tests/test_upstream_*.py` files and `tests/upstream_support.py`).
+References to those tests in audit documents refer to that revision. Focused
+Tsunagi regressions and action-inventory checks remain in the maintained suite.
+Windows foreground behavior still needs a platform-specific check; offscreen Qt
+results do not establish it.
 
 ## Two discrepancies in upstream's own documentation
 
@@ -50,10 +55,12 @@ means there are no notes to lose.
 - **M6** — planned for the next milestone.
 - **out-of-scope** — deliberately not implemented; the reason is in the row.
 
-Known action-specific deviations are listed below. General differences also
-include Pydantic parameter-validation messages and generic internal-error
-messages instead of upstream's raw exception strings. Malformed action and
-parameter containers return an RPC error envelope rather than HTTP 500.
+Known action-specific differences are listed below. The shim preserves raw
+argument and error behavior where covered by the compatibility regressions;
+native API validation has its own contract. Local-file access is disabled by
+default, and raw review inserts accept scalar values rather than SQL expressions.
+Action inventory and historical test results do not promise every untested input
+or GUI state matches upstream.
 
 ### Card Actions
 
@@ -171,10 +178,10 @@ parameter containers return an RPC error envelope rather than HTTP 500.
 | `exportPackage` | implemented | Uses Anki's current export API, feature-detected - the signature changed between 23.10 and now. |
 | `getActiveProfile` | implemented | Manual verification only (needs a live main window). |
 | `getProfiles` | implemented | Manual verification only (needs a live main window). |
-| `importPackage` | implemented | M6 - profile and collection lifecycle. |
+| `importPackage` | implemented | Package import follows saved Anki import choices. The native API also accepts explicit choices. |
 | `loadProfile` | implemented | Manual verification only. The collection is unavailable mid-switch; requests get a 503. |
 | `multi` | implemented |  |
-| `reloadCollection` | implemented | M6 - profile and collection lifecycle. |
+| `reloadCollection` | implemented | Collection reload dispatch is covered by the retained tests. |
 | `requestPermission` | implemented |  |
 | `sync` | implemented | Manual verification only. Deviation: canonical then calls `mw.onSync()`, which no longer exists. |
 | `version` | implemented |  |

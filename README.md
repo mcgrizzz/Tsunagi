@@ -53,6 +53,10 @@ API. The settings importer copies their connection settings so you can keep the
 same address. See the [compatibility notes](docs/ankiconnect_parity.md) for known
 differences.
 
+The compatibility layer also uses Tsunagi's internal routing and shared Anki
+adapters, so existing AnkiConnect tools may see performance benefits without
+using the native API. Any speedup depends on the requests and your collection.
+
 The new queries, pagination and events are part of Tsunagi's native API. An
 existing AnkiConnect client won't start using them just because you switch
 add-ons. If your current setup does everything you need, you may have little
@@ -336,10 +340,13 @@ Qt checks can also run with that interpreter. The shared Qt smoke harness create
 a temporary profile. Use disposable profiles for development and GUI experiments.
 Offscreen checks do not establish Windows foreground-window behavior.
 
-The `tests/test_upstream_*.py` modules are an optional AnkiConnect parity audit.
-They require an upstream checkout and are separate from ordinary regression
-coverage. Keep new regressions focused; do not grow the broad oracle suite as a
-substitute for testing Tsunagi behavior directly.
+The broad AnkiConnect comparison suite is archived in Git at `eea649e`:
+`tests/test_upstream_differential.py`, `tests/test_upstream_decks.py`,
+`tests/test_upstream_permissions.py` and `tests/upstream_support.py`. It established
+compatibility against pinned upstream code; routine tests retain focused Tsunagi
+regressions and action-inventory checks. For a specific renewed comparison, recover
+that revision in a separate checkout and set `TSUNAGI_ANKICONNECT_CHECKOUT` to the
+upstream checkout. The broad audit is not part of the maintained test suite.
 
 ### Sync to a development installation
 

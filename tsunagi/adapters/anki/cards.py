@@ -56,7 +56,7 @@ def _deck_names(col: Collection) -> Dict[int, str]:
 
 
 def _next_reviews(col: Collection, card_id: int) -> Optional[List[str]]:
-    # The only private-API read in the resource. If a future Anki moves it,
+    # Anki's interval formatter is private. If a future Anki moves it,
     # the field goes missing rather than the whole request failing.
     try:
         states = col._backend.get_scheduling_states(card_id)
