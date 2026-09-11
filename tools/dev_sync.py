@@ -66,7 +66,7 @@ def find_dest(explicit=None):
             return path
     sys.exit(
         "Could not find an installed Tsunagi add-on folder.\n"
-        "Install dist/tsunagi-0.0.1.ankiaddon through Anki once, or pass "
+        "Install a built dist/tsunagi-<version>.ankiaddon through Anki once, or pass "
         "--dest / set TSUNAGI_ADDON_DIR."
     )
 

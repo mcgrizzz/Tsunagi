@@ -1,6 +1,6 @@
 [project]
 name = "tsunagi"
-version = "0.0.1"
+version = "0.1.0"
 description = "HTTP API for Anki with advanced querying and pagination"
 requires-python = ">=3.9"
 
