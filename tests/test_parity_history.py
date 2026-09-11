@@ -26,7 +26,7 @@ def history_note(col):
 def test_deprecated_select_note_keeps_note_parameter(client, monkeypatch):
     # ab4d964 renamed the new action, but the old alias still accepts `note`.
     selected = []
-    monkeypatch.setattr(gui.g, "select_card", lambda cid: selected.append(cid) or True)
+    monkeypatch.setattr(gui.g, "ac_select_card", lambda cid: selected.append(cid) or True)
     assert rpc(client, "guiSelectNote", note=123) == {"result": True, "error": None}
     assert rpc(client, "guiSelectCard", card=456) == {"result": True, "error": None}
     assert selected == [123, 456]
