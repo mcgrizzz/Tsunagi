@@ -14,6 +14,7 @@
         "cards_set_memory_state": false
     },
     "ankiconnect_import_offered": false,
+    "ankiconnect_imported_at": null,
     "ankiconnect_ignore_origins": [],
     "dev_watch_seconds": 0,
     "config_version": 4

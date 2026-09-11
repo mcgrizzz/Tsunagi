@@ -5,6 +5,7 @@ All aqt imports are function-local so this module stays importable headless.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from threading import Event
 from typing import Any
 
@@ -116,7 +117,16 @@ def offer_ankiconnect_import() -> None:
     if accepted:
         changes.update(ankiconnect_import_changes(
             {"cors_allowlist": settings.get("cors_allowlist", [])}, ac))
+        changes.update(ankiconnect_import_record())
     settings.update(**changes)
+
+
+def ankiconnect_import_record() -> dict:
+    """Metadata saved with an accepted import, never when merely previewing it."""
+    return {
+        "ankiconnect_import_offered": True,
+        "ankiconnect_imported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
 
 
 def ankiconnect_status(manager: Any) -> dict:

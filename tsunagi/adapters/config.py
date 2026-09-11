@@ -26,6 +26,7 @@ DEFAULTS = {
         "cards_set_memory_state": False,      # writing FSRS memory state
     },
     "ankiconnect_import_offered": False,
+    "ankiconnect_imported_at": None,
     "ankiconnect_ignore_origins": [],
     # Dev only: poll the add-on's own source every N seconds and restart the
     # server when it changes. 0 disables it (and it stays 0 for real users).

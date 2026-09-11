@@ -16,7 +16,7 @@ from tsunagi.adapters.settings_dialog import (
     validate_values,
 )
 
-HIDDEN_KEYS = {"ankiconnect_import_offered", "config_version",
+HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_version",
                "dev_watch_seconds", "gates", "ankiconnect_ignore_origins"}
 
 
@@ -74,11 +74,13 @@ class TestRoundTrip:
     def test_internal_keys_pass_through_verbatim(self):
         cfg = dict(DEFAULTS)
         cfg["ankiconnect_import_offered"] = True
+        cfg["ankiconnect_imported_at"] = "2026-09-11T12:34:00+00:00"
         cfg["ankiconnect_ignore_origins"] = ["https://ignored.test", ["nested"]]
         values = form_values_from_config(cfg)
         values["api_key"] = "k"
         new_cfg, _ = config_from_form(cfg, values)
         assert new_cfg["ankiconnect_import_offered"] is True
+        assert new_cfg["ankiconnect_imported_at"] == cfg["ankiconnect_imported_at"]
         assert new_cfg["ankiconnect_ignore_origins"] == cfg["ankiconnect_ignore_origins"]
         assert new_cfg["config_version"] == DEFAULTS["config_version"]
         assert new_cfg["dev_watch_seconds"] == DEFAULTS["dev_watch_seconds"]
@@ -383,7 +385,8 @@ class TestAnkiConnectPortHandover:
         from tsunagi.adapters import dialogs
         from tsunagi.adapters import settings_dialog as dialog
 
-        previous, new = {"api_key": "old"}, {"api_key": "new"}
+        previous = {"api_key": "old", "ankiconnect_imported_at": "2025-01-01T00:00:00+00:00"}
+        new = {"api_key": "new"}
         events = []
         manager = SimpleNamespace(
             allAddons=lambda: [dialogs.ANKICONNECT_ID],
@@ -394,7 +397,7 @@ class TestAnkiConnectPortHandover:
 
         def apply(mw, cfg, **kwargs):
             events.append(cfg)
-            if cfg == new:
+            if cfg.get("api_key") == new["api_key"]:
                 raise OSError("config write failed")
 
         monkeypatch.setattr(dialog, "apply_config", apply)
@@ -403,4 +406,8 @@ class TestAnkiConnectPortHandover:
                             lambda: events.append("stop") or (lambda: events.append("restore")))
         with pytest.raises(OSError, match="config write failed"):
             dialog.save_settings(SimpleNamespace(addonManager=manager), new, disable_ankiconnect=True)
-        assert events == [("enabled", False), "stop", new, previous, ("enabled", True), "restore"]
+        imported = events[2]
+        assert imported["ankiconnect_imported_at"]
+        assert imported["api_key"] == "new"
+        assert events == [("enabled", False), "stop", imported, previous, ("enabled", True), "restore"]
+        assert "ankiconnect_imported_at" not in new
