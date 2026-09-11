@@ -8,9 +8,10 @@
   <a href="#developing-tsunagi">Development</a>
 </p>
 
-Tsunagi (繋ぎ, “connection”) is an Anki desktop add-on for dictionary tools, mining
-apps and scripts. Keep using AnkiConnect integrations, or use the native API to
-request related data together, select the fields you need and listen for changes.
+Tsunagi (繋ぎ, “connection”) is an Anki desktop add-on for dictionary tools,
+flashcard mining apps and scripts. Use your existing AnkiConnect tools, or use the
+native API to request related data together, select fields and follow collection
+changes.
 
 > [!NOTE]
 > Tsunagi is experimental and targets **Anki desktop 23.10 and newer**. Some
@@ -43,7 +44,7 @@ the app didn't need. The native API gives apps more control over those requests:
 | **Related data in one query** | Request note types and their field names together. |
 | **Pagination and Anki search** | Work through large collections in small pages; narrow notes, cards and reviews with browser search syntax. |
 | **Collection events** | Refresh relevant data when activity occurs, instead of repeatedly checking for changes. |
-| **Interactive API reference** | Explore requests and check which operations are available, disabled in settings or unsupported. |
+| **Interactive API reference** | Try requests against your collection before writing client code. |
 
 For note types and their fields, an AnkiConnect workflow typically asks for the
 type names, then fields for each type. `multi` can batch actions, but the app still
@@ -64,9 +65,14 @@ Install Tsunagi in **Anki desktop** using its AnkiWeb add-on code:
 3. Restart Anki, then follow the [quick start](#quick-start).
 
 <details>
-<summary>Build the installation file from source</summary>
+<summary>Install from a release file or build from source</summary>
 
-With Git and Python 3.9 or newer (including pip) installed, run:
+Download the `.ankiaddon` file from [GitHub Releases](https://github.com/mcgrizzz/Tsunagi/releases).
+In Anki, open **Tools → Add-ons → Install from file**, select it and restart Anki.
+Then follow the [quick start](#quick-start).
+
+To build the file yourself, install Git and Python 3.9 or newer (including pip),
+then run:
 
 ```sh
 git clone https://github.com/mcgrizzz/Tsunagi.git
@@ -74,10 +80,9 @@ cd Tsunagi
 python tools/build_addon.py
 ```
 
-The build downloads and bundles the required libraries. In Anki, open
-**Tools → Add-ons → Install from file** and select
-`dist/tsunagi-<version>.ankiaddon`. Restart Anki, then follow the
-[quick start](#quick-start). No separate library installation inside Anki is needed.
+The result is `dist/tsunagi-<version>.ankiaddon`; install it using the same steps
+above. The build bundles the required libraries, so no separate library
+installation inside Anki is needed.
 
 </details>
 
@@ -112,18 +117,24 @@ health check or a small note query.
 
 1. Open **Tools → Tsunagi Settings → Connection**.
 2. Click **Import AnkiConnect settings**.
-3. Review the filled-in values and pending-change summary.
+3. Review the filled-in values and the **Ready to import** summary.
 4. Click **Save** to switch over, or **Cancel** to leave your setup as it was.
 
 | Setting | What happens |
 | --- | --- |
-| **Port and API key** | Copied from AnkiConnect so tools can keep using the same address and key. |
+| **Port** | Copied from AnkiConnect so tools can keep using the same port. |
+| **API key** | Copied when AnkiConnect has a key. An empty AnkiConnect key leaves your current Tsunagi key unchanged. |
 | **Allowed websites** | Added to your existing list, including unsaved entries, with duplicates removed. |
 | **AnkiConnect server** | Disabled and stopped on Save, before Tsunagi takes over the port. |
+| **Import history** | **Last import** shows the date and time after you save, even if AnkiConnect is later removed. |
 
 Nothing switches over until you save. If you change the imported port or key,
-update your tools too. See [compatibility notes](docs/ankiconnect_parity.md) for
-known differences between the two add-ons.
+update your tools too. Use **Import settings again** to copy later AnkiConnect
+changes; settings are not kept in sync automatically. Imports made before history
+tracking was added appear as **Not recorded**.
+
+See [compatibility notes](docs/ankiconnect_parity.md) for known differences between
+the two add-ons.
 
 ## Settings
 
@@ -137,8 +148,9 @@ click **Config**.
 | **Advanced** | Media limits, timeouts and logging. |
 
 **Save** applies every tab and restarts the server if needed. **Cancel** discards
-unsaved changes. **Restore all defaults** resets every tab and cancels a pending
-AnkiConnect settings import; review the values before saving.
+unsaved changes. **Restore all defaults** resets editable settings on every tab
+and cancels a pending AnkiConnect import. The last-import date is kept; review
+the values before saving.
 
 - **Address and port:** for tools on the same computer, keep `127.0.0.1`.
   Preferred and fixed port modes both use the number shown and report a conflict
@@ -147,7 +159,8 @@ AnkiConnect settings import; review the values before saving.
   off, or enter the same key in Tsunagi and your tool.
 - **Allowed website origins:** one address per line, including `http://` or
   `https://` and any port, but no page path. For example, `https://app.asbplayer.dev`.
-  Website permission and an API key are separate checks.
+  The default `http://localhost` entry also permits browser extensions. Website
+  permission and an API key are separate checks.
 - **Optional permissions:** local media paths and rewriting FSRS memory state
   start disabled. Enable them when an integration needs them.
 
@@ -191,8 +204,8 @@ When an API key is set, native requests accept `X-API-Key: YOUR_KEY` or
 `Authorization: Bearer YOUR_KEY`. AnkiConnect requests carry it in the JSON
 body's `key` property. The examples below assume authentication is off.
 
-Shell examples use POSIX syntax. In Windows PowerShell, use `curl.exe` and put
-each command on one line instead of using shell continuations.
+The shell examples use POSIX syntax. On Windows, run them in Git Bash or WSL,
+or use **Test Request** in the interactive reference.
 
 ### Query your collection
 
@@ -319,6 +332,68 @@ replaces the archive for the current version after validation. Anki itself is a 
 dependency and is never bundled. After the wheel cache is populated,
 `python tools/build_addon.py --offline` builds using cached wheels.
 
+### Tests
+
+Build first so the tests can import the vendored runtime dependencies, then run:
+
+```sh
+ruff check .
+python -m pytest -q
+```
+
+Backend tests use temporary Anki collections. Optional Qt checks need a separate
+interpreter with `aqt` and its Qt dependencies. For example, point the settings
+check at that interpreter:
+
+```sh
+TSUNAGI_GUI_PYTHON=/path/to/qt-env/bin/python \
+  python -m pytest -q tests/test_settings_dialog_qt.py
+```
+
+The Scalar browser check needs a separate environment with Playwright and Chromium:
+
+```sh
+python -m pip install playwright
+python -m playwright install chromium
+```
+
+Set `TSUNAGI_BROWSER_PYTHON` to that environment's Python executable. Set both
+`TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` when running the full suite to
+include the optional Qt and browser checks. Tests for behavior specific to another
+Anki version will still skip.
+
+`tools/check_browser_startup.py`, `tools/check_add_cards.py` and other targeted
+Qt checks can also run with the Qt interpreter. The shared Qt smoke harness creates
+a temporary profile. Use disposable profiles for development and GUI experiments.
+Offscreen checks do not establish Windows foreground-window behavior.
+
+<details>
+<summary>Archived AnkiConnect parity checks</summary>
+
+The broad AnkiConnect comparison suite is archived in Git at `eea649e`:
+`tests/test_upstream_differential.py`, `tests/test_upstream_decks.py`,
+`tests/test_upstream_permissions.py` and `tests/upstream_support.py`. It established
+compatibility against pinned upstream code; routine tests retain focused Tsunagi
+regressions and action-inventory checks. For a specific renewed comparison, recover
+that revision in a separate checkout and set `TSUNAGI_ANKICONNECT_CHECKOUT` to the
+upstream checkout. The broad audit is not part of the maintained test suite.
+
+</details>
+
+### Sync to a development installation
+
+Install a built package first. To copy source changes into a chosen development
+add-on folder:
+
+```sh
+python tools/dev_sync.py --dest /path/to/Anki2/addons21/tsunagi
+```
+
+Add `--watch` to keep copying source edits, or `--full` after rebuilding dependencies
+to copy `lib/` too. Copying files and reloading the running add-on are separate steps:
+restart Anki, or use the development reload options documented in [config.md](config.md).
+Changes to the root `__init__.py` or bundled dependencies require a full restart.
+
 ### Package for AnkiWeb
 
 Keep the release version in `tools/version.py`, `tsunagi/shared/version.py` and
@@ -361,64 +436,7 @@ To retry, rerun the workflow or manually run **Release** against the existing ta
 (for example, `gh workflow run release.yml --ref v0.1.0`). Reruns update assets on
 an existing draft; published releases are left intact. The workflow uses GitHub's
 built-in token, so no additional release secret is needed. Optional Qt/browser
-checks remain separate from the CI matrix; run them before tagging as described below.
-
-### Tests
-
-Build first so the tests can import the vendored runtime dependencies, then run:
-
-```sh
-ruff check .
-python -m pytest -q
-```
-
-Backend tests use temporary Anki collections. Optional Qt checks need a separate
-interpreter with `aqt` and its Qt dependencies. For example, point the settings
-check at that interpreter:
-
-```sh
-TSUNAGI_GUI_PYTHON=/path/to/qt-env/bin/python \
-  python -m pytest -q tests/test_settings_dialog_qt.py
-```
-
-The Scalar browser check needs a separate environment with Playwright and Chromium:
-
-```sh
-python -m pip install playwright
-python -m playwright install chromium
-```
-
-Set `TSUNAGI_BROWSER_PYTHON` to that environment's Python executable. Set both
-`TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` when running the full suite to
-include the optional Qt and browser checks. Tests for behavior specific to another
-Anki version will still skip.
-
-`tools/check_browser_startup.py`, `tools/check_add_cards.py` and other targeted
-Qt checks can also run with the Qt interpreter. The shared Qt smoke harness creates
-a temporary profile. Use disposable profiles for development and GUI experiments.
-Offscreen checks do not establish Windows foreground-window behavior.
-
-The broad AnkiConnect comparison suite is archived in Git at `eea649e`:
-`tests/test_upstream_differential.py`, `tests/test_upstream_decks.py`,
-`tests/test_upstream_permissions.py` and `tests/upstream_support.py`. It established
-compatibility against pinned upstream code; routine tests retain focused Tsunagi
-regressions and action-inventory checks. For a specific renewed comparison, recover
-that revision in a separate checkout and set `TSUNAGI_ANKICONNECT_CHECKOUT` to the
-upstream checkout. The broad audit is not part of the maintained test suite.
-
-### Sync to a development installation
-
-Install a built package first. To copy source changes into a chosen development
-add-on folder:
-
-```sh
-python tools/dev_sync.py --dest /path/to/Anki2/addons21/tsunagi
-```
-
-Add `--watch` to keep copying source edits, or `--full` after rebuilding dependencies
-to copy `lib/` too. Copying files and reloading the running add-on are separate steps:
-restart Anki, or use the development reload options documented in [config.md](config.md).
-Changes to the root `__init__.py` or bundled dependencies require a full restart.
+checks remain separate from the CI matrix; run them [before tagging](#tests).
 
 ### Code organization
 
