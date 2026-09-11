@@ -314,10 +314,31 @@ Python. The repository’s [CI configuration](.github/workflows/ci.yml) records 
 version matrix.
 
 The build vendors dependencies from [tools/requirements.lock.txt](tools/requirements.lock.txt)
-into `lib/shared`, then packages the add-on into `dist`. It rebuilds those generated
-directories and updates the build timestamp in `meta.json`. Anki itself is a test
+into `lib/shared`, then packages the add-on into `dist`. It rebuilds `lib/` and
+replaces the archive for the current version after validation. Anki itself is a test
 dependency and is never bundled. After the wheel cache is populated,
 `python tools/build_addon.py --offline` builds using cached wheels.
+
+### Package for AnkiWeb
+
+Set the release version in `tools/version.py`, then run from the repository root:
+
+```sh
+python tools/build_addon.py
+```
+
+The script prints the upload path and creates two files:
+
+| File | Purpose |
+| --- | --- |
+| `dist/tsunagi-<version>.ankiaddon` | Upload this file to [AnkiWeb](https://ankiweb.net/shared/addons/). It also works with **Install from file**. |
+| `dist/tsunagi-<version>.ankiaddon.sha256` | SHA-256 checksum for verifying the package. |
+
+The package includes runtime code, assets, bundled dependencies and license notices.
+It excludes local `meta.json`, bytecode, development tools, tests and handoff docs.
+The script checks required files, JSON and ZIP integrity before replacing a previous
+package. It does not upload anything. Use `--offline` to reuse cached dependencies
+or `--refresh` to download them again; these options cannot be combined.
 
 ### Tests
 
