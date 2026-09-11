@@ -11,7 +11,8 @@ build fails loudly if any compiled artifact would end up in lib/shared/.
 Usage:
   python tools/build_addon.py [--refresh] [--offline]
 
-Version is read from tools/version.py (VERSION = "...").
+Version is read from tools/version.py (VERSION = "..."). The validated archive
+and its SHA-256 checksum are written to dist/. Upload only the .ankiaddon file.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
-import time
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -35,7 +36,6 @@ PKG_ROOT = ROOT / "tsunagi"                  # your package code (included in ZI
 LIB = ROOT / "lib"                           # vendored deps go here
 SHARED = LIB / "shared"
 DIST = ROOT / "dist"
-META = ROOT / "meta.json"
 LOCKFILE = TOOLS / "requirements.lock.txt"
 
 # Persistent local wheel cache
@@ -49,10 +49,13 @@ MIN_PYTHON = "3.9"
 # --- CLI ----------------------------------------------------------------------
 
 def parse_args():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--refresh", action="store_true", help="clear local wheel cache before build")
     ap.add_argument("--offline", action="store_true", help="do not attempt network; use cached wheels only")
-    return ap.parse_args()
+    args = ap.parse_args()
+    if args.refresh and args.offline:
+        ap.error("--refresh cannot be combined with --offline (it deletes the cached wheels)")
+    return args
 
 # --- Helpers ------------------------------------------------------------------
 
@@ -77,12 +80,6 @@ def read_version() -> str:
     exec((TOOLS / "version.py").read_text(encoding="utf-8"), ns)
     return ns["VERSION"]
 
-def bump_meta_mod():
-    if META.exists():
-        data = json.loads(META.read_text(encoding="utf-8"))
-        data["mod"] = int(time.time())
-        META.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
 def _canonical(name: str) -> str:
     # PEP 503 normalization, used to compare lockfile names to wheel filenames
     return re.sub(r"[-_.]+", "-", name).lower()
@@ -106,8 +103,13 @@ def unzip_wheel_to_shared(whl: Path):
     with zipfile.ZipFile(whl) as z:
         names = z.namelist()
         for n in names:
-            if n.endswith("/") or ".dist-info/" in n:
+            if n.endswith("/"):
                 continue
+            if ".dist-info/" in n:
+                # Wheels keep license notices here; retain them when vendoring.
+                parts = n.split("/", 1)[1].lower().split("/")
+                if not any(p.startswith(("license", "licence", "copying", "notice")) for p in parts):
+                    continue
             if ".data/" in n:
                 continue  # handle purelib below
             out_path = SHARED / n
@@ -190,34 +192,76 @@ def write_vendor_manifest(wheels: list[Path]):
 
 # --- Pack ---------------------------------------------------------------------
 
-def make_zip(version: str):
-    # Anki's install-from-file dialog only lists *.ankiaddon (it's a zip inside)
+def validate_archive(path: Path) -> int:
+    """Check the actual upload, including its root layout and ZIP integrity."""
+    with zipfile.ZipFile(path) as z:
+        names = z.namelist()
+        required = {
+            "__init__.py", "manifest.json", "config.json", "config.md",
+            "tsunagi/__init__.py", "lib/vendor_manifest.json",
+        }
+        missing = required.difference(names)
+        if missing:
+            raise RuntimeError(f"archive is missing required files: {sorted(missing)}")
+        if len(names) != len(set(names)):
+            raise RuntimeError("archive contains duplicate paths")
+        for name in names:
+            parts = name.split("/")
+            if (name == "meta.json" or "__pycache__" in parts
+                    or name.endswith((".pyc", ".pyo"))
+                    or name.startswith("/") or ".." in parts or "\\" in name):
+                raise RuntimeError(f"unexpected archive entry: {name}")
+        for name in ("manifest.json", "config.json", "lib/vendor_manifest.json"):
+            json.loads(z.read(name))
+        if not any(n.startswith("lib/shared/") and n.endswith(".py") for n in names):
+            raise RuntimeError("archive contains no vendored Python dependencies")
+        corrupt = z.testzip()
+        if corrupt:
+            raise RuntimeError(f"archive failed CRC validation: {corrupt}")
+        return len(names)
+
+
+def make_zip(version: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]*", version):
+        raise RuntimeError(f"invalid release version: {version!r}")
+    DIST.mkdir(parents=True, exist_ok=True)
     out = DIST / f"tsunagi-{version}.ankiaddon"
-    if out.exists():
-        out.unlink()
+    # Explicit roots keep tests, tools, local configuration and handoffs out.
+    files = [ROOT / rel for rel in (
+        "manifest.json", "config.json", "config.md", "__init__.py", "README.md",
+        "CHANGELOG.md", "LICENSE", "LICENSE.md", "LICENSE.txt", "NOTICE",
+    ) if (ROOT / rel).is_file()]
+    for directory in (LIB, PKG_ROOT):
+        for p in directory.rglob("*"):
+            parts = p.relative_to(directory).parts
+            if (p.is_file() and not any(part.startswith(".") or part == "__pycache__" for part in parts)
+                    and p.suffix.lower() not in {".pyc", ".pyo", ".log", ".tmp", ".bak", ".swp"}
+                    and not p.name.endswith("~")):
+                files.append(p)
 
-    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        # top-level files
-        for rel in ["meta.json", "manifest.json", "config.json", "config.md", "__init__.py", "README.md", "CHANGELOG.md"]:
-            p = ROOT / rel
-            if p.exists():
-                z.write(p, arcname=p.name)
+    # Build and validate before replacing an earlier successful release.
+    with tempfile.TemporaryDirectory(prefix=".tsunagi-build-", dir=DIST) as staging:
+        staged = Path(staging) / out.name
+        with zipfile.ZipFile(staged, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+            for p in sorted(files):
+                name = p.relative_to(ROOT).as_posix()
+                # Stable timestamps and permissions make unchanged builds identical.
+                info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                info.create_system = 3
+                info.external_attr = 0o100644 << 16
+                z.writestr(info, p.read_bytes(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+        count = validate_archive(staged)
+        digest = hashlib.sha256(staged.read_bytes()).hexdigest()
+        checksum = Path(staging) / (out.name + ".sha256")
+        checksum.write_text(f"{digest}  {out.name}\n", encoding="utf-8")
+        staged.replace(out)
+        checksum.replace(out.with_suffix(out.suffix + ".sha256"))
 
-        def include(p: Path) -> bool:
-            # Skip stale bytecode from the source tree
-            return p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
-
-        # lib/ (vendored deps)
-        for p in LIB.rglob("*"):
-            if include(p):
-                z.write(p, arcname=str(p.relative_to(ROOT)))
-
-        # your package code
-        for p in PKG_ROOT.rglob("*"):
-            if include(p):
-                z.write(p, arcname=str(p.relative_to(ROOT)))
-
-    print("Built:", out)
+    print(f"\nReady for AnkiWeb: {out}")
+    print(f"Validated {count} files; {out.stat().st_size / (1024 * 1024):.2f} MiB")
+    print(f"SHA-256: {digest}")
+    print("Upload the .ankiaddon file at https://ankiweb.net/shared/addons/")
+    return out
 
 # --- Main ---------------------------------------------------------------------
 
@@ -244,10 +288,7 @@ def main():
     # 2) Record what was vendored
     write_vendor_manifest(wheels)
 
-    # 3) Bump meta.mod
-    bump_meta_mod()
-
-    # 4) Build the final .ankiaddon ZIP
+    # 3) Build and validate the final .ankiaddon ZIP (never ship local meta.json).
     make_zip(version)
 
 if __name__ == "__main__":
