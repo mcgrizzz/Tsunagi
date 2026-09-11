@@ -87,9 +87,16 @@ to inspect.
 
 ### Check feature support and job status
 
-Available FSRS operations depend on the Anki version. Before using one, read
-`GET /v1/capabilities` and check its `available` flag and `unsupported_options`.
-FSRS being supported and FSRS being enabled in the collection are separate values.
+`GET /v1/capabilities` reports all native operations in one place. Each operation
+has a `status`: `available`, `disabled` in settings, or `unsupported` by this Anki
+version. Conditional options carry the same status, plus a reason and the setting
+that controls them. AnkiConnect actions remain separate at `GET /actions`.
+
+Look up an operation by method and path, such as
+`operations["POST /v1/cards:set-memory-state"]`. FSRS scheduling appears under
+`features.fsrs_scheduling`; computations that work while scheduling is off remain
+available. See [native discovery](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/capabilities.md)
+for the response layout.
 
 For an operation that returns an asynchronous job, use its returned job ID to
 poll `GET /v1/jobs/{job_id}` for status and results.

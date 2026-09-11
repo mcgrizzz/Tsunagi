@@ -1,16 +1,16 @@
 # Tsunagi
 
-Tsunagi (繋ぎ, “connection”) connects your Anki desktop collection to other apps.
+Tsunagi (繋ぎ, "connection") connects your Anki desktop collection to other apps.
 Dictionary tools, mining apps and your own scripts can use it to add notes, look
 up cards and work with Anki without doing everything by hand.
 
-It offers two ways to connect: compatibility with tools that use AnkiConnect,
-and a new API for apps that want more flexible access to Anki data.
+Tools can connect through the AnkiConnect compatibility API or use Tsunagi's
+native API to choose, filter and page through Anki data.
 
 The project is experimental and targets Anki 23.10 and newer. Some features,
 especially FSRS tools, depend on your Anki version.
 
-- [Why use Tsunagi instead of AnkiConnect?](#why-use-tsunagi-instead-of-ankiconnect)
+- [Why use Tsunagi?](#why-use-tsunagi)
 - [Install](#install)
 - [Quick start](#quick-start)
 - [Move from AnkiConnect](#move-from-ankiconnect)
@@ -19,47 +19,45 @@ especially FSRS tools, depend on your Anki version.
 - [Query your collection](#query-your-collection)
 - [Developing Tsunagi](#developing-tsunagi)
 
-## Why use Tsunagi instead of AnkiConnect?
+## Why use Tsunagi?
 
-Tsunagi grew out of work on [Yomine](https://github.com/mcgrizzz/Yomine). Building
-an app around Anki often means asking for several pieces of related information,
-combining the answers, then discarding the parts the app does not need. Tsunagi's
-native API lets the app describe what it wants in a single query.
+[Don't care? Take me to setup.](#install)
 
-For example, imagine a tool that needs **your note types and the field names for
-each one**. With AnkiConnect, a typical workflow is to request the note-type names,
-then request the fields for each type. Tsunagi can return both together, with only
-the requested information. AnkiConnect can batch actions with `multi`; Tsunagi's
-difference is expressing the result as one query rather than assembling several
-action results. See the [working example below](#query-your-collection).
+Tsunagi grew out of work on [Yomine](https://github.com/mcgrizzz/Yomine). AnkiConnect
+could provide the data the app needed, but getting related information often meant
+several actions, combining their results, and throwing away the parts that weren't
+needed. Tsunagi lets the app ask for that information together.
 
-That approach brings a few practical benefits:
+Take note types and their field names. With AnkiConnect, a typical workflow asks
+for the note-type names, then the fields for each type. You can batch those actions
+with `multi`, but the app still has to assemble the results. Tsunagi can return the
+note types and their fields in one query. The [example below](#query-your-collection)
+shows what that looks like.
 
-- **Ask for just what an app needs.** Combine related fields and filter results
-  in the request. An app can fetch names and IDs for a picker, or richer field
-  information for an editor, through the same API. This can reduce both data
-  transferred and unnecessary processing.
-- **Work through large collections in smaller pages.** Apps can request a limited
-  set of results and continue from where they left off, instead of fetching
-  everything up front. Anki's familiar search syntax helps narrow the results.
-- **React to collection activity.** A live event stream lets apps refresh when
-  relevant changes happen, reducing the need to keep asking whether anything
-  changed. Events are best-effort notifications; apps still fetch the updated data.
-- **Build more Anki tools.** The native API includes scheduling, media, review
-  history and FSRS computations, with a way to check what your Anki version
-  supports. The built-in interactive reference lets you try requests and inspect
-  their results before writing code.
+There are other benefits for apps using the native API:
 
-**You can keep using existing AnkiConnect-based integrations.** Tsunagi's
-compatibility API gives those tools a migration path, and its settings importer
-can keep their existing connection address. There are intentional behavior
-differences, documented in the [compatibility notes](docs/ankiconnect_parity.md).
+- Choose which fields come back, and filter the results before they reach your
+  app. A note-type picker might need just names and IDs; an editor can ask for
+  field definitions too. The app receives the fields it needs without downloading the rest.
+- Read a large collection a page at a time. Ask for ten results, then continue
+  from where you left off. You can use Anki's search syntax to narrow the query.
+- Listen for collection activity instead of repeatedly checking for changes.
+  The event stream tells an app when it should refresh its data. Delivery is
+  best-effort, so it isn't a complete change history.
+- Work with scheduling, media, review history and FSRS computations. The API
+  reports which features your Anki version supports, and the interactive reference
+  lets you try a request before writing code.
 
-The biggest gains from flexible queries, pagination and events come when an app
-uses Tsunagi's native API. Switching the add-on alone does not teach an existing
-AnkiConnect client to use those features. If your current setup already meets your
-needs, there is no requirement to migrate; Tsunagi is an option for keeping that
-workflow while making room for integrations that use its newer features.
+Existing AnkiConnect integrations can connect through Tsunagi's compatibility
+API. The settings importer copies their connection settings so you can keep the
+same address. See the [compatibility notes](docs/ankiconnect_parity.md) for known
+differences.
+
+The new queries, pagination and events are part of Tsunagi's native API. An
+existing AnkiConnect client won't start using them just because you switch
+add-ons. If your current setup does everything you need, you may have little
+reason to change it. Tsunagi lets you keep those integrations while using apps
+that use the new queries and event stream.
 
 ## Install
 
@@ -132,8 +130,8 @@ the same address.
 4. Click **Save** to switch over, or **Cancel** to leave your setup as it was.
 
 The import copies AnkiConnect's API key and port. It **adds** its allowed websites
-to your current list, including entries you have just typed, and removes duplicates.
-It does not replace your list.
+to your current list, including entries you have just typed. It removes duplicates
+and keeps your existing entries.
 
 Nothing switches over until you save. Saving disables AnkiConnect and stops its
 server before Tsunagi takes over the port. After a successful switch, your tools
@@ -173,7 +171,7 @@ blank if you do not want to require a key. If you set one, use the same value in
 both Tsunagi and the tool.
 
 **Allowed website origins** controls which websites can connect. Enter the address
-where the tool runs, one per line—for example, `https://app.asbplayer.dev`. Include
+where the tool runs, one per line. For example, `https://app.asbplayer.dev`. Include
 `http://` or `https://` and any port, but no page path. A key and website permission
 are separate: a website needs permission even if it knows your key.
 
@@ -193,7 +191,7 @@ settings. For the underlying configuration keys, see [config.md](config.md).
 | --- | --- |
 | Your tool cannot connect | Keep Anki open with a profile loaded. Check that Tsunagi is enabled and that the tool uses the same port. |
 | The port is already in use | If AnkiConnect is using it, use the import steps above to switch over. Otherwise, choose a free port and update your tool's address. |
-| A key error or “401” | Copy the API key from Tsunagi into your tool's connection settings. |
+| A key error or "401" | Copy the API key from Tsunagi into your tool's connection settings. |
 | A website is denied access | Add the website's address under Access, including `https://` or `http://` and any port. An API key alone does not allow a website. |
 | A request times out or Anki is busy | Finish any open prompt or long-running task in Anki, then try again. |
 | An FSRS feature is unavailable | The feature may need a newer Anki version. Look for capabilities in the API reference to check which operations are available. |
@@ -252,8 +250,9 @@ before applying additional field filters.
 
 Beyond collection queries, the API provides scheduling, media, review history,
 GUI actions, import/export, profiles and FSRS operations. Read
-[`/v1/capabilities`](docs/capabilities.md) before using version-dependent features:
-operation availability and FSRS being enabled are reported separately. For an
+[`/v1/capabilities`](docs/capabilities.md) for one report of native operations:
+each entry says whether it is available, disabled in settings, or unsupported by
+your Anki version. Restricted options include a reason and the setting to change. For an
 asynchronous operation, poll `/v1/jobs/{job_id}` using its returned job ID.
 
 `GET /v1/events` provides live Server-Sent Events for collection activity:

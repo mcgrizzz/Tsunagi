@@ -154,12 +154,12 @@ class TestCapabilities:
 
     def test_collection_switch_does_not_disable_computations(self, client, col):
         col.set_config("fsrs", False)
-        disabled = client.get("/v1/capabilities").json()["fsrs"]
-        assert disabled["supported"] is True
-        assert disabled["enabled"] is False
+        disabled = client.get("/v1/capabilities").json()
+        assert disabled["features"]["fsrs_scheduling"]["status"] == "disabled"
+        assert disabled["features"]["fsrs_scheduling"]["setting"] == "anki.fsrs"
         col.set_config("fsrs", True)
-        enabled = client.get("/v1/capabilities").json()["fsrs"]
-        assert enabled["enabled"] is True
+        enabled = client.get("/v1/capabilities").json()
+        assert enabled["features"]["fsrs_scheduling"]["status"] == "available"
         assert disabled["operations"] == enabled["operations"]
         assert client.get("/v1/collection").json()["fsrs"] is True
 
@@ -167,18 +167,18 @@ class TestCapabilities:
         from anki.buildinfo import version
 
         legacy = version.startswith("23.10")
-        operations = client.get("/v1/capabilities").json()["fsrs"]["operations"]
-        assert operations["compute_params"]["available"] is True
-        assert operations["evaluate_params"]["available"] is True
-        assert operations["compute_params"]["unsupported_options"] == (
-            ["current_params", "ignore_revlogs_before_ms", "num_of_relearning_steps", "health_check"]
-            if legacy else []
+        operations = client.get("/v1/capabilities").json()["operations"]
+        compute = operations["POST /v1/fsrs:compute-params"]
+        evaluate = operations["POST /v1/fsrs:evaluate-params"]
+        assert compute["status"] == evaluate["status"] == "available"
+        assert set(compute["options"]) == (
+            {"current_params", "ignore_revlogs_before_ms", "num_of_relearning_steps", "health_check"}
+            if legacy else set()
         )
-        assert operations["evaluate_params"]["unsupported_options"] == (
-            ["ignore_revlogs_before_ms"] if legacy else []
-        )
-        for name in ("simulate", "simulate_workload", "optimal_retention"):
-            assert operations[name]["available"] is not legacy
+        assert set(evaluate["options"]) == ({"ignore_revlogs_before_ms"} if legacy else set())
+        assert all(option["status"] == "unsupported" for option in compute["options"].values())
+        for name in ("simulate", "simulate-workload", "optimal-retention"):
+            assert operations[f"POST /v1/fsrs:{name}"]["status"] == ("unsupported" if legacy else "available")
 
     def test_health_still_works_without_collection(self, client, monkeypatch):
         import aqt

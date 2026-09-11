@@ -8,7 +8,7 @@ follow the `resource:verb` convention already used by /v1/cards:suspend and
 """
 import time
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 from ...adapters.anki.collection import (
     active_profile,
@@ -37,6 +37,7 @@ from ...shared.schemas.collection import (
     ProfileLoadResult,
     SyncResult,
 )
+from ..discovery import native_features, native_operations
 
 router = APIRouter()
 
@@ -48,22 +49,25 @@ def _stats(start: float) -> dict:
 @router.get(
     "/v1/capabilities",
     response_model=Capabilities,
-    summary="Runtime versions and FSRS capabilities",
+    summary="Native API capabilities",
     description=(
-        "Reports native API, addon and Anki versions, backend FSRS operation support "
-        "and the collection scheduling switch separately. Computation availability "
-        "does not require FSRS scheduling to be enabled. Unsupported options identify "
-        "backend limitations; ordinary input and history validation still applies. "
-        "Requires an open collection; use /v1/health for versions without one."
+        "One report for all native operations and collection features. Each has an "
+        "effective status: available, disabled in settings, or unsupported by this Anki. "
+        "Conditional options carry their own status, reason and setting. Availability "
+        "does not bypass input validation, authentication or transient collection/GUI state. "
+        "Requires an open collection; /v1/health remains a lightweight liveness check. "
+        "AnkiConnect actions are listed separately at /actions."
     ),
     tags=["Collection"],
     operation_id="getCapabilities",
 )
 @handle_mutation_errors("capabilities")
-def capabilities() -> Capabilities:
+def capabilities(request: Request) -> Capabilities:
     start = time.perf_counter()
-    fsrs = collection_capabilities()
-    return Capabilities(versions=runtime_versions(), fsrs=fsrs, stats=_stats(start))
+    support = collection_capabilities()
+    return Capabilities(versions=runtime_versions(),
+                        operations=native_operations(request.app.routes, support),
+                        features=native_features(support), stats=_stats(start))
 
 
 @router.get(
