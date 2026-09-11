@@ -1,67 +1,65 @@
 # Tsunagi
 
-Tsunagi (繋ぎ, "connection") connects your Anki desktop collection to other apps.
-Dictionary tools, mining apps and your own scripts can use it to add notes, look
-up cards and work with Anki without doing everything by hand.
+**Connect your Anki desktop collection to other apps.** Dictionary tools, mining
+apps and your own scripts can use Tsunagi (繋ぎ, "connection") to add notes, look up
+cards and work with Anki without doing everything by hand.
 
-Tools can connect through the AnkiConnect compatibility API or use Tsunagi's
-native API to choose, filter and page through Anki data.
+- **Existing tools:** connect through the AnkiConnect compatibility API.
+- **Native API:** choose, filter and page through Anki data, and listen for changes.
 
-The project is experimental and targets Anki 23.10 and newer. Some features,
-especially FSRS tools, depend on your Anki version.
+**Status:** Experimental · **Anki:** 23.10 and newer. Some features, especially
+FSRS tools, depend on your Anki version.
 
-- [Why use Tsunagi?](#why-use-tsunagi)
-- [Install](#install)
-- [Quick start](#quick-start)
-- [Move from AnkiConnect](#move-from-ankiconnect)
-- [Settings](#settings)
-- [Troubleshooting](#troubleshooting)
-- [Query your collection](#query-your-collection)
-- [Developing Tsunagi](#developing-tsunagi)
+**Get started:** [Why Tsunagi?](#why-use-tsunagi) · [Install](#install) ·
+[Quick start](#quick-start) · [Move from AnkiConnect](#move-from-ankiconnect)
+
+**Using Tsunagi:** [Settings](#settings) · [Troubleshooting](#troubleshooting)
+
+**For developers:** [Query your collection](#query-your-collection) ·
+[Developing Tsunagi](#developing-tsunagi)
 
 ## Why use Tsunagi?
 
 [Don't care? Take me to setup.](#install)
 
-Tsunagi grew out of work on [Yomine](https://github.com/mcgrizzz/Yomine). AnkiConnect
-could provide the data the app needed, but getting related information often meant
-several actions, combining their results, and throwing away the parts that weren't
-needed. Tsunagi lets the app ask for that information together.
+### Keep using your AnkiConnect tools
 
-Take note types and their field names. With AnkiConnect, a typical workflow asks
-for the note-type names, then the fields for each type. You can batch those actions
-with `multi`, but the app still has to assemble the results. Tsunagi can return the
-note types and their fields in one query. The [example below](#query-your-collection)
-shows what that looks like.
-
-There are other benefits for apps using the native API:
-
-- Choose which fields come back, and filter the results before they reach your
-  app. A note-type picker might need just names and IDs; an editor can ask for
-  field definitions too. The app receives the fields it needs without downloading the rest.
-- Read a large collection a page at a time. Ask for ten results, then continue
-  from where you left off. You can use Anki's search syntax to narrow the query.
-- Listen for collection activity instead of repeatedly checking for changes.
-  The event stream tells an app when it should refresh its data. Delivery is
-  best-effort, so it isn't a complete change history.
-- Work with scheduling, media, review history and FSRS computations. The API
-  reports which features your Anki version supports, and the interactive reference
-  lets you try a request before writing code.
-
-Existing AnkiConnect integrations can connect through Tsunagi's compatibility
-API. The settings importer copies their connection settings so you can keep the
+Existing integrations can connect through Tsunagi's **AnkiConnect compatibility
+API**. The settings importer copies their connection settings so you can keep the
 same address. See the [compatibility notes](docs/ankiconnect_parity.md) for known
 differences.
 
-The compatibility layer also uses Tsunagi's internal routing and shared Anki
-adapters, so existing AnkiConnect tools may see performance benefits without
-using the native API. Any speedup depends on the requests and your collection.
+**You may see performance benefits with existing tools, too.** Compatibility
+requests use Tsunagi's internal routing and shared Anki adapters. Any speedup
+depends on the requests and your collection.
 
-The new queries, pagination and events are part of Tsunagi's native API. An
-existing AnkiConnect client won't start using them just because you switch
-add-ons. If your current setup does everything you need, you may have little
-reason to change it. Tsunagi lets you keep those integrations while using apps
-that use the new queries and event stream.
+### Get more control with the native API
+
+Tsunagi grew out of work on [Yomine](https://github.com/mcgrizzz/Yomine), where
+getting related Anki data meant combining several results and discarding fields
+the app didn't need. The native API lets apps **ask for related data together**.
+
+For example, to get note types and their field names:
+
+| With AnkiConnect | With Tsunagi's native API |
+| --- | --- |
+| Ask for note-type names, then fields for each type. `multi` can batch actions, but the app still assembles the results. | Ask for note types and their fields in one query. [See the example.](#query-your-collection) |
+
+Apps using the native API can also:
+
+- **Request only the fields they need.** Filter results and choose what comes
+  back: just names and IDs for a note-type picker, or field definitions for an editor.
+- **Read large collections in pages.** Start with ten results and continue from
+  where you left off. Use Anki's search syntax to narrow the query.
+- **React to collection activity.** An event stream tells apps when to refresh
+  their data. Delivery is best-effort, so it isn't a complete change history.
+- **Explore and check available operations.** Work with scheduling, media,
+  review history and FSRS computations. Check feature availability and try
+  requests in the interactive API reference.
+
+**These native features need an app that uses them.** Switching add-ons alone
+won't give an existing AnkiConnect client the new queries, pagination or events.
+You can keep those integrations alongside apps that use the native API.
 
 ## Install
 
