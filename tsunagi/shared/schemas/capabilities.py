@@ -1,5 +1,5 @@
-"""Runtime discovery; backend support is separate from collection settings."""
-from typing import Dict, List
+"""Native discovery with effective operation and option status."""
+from typing import Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,20 +12,23 @@ class Versions(BaseModel):
     anki: str = Field(description="Running Anki version")
 
 
-class OperationCapability(BaseModel):
-    available: bool = Field(description="The backend supports this operation; inputs still require validation")
-    unsupported_options: List[str] = Field(default_factory=list)
+class CapabilityState(BaseModel):
+    status: Literal["available", "disabled", "unsupported"] = Field(
+        "available", description="Effective support after checking the running Anki and settings; request validation still applies")
+    reason: Optional[str] = None
+    setting: Optional[str] = Field(None, description="Setting controlling this capability, when applicable")
 
 
-class FsrsCapabilities(BaseModel):
-    supported: bool = Field(description="The backend exposes FSRS computations")
-    enabled: bool = Field(description="The open collection has FSRS scheduling enabled")
-    operations: Dict[str, OperationCapability]
+class OperationCapability(CapabilityState):
+    operation_id: str
+    options: Dict[str, CapabilityState] = Field(
+        default_factory=dict, description="Options with settings or version restrictions; other inputs follow the operation schema")
 
 
 class Capabilities(BaseModel):
     versions: Versions
-    fsrs: FsrsCapabilities
+    operations: Dict[str, OperationCapability] = Field(description="All native operations, keyed by METHOD /path")
+    features: Dict[str, CapabilityState] = Field(description="Collection features that are not individual HTTP operations")
     stats: Dict[str, float] = Field(default_factory=dict)
 
 

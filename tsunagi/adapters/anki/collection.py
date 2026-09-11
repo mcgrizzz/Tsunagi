@@ -177,6 +177,10 @@ _IMPORT_OPTIONS = (
 @as_query_op
 def import_preferences(col: Any) -> Dict[str, Any]:
     """Read the same saved choices used by Anki's package import screen."""
+    return _read_import_preferences(col)
+
+
+def _read_import_preferences(col: Any) -> Dict[str, Any]:
     options = col._backend.get_import_anki_package_presets()
     supported = options.DESCRIPTOR.fields_by_name
     conditions = {value: name for name, value in _IMPORT_UPDATE_CONDITIONS.items()}
@@ -228,10 +232,19 @@ def import_package(col: Any, path: str, *,
 
 @as_query_op
 def collection_capabilities(col: Any) -> Dict[str, Any]:
-    """Read the setting and backend support from the same collection operation."""
+    """Read native support and collection settings without running mutations or jobs."""
+    from anki import cards_pb2
+
+    from .decks import _retention_supported
     from .fsrs import capabilities
 
+    import_available = hasattr(col._backend, "get_import_anki_package_presets")
+    import_options = (_read_import_preferences(col)["unsupported_options"]
+                      if import_available else list(_IMPORT_OPTIONS))
     return {
-        **capabilities(col._backend),
-        "enabled": bool(col.get_config("fsrs", default=False)),
+        "fsrs": {**capabilities(col._backend), "enabled": bool(col.get_config("fsrs", default=False))},
+        "card_decay": "decay" in cards_pb2.Card.DESCRIPTOR.fields_by_name,
+        "deck_desired_retention": _retention_supported(),
+        "import_available": import_available,
+        "unsupported_import_options": import_options,
     }
