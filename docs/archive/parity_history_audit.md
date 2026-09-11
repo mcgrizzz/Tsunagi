@@ -1,5 +1,10 @@
 # AnkiConnect history and native-query audit — 2026-09-07
 
+> [!NOTE]
+> Historical record from the initial compatibility and routing audits. Counts,
+> commands, screenshots and API details describe that checkpoint, not the current
+> release. Start with the [current documentation](../README.md).
+
 ## Source and scope
 
 Upstream: [SourceHut AnkiConnect](https://git.sr.ht/~foosoft/anki-connect),

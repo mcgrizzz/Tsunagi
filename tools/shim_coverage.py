@@ -2,7 +2,7 @@
 
 Run from the repository root:
     python -m pytest -p tools.shim_coverage --shim-coverage=/tmp/shim-coverage.json
-    python -m tools.shim_coverage /tmp/shim-coverage.json docs/shim_coverage_matrix.md
+    python -m tools.shim_coverage /tmp/shim-coverage.json docs/archive/shim_coverage_matrix.md
 
 The report records parameter names/types, never field contents or credentials.
 Dispatcher-only actions (multi/requestPermission) need separate protocol tests.

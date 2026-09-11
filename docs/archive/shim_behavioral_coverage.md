@@ -1,5 +1,10 @@
 # Full AnkiConnect shim: behavioral coverage
 
+> [!NOTE]
+> Historical record from the initial compatibility and routing audits. Counts,
+> commands, screenshots and API details describe that checkpoint, not the current
+> release. Start with the [current documentation](../README.md).
+
 Target: a client can switch from AnkiConnect to Tsunagi's compatibility endpoint
 and retain the same observable behavior. Rare actions remain in scope. Native
 `/v1` routes have their own contract; passing native filter tests does not establish
@@ -7,7 +12,7 @@ AnkiConnect search or RPC parity.
 
 Reference revision: [`de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e`](https://git.sr.ht/~foosoft/anki-connect/commit/de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e).
 The [history audit](parity_history_audit.md) records source and commit-history findings.
-The [action inventory](ankiconnect_parity.md) records implementations and known deviations;
+The [action inventory](../ankiconnect_parity.md) records implementations and known deviations;
 “implemented” does not mean behaviorally equivalent.
 
 ## Measured coverage, 2026-09-08

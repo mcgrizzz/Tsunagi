@@ -1,5 +1,10 @@
 # Tsunagi — full manual test plan
 
+> [!NOTE]
+> Historical record from the initial compatibility and routing audits. Counts,
+> commands, screenshots and API details describe that checkpoint, not the current
+> release. Start with the [current documentation](../README.md).
+
 Every surface a user can reach: 101 native routes, 122 AnkiConnect actions,
 the settings dialog, the event stream, and the server lifecycle. Each item is
 a checkbox with an exact copy-paste command and an expected result. Automated

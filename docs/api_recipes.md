@@ -1,46 +1,70 @@
-# API recipes: save a word to Anki
+# Yomitan's Anki workflow, with Tsunagi
 
-[← Back to the README](../README.md)
+[← Documentation](README.md) · [Install Tsunagi](../README.md#install)
 
-**Goal:** choose a note type, save a word, find the saved note, and correct its
-meaning. Follow all four steps, or jump to the task you need.
+Yomitan turns a dictionary entry into an Anki note. Let's follow the requests
+behind three things you do in Yomitan: **choose a note type**, **check whether a
+word is already saved**, and **add it to Anki**.
 
-| I want to… | Request |
-| --- | --- |
-| [Choose a note type](#1-choose-a-note-type) | `GET /v1/models` |
-| [Save a word](#2-save-a-word) | `POST /v1/notes` |
-| [Find my saved notes](#3-find-my-saved-notes) | `GET /v1/notes` |
-| [Correct a note](#4-correct-a-note) | `PATCH /v1/notes/{note_id}` |
+The AnkiConnect side below follows Yomitan's source at
+[`d34832d`](https://github.com/yomidevs/yomitan/tree/d34832d756e05dc00945e5b7d7ebc80963299a7a).
+The native side shows how a client could implement the same workflow with
+Tsunagi. **Yomitan itself still uses AnkiConnect requests**; it can already send
+those to Tsunagi's compatibility API. This guide doesn't install a native Yomitan integration.
 
-## Try the requests
+| In Yomitan | Its AnkiConnect workflow | A native Tsunagi client could use |
+| --- | --- | --- |
+| Choose a deck and note type | `deckNames`, `modelNames`, then `modelFieldNames` for the selected type | Deck and model queries, with fields included in model results |
+| Check whether a word is saved | `canAddNotesWithErrorDetail`, then a lookup for duplicate note IDs | `POST /v1/notes:check`, which includes duplicate IDs |
+| Save the word | `addNote`, returning a note ID | `POST /v1/notes`, returning the note and generated card IDs |
 
-1. Keep Anki open with Tsunagi enabled.
-2. Open the [interactive reference](http://127.0.0.1:7777/). Use your configured
-   port if it differs from `7777`.
-3. Find the method and path shown below, then use **Test Request**. Enter the
-   listed query parameters or paste the JSON body. If you set an API key, enter
-   it in the reference's authentication controls.
+## Try these examples
 
-Each step shows **what to send** and **what to look for in the response**.
-Response examples show only the relevant fields; your IDs will be different.
-Terminal commands are available under each step if you prefer `curl`.
+Open the [interactive reference](http://127.0.0.1:7777/) while Anki is running.
+Use your configured port if different. Select the method/path below and use
+**Test Request** to enter the query parameters or JSON body.
+
+For the examples, imagine Yomitan is configured with the **Basic** note type:
+**Front** gets the word, **Back** gets its meaning, and notes go into **Default**.
+Substitute your actual deck and field names. Response snippets show the relevant
+fields only; your IDs will differ.
 
 > [!IMPORTANT]
-> Steps 2 and 4 change your open Anki collection. Use a disposable profile to try
-> the whole walkthrough without adding a sample note to your usual collection.
+> The save example adds a note to your open collection. Use a disposable profile
+> for experiments. If you configured an API key, supply it in the reference's
+> authentication controls.
 
-## 1. Choose a note type
+## 1. You choose a note type in Yomitan settings
 
-**“Which fields does my app need to fill?”**
+**What Yomitan does.** Its settings controller fetches deck names and model names
+in parallel. When a note type is selected, it requests that type's field names to
+build the field-mapping controls. See the [settings controller](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484)
+and [field selection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170).
 
-Send **`GET /v1/models`** with these query parameters:
+The [AnkiConnect wrapper](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L208-L234)
+sends these action bodies to `POST /` (version/auth checks omitted here):
 
-| Parameter | Value |
+```json
+{"action":"deckNames","version":6}
+```
+
+```json
+{"action":"modelNames","version":6}
+```
+
+```json
+{"action":"modelFieldNames","version":6,"params":{"modelName":"Basic"}}
+```
+
+**With native Tsunagi.** Fetch deck names with **`GET /v1/decks`** and note types
+with **`GET /v1/models`**:
+
+| Request | Query parameters |
 | --- | --- |
-| `select` | `id,name,fields[].name` |
-| `limit` | `10` |
+| `GET /v1/decks` | `select=id,name` and `limit=10` |
+| `GET /v1/models` | `select=id,name,fields[].name` and `limit=10` |
 
-**Look for:** each note type's name and field names in `items`:
+The model query returns entries like:
 
 ```json
 {
@@ -50,217 +74,148 @@ Send **`GET /v1/models`** with these query parameters:
 }
 ```
 
-We'll use **Basic**, **Front** and **Back** below. Replace those names if your
-collection uses different ones. “Model” is the API's name for an Anki note type.
-If `next_cursor` isn't `null`, there are [more pages](#more-than-one-page).
+**What changes for the app:** each model arrives with its field names attached,
+so selecting a model already loaded doesn't need another field-name request.
+Decks remain a separate query. Follow `next_cursor` when there are more pages;
+`limit=10` is a page size, not a limit on the collection's note types.
 
-<details>
-<summary>Run this with curl</summary>
+## 2. You look up a word that's already in Anki
 
-```sh
-curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=id,name,fields[].name' \
-  --data-urlencode 'limit=10'
+**What Yomitan does.** The backend checks candidate notes for duplicates through
+`canAddNotesWithErrorDetail`. For duplicates, it then looks up matching note IDs;
+it may also fetch additional information. This supports the existing-note behavior
+in the popup. See [duplicate detection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L659)
+and [assembling note information](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L705-L753).
+
+For our example, the AnkiConnect check looks like this:
+
+```json
+{
+  "action": "canAddNotesWithErrorDetail",
+  "version": 6,
+  "params": {
+    "notes": [{
+      "modelName": "Basic",
+      "deckName": "Default",
+      "fields": {"Front": "食べる", "Back": "to eat"},
+      "options": {"allowDuplicate": false, "duplicateScope": "collection"}
+    }]
+  }
+}
 ```
 
-</details>
+**With native Tsunagi.** Send **`POST /v1/notes:check`**:
 
-## 2. Save a word
+```json
+{
+  "notes": [{
+    "modelName": "Basic",
+    "deckName": "Default",
+    "fields": {"Front": "食べる", "Back": "to eat"},
+    "allowDuplicate": false,
+    "duplicateScope": "collection"
+  }]
+}
+```
 
-**“Add ‘example’ to my Default deck, with a meaning on the back.”**
+If the word is already present, a result includes:
 
-Send **`POST /v1/notes`** with this JSON body:
+```json
+{
+  "results": [{
+    "index": 0,
+    "can_add": false,
+    "state": "duplicate",
+    "duplicate_note_ids": [1789162609990]
+  }]
+}
+```
+
+If it can be added, `can_add` is `true` and `duplicate_note_ids` is empty.
+The check doesn't add anything or reserve a note.
+
+**What changes for the app:** the check returns the duplicate IDs directly, so
+there's no separate ID lookup for this case. The client decides whether to offer
+viewing, updating or adding a duplicate. Keep the user's choice: don't treat every
+`can_add: false` as a duplicate; inspect `state` and `reason` for other problems.
+
+The example deliberately uses collection-wide duplicate checking. A native port
+must also map Yomitan's configured duplicate scope and related options; don't
+silently substitute this example's policy for the user's settings.
+
+## 3. You click the add-note button
+
+**What Yomitan does.** The popup passes the prepared note to its backend, which
+calls AnkiConnect's `addNote`. The returned note ID is used to update the popup's
+existing-note controls. If enabled, Yomitan also requests suspension of the new
+cards and a sync. See [the add-note handler](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/display/display-anki.js#L924-L961)
+and [the backend call](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L621-L623).
+
+The text-only AnkiConnect request is:
+
+```json
+{
+  "action": "addNote",
+  "version": 6,
+  "params": {
+    "note": {
+      "modelName": "Basic",
+      "deckName": "Default",
+      "fields": {"Front": "食べる", "Back": "to eat"},
+      "tags": ["yomitan"],
+      "options": {"allowDuplicate": false, "duplicateScope": "collection"}
+    }
+  }
+}
+```
+
+Its success response contains the ID: `{"result":1789162609990,"error":null}`.
+
+**With native Tsunagi.** Send **`POST /v1/notes`**:
 
 ```json
 {
   "modelName": "Basic",
   "deckName": "Default",
-  "fields": {
-    "Front": "example",
-    "Back": "an illustration"
-  },
-  "tags": ["tsunagi-guide"]
+  "fields": {"Front": "食べる", "Back": "to eat"},
+  "tags": ["yomitan"],
+  "allowDuplicate": false,
+  "duplicateScope": "collection"
 }
 ```
 
-**Change before sending:** the note type, field names or deck if yours differ.
-This example requires an existing deck named **Default**. List your decks with
-`GET /v1/decks` if needed.
-
-**Look for:** HTTP **201**, with the new note's ID in `result.id`:
+HTTP **201** returns the note in `result`, including:
 
 ```json
 {
   "result": {
     "id": 1789162609990,
-    "cards": [1789162609990]
+    "cards": [1789162609990],
+    "tags": ["yomitan"]
   }
 }
 ```
 
-**Keep your returned note ID for step 4.** You created a note containing the word
-and meaning; Anki generated its cards from the note type's templates.
-Sending the same note again is rejected as a duplicate by default.
+**What changes for the app:** use `result.id` for the saved note and `result.cards`
+for any card follow-up, such as suspension. Suspension and sync remain separate,
+explicit requests. Keep them conditional on the user's settings.
 
-<details>
-<summary>Run this with curl</summary>
+To try the duplicate case in step 2, run its check again after saving this note.
+Run only one of the two create requests unless you intend to test duplicate rejection.
 
-```sh
-curl "http://127.0.0.1:7777/v1/notes" \
-  -H "Content-Type: application/json" \
-  -d '{"modelName":"Basic","deckName":"Default","fields":{"Front":"example","Back":"an illustration"},"tags":["tsunagi-guide"]}'
-```
+## What a real native integration still needs
 
-</details>
+This walkthrough covers the request flow, not a complete Yomitan port. Field
+rendering and media handling still need to work, and the client must map Yomitan's
+options, errors and update behavior. Native requests don't accept the complete
+AnkiConnect note envelope unchanged: notice how duplicate options moved out of
+`options` in the examples.
 
-## 3. Find my saved notes
+For paginated reads, keep the same query and pass `next_cursor` as `cursor` until
+it becomes `null`. Browser clients also need an allowed origin and any configured
+API key. Native requests use `X-API-Key` or a Bearer token; AnkiConnect requests
+put the key in the JSON body's `key` property.
 
-**“Show me the notes tagged by my app.”**
-
-Send **`GET /v1/notes`** with these query parameters:
-
-| Parameter | Value |
-| --- | --- |
-| `search` | `tag:tsunagi-guide` |
-| `select` | `id,fields,tags` |
-| `limit` | `10` |
-
-**Look for:** the note from step 2 in `items`, including its field values:
-
-```json
-{
-  "items": [{
-    "id": 1789162609990,
-    "fields": [
-      {"name": "Front", "value": "example", "ord": 0},
-      {"name": "Back", "value": "an illustration", "ord": 1}
-    ],
-    "tags": ["tsunagi-guide"]
-  }],
-  "next_cursor": null
-}
-```
-
-An empty `items` list means no notes matched. `next_cursor: null` means this is
-the last page. `search` uses Anki browser syntax: try `deck:Japanese` to search
-for notes with cards in that deck instead.
-
-<details>
-<summary>Run this with curl</summary>
-
-```sh
-curl --get "http://127.0.0.1:7777/v1/notes" \
-  --data-urlencode 'search=tag:tsunagi-guide' \
-  --data-urlencode 'select=id,fields,tags' \
-  --data-urlencode 'limit=10'
-```
-
-</details>
-
-## 4. Correct a note
-
-**“Change the meaning and mark the note as checked.”**
-
-Send **`PATCH /v1/notes/{note_id}`**. Set `note_id` to **your returned ID from
-step 2**, then use this JSON body:
-
-```json
-{
-  "fields": {"Back": "a concrete illustration"},
-  "addTags": ["checked"]
-}
-```
-
-**Look for:** the updated note in `result`. Its Back field now contains
-`a concrete illustration`, and its tags include both `tsunagi-guide` and `checked`.
-The Front field keeps its previous value.
-
-Use `addTags` to keep existing tags and add more. The separate `tags` property
-replaces the whole tag list.
-
-<details>
-<summary>Run this with curl — replace NOTE_ID first</summary>
-
-```sh
-curl -X PATCH "http://127.0.0.1:7777/v1/notes/NOTE_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"fields":{"Back":"a concrete illustration"},"addTags":["checked"]}'
-```
-
-</details>
-
-## How this compares with AnkiConnect
-
-These are equivalent client workflows. Existing AnkiConnect requests also work
-through Tsunagi's compatibility API.
-
-| Task | AnkiConnect workflow | Native Tsunagi workflow |
-| --- | --- | --- |
-| Note-type picker | `modelNames`, then `modelFieldNames` for each name | One models query returns names and fields together. |
-| Save a word | `addNote` | Create a note with `POST /v1/notes`. |
-| Find notes and their contents | `findNotes`, then `notesInfo` for the returned IDs | One notes query searches and returns the selected data. |
-| Correct a field and add a tag | `updateNoteFields` and `addTags` | One `PATCH` accepts both changes. |
-
-AnkiConnect's `multi` can batch actions. Native queries let the client ask for the
-combined result directly, with field selection and pagination.
-
-## More than one page
-
-For any paginated query, read results from `items`. If `next_cursor` is not
-`null`, send the same query again with that value as `cursor`. Keep the other
-parameters unchanged. Stop when `next_cursor` is `null`.
-
-<details>
-<summary>Python example: read all matching notes</summary>
-
-This uses the POST form of the step 3 query. Update the address and API key if
-needed. `POST /v1/notes/query` searches; `POST /v1/notes` creates a note.
-
-```python
-import json
-from urllib.request import Request, urlopen
-
-base_url = "http://127.0.0.1:7777"
-headers = {"Content-Type": "application/json"}
-# If configured: headers["X-API-Key"] = "YOUR_KEY"
-query = {"search": "tag:tsunagi-guide", "select": "id,fields,tags", "limit": 10}
-
-while True:
-    request = Request(
-        f"{base_url}/v1/notes/query",
-        data=json.dumps(query).encode(),
-        headers=headers,
-    )
-    with urlopen(request, timeout=30) as response:
-        page = json.load(response)
-    for note in page["items"]:
-        print(note)
-    if page["next_cursor"] is None:
-        break
-    query["cursor"] = page["next_cursor"]
-```
-
-</details>
-
-## Other tasks
-
-| I want to… | Use |
-| --- | --- |
-| Check for duplicates before adding | `POST /v1/notes:check`, with candidate notes in a `notes` array. Inspect each result's `can_add` and `reason`. The check adds nothing and doesn't reserve the note. |
-| Refresh my app after changes | `GET /v1/events`. Refetch on `reset` or reconnection; delivery is best-effort, without replay or a complete change history. |
-| Check what this Anki version supports | [`GET /v1/capabilities`](capabilities.md), the single native report of available, disabled and unsupported operations. |
-
-For full request schemas, errors and more operations, use the
-[interactive reference](http://127.0.0.1:7777/). See
-[compatibility notes](ankiconnect_parity.md) for AnkiConnect differences.
-
-<details>
-<summary>Terminal and authentication notes</summary>
-
-The curl examples use POSIX syntax; on Windows, run them in Git Bash or WSL.
-Replace `http://127.0.0.1:7777` if your port differs. For native requests with an
-API key, add `-H "X-API-Key: YOUR_KEY"`; `Authorization: Bearer YOUR_KEY` also works.
-AnkiConnect requests put `"key": "YOUR_KEY"` in the JSON body instead.
-Browser apps also need their origin allowed under Tsunagi's **Access** settings.
-
-</details>
+Use the [interactive reference](playground.md) for full request schemas,
+[native discovery](capabilities.md) for supported operations and settings, and
+[compatibility notes](ankiconnect_parity.md) for the existing AnkiConnect API.
