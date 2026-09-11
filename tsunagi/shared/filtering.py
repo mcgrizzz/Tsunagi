@@ -19,6 +19,8 @@ from lark import Lark, Transformer, v_args
 from lark.exceptions import UnexpectedInput
 from lark.visitors import Discard
 
+from .python_compat import DATACLASS_SLOTS
+
 # Grammar for ONE clause. Multiple ?where=... params → AND.
 # Examples:
 #   id==123
@@ -67,7 +69,7 @@ NAME : /[^\W\d]\w*/
 %ignore WS
 """
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **DATACLASS_SLOTS)
 class Clause:
     tokens: Tuple[str, ...]   # e.g., ("flds","[]","name")
     op: str                   # OP or "in"/"not in"

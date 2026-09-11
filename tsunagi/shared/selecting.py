@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+    get_args,
+)
 
 from glom import glom
 from glom.core import Coalesce, T
@@ -10,7 +21,11 @@ from lark import Lark, Transformer, v_args
 from lark.exceptions import UnexpectedInput
 from lark.visitors import Discard
 
+from .python_compat import DATACLASS_SLOTS
 from .schemas.wrappers import Scalar
+
+# Python 3.9 cannot use typing.Union directly in isinstance().
+_SCALAR_TYPES = get_args(Scalar)
 
 # GRAMMAR NOTES
 # - ":" = alias (rename output key):  name:alias, arr[]:alias, arr[].child:alias
@@ -58,18 +73,18 @@ NAME : /[^\W\d]\w*/
 %ignore WS
 """
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **DATACLASS_SLOTS)
 class SelectScalar:
     path: Tuple[str, ...]
     as_name: Optional[str] = None
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **DATACLASS_SLOTS)
 class SelectArrayPluck:
     base: Tuple[str, ...]                      # ("flds",)
     child: Optional[Tuple[str, ...]] = None    # None or ("name",)
     as_name: Optional[str] = None
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, **DATACLASS_SLOTS)
 class SelectArrayMulti:
     base: Tuple[str, ...]
     # tuple of (path, alias), where path is a tuple[str, ...]
@@ -208,7 +223,7 @@ def project_scalars(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Dict
         raise SelectValidationError(f"Projection failed: {e}") from e
 
 def _is_scalar(value: Any) -> bool:
-    return isinstance(value, Scalar)
+    return isinstance(value, _SCALAR_TYPES)
 
 def maybe_flatten(projected_rows: List[Dict[str, Any]], nodes: Sequence[SelectNode], shape: str) -> List[Any]:
     shape = (shape or "auto").lower()

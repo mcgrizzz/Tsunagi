@@ -3,11 +3,12 @@ from __future__ import annotations
 import threading
 from concurrent.futures import Future
 from functools import wraps
-from typing import Any, Callable, Concatenate, Optional, ParamSpec, TypeVar, cast
+from typing import Any, Callable, Optional, TypeVar, cast
 
 from anki.collection import Collection
 from aqt import mw
 from aqt.operations import CollectionOp, QueryOp
+from typing_extensions import Concatenate, ParamSpec
 
 from ..shared.errors import AnkiBusyError, CollectionUnavailableError
 from .events import ApiOp
