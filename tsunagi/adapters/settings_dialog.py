@@ -35,30 +35,30 @@ class Field(NamedTuple):
 # as their own section) never appear in the dialog and pass through saves
 # untouched: ankiconnect_import_offered, config_version, dev_watch_seconds.
 FIELDS: Tuple[Field, ...] = (
-    Field("enabled", "Server", "bool", "Enable Tsunagi server", restart=True,
+    Field("enabled", "Connection", "bool", "Enable Tsunagi server", restart=True,
           tooltip="When off, the API server does not start with Anki."),
-    Field("host", "Server", "text", "Host", restart=True,
+    Field("host", "Connection", "text", "Host", restart=True,
           tooltip="Bind address. 127.0.0.1 keeps the API local-only."),
-    Field("port", "Server", "int", "Port", restart=True, minimum=0, maximum=65535,
+    Field("port", "Connection", "int", "Port", restart=True, minimum=0, maximum=65535,
           tooltip="Fixed port to listen on. 0 uses the preferred port below."),
-    Field("prefer_port", "Server", "int", "Preferred port", restart=True,
+    Field("prefer_port", "Connection", "int", "Preferred port", restart=True,
           minimum=1, maximum=65535,
           tooltip="Used when Port is 0. Startup fails loudly if it is busy."),
-    Field("api_key", "Server", "text", "API key",
+    Field("api_key", "Access", "text", "API key",
           tooltip="Clients must send this key when set. Applies immediately."),
-    Field("cors_allowlist", "Server", "cors_list", "Allowed origins (one per line)",
+    Field("cors_allowlist", "Access", "cors_list", "Allowed website origins",
           tooltip="Browser origins allowed to call the API. \"*\" allows all; "
                   "\"http://localhost\" also covers 127.0.0.1 and browser "
                   "extensions. Applies immediately."),
-    Field("log_level", "Server", "choice", "Log level", restart=True,
+    Field("log_level", "Advanced", "choice", "Log level", restart=True,
           choices=("critical", "error", "warning", "info", "debug")),
-    Field("op_timeout_seconds", "Server", "int", "Operation timeout (seconds)",
+    Field("op_timeout_seconds", "Advanced", "int", "Operation timeout (seconds)",
           restart=True, minimum=1, maximum=600,
           tooltip="How long a request may wait on Anki's collection."),
-    Field("media_max_bytes", "Media", "mib", "Max upload size",
+    Field("media_max_bytes", "Advanced", "mib", "Max upload size",
           minimum=1, maximum=4096,
           tooltip="Largest media file the API accepts. Applies immediately."),
-    Field("media_fetch_timeout_seconds", "Media", "int", "Download timeout (seconds)",
+    Field("media_fetch_timeout_seconds", "Advanced", "int", "Download timeout (seconds)",
           minimum=1, maximum=600,
           tooltip="Timeout when fetching media from a URL. Applies immediately."),
 )
@@ -261,12 +261,18 @@ def open_settings(mw: Any) -> None:
         QDialogButtonBox,
         QFormLayout,
         QGroupBox,
+        QHBoxLayout,
         QLabel,
         QLineEdit,
         QPlainTextEdit,
         QPushButton,
+        QScrollArea,
+        QSizePolicy,
         QSpinBox,
+        QStackedWidget,
+        QTabWidget,
         QVBoxLayout,
+        QWidget,
     )
     from aqt.utils import (
         disable_help_button,
@@ -285,6 +291,24 @@ def open_settings(mw: Any) -> None:
     dlg.setWindowTitle("Tsunagi Settings")
     disable_help_button(dlg)
     layout = QVBoxLayout(dlg)
+    tabs = QTabWidget()
+    tabs.setObjectName("settingsTabs")
+    layout.addWidget(tabs)
+    pages = {}
+    for title in ("Connection", "Access", "Advanced"):
+        page = QWidget()
+        page_layout = QVBoxLayout(page)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(page)
+        tabs.addTab(scroll, title)
+        pages[title] = page_layout
+
+    def guidance(text):
+        label = QLabel(text)
+        label.setWordWrap(True)
+        return label
 
     # One (setter, getter) pair per field key; gates keyed separately.
     field_widgets: Dict[str, Tuple[Any, Any]] = {}
@@ -299,8 +323,6 @@ def open_settings(mw: Any) -> None:
             w.setRange(f.minimum, f.maximum)
             if f.kind == "mib":
                 w.setSuffix(" MiB")
-            if f.key == "port":
-                w.setSpecialValueText("use preferred port")
             return w, w.setValue, w.value
         if f.kind == "choice":
             w = QComboBox()
@@ -308,39 +330,96 @@ def open_settings(mw: Any) -> None:
             return w, w.setCurrentText, w.currentText
         if f.kind == "cors_list":
             w = QPlainTextEdit()
-            w.setFixedHeight(w.fontMetrics().lineSpacing() * 4 + 12)
+            w.setMinimumHeight(w.fontMetrics().lineSpacing() * 5 + 12)
             return w, w.setPlainText, w.toPlainText
         w = QLineEdit()
         if f.key == "api_key":
-            w.setPlaceholderText("empty = authentication off")
+            w.setPlaceholderText("No API key required")
+            w.setEchoMode(QLineEdit.EchoMode.Password)
         return w, w.setText, w.text
 
     sections: Dict[str, Any] = {}
+    port_mode = QComboBox()
+    port_mode.setObjectName("portMode")
+    port_mode.addItems(["Use preferred port", "Use a fixed port"])
+    port_stack = QStackedWidget()
+    port_stack.setObjectName("portControls")
+    fixed_port = QSpinBox()
+    fixed_port.setObjectName("port")
+    fixed_port.setRange(1, 65535)
+    preferred_port = QSpinBox()
+    preferred_port.setObjectName("prefer_port")
+    preferred_port.setRange(1, 65535)
+    port_stack.addWidget(preferred_port)
+    port_stack.addWidget(fixed_port)
+    port_stack.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    port_label = QLabel("Preferred port")
+
+    def update_port_mode(index):
+        port_stack.setCurrentIndex(index)
+        port_label.setText("Port" if index else "Preferred port")
+        port_label.setBuddy(fixed_port if index else preferred_port)
+
+    port_mode.currentIndexChanged.connect(update_port_mode)
+    update_port_mode(0)
+
+    def set_port(value):
+        fixed_port.setValue(value or DEFAULTS["prefer_port"])
+        port_mode.setCurrentIndex(1 if value else 0)
+
+    field_widgets["port"] = (set_port, lambda: fixed_port.value() if port_mode.currentIndex() else 0)
+    field_widgets["prefer_port"] = (preferred_port.setValue, preferred_port.value)
     for f in FIELDS:
         if f.section not in sections:
-            box = QGroupBox(f.section)
-            box.setLayout(QFormLayout())
-            sections[f.section] = box
-            layout.addWidget(box)
+            form = QFormLayout()
+            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+            sections[f.section] = form
+            pages[f.section].addLayout(form)
+        form = sections[f.section]
+        if f.key == "port":
+            form.addRow("Port selection", port_mode)
+            form.addRow(port_label, port_stack)
+            form.addRow(guidance("The selected port must be free. Tsunagi does not choose another port if it is busy."))
+            continue
+        if f.key == "prefer_port":
+            continue
         widget, setter, getter = make_widget(f)
-        if f.tooltip:
-            widget.setToolTip(f.tooltip)
-        label = f.label + (" *" if f.restart else "")
-        sections[f.section].layout().addRow(label, widget)
+        widget.setObjectName(f.key)
+        widget.setToolTip(f.tooltip)
         field_widgets[f.key] = (setter, getter)
+        if f.key == "api_key":
+            row = QWidget()
+            key_layout = QHBoxLayout(row)
+            key_layout.setContentsMargins(0, 0, 0, 0)
+            key_layout.addWidget(widget)
+            reveal = QCheckBox("Show")
+            reveal.setObjectName("showApiKey")
+            reveal.toggled.connect(lambda checked, edit=widget: edit.setEchoMode(
+                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password))
+            key_layout.addWidget(reveal)
+            form.addRow(f.label, row)
+            form.addRow(guidance("Leave empty to allow requests without an API key."))
+        elif f.kind == "bool":
+            widget.setText(f.label)
+            form.addRow(widget)
+        else:
+            form.addRow(f.label, widget)
+        if f.key == "host":
+            form.addRow(guidance("127.0.0.1 accepts connections from this computer only."))
+        elif f.key == "cors_allowlist":
+            form.addRow(guidance("One origin per line, including http:// or https://. Use * to allow all origins."))
 
-    note = QLabel("* saving restarts the API server to apply these")
-    layout.addWidget(note)
-
-    gates_box = QGroupBox("Optional capabilities (off by default)")
-    gates_box.setLayout(QFormLayout())
+    gates_box = QGroupBox("Optional permissions")
+    gates_layout = QVBoxLayout(gates_box)
     for key, label, tooltip, enabled in gate_rows(cfg):
         w = QCheckBox(label)
         w.setToolTip(tooltip)
         w.setChecked(enabled)
-        gates_box.layout().addRow(w)
+        gates_layout.addWidget(w)
+        gates_layout.addWidget(guidance(tooltip))
         gate_widgets[key] = w
-    layout.addWidget(gates_box)
+    pages["Access"].addWidget(gates_box)
 
     def populate(values: Dict[str, Any]) -> None:
         for key, (setter, _getter) in field_widgets.items():
@@ -362,16 +441,17 @@ def open_settings(mw: Any) -> None:
     ac_status.setWordWrap(True)
     ac_layout.addWidget(ac_status)
     ac_details = QLabel(
-        "Import its API key, allowed website origins and port. Saving disables "
+        "Import its API key and port, and add its website origins to your list. Save disables "
         "AnkiConnect and stops its server before enabling Tsunagi on that port."
     )
     ac_details.setWordWrap(True)
     ac_layout.addWidget(ac_details)
-    import_button = QPushButton("Import settings and disable AnkiConnect")
+    import_button = QPushButton("Import AnkiConnect settings")
     import_button.setObjectName("ankiconnectImport")
     ac_layout.addWidget(import_button)
-    layout.addWidget(ac_box)
+    pages["Connection"].addWidget(ac_box)
     pending_import = False
+    import_summary = ""
 
     def refresh_ankiconnect() -> None:
         status = ankiconnect_status(mw.addonManager)
@@ -384,17 +464,18 @@ def open_settings(mw: Any) -> None:
         if status["installed"] and not status["config_available"]:
             text += ". Import settings are unavailable."
         if pending_import:
-            text += ". Import and disable are pending; click OK to apply."
+            text += ". Changes pending. " + import_summary + " Save applies these settings and disables AnkiConnect."
         ac_status.setText(text)
         import_button.setEnabled(status["config_available"] and not pending_import)
 
     def on_import() -> None:
-        nonlocal pending_import
+        nonlocal pending_import, import_summary
         ac = mw.addonManager.getConfig(ANKICONNECT_ID)
         if ac is None:
             refresh_ankiconnect()
             return
         current, _ = config_from_form(cfg, collect())
+        old_origins = set(current.get("cors_allowlist") or [])
         try:
             current.update(ankiconnect_import_changes(current, ac, include_port=True))
         except ValueError as exc:
@@ -402,13 +483,18 @@ def open_settings(mw: Any) -> None:
             return
         populate(form_values_from_config(current))
         pending_import = True
+        added = len(set(current.get("cors_allowlist") or []) - old_origins)
+        import_summary = f"Imported port {current['port']}, API key settings, and {added} new website origin(s)."
         refresh_ankiconnect()
 
     import_button.clicked.connect(on_import)
     refresh_ankiconnect()
 
+    for page_layout in pages.values():
+        page_layout.addStretch()
+    layout.addWidget(guidance("Save applies all tabs and restarts the API server when needed."))
     buttons = QDialogButtonBox(
-        QDialogButtonBox.StandardButton.Ok
+        QDialogButtonBox.StandardButton.Save
         | QDialogButtonBox.StandardButton.Cancel
         | QDialogButtonBox.StandardButton.RestoreDefaults
     )
@@ -435,7 +521,9 @@ def open_settings(mw: Any) -> None:
     buttons.accepted.connect(on_ok)
     buttons.rejected.connect(dlg.reject)
     restore_btn = buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults)
-    # Repopulates the form only - nothing persists until OK (matches Anki's
+    restore_btn.setText("Restore all defaults")
+    restore_btn.setToolTip("Reset every tab and cancel the pending import. Nothing changes until Save.")
+    # Repopulates the form only - nothing persists until Save (matches Anki's
     # own config editor). Gates absent from DEFAULTS reset to off.
     def restore_defaults() -> None:
         nonlocal pending_import
@@ -445,6 +533,7 @@ def open_settings(mw: Any) -> None:
 
     restore_btn.clicked.connect(restore_defaults)
 
+    dlg.resize(640, 580)
     restoreGeom(dlg, _GEOM_KEY)
     dlg.finished.connect(lambda _result: saveGeom(dlg, _GEOM_KEY))
     dlg.exec()

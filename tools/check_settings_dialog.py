@@ -4,6 +4,7 @@ import os
 import socket
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -15,11 +16,17 @@ from anki.lang import set_lang  # noqa: E402
 from aqt.addons import AddonManager  # noqa: E402
 from aqt.qt import (  # noqa: E402
     QApplication,
+    QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QLabel,
+    QLineEdit,
     QPlainTextEdit,  # noqa: E402
     QPushButton,
+    QSpinBox,
+    QStackedWidget,
+    QTabWidget,
     QTimer,
     QWidget,
 )
@@ -51,7 +58,7 @@ class ProbeServer:
 def main():
     set_lang("en")
     app = QApplication.instance() or QApplication([])
-    for scenario in ("missing", "cancel", "save", "restore"):
+    for scenario in ("missing", "cancel", "save", "restore", "preferred", "invalid", "save_error"):
         check_scenario(app, scenario)
 
 
@@ -93,11 +100,68 @@ def check_scenario(app, scenario):
             window = next(w for w in app.topLevelWidgets()
                           if isinstance(w, QDialog) and w.windowTitle() == "Tsunagi Settings")
             try:
+                tabs = window.findChild(QTabWidget, "settingsTabs")
+                assert [tabs.tabText(i) for i in range(tabs.count())] == ["Connection", "Access", "Advanced"]
+                mode = window.findChild(QComboBox, "portMode")
+                stack = window.findChild(QStackedWidget, "portControls")
+                fixed = window.findChild(QSpinBox, "port")
+                preferred = window.findChild(QSpinBox, "prefer_port")
+                assert mode.currentIndex() == stack.currentIndex() == 1
+                assert fixed.value() == 7777
+                mode.setCurrentIndex(0)
+                assert stack.currentIndex() == 0 and not fixed.isVisible() and preferred.isVisible()
+                preferred.setValue(8888)
+                mode.setCurrentIndex(1)
+                assert fixed.value() == 7777 and preferred.value() == 8888
+                tabs.setCurrentIndex(1)
+                key = window.findChild(QLineEdit, "api_key")
+                assert key.echoMode() == QLineEdit.EchoMode.Password
+                reveal = window.findChild(QCheckBox, "showApiKey")
+                reveal.click()
+                assert key.echoMode() == QLineEdit.EchoMode.Normal
+                reveal.click()
+                app.processEvents()
+                key.setFocus()
+                key.focusNextChild()
+                assert reveal.hasFocus()
+                tabs.setCurrentIndex(0)
                 if scenario == "save" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
-                    window.grab().save(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
+                    target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
+                    window.resize(640, 580)
+                    for index, name in enumerate(("connection", "access", "advanced")):
+                        tabs.setCurrentIndex(index)
+                        app.processEvents()
+                        window.grab().save(str(target.with_stem(target.stem + "-" + name)))
+                    window.resize(480, 420)
+                    tabs.setCurrentIndex(1)
+                    app.processEvents()
+                    window.grab().save(str(target.with_stem(target.stem + "-small")))
+                    window.resize(640, 580)
+                    tabs.setCurrentIndex(0)
                 status = window.findChild(QLabel, "ankiconnectStatus")
                 button = window.findChild(QPushButton, "ankiconnectImport")
                 buttons = window.findChild(QDialogButtonBox)
+                if scenario == "save_error":
+                    with patch.object(dialog, "save_settings", side_effect=RuntimeError("Port unavailable")):
+                        buttons.button(QDialogButtonBox.StandardButton.Save).click()
+                    assert window.isVisible() and writes == []
+                    assert warnings == ["Could not save settings: Port unavailable"]
+                    assert manager.addon_meta(ANKICONNECT_ID).enabled
+                    warnings.clear()
+                    window.reject()
+                    return
+                if scenario == "preferred":
+                    mode.setCurrentIndex(0)
+                    buttons.button(QDialogButtonBox.StandardButton.Save).click()
+                    return
+                if scenario == "invalid":
+                    window.findChild(QLineEdit, "host").clear()
+                    buttons.button(QDialogButtonBox.StandardButton.Save).click()
+                    assert window.isVisible() and writes == []
+                    assert warnings == ["Host must not be empty."]
+                    warnings.clear()
+                    window.reject()
+                    return
                 if scenario == "missing":
                     assert status.text() == "Not installed"
                     assert not button.isEnabled()
@@ -109,16 +173,22 @@ def check_scenario(app, scenario):
                     assert origins.toPlainText().splitlines() == [
                         "http://existing", "http://unsaved", "http://imported"]
                     assert "pending" in status.text()
+                    assert mode.currentIndex() == stack.currentIndex() == 1
+                    assert fixed.value() == preferred.value() == server.port
+                    assert "1 new website origin(s)" in status.text()
                     assert manager.addon_meta(ANKICONNECT_ID).enabled
                     assert server.sock is not None and timer.isActive()
                     assert writes == []
                     if scenario == "restore":
                         buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults).click()
                         assert "pending" not in status.text()
-                role = (QDialogButtonBox.StandardButton.Ok if scenario in ("save", "restore")
+                        assert mode.currentIndex() == (1 if DEFAULTS["port"] else 0)
+                        assert preferred.value() == DEFAULTS["prefer_port"]
+                role = (QDialogButtonBox.StandardButton.Save if scenario in ("save", "restore")
                         else QDialogButtonBox.StandardButton.Cancel)
                 buttons.button(role).click()
             except Exception as exc:
+                traceback.print_exc()
                 failures.append(exc)
                 window.reject()
 
@@ -143,6 +213,11 @@ def check_scenario(app, scenario):
                 tsunagi_listener.bind(("127.0.0.1", persisted["port"]))
                 tsunagi_listener.listen()
             assert persisted["ankiconnect_import_offered"] is True
+        elif scenario == "preferred":
+            persisted = manager.getConfig(ADDON_PACKAGE)
+            assert persisted["port"] == 0 and persisted["prefer_port"] == 8888
+            assert persisted["api_key"] == "existing-key"
+            assert manager.addon_meta(ANKICONNECT_ID).enabled
         elif scenario == "restore":
             assert manager.addon_meta(ANKICONNECT_ID).enabled
         else:
