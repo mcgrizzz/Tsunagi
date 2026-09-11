@@ -163,17 +163,18 @@ The request flow for this case becomes:
 
 ```mermaid
 flowchart LR
-    subgraph ac["Yomitan with AnkiConnect"]
+    subgraph ac["AnkiConnect"]
         direction TB
         A[Check candidate] --> B[Recognize duplicate in error text]
         B --> C[Search for matching note IDs]
         C --> D[Update popup with existing note IDs]
     end
-    subgraph native["Native Tsunagi client"]
+    subgraph native["Native Tsunagi"]
         direction TB
         E[Check candidate] --> F[Read state and duplicate_note_ids]
         F --> G[Update popup with existing note IDs]
     end
+    ac ~~~ native
 ```
 
 For several dictionary entries, put their candidates in the same `notes` array.
