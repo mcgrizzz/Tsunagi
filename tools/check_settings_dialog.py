@@ -35,6 +35,7 @@ from aqt.qt import (  # noqa: E402
 from tsunagi.adapters import settings_dialog as dialog  # noqa: E402
 from tsunagi.adapters.config import ADDON_PACKAGE, DEFAULTS  # noqa: E402
 from tsunagi.adapters.dialogs import ANKICONNECT_ID  # noqa: E402
+from tsunagi.shared.version import ADDON_VERSION  # noqa: E402
 
 
 class ProbeServer:
@@ -105,6 +106,12 @@ def check_scenario(app, scenario):
             try:
                 tabs = window.findChild(QTabWidget, "settingsTabs")
                 assert [tabs.tabText(i) for i in range(tabs.count())] == ["Connection", "Access", "Advanced"]
+                version = window.findChild(QLabel, "addonVersion")
+                assert version.text() == f"Tsunagi {ADDON_VERSION}"
+                for index in range(tabs.count()):
+                    tabs.setCurrentIndex(index)
+                    assert version.isVisible()
+                tabs.setCurrentIndex(0)
                 mode = window.findChild(QComboBox, "portMode")
                 stack = window.findChild(QStackedWidget, "portControls")
                 fixed = window.findChild(QSpinBox, "port")
