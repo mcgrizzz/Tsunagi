@@ -1,6 +1,6 @@
 # Developing Tsunagi
 
-[← Back to the README](../README.md) · [API recipes](api_recipes.md)
+[← Back to the README](../README.md) · [Yomitan walkthrough](api_recipes.md)
 
 Commands below run from the repository root. To build a client that uses Tsunagi,
 start with the API recipes instead.
@@ -67,7 +67,8 @@ Anki version will still skip.
 `tools/check_browser_startup.py`, `tools/check_add_cards.py` and other targeted
 Qt checks can also run with the Qt interpreter. The shared Qt smoke harness creates
 a temporary profile. Use disposable profiles for development and GUI experiments.
-Offscreen checks do not establish Windows foreground-window behavior.
+Offscreen checks do not establish Windows foreground-window behavior. Finish with
+the [manual release checks](manual_testing.md) for the desktop and real clients.
 
 <details>
 <summary>Archived AnkiConnect parity checks</summary>

@@ -19,12 +19,12 @@ GitHub is stale (2023) and disagrees with it. Counts here come from the
 file against the registry in both directions, so an action that is registered
 but undocumented — or documented but unregistered — fails CI.
 
-The 2026-09-07 [history-based audit](parity_history_audit.md) found and fixed
+The 2026-09-07 [history-based audit](archive/parity_history_audit.md) found and fixed
 optional-argument and deprecated-alias mismatches despite the 122/122 count.
 Action inventory is not proof of complete behavioral parity.
 
-The [coverage plan](shim_behavioral_coverage.md) and
-[execution matrix](shim_coverage_matrix.md) record the historical audit work.
+The [coverage plan](archive/shim_behavioral_coverage.md) and
+[execution matrix](archive/shim_coverage_matrix.md) record the historical audit work.
 The broad upstream comparisons and their shared fixtures are archived in Git at
 `eea649e` (the `tests/test_upstream_*.py` files and `tests/upstream_support.py`).
 References to those tests in audit documents refer to that revision. Focused

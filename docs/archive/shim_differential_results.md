@@ -1,5 +1,10 @@
 # Upstream differential test results
 
+> [!NOTE]
+> Historical record from the initial compatibility and routing audits. Counts,
+> commands, screenshots and API details describe that checkpoint, not the current
+> release. Start with the [current documentation](../README.md).
+
 2026-09-07. The reference is AnkiConnect commit
 [`de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e`](https://git.sr.ht/~foosoft/anki-connect/commit/de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e).
 Both implementations run against **Anki 23.10, Python 3.12.12**, with the same
@@ -523,7 +528,7 @@ reload confirmation.
 
 ## Method and limits
 
-[upstream_reference.py](../tools/upstream_reference.py) verifies the checkout's HEAD
+[upstream_reference.py](../../tools/upstream_reference.py) verifies the checkout's HEAD
 and rejects tracked plugin modifications. It loads upstream's original action class,
 utility functions, HTTP wrapper/schema and RPC response formatters without opening
 a listening socket or starting its UI.
@@ -531,7 +536,7 @@ Collection access, edit notifications, logging and addon configuration are suppl
 by the harness. API settings use upstream defaults. No action implementation is
 rewritten or copied into a hand-maintained mock.
 
-[test_upstream_differential.py](../tests/test_upstream_differential.py) compares the
+[test_upstream_differential.py](https://github.com/mcgrizzz/Tsunagi/blob/eea649e/tests/test_upstream_differential.py) compares the
 RPC dispatchers' JSON-compatible output, including list order, duplicate IDs,
 response keys and exact errors. It also checks persisted tag/queue changes and
 media file contents/deletion. Native Anki collection methods use the real Rust

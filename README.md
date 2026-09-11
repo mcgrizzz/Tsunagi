@@ -4,7 +4,7 @@
   <a href="#why-use-tsunagi">Why Tsunagi?</a> ·
   <a href="#install">Install</a> ·
   <a href="#move-from-ankiconnect">Switch from AnkiConnect</a> ·
-  <a href="docs/api_recipes.md">API recipes</a> ·
+  <a href="docs/api_recipes.md">Yomitan walkthrough</a> ·
   <a href="docs/development.md">Development</a>
 </p>
 
@@ -44,7 +44,7 @@ names and their fields. Tsunagi can return those in one query.
 | **Follow collection activity** | Refresh your app when events arrive, instead of repeatedly checking for changes. |
 | **Try requests before coding** | Explore your collection through the interactive API reference. |
 
-**[See it in practice → API recipes](docs/api_recipes.md)**
+**[See it in practice → Yomitan walkthrough](docs/api_recipes.md)**
 
 Apps need to use the native API to gain these features. Existing AnkiConnect
 clients keep their current workflow; both APIs can be used together.
@@ -80,7 +80,7 @@ You can also download the `.ankiaddon` file from
 API key under **Access**, use the same values in your tool.
 
 Existing integrations don't require you to write requests. If you're building
-something, start with the [API recipes](docs/api_recipes.md).
+something, start with the [Yomitan walkthrough](docs/api_recipes.md).
 
 ## Move from AnkiConnect
 
@@ -118,7 +118,7 @@ note content from examples.
 
 | I want to… | Start here |
 | --- | --- |
-| **Build something with Tsunagi** | [API recipes](docs/api_recipes.md): choose a note type, add a note, find it and update it. |
+| **Build something with Tsunagi** | [Yomitan walkthrough](docs/api_recipes.md): its AnkiConnect requests and their native equivalents. |
 | **Browse every operation** | Open the [interactive reference](http://127.0.0.1:7777/) while Anki is running. [How to use it](docs/playground.md). |
 | **Check feature availability** | [Native discovery](docs/capabilities.md): one report of available, disabled and unsupported operations. |
 | **Use an AnkiConnect client** | [Compatibility notes](docs/ankiconnect_parity.md). |

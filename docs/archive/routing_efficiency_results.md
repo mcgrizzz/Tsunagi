@@ -1,5 +1,10 @@
 # Routing efficiency investigation — 2026-09-07
 
+> [!NOTE]
+> Historical record from the initial compatibility and routing audits. Counts,
+> commands, screenshots and API details describe that checkpoint, not the current
+> release. Start with the [current documentation](../README.md).
+
 ## Environment and baseline
 
 Live runtime: Windows Anki 26.08.1, disposable `[DEV] Yomine`, 4,547 cards
