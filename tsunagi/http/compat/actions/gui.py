@@ -62,17 +62,18 @@ class ImportFileParams(BaseModel):
     path: Any = None
 
 
-def _media_of(note: Any) -> List[Dict[str, Any]]:
+def _media_of(note: Any, *, on_resolved=None) -> List[Dict[str, Any]]:
     """Prepare raw attachments on the request thread for the GUI adapter."""
     from .notes import _resolve_media
 
     if isinstance(note, dict):
-        return _resolve_media(note)
+        return _resolve_media(note, on_resolved=on_resolved)
     try:
         note.get("audio")
     except Exception as exc:
         # Surface malformed notes when media is applied, after GUI validation.
-        return [{"abort_error": str(exc)}]
+        entry = {"abort_error": str(exc)}
+        return [on_resolved(entry) if on_resolved else entry]
     return []
 
 
@@ -117,7 +118,8 @@ def ac_guiEditNote(p: NoteParams) -> None:
 @registry.register("guiAddCards", params=GuiAddCardsParams)
 def ac_guiAddCards(p: GuiAddCardsParams) -> int:
     try:
-        return g.add_cards(p.note, _media_of(p.note), _compat=True)
+        return g.add_cards(p.note, _compat=True,
+                           _load_media=lambda consume: _media_of(p.note, on_resolved=consume))
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 
@@ -127,7 +129,8 @@ def ac_guiAddNoteSetData(p: GuiAddNoteSetDataParams) -> Any:
     if not g.add_note_dialog_open():
         return dict(g.ADD_DIALOG_CLOSED)
     try:
-        return g.set_add_note_data(p.note, p.append, _media_of(p.note), _compat=True)
+        return g.set_add_note_data(p.note, p.append, _compat=True,
+                                   _load_media=lambda consume: _media_of(p.note, on_resolved=consume))
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 

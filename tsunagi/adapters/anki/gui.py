@@ -9,7 +9,7 @@ These are commands against the running application rather than edits to the
 collection, so they use call_on_main rather than CollectionOp. The exceptions
 are the ones that build a note first: that part is collection work.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from ...shared.errors import ResourceNotFoundError, ValidationError
 from ..ops import call_on_main
@@ -157,9 +157,43 @@ def ac_edit_note(note_id: int) -> None:
 # Add Cards
 # ====================
 
+def _run_gui_media(prepare, media, load_media):
+    """Keep Qt-owned state in UI callbacks and run the media loader between them."""
+    if load_media is None:
+        # Native/pre-resolved calls retain their single UI-thread operation.
+        def run():
+            prepared = prepare()
+            if prepared is None:
+                return dict(ADD_DIALOG_CLOSED)
+            apply_media, finish = prepared
+            if media:
+                apply_media(media)
+            return finish()
+        return call_on_main(run)
+
+    prepared = call_on_main(prepare)
+    if prepared is None:
+        return dict(ADD_DIALOG_CLOSED)
+    apply_media, finish = prepared
+
+    class DialogChanged(Exception):
+        pass
+
+    def consume(item):
+        if not call_on_main(apply_media, [item]):
+            raise DialogChanged()
+        return {}  # Already applied to the editor; do not retain downloaded bytes.
+
+    try:
+        load_media(consume)
+    except DialogChanged:
+        pass
+    return call_on_main(finish)
+
+
 def add_cards(note: Optional[Dict[str, Any]] = None,
               media: Optional[List[Dict[str, Any]]] = None, *,
-              _compat: bool = False) -> int:
+              _compat: bool = False, _load_media: Optional[Callable] = None) -> int:
     """
     Open the Add Cards dialog, optionally prefilled.
 
@@ -182,7 +216,7 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
     if note is None:
         return call_on_main(_open_empty)
 
-    def _open_filled() -> int:
+    def _prepare_filled():
         from aqt import mw
 
         col = mw.col
@@ -208,34 +242,45 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
                         new_note[name] = value
         else:
             _ac_apply_fields(new_note, note.get("fields") or {})
-        if media:
-            _ac_write_media(col, new_note, media)
-        if _compat:
-            if "tags" in note:
-                new_note.tags = note["tags"]
-        elif note.get("tags") is not None:
-            new_note.tags = list(note["tags"])
+        def check_collection():
+            if _mw().col is not col:
+                raise ValidationError("collection changed while preparing media")
 
-        def show() -> None:
-            dialog = _open_dialog("AddCards")
-            if saved_mid:
-                deck["mid"] = saved_mid
-            dialog.editor.set_note(new_note)
-            dialog.activateWindow()
+        def apply_media(items):
+            check_collection()
+            _ac_write_media(col, new_note, items)
+            return True
+
+        def finish():
+            check_collection()
             if _compat:
-                _open_dialog("AddCards")
-            dialog.setAndFocusNote(dialog.editor.note)
+                if "tags" in note:
+                    new_note.tags = note["tags"]
+            elif note.get("tags") is not None:
+                new_note.tags = list(note["tags"])
 
-        # An already-open dialog has to close first, and closing is async, so
-        # the refill rides on its callback.
-        current = _existing_dialog("AddCards")
-        if current is not None:
-            current.closeWithCallback(show)
-        else:
-            show()
-        return int(new_note.id)
+            def show() -> None:
+                dialog = _open_dialog("AddCards")
+                if saved_mid:
+                    deck["mid"] = saved_mid
+                dialog.editor.set_note(new_note)
+                dialog.activateWindow()
+                if _compat:
+                    _open_dialog("AddCards")
+                dialog.setAndFocusNote(dialog.editor.note)
 
-    return call_on_main(_open_filled)
+            # An already-open dialog has to close first, and closing is async, so
+            # the refill rides on its callback.
+            current = _existing_dialog("AddCards")
+            if current is not None:
+                current.closeWithCallback(show)
+            else:
+                show()
+            return int(new_note.id)
+
+        return apply_media, finish
+
+    return _run_gui_media(_prepare_filled, media, _load_media)
 
 
 def add_note_dialog_open() -> bool:
@@ -248,19 +293,19 @@ def add_note_dialog_open() -> bool:
 
 def set_add_note_data(note: Dict[str, Any], append: bool = False,
                       media: Optional[List[Dict[str, Any]]] = None, *,
-                      _compat: bool = False) -> Any:
+                      _compat: bool = False, _load_media: Optional[Callable] = None) -> Any:
     """
     Amend the open Add Cards dialog. Returns canonical's error DICT rather
     than raising when the dialog is closed - clients branch on that shape.
     """
     from .notes import _ac_write_media
 
-    def _apply() -> Any:
+    def _prepare():
         from aqt import mw
 
         dialog = _existing_dialog("AddCards")
         if dialog is None or not hasattr(dialog, "editor"):
-            return dict(ADD_DIALOG_CLOSED)
+            return None
 
         col = mw.col
         if "deckName" in note:
@@ -295,12 +340,26 @@ def set_add_note_data(note: Dict[str, Any], append: bool = False,
             tags = note["tags"] if isinstance(note["tags"], list) else [note["tags"]]
             editor_note.tags = (sorted(set(editor_note.tags) | set(tags))
                                 if append else list(tags))
-        if media:
-            _ac_write_media(col, editor_note, media)
-        dialog.editor.loadNote()
-        return True
+        def current():
+            return (mw.col is col and _existing_dialog("AddCards") is dialog
+                    and getattr(dialog, "editor", None) is not None
+                    and dialog.editor.note is editor_note)
 
-    return call_on_main(_apply)
+        def apply_media(items):
+            if not current():
+                return False
+            _ac_write_media(col, editor_note, items)
+            return True
+
+        def finish():
+            if not current():
+                return dict(ADD_DIALOG_CLOSED)
+            dialog.editor.loadNote()
+            return True
+
+        return apply_media, finish
+
+    return _run_gui_media(_prepare, media, _load_media)
 
 
 # ====================
