@@ -139,6 +139,14 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                 # including upstream's distinct field-selection error path.
                 entry["error"] = str(exc)
             out.append(entry)
+            if entry["error"] is not None:
+                try:
+                    iter(entry["fields"])
+                except (KeyError, TypeError):
+                    # The adapter cannot insert the error into these fields.
+                    # Keep this entry so it raises after earlier media writes,
+                    # but do not fetch attachments it will never reach.
+                    return out
     return out
 
 
