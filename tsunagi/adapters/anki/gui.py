@@ -56,6 +56,60 @@ def _apply_reorder(browser: Any, reorder: Dict[str, Any]) -> None:
     browser.table._on_sort_column_changed(column_id, sort_order)
 
 
+def _search_browser(browser: Any) -> None:
+    """Wait asynchronously for a cold editor before Anki tries to save it."""
+    def search():
+        if hasattr(browser, "onSearch"):
+            browser.onSearch()
+        else:
+            browser.onSearchActivated()
+
+    web = getattr(getattr(browser, "editor", None), "web", None)
+    if not callable(getattr(web, "evalWithCallback", None)):
+        search()
+        return
+
+    token = object()
+    browser._tsunagi_search_request = token
+    if getattr(browser, "_tsunagi_search_web", None) is web:
+        search()
+        return
+
+    import logging
+    import time
+
+    from aqt.qt import QTimer
+
+    from ..ops import OP_TIMEOUT
+
+    deadline = time.monotonic() + OP_TIMEOUT
+
+    def active():
+        return (_existing_dialog("Browser") is browser
+                and browser._tsunagi_search_request is token
+                and getattr(getattr(browser, "editor", None), "web", None) is web)
+
+    def ready(available):
+        if not active():
+            return
+        if available:
+            browser._tsunagi_search_web = web
+            search()
+        elif time.monotonic() < deadline:
+            QTimer.singleShot(50, probe)
+        else:
+            logging.getLogger(__name__).warning("Browser search skipped: editor did not become ready")
+
+    def probe():
+        if active():
+            try:
+                web.evalWithCallback("typeof saveNow === 'function'", ready)
+            except RuntimeError:
+                pass  # The Qt page can be deleted while its callback is pending.
+
+    probe()
+
+
 def _browse(query: Optional[str], reorder: Optional[Dict[str, Any]]) -> None:
     """Runs on the Qt main thread."""
     browser = _open_dialog("Browser")
@@ -63,10 +117,7 @@ def _browse(query: Optional[str], reorder: Optional[Dict[str, Any]]) -> None:
 
     if query is not None:
         browser.form.searchEdit.lineEdit().setText(query)
-        if hasattr(browser, "onSearch"):
-            browser.onSearch()
-        else:
-            browser.onSearchActivated()
+        _search_browser(browser)
 
     if reorder is not None:
         _apply_reorder(browser, reorder)
