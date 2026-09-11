@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Tuple
 
+from ..shared.version import ADDON_VERSION
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 from .settings import apply_config
 
@@ -558,7 +559,14 @@ def open_settings(mw: Any) -> None:
         | QDialogButtonBox.StandardButton.Cancel
         | QDialogButtonBox.StandardButton.RestoreDefaults
     )
-    layout.addWidget(buttons)
+    footer = QHBoxLayout()
+    version_label = QLabel(f"Tsunagi {ADDON_VERSION}")
+    version_label.setObjectName("addonVersion")
+    version_label.setToolTip("Installed Tsunagi add-on version")
+    footer.addWidget(version_label)
+    footer.addStretch()
+    footer.addWidget(buttons)
+    layout.addLayout(footer)
 
     def on_ok() -> None:
         values = collect()
