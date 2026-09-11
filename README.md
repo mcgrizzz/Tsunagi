@@ -341,6 +341,28 @@ The script checks required files, JSON and ZIP integrity before replacing a prev
 package. It does not upload anything. Use `--offline` to reuse cached dependencies
 or `--refresh` to download them again; these options cannot be combined.
 
+### GitHub releases
+
+The [Release workflow](.github/workflows/release.yml) runs when you push a version
+tag such as `v0.1.0`. Commit the matching version values first, then push the tag:
+
+```sh
+git tag -a v0.1.0 -m "Tsunagi 0.1.0"
+git push origin v0.1.0
+```
+
+The workflow checks the tag against all three version declarations, runs the
+existing CI matrix on Anki 23.10 and current Anki, then builds the package. It
+creates a **draft GitHub release** with generated release notes, the `.ankiaddon`
+and its checksum attached. Review the draft and publish it when ready. AnkiWeb
+upload remains a separate step using the same `.ankiaddon` file.
+
+To retry, rerun the workflow or manually run **Release** against the existing tag
+(for example, `gh workflow run release.yml --ref v0.1.0`). Reruns update assets on
+an existing draft; published releases are left intact. The workflow uses GitHub's
+built-in token, so no additional release secret is needed. Optional Qt/browser
+checks remain separate from the CI matrix; run them before tagging as described below.
+
 ### Tests
 
 Build first so the tests can import the vendored runtime dependencies, then run:
