@@ -55,11 +55,12 @@ You can use both kinds of integration together.
 
 ## Install
 
-You'll need **Anki desktop** and a **`.ankiaddon` installation file** built from
-this repository. If you need to build the file, expand the instructions below.
+Install Tsunagi in **Anki desktop** using its AnkiWeb add-on code:
 
-1. In Anki, open **Tools → Add-ons**.
-2. Click **Install from file** and select the `.ankiaddon` file.
+**Add-on code:** `<ANKIWEB_ADDON_ID>` *(placeholder until publication)*
+
+1. In Anki, open **Tools → Add-ons → Get Add-ons**.
+2. Paste the code above and click **OK**.
 3. Restart Anki, then follow the [quick start](#quick-start).
 
 <details>
@@ -73,9 +74,10 @@ cd Tsunagi
 python tools/build_addon.py
 ```
 
-The build downloads and bundles the required libraries. Install the resulting
-`dist/tsunagi-<version>.ankiaddon` file in Anki; no separate library installation
-inside Anki is needed.
+The build downloads and bundles the required libraries. In Anki, open
+**Tools → Add-ons → Install from file** and select
+`dist/tsunagi-<version>.ankiaddon`. Restart Anki, then follow the
+[quick start](#quick-start). No separate library installation inside Anki is needed.
 
 </details>
 
