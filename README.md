@@ -1,24 +1,76 @@
 # Tsunagi
 
-Tsunagi (繋ぎ, “connection”) is an Anki desktop add-on that lets other apps read
-and update your collection over HTTP. It provides a native API with field
-selection, filters and pagination, plus an AnkiConnect-compatible API for
-existing integrations.
+Tsunagi (繋ぎ, “connection”) connects your Anki desktop collection to other apps.
+Dictionary tools, mining apps and your own scripts can use it to add notes, look
+up cards and work with Anki without doing everything by hand.
 
-The project is experimental. It targets Anki 23.10 and newer; individual features,
-especially FSRS operations, depend on the running Anki version.
+It offers two ways to connect: compatibility with tools that use AnkiConnect,
+and a new API for apps that want more flexible access to Anki data.
 
+The project is experimental and targets Anki 23.10 and newer. Some features,
+especially FSRS tools, depend on your Anki version.
+
+- [Why use Tsunagi instead of AnkiConnect?](#why-use-tsunagi-instead-of-ankiconnect)
 - [Install](#install)
 - [Quick start](#quick-start)
 - [Move from AnkiConnect](#move-from-ankiconnect)
 - [Settings](#settings)
-- [Query your collection](#query-your-collection)
 - [Troubleshooting](#troubleshooting)
+- [Query your collection](#query-your-collection)
 - [Developing Tsunagi](#developing-tsunagi)
+
+## Why use Tsunagi instead of AnkiConnect?
+
+Tsunagi grew out of work on [Yomine](https://github.com/mcgrizzz/Yomine). Building
+an app around Anki often means asking for several pieces of related information,
+combining the answers, then discarding the parts the app does not need. Tsunagi's
+native API lets the app describe what it wants in a single query.
+
+For example, imagine a tool that needs **your note types and the field names for
+each one**. With AnkiConnect, a typical workflow is to request the note-type names,
+then request the fields for each type. Tsunagi can return both together, with only
+the requested information. AnkiConnect can batch actions with `multi`; Tsunagi's
+difference is expressing the result as one query rather than assembling several
+action results. See the [working example below](#query-your-collection).
+
+That approach brings a few practical benefits:
+
+- **Ask for just what an app needs.** Combine related fields and filter results
+  in the request. An app can fetch names and IDs for a picker, or richer field
+  information for an editor, through the same API. This can reduce both data
+  transferred and unnecessary processing.
+- **Work through large collections in smaller pages.** Apps can request a limited
+  set of results and continue from where they left off, instead of fetching
+  everything up front. Anki's familiar search syntax helps narrow the results.
+- **React to collection activity.** A live event stream lets apps refresh when
+  relevant changes happen, reducing the need to keep asking whether anything
+  changed. Events are best-effort notifications; apps still fetch the updated data.
+- **Build more Anki tools.** The native API includes scheduling, media, review
+  history and FSRS computations, with a way to check what your Anki version
+  supports. The built-in interactive reference lets you try requests and inspect
+  their results before writing code.
+
+**You can keep using existing AnkiConnect-based integrations.** Tsunagi's
+compatibility API gives those tools a migration path, and its settings importer
+can keep their existing connection address. There are intentional behavior
+differences, documented in the [compatibility notes](docs/ankiconnect_parity.md).
+
+The biggest gains from flexible queries, pagination and events come when an app
+uses Tsunagi's native API. Switching the add-on alone does not teach an existing
+AnkiConnect client to use those features. If your current setup already meets your
+needs, there is no requirement to migrate; Tsunagi is an option for keeping that
+workflow while making room for integrations that use its newer features.
 
 ## Install
 
-Build an add-on package from this repository using Python 3.9 or newer with pip:
+You need Anki desktop and a Tsunagi installation file ending in `.ankiaddon`.
+The installation method documented here uses a package built from this repository.
+If you do not have that file yet, expand the build instructions below.
+
+<details>
+<summary>Build the installation file from source</summary>
+
+You will need Git and Python 3.9 or newer with pip. Run these commands in a terminal:
 
 ```sh
 git clone https://github.com/mcgrizzz/Tsunagi.git
@@ -26,104 +78,130 @@ cd Tsunagi
 python tools/build_addon.py
 ```
 
-The first build downloads the pinned runtime dependencies and creates
-`dist/tsunagi-<version>.ankiaddon`. In Anki, open **Tools → Add-ons → Install from
-file**, select that package, then restart Anki.
+The build downloads the required libraries and puts the installation file in the
+`dist` folder, named `tsunagi-<version>.ankiaddon`.
 
-Runtime dependencies are bundled in the package. End users do not need to install
-Python libraries into Anki. Tsunagi runs inside Anki and uses its active profile;
-keep Anki open while using an integration.
+</details>
+
+Once you have the file:
+
+1. Open Anki and choose **Tools → Add-ons**.
+2. Click **Install from file** and select the `.ankiaddon` file.
+3. Restart Anki.
+
+The package includes the libraries it needs. You do not need to install anything
+else inside Anki.
 
 ## Quick start
 
-1. Open **Tools → Tsunagi Settings**, or select Tsunagi in the add-ons window and
-   choose **Config**. On **Connection**, enable the server and choose a port.
-   A fresh configuration uses `127.0.0.1:7777`.
-2. Choose **Save**, then open <http://127.0.0.1:7777/> in your browser. Substitute
-   your configured port if you changed it or imported AnkiConnect settings.
-3. In the Scalar API reference, try **GET /v1/health**, then list a small number
-   of notes or note types. If you set an API key, enter it under **Authentication**.
+**Already using AnkiConnect?** Follow [Move from AnkiConnect](#move-from-ankiconnect)
+to copy your existing connection settings.
 
-The request console operates on your active Anki collection. Write operations
-make real changes.
+For a fresh setup:
 
-From a terminal, check the server and list up to ten note types:
+1. Open **Tools → Tsunagi Settings** in Anki.
+2. On **Connection**, leave **Enable Tsunagi server** checked. Keep the default
+   host and preferred port unless your tool needs different settings.
+3. Click **Save**.
+4. Open <http://127.0.0.1:7777/> in your browser. You should see Tsunagi's
+   interactive API reference. This confirms that the server is reachable.
+5. In the tool you want to connect, set its Anki connection address to
+   `http://127.0.0.1:7777`. If it asks for a port separately, enter `7777`.
 
-```sh
-curl "http://127.0.0.1:7777/v1/health"
+Keep Anki open while using your connected tools. They work with the profile
+currently open in Anki.
 
-curl --get "http://127.0.0.1:7777/v1/models" \
-  --data-urlencode 'select=id,name' \
-  --data-urlencode 'limit=10'
-```
+If you chose a different port, replace `7777` in the address with that number.
+If you set an API key on the **Access** tab, enter the same key in your tool's
+connection settings.
 
-These examples use a POSIX shell. In Windows PowerShell, use `curl.exe` for curl
-and place each command on one line instead of using the shell continuations above.
-
-When an API key is configured, add `-H "X-API-Key: YOUR_KEY"` to native API
-requests. `Authorization: Bearer YOUR_KEY` is also accepted. The health check
-remains accessible without a key.
-
-The base URL serves [Scalar](docs/playground.md). Other reference formats are
-available at `/docs` (Swagger), `/redoc` and `/openapi.json`.
+You do not need to write requests to use an existing integration. If you want to
+explore the API yourself, the [interactive reference](docs/playground.md) lets you
+choose an operation and use **Test Request**. Start with the health check or a
+small list of notes. Requests that add, edit or delete data affect your real
+collection.
 
 ## Move from AnkiConnect
 
-Existing clients can use the AnkiConnect protocol at `POST /`. You can either
-point them at Tsunagi’s host and port or import AnkiConnect’s connection settings:
+The importer copies your connection settings so existing tools can keep using
+the same address.
 
-1. Open Tsunagi Settings → **Connection**.
-2. Choose **Import AnkiConnect settings**. This fills the API key and port and
-   appends AnkiConnect’s website origins to your current list, removing duplicates.
-   Unsaved origins already entered in the form are included.
-3. Review the pending changes. **Save** disables AnkiConnect and stops its server
-   before applying Tsunagi’s settings, allowing Tsunagi to take over the port.
-   **Cancel** discards the pending import.
+1. Open **Tools → Tsunagi Settings → Connection**.
+2. Click **Import AnkiConnect settings**.
+3. Review the filled-in settings and the pending-change summary.
+4. Click **Save** to switch over, or **Cancel** to leave your setup as it was.
 
-After a successful port handover, clients can keep their existing connection
-address. If you use a different Tsunagi port, update the client accordingly.
+The import copies AnkiConnect's API key and port. It **adds** its allowed websites
+to your current list, including entries you have just typed, and removes duplicates.
+It does not replace your list.
 
-AnkiConnect requests put the API key in the JSON body’s `key` property, rather
-than the native API’s authentication header. For example, with authentication off:
+Nothing switches over until you save. Saving disables AnkiConnect and stops its
+server before Tsunagi takes over the port. After a successful switch, your tools
+can keep their existing address and key. If you choose a different port or key,
+update those settings in the tools too.
 
-```sh
-curl "http://127.0.0.1:7777/" \
-  -H "Content-Type: application/json" \
-  -d '{"action":"version","version":6}'
-```
-
-`GET /actions` lists implemented actions. See the
-[compatibility notes](docs/ankiconnect_parity.md) for coverage and intentional
-behavior differences. The shim shares Tsunagi’s Anki adapters; compatibility
-handling preserves action-specific arguments, results and errors.
+For action coverage and known differences, see the
+[AnkiConnect compatibility notes](docs/ankiconnect_parity.md).
 
 ## Settings
 
-Changes on all tabs apply when you choose **Save**. Tsunagi restarts its API
-server when needed; ordinary settings changes do not require restarting Anki.
+Open **Tools → Tsunagi Settings**, or select Tsunagi in **Tools → Add-ons** and
+click **Config**. There are three tabs:
 
-| Tab | What you can change |
+| Tab | Use it to… |
 | --- | --- |
-| **Connection** | Enable the server, host, preferred or fixed port, and AnkiConnect import. |
-| **Access** | API key, allowed website origins, local-file access and FSRS memory-state permissions. |
-| **Advanced** | Upload size, download and operation timeouts, and logging. |
+| **Connection** | Turn the server on or off, change its address or port, and import AnkiConnect settings. |
+| **Access** | Set an API key, allow websites to connect, and enable optional permissions. |
+| **Advanced** | Change file-size limits, how long requests can wait, and logging. |
 
-**Ports:** only the numeric field for the selected mode is shown. Preferred mode
-uses the saved preferred port; fixed mode uses the specified port. Neither mode
-silently switches to another port if that port is busy.
+**Save** applies changes from every tab. Tsunagi restarts its server if needed;
+you normally do not need to restart Anki. **Cancel** discards unsaved changes.
 
-**Access:** `127.0.0.1` accepts connections from this computer only. A blank API
-key allows requests without a key. Website origins are entered one per line,
-including the scheme, for example `https://app.asbplayer.dev`; `*` allows all
-origins. Origin permission and API-key authentication are separate checks.
+### Address and port
 
-Local-file media access and rewriting FSRS memory state are off by default.
-Enable them when an integration needs those capabilities. Their scope is
-explained beside the controls.
+For tools running on the same computer, keep the host at `127.0.0.1`.
+The port is the number after the colon in the connection address, such as `7777`.
 
-**Restore all defaults** resets every tab and cancels a pending import. It changes
-the form only until you choose Save. The underlying JSON keys, including developer
-options, are documented in [config.md](config.md).
+Choose **Use preferred port** or **Use a fixed port**, then enter the number in
+the field shown. Both modes use that number; Tsunagi will report a problem if it
+is already in use instead of silently picking another one.
+
+### Keys and allowed websites
+
+An **API key** is a shared secret that your tool sends when it connects. Leave it
+blank if you do not want to require a key. If you set one, use the same value in
+both Tsunagi and the tool.
+
+**Allowed website origins** controls which websites can connect. Enter the address
+where the tool runs, one per line—for example, `https://app.asbplayer.dev`. Include
+`http://` or `https://` and any port, but no page path. A key and website permission
+are separate: a website needs permission even if it knows your key.
+
+The optional permissions let tools read local media files by path or rewrite FSRS
+memory state. They start off and have explanations beside them; enable one when
+an integration needs it.
+
+### Restore defaults
+
+**Restore all defaults** resets every tab and cancels a pending AnkiConnect import.
+You can review the reset values before saving, or choose Cancel to keep your saved
+settings. For the underlying configuration keys, see [config.md](config.md).
+
+## Troubleshooting
+
+| What you see | What to try |
+| --- | --- |
+| Your tool cannot connect | Keep Anki open with a profile loaded. Check that Tsunagi is enabled and that the tool uses the same port. |
+| The port is already in use | If AnkiConnect is using it, use the import steps above to switch over. Otherwise, choose a free port and update your tool's address. |
+| A key error or “401” | Copy the API key from Tsunagi into your tool's connection settings. |
+| A website is denied access | Add the website's address under Access, including `https://` or `http://` and any port. An API key alone does not allow a website. |
+| A request times out or Anki is busy | Finish any open prompt or long-running task in Anki, then try again. |
+| An FSRS feature is unavailable | The feature may need a newer Anki version. Look for capabilities in the API reference to check which operations are available. |
+| The reference page does not load | Its interface loads from an online CDN. Check your internet connection; the local API can still work even if that page fails to load. |
+
+When reporting a bug, include your Anki version, operating system, the tool or
+operation you were using, and the error message. Remove API keys and private note
+content.
 
 ## Query your collection
 
@@ -189,20 +267,28 @@ replay; handle `reset` by refetching. Not every operation produces an event or a
 undo entry. Consult the endpoint descriptions for behavior before relying on
 undo, transactional writes or notifications.
 
-## Troubleshooting
+### Authentication and AnkiConnect requests
 
-| Symptom | Check |
-| --- | --- |
-| Connection refused | Anki is open, a profile is loaded, the server is enabled, and the client uses the configured port. |
-| Port is busy | Another process may own it. If that is AnkiConnect, use the settings import/Save handover, or choose distinct ports. |
-| HTTP 401 or an API-key error | Match the configured key. Native requests use a header; AnkiConnect requests use the JSON `key` property. |
-| A website is denied access | Check its origin on the Access tab, including scheme and any port. Supplying an API key does not grant origin permission. |
-| A request times out or returns a busy error | Finish any blocking dialog or long-running operation in Anki, then retry. Operation timeout is on Advanced. |
-| An FSRS feature is unavailable | Inspect `/v1/capabilities`; support depends on the Anki version and requested options. |
-| The API works but Scalar does not load | Scalar’s browser bundle loads from a CDN. Check that connection, or use `/openapi.json` with another client. |
+The examples above use a POSIX shell. In Windows PowerShell, use `curl.exe` for
+curl and place each command on one line instead of using shell continuations.
 
-For a bug report, include the Anki version, operating system, action or endpoint,
-expected behavior and the error response. Remove API keys and private note content.
+When an API key is configured, add `-H "X-API-Key: YOUR_KEY"` to native API
+requests. `Authorization: Bearer YOUR_KEY` is also accepted. The health check
+at `/v1/health` remains accessible without a key.
+
+AnkiConnect requests go to `POST /` and put the key in the JSON body's `key`
+property. For example, with authentication off:
+
+```sh
+curl "http://127.0.0.1:7777/" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"version","version":6}'
+```
+
+`GET /actions` lists implemented actions. The shim shares Tsunagi's Anki adapters;
+compatibility handling preserves action-specific arguments, results and errors.
+The API reference is also available at `/docs` (Swagger), `/redoc` and
+`/openapi.json`.
 
 ## Developing Tsunagi
 
