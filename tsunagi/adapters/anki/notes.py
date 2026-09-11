@@ -496,30 +496,44 @@ def _ac_finish_check(col: Collection, note: Any, deck: Dict[str, Any],
         raise ValueError("cannot create note for unknown reason")
 
 
+def _ac_store_media(col: Collection, item: Mapping[str, Any]):
+    """Return a plain storage outcome; field error handling remains below."""
+    from os import fspath
+
+    try:
+        if item.get("error") is not None:
+            raise ValueError(item["error"])
+        data = item.get("data")
+        if data is None:
+            return None  # skipHash matched
+        if item.get("delete_existing") and not isinstance(item["filename"], str):
+            # Upstream's deletion protobuf rejects the type before writeData.
+            raise TypeError("bad argument type for built-in operation")
+        # Preserve legacy filename type errors before invoking the backend.
+        filename = fspath(item["filename"])
+        if item.get("delete_existing"):
+            col.media.trash_files([filename])
+        stored = col.media.write_data(filename, data)
+        return {"filename": stored}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 def _ac_write_media(col: Collection, note: Any, media: Sequence[Dict[str, Any]]) -> None:
     """
     Store attachments and append their markup. Runs before the duplicate
     check (canonical order), so markup in the first field affects dedup.
     """
-    from os import fspath
-
     for item in media:
         if "abort_error" in item:
             raise ValueError(item["abort_error"])
         try:
-            if item.get("error") is not None:
-                raise ValueError(item["error"])
-            data = item.get("data")
-            if data is None:
-                continue  # skipHash matched: store nothing, append nothing
-            if item.get("delete_existing") and not isinstance(item["filename"], str):
-                # Upstream's deletion protobuf rejects the type before writeData.
-                raise TypeError("bad argument type for built-in operation")
-            # Preserve legacy filename type errors before invoking the backend.
-            filename = fspath(item["filename"])
-            if item.get("delete_existing"):
-                col.media.trash_files([filename])
-            stored = col.media.write_data(filename, data)
+            outcome = item["_storage_result"] if "_storage_result" in item else _ac_store_media(col, item)
+            if outcome is None:
+                continue
+            if "error" in outcome:
+                raise ValueError(outcome["error"])
+            stored = outcome["filename"]
             fields = item.get("fields")
             if type(fields) is list:
                 for field in fields:
@@ -535,6 +549,36 @@ def _ac_write_media(col: Collection, note: Any, media: Sequence[Dict[str, Any]])
                         note[field] += message
             except Exception as exc:
                 raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def ac_stage_note_media(col: Collection, spec, item: Dict[str, Any],
+                        field_values: Optional[Dict[str, Any]] = None, *, updating: bool = False):
+    """Store one attachment and check continuation before the next download.
+
+    Only plain field values and storage outcomes cross operation boundaries.
+    The final note operation replays the outcomes against a freshly read note.
+    """
+    from anki.collection import OpChanges
+
+    try:
+        if updating:
+            note = _ac_prepare_update(col, spec["id"], spec.get("fields"),
+                                      fields_missing="fields" not in spec)
+        else:
+            note, _model, _deck, _options = _ac_prepare(col, spec)
+        if field_values is not None:
+            for name, value in field_values.items():
+                if name in note:
+                    note[name] = value
+        staged = dict(item)
+        if "abort_error" not in staged:
+            staged["_storage_result"] = _ac_store_media(col, staged)
+            staged.pop("data", None)  # release downloaded bytes after storage
+        _ac_write_media(col, note, [staged])
+        return ValueWithChanges((staged, dict(note.items())), OpChanges())
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
 
 
 @as_collection_op

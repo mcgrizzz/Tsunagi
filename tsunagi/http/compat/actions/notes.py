@@ -14,7 +14,7 @@ anki-connect). The subtle ones, all load-bearing for real clients:
 """
 import base64
 import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -27,6 +27,7 @@ from ....adapters.anki.compat_only import (
 from ....adapters.anki.notes import (
     ac_add_note,
     ac_check_note,
+    ac_stage_note_media,
     ac_update_note_fields,
     ac_validate_note,
     delete_notes,
@@ -84,11 +85,14 @@ def _as_list(value) -> List[Any]:
     return [m for m in items if m is not None]
 
 
-def _resolve_media(spec) -> List[Dict[str, Any]]:
+def _resolve_media(
+    spec, *, on_resolved: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
     """Resolve attachments on the request thread, outside collection operations.
 
     Keep raw values and defer errors per attachment: upstream can write earlier
-    media before a malformed later entry aborts the enclosing action.
+    media before a malformed later entry aborts the enclosing action. When
+    supplied, on_resolved stores/checks each entry before the next is fetched.
     """
     from ....adapters.settings import settings
     from ..downloads import download_media
@@ -106,7 +110,7 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                     media["fields"]
                 except Exception as exc:
                     entry["abort_error"] = str(exc)
-                out.append(entry)
+                out.append(on_resolved(entry) if on_resolved else entry)
                 if "abort_error" in entry:
                     # The adapter will abort here after writing earlier media.
                     # Later attachments cannot be reached, even in other kinds.
@@ -138,7 +142,7 @@ def _resolve_media(spec) -> List[Dict[str, Any]]:
                 # The adapter handles download and storage errors alike,
                 # including upstream's distinct field-selection error path.
                 entry["error"] = str(exc)
-            out.append(entry)
+            out.append(on_resolved(entry) if on_resolved else entry)
             if entry["error"] is not None:
                 try:
                     iter(entry["fields"])
@@ -156,7 +160,14 @@ def _resolve_note_media(spec, *, updating: bool = False) -> List[Dict[str, Any]]
     # Keep validation in the adapter and downloads on this request thread.
     if isinstance(spec, dict) and any(spec.get(kind) for kind in _MARKUP):
         ac_validate_note(spec, updating=updating)
-    return _resolve_media(spec)
+    field_values = None
+
+    def stage(item):
+        nonlocal field_values
+        staged, field_values = ac_stage_note_media(spec, item, field_values, updating=updating)
+        return staged
+
+    return _resolve_media(spec, on_resolved=stage)
 
 
 @registry.register("addNote", params=AddNoteParams)
