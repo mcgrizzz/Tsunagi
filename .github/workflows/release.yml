@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check release version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Match tag to build, runtime and project versions
+        id: version
+        env:
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, re, runpy, tomllib
+          from pathlib import Path
+
+          tag = os.environ['RELEASE_TAG']
+          if os.environ['RELEASE_REF_TYPE'] != 'tag' or not re.fullmatch(
+              r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag
+          ):
+              raise SystemExit('Run this workflow on a release tag such as v0.1.0.')
+          versions = {
+              'tools/version.py': runpy.run_path('tools/version.py')['VERSION'],
+              'tsunagi/shared/version.py': runpy.run_path('tsunagi/shared/version.py')['ADDON_VERSION'],
+              'pyproject.toml': tomllib.loads(Path('pyproject.toml').read_text())['project']['version'],
+          }
+          if any(version != tag[1:] for version in versions.values()):
+              raise SystemExit(f'Tag {tag} does not match release versions: {versions}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'version={tag[1:]}\n')
+          print(f'Validated {tag}')
+          PY
+
+  tests:
+    name: Release tests
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    name: Build release assets
+    needs: [version, tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and validate add-on
+        run: python tools/build_addon.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tsunagi-release
+          path: |
+            dist/tsunagi-${{ needs.version.outputs.version }}.ankiaddon
+            dist/tsunagi-${{ needs.version.outputs.version }}.ankiaddon.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Create draft GitHub release
+    needs: [version, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tsunagi-release
+          path: dist
+      - name: Verify checksum and attach assets
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          addon="tsunagi-${RELEASE_VERSION}.ankiaddon"
+          sha256sum --check "${addon}.sha256"
+          if draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft'); then
+            if [ "$draft" != true ]; then
+              echo "Release $RELEASE_TAG is already published; refusing to replace its assets." >&2
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" "$addon" "${addon}.sha256" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$addon" "${addon}.sha256" \
+              --verify-tag --draft --generate-notes --title "Tsunagi ${RELEASE_VERSION}"
+          fi
