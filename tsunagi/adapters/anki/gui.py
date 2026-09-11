@@ -12,7 +12,7 @@ are the ones that build a note first: that part is collection work.
 from typing import Any, Callable, Dict, List, Optional
 
 from ...shared.errors import ResourceNotFoundError, ValidationError
-from ..ops import call_on_main
+from ..ops import call_on_main, call_on_main_interactive
 
 ADD_DIALOG_CLOSED = {"error": "Add Note dialog is not open", "code": 1}
 
@@ -566,7 +566,7 @@ def deck_review(name: str) -> bool:
 
 
 def import_file(path: Optional[str] = None, *, _compat: bool = False) -> bool:
-    """Open Anki's import dialog, on a file if one is named."""
+    """Request the import UI; compatibility calls wait for Anki's GUI call."""
     def _import() -> bool:
         from aqt import mw
         from aqt.import_export.importing import import_file as _do
@@ -591,7 +591,29 @@ def import_file(path: Optional[str] = None, *, _compat: bool = False) -> bool:
         else:
             _do(mw, path)
         return True
-    return call_on_main(_import)
+    if _compat:
+        return call_on_main_interactive(_import)
+
+    def schedule() -> bool:
+        from aqt import mw
+        from aqt.qt import QTimer
+
+        from ...shared.errors import CollectionUnavailableError
+
+        collection = mw.col
+
+        def launch() -> None:
+            from aqt import mw as current_window
+
+            if current_window is not mw or mw.col is not collection or collection is None:
+                raise CollectionUnavailableError()
+            # Exceptions after acknowledgement go through Anki's Qt error handler.
+            _import()
+
+        QTimer.singleShot(0, launch)
+        return True
+
+    return call_on_main_interactive(schedule)
 
 
 def exit_anki() -> bool:

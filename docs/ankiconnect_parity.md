@@ -29,8 +29,11 @@ The broad upstream comparisons and their shared fixtures are archived in Git at
 `eea649e` (the `tests/test_upstream_*.py` files and `tests/upstream_support.py`).
 References to those tests in audit documents refer to that revision. Focused
 Tsunagi regressions and action-inventory checks remain in the maintained suite.
-Windows foreground behavior still needs a platform-specific check; offscreen Qt
-results do not establish it.
+Windows manual checks confirmed Browser/Add Cards restoration and field focus.
+When another app is active, Windows can leave them behind it and flash the
+taskbar. The import picker came forward, and cancellation left no lingering
+topmost behavior. These observations apply to the tested Windows setup;
+offscreen Qt results alone do not establish foreground behavior.
 
 ## Two discrepancies in upstream's own documentation
 
@@ -201,7 +204,7 @@ or GUI state matches upstream.
 | `guiDeckReview` | implemented | Goes straight to the reviewer. Canonical routes through the overview first, which races the reviewer and can leave you on the deck page. |
 | `guiEditNote` | implemented | Opens a reusable standalone Anki editor with save-before-switch/close, history, Browser search and card preview. HTTP routing and Qt lifecycle are tested; a disposable Anki 26.08.1 app smoke check also passed editor open, preview and save/close. Complete visual equivalence remains unverified. The native edit-note route still opens the Browser. |
 | `guiExitAnki` | implemented | Manual verification only (needs a live main window). |
-| `guiImportFile` | implemented | Manual verification only (needs a live main window). |
+| `guiImportFile` | implemented | Waits for Anki's initial GUI call, not confirmed import completion. Dispatch has an operation timeout; accepted dialog interaction does not. Client HTTP timeouts still apply. |
 | `guiPlayAudio` | implemented | Manual verification only (needs a live main window). |
 | `guiReviewActive` | implemented | Manual verification only (needs a live main window). |
 | `guiSelectCard` | implemented | Manual verification only (needs a live main window). |

@@ -95,7 +95,48 @@ def test_exit_defers_close_until_after_response(client, dispatch):
     assert dispatch.events[-1] == 'close'
 
 
-def test_native_empty_import_path_keeps_file_picker(dispatch):
+def test_native_empty_import_path_keeps_file_picker(dispatch, col):
     from tsunagi.adapters.anki import gui
     assert gui.import_file('') is True
-    assert dispatch.events == ['prompt']
+    assert dispatch.events == [('timer', 0)]
+    dispatch.callbacks.pop()()
+    assert dispatch.events[-1] == 'prompt'
+
+
+@pytest.mark.parametrize('body', [{}, {'path': 'C:/cards.apkg'}])
+def test_native_import_acknowledges_before_launch(client, dispatch, body):
+    response = client.post('/v1/gui:import-file', json=body)
+    assert response.status_code == 200
+    assert response.json()['ok'] is True
+    assert 'job_id' not in response.json()
+    assert dispatch.events == [('timer', 0)]
+    dispatch.callbacks.pop()()
+    assert dispatch.events[-1] == (('import', body['path']) if body else 'prompt')
+
+
+def test_native_import_dispatch_failure_is_returned(client, dispatch):
+    def fail(*args):
+        raise RuntimeError('cannot schedule import')
+    dispatch.qt.QTimer.singleShot = fail
+    response = client.post('/v1/gui:import-file', json={})
+    assert response.status_code >= 400
+    assert dispatch.callbacks == []
+
+
+def test_native_import_does_not_follow_a_profile_switch(client, dispatch, monkeypatch):
+    from tsunagi.shared.errors import CollectionUnavailableError
+
+    assert client.post('/v1/gui:import-file', json={}).json()['ok'] is True
+    monkeypatch.setattr(dispatch.window, 'col', object())
+    with pytest.raises(CollectionUnavailableError):
+        dispatch.callbacks.pop()()
+    assert dispatch.events == [('timer', 0)]
+
+
+def test_native_import_later_error_reaches_qt_callback(client, dispatch, monkeypatch):
+    def fail(*args):
+        raise RuntimeError('import UI failed')
+    monkeypatch.setattr(dispatch.importing, 'prompt_for_file_then_import', fail)
+    assert client.post('/v1/gui:import-file', json={}).json()['ok'] is True
+    with pytest.raises(RuntimeError, match='import UI failed'):
+        dispatch.callbacks.pop()()
