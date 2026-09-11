@@ -1,46 +1,61 @@
-# Build with Tsunagi: API recipes
+# API recipes: save a word to Anki
 
 [← Back to the README](../README.md)
 
-Suppose you're building a dictionary or mining app: the user chooses a note type,
-saves a word to Anki, then looks up or corrects that note. These recipes walk
-through that workflow using Tsunagi's native API.
+**Goal:** choose a note type, save a word, find the saved note, and correct its
+meaning. Follow all four steps, or jump to the task you need.
 
-| I want to… | Recipe |
+| I want to… | Request |
 | --- | --- |
-| Populate a note-type picker | [Get names and fields together](#choose-a-note-type) |
-| Save a flashcard | [Check and add a note](#add-a-note) |
-| Find notes I've saved | [Search and page through results](#find-my-notes) |
-| Correct a definition or add a tag | [Update a note](#update-a-note) |
-| Keep my app up to date | [Follow collection activity](#follow-collection-activity) |
+| [Choose a note type](#1-choose-a-note-type) | `GET /v1/models` |
+| [Save a word](#2-save-a-word) | `POST /v1/notes` |
+| [Find my saved notes](#3-find-my-saved-notes) | `GET /v1/notes` |
+| [Correct a note](#4-correct-a-note) | `PATCH /v1/notes/{note_id}` |
 
-## Before you start
+## Try the requests
 
-Keep Anki open with Tsunagi enabled. Examples use `http://127.0.0.1:7777`; replace
-that address if you changed the port or imported AnkiConnect's settings.
+1. Keep Anki open with Tsunagi enabled.
+2. Open the [interactive reference](http://127.0.0.1:7777/). Use your configured
+   port if it differs from `7777`.
+3. Find the method and path shown below, then use **Test Request**. Enter the
+   listed query parameters or paste the JSON body. If you set an API key, enter
+   it in the reference's authentication controls.
 
-The `curl` commands use POSIX shell syntax; on Windows, use Git Bash or WSL.
-You can also enter the request body and parameters through **Test Request** in
-the [interactive reference](http://127.0.0.1:7777/).
-
-If you configured an API key, add `-H "X-API-Key: YOUR_KEY"` to native `curl`
-requests. Native requests also accept `Authorization: Bearer YOUR_KEY`.
-AnkiConnect requests instead put `"key": "YOUR_KEY"` in the JSON body.
-Browser apps must also have their origin allowed in Tsunagi's **Access** settings.
+Each step shows **what to send** and **what to look for in the response**.
+Response examples show only the relevant fields; your IDs will be different.
+Terminal commands are available under each step if you prefer `curl`.
 
 > [!IMPORTANT]
-> These requests use your open collection. The add and update recipes change it.
-> Use a disposable Anki profile if you're just experimenting.
+> Steps 2 and 4 change your open Anki collection. Use a disposable profile to try
+> the whole walkthrough without adding a sample note to your usual collection.
 
-Three Anki terms matter here: a **note** holds fields and tags; a **model** (note
-type) defines those fields and card templates; **cards** are generated from the
-note and carry scheduling state. To save a flashcard, you usually create a note.
+## 1. Choose a note type
 
-## Choose a note type
+**“Which fields does my app need to fill?”**
 
-**“I want a picker that shows note types and the fields my app needs to fill.”**
+Send **`GET /v1/models`** with these query parameters:
 
-Ask for names, IDs and field names together:
+| Parameter | Value |
+| --- | --- |
+| `select` | `id,name,fields[].name` |
+| `limit` | `10` |
+
+**Look for:** each note type's name and field names in `items`:
+
+```json
+{
+  "items": [
+    {"id": 1789162609922, "name": "Basic", "fields": ["Front", "Back"]}
+  ]
+}
+```
+
+We'll use **Basic**, **Front** and **Back** below. Replace those names if your
+collection uses different ones. “Model” is the API's name for an Anki note type.
+If `next_cursor` isn't `null`, there are [more pages](#more-than-one-page).
+
+<details>
+<summary>Run this with curl</summary>
 
 ```sh
 curl --get "http://127.0.0.1:7777/v1/models" \
@@ -48,86 +63,90 @@ curl --get "http://127.0.0.1:7777/v1/models" \
   --data-urlencode 'limit=10'
 ```
 
-An entry in `items` looks like this; IDs and names depend on your collection:
+</details>
+
+## 2. Save a word
+
+**“Add ‘example’ to my Default deck, with a meaning on the back.”**
+
+Send **`POST /v1/notes`** with this JSON body:
 
 ```json
 {
-  "id": 1789162609922,
-  "name": "Basic",
-  "fields": ["Front", "Back"]
+  "modelName": "Basic",
+  "deckName": "Default",
+  "fields": {
+    "Front": "example",
+    "Back": "an illustration"
+  },
+  "tags": ["tsunagi-guide"]
 }
 ```
 
-`select` leaves out data the picker doesn't need, such as card templates.
-Selecting just `fields[].name` produces an array of names. Follow `next_cursor`
-if the response has more pages, as shown in [Find my notes](#find-my-notes).
+**Change before sending:** the note type, field names or deck if yours differ.
+This example requires an existing deck named **Default**. List your decks with
+`GET /v1/decks` if needed.
 
-**With an AnkiConnect client:** a workflow can call `modelNames`, then
-`modelFieldNames` for each name. For example, these JSON bodies go to `POST /`:
-
-```json
-{"action":"modelNames","version":6}
-```
+**Look for:** HTTP **201**, with the new note's ID in `result.id`:
 
 ```json
-{"action":"modelFieldNames","version":6,"params":{"modelName":"Basic"}}
+{
+  "result": {
+    "id": 1789162609990,
+    "cards": [1789162609990]
+  }
+}
 ```
 
-`multi` can batch the field requests once the names are known. The client still
-combines the results. The native query returns each type with its fields attached.
+**Keep your returned note ID for step 4.** You created a note containing the word
+and meaning; Anki generated its cards from the note type's templates.
+Sending the same note again is rejected as a duplicate by default.
 
-## Add a note
-
-**“I want to save a word and its definition to Anki.”**
-
-These examples assume a note type named **Basic** with **Front** and **Back**
-fields, and a deck named **Default**. Use names from your own collection; list
-decks with `GET /v1/decks?select=id,name&limit=10` if needed.
-
-First, check whether the note can be added. This request adds nothing:
-
-```sh
-curl "http://127.0.0.1:7777/v1/notes:check" \
-  -H "Content-Type: application/json" \
-  -d '{"notes":[{
-    "modelName":"Basic",
-    "deckName":"Default",
-    "fields":{"Front":"example","Back":"an illustration"},
-    "tags":["tsunagi-guide"]
-  }]}'
-```
-
-Read `results[0].can_add`. If false, inspect `state`, `reason` and
-`duplicate_note_ids` before deciding what to show the user. A successful check
-doesn't reserve the note; creation can still fail if the collection changes.
-
-Create it with the same note data:
+<details>
+<summary>Run this with curl</summary>
 
 ```sh
 curl "http://127.0.0.1:7777/v1/notes" \
   -H "Content-Type: application/json" \
-  -d '{
-    "modelName":"Basic",
-    "deckName":"Default",
-    "fields":{"Front":"example","Back":"an illustration"},
-    "tags":["tsunagi-guide"]
-  }'
+  -d '{"modelName":"Basic","deckName":"Default","fields":{"Front":"example","Back":"an illustration"},"tags":["tsunagi-guide"]}'
 ```
 
-On success, HTTP **201** contains the note in `result`. Save `result.id` for later
-updates; `result.cards` contains the generated card IDs. Anki creates the cards
-from the note type's templates. Adding the same note again is rejected as a
-duplicate by default.
+</details>
 
-**With an AnkiConnect client:** the corresponding actions are `canAddNotes` and
-`addNote`. Tsunagi's compatibility API accepts those too; the native check also
-explains why a candidate cannot be added.
+## 3. Find my saved notes
 
-## Find my notes
+**“Show me the notes tagged by my app.”**
 
-**“I want the notes my app saved, including their contents.”**
+Send **`GET /v1/notes`** with these query parameters:
 
-Search for the tag from the previous recipe and choose the returned fields:
+| Parameter | Value |
+| --- | --- |
+| `search` | `tag:tsunagi-guide` |
+| `select` | `id,fields,tags` |
+| `limit` | `10` |
+
+**Look for:** the note from step 2 in `items`, including its field values:
+
+```json
+{
+  "items": [{
+    "id": 1789162609990,
+    "fields": [
+      {"name": "Front", "value": "example", "ord": 0},
+      {"name": "Back", "value": "an illustration", "ord": 1}
+    ],
+    "tags": ["tsunagi-guide"]
+  }],
+  "next_cursor": null
+}
+```
+
+An empty `items` list means no notes matched. `next_cursor: null` means this is
+the last page. `search` uses Anki browser syntax: try `deck:Japanese` to search
+for notes with cards in that deck instead.
+
+<details>
+<summary>Run this with curl</summary>
 
 ```sh
 curl --get "http://127.0.0.1:7777/v1/notes" \
@@ -136,23 +155,66 @@ curl --get "http://127.0.0.1:7777/v1/notes" \
   --data-urlencode 'limit=10'
 ```
 
-`search` accepts Anki browser syntax. Replace it with `deck:Japanese`, for example,
-to find notes with cards in that deck. `fields` here returns each field's name,
-value and ordinal so your app can display the content.
+</details>
 
-Prefer JSON? This is the equivalent query:
+## 4. Correct a note
 
-```sh
-curl "http://127.0.0.1:7777/v1/notes/query" \
-  -H "Content-Type: application/json" \
-  -d '{"search":"tag:tsunagi-guide","select":"id,fields,tags","limit":10}'
+**“Change the meaning and mark the note as checked.”**
+
+Send **`PATCH /v1/notes/{note_id}`**. Set `note_id` to **your returned ID from
+step 2**, then use this JSON body:
+
+```json
+{
+  "fields": {"Back": "a concrete illustration"},
+  "addTags": ["checked"]
+}
 ```
 
-Read notes from `items`. Each page also has `stats` and `next_cursor`.
-If `next_cursor` is not `null`, pass it as `cursor` with the **same query and
-page size**. Stop at `null`; don't decode or modify cursor values.
+**Look for:** the updated note in `result`. Its Back field now contains
+`a concrete illustration`, and its tags include both `tsunagi-guide` and `checked`.
+The Front field keeps its previous value.
 
-This complete Python example prints every matching note, a page at a time:
+Use `addTags` to keep existing tags and add more. The separate `tags` property
+replaces the whole tag list.
+
+<details>
+<summary>Run this with curl — replace NOTE_ID first</summary>
+
+```sh
+curl -X PATCH "http://127.0.0.1:7777/v1/notes/NOTE_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"fields":{"Back":"a concrete illustration"},"addTags":["checked"]}'
+```
+
+</details>
+
+## How this compares with AnkiConnect
+
+These are equivalent client workflows. Existing AnkiConnect requests also work
+through Tsunagi's compatibility API.
+
+| Task | AnkiConnect workflow | Native Tsunagi workflow |
+| --- | --- | --- |
+| Note-type picker | `modelNames`, then `modelFieldNames` for each name | One models query returns names and fields together. |
+| Save a word | `addNote` | Create a note with `POST /v1/notes`. |
+| Find notes and their contents | `findNotes`, then `notesInfo` for the returned IDs | One notes query searches and returns the selected data. |
+| Correct a field and add a tag | `updateNoteFields` and `addTags` | One `PATCH` accepts both changes. |
+
+AnkiConnect's `multi` can batch actions. Native queries let the client ask for the
+combined result directly, with field selection and pagination.
+
+## More than one page
+
+For any paginated query, read results from `items`. If `next_cursor` is not
+`null`, send the same query again with that value as `cursor`. Keep the other
+parameters unchanged. Stop when `next_cursor` is `null`.
+
+<details>
+<summary>Python example: read all matching notes</summary>
+
+This uses the POST form of the step 3 query. Update the address and API key if
+needed. `POST /v1/notes/query` searches; `POST /v1/notes` creates a note.
 
 ```python
 import json
@@ -178,54 +240,27 @@ while True:
     query["cursor"] = page["next_cursor"]
 ```
 
-**With an AnkiConnect client:** `findNotes` returns IDs, then `notesInfo` retrieves
-their contents. The native query handles search, field selection and pagination
-together. Use `select=id` if IDs are all you need.
+</details>
 
-## Update a note
+## Other tasks
 
-**“I want to correct the definition and mark the note as checked.”**
+| I want to… | Use |
+| --- | --- |
+| Check for duplicates before adding | `POST /v1/notes:check`, with candidate notes in a `notes` array. Inspect each result's `can_add` and `reason`. The check adds nothing and doesn't reserve the note. |
+| Refresh my app after changes | `GET /v1/events`. Refetch on `reset` or reconnection; delivery is best-effort, without replay or a complete change history. |
+| Check what this Anki version supports | [`GET /v1/capabilities`](capabilities.md), the single native report of available, disabled and unsupported operations. |
 
-Replace `NOTE_ID` with `result.id` from creation or an `items` entry from your query:
+For full request schemas, errors and more operations, use the
+[interactive reference](http://127.0.0.1:7777/). See
+[compatibility notes](ankiconnect_parity.md) for AnkiConnect differences.
 
-```sh
-curl -X PATCH "http://127.0.0.1:7777/v1/notes/NOTE_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"fields":{"Back":"a concrete illustration"},"addTags":["checked"]}'
-```
+<details>
+<summary>Terminal and authentication notes</summary>
 
-The response contains the updated note in `result`. Only the supplied field is
-changed; **Front** keeps its value. `addTags` appends to the existing tags. Use
-`removeTags` to remove specific tags; `tags` replaces the entire tag list.
+The curl examples use POSIX syntax; on Windows, run them in Git Bash or WSL.
+Replace `http://127.0.0.1:7777` if your port differs. For native requests with an
+API key, add `-H "X-API-Key: YOUR_KEY"`; `Authorization: Bearer YOUR_KEY` also works.
+AnkiConnect requests put `"key": "YOUR_KEY"` in the JSON body instead.
+Browser apps also need their origin allowed under Tsunagi's **Access** settings.
 
-**With an AnkiConnect client:** `updateNoteFields` and `addTags` cover these changes
-as separate actions, which can be batched with `multi`. Native `PATCH` accepts
-the field and tag changes together.
-
-## Follow collection activity
-
-**“I want my app to refresh when something changes in Anki.”**
-
-Open the Server-Sent Events stream:
-
-```sh
-curl -N "http://127.0.0.1:7777/v1/events"
-```
-
-Leave it running, then make a change in Anki. In a client, use incoming events to
-trigger a fresh query. Delivery is best-effort, with no replay: refetch on a
-`reset` event and after reconnecting. Not every operation emits an event, so this
-isn't a complete change history. Press **Ctrl+C** to stop the command.
-
-An existing AnkiConnect client keeps its polling behavior unless it adopts this
-native stream.
-
-## Where to go next
-
-- **More operations:** browse cards, scheduling, media, import/export and other
-  routes in the [interactive reference](http://127.0.0.1:7777/).
-- **Version and settings support:** `GET /v1/capabilities` is the single native
-  discovery report. It explains which operations are available, disabled in
-  settings or unsupported. See [native discovery](capabilities.md).
-- **Existing clients:** read the [AnkiConnect compatibility notes](ankiconnect_parity.md).
-- **Working on Tsunagi itself:** use the [development guide](development.md).
+</details>
