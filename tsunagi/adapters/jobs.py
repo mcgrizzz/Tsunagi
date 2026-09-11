@@ -1,5 +1,5 @@
 """
-In-memory registry for long-running FSRS computations.
+In-memory registry for FSRS computations and package imports.
 
 The first cross-request state in Tsunagi, so it copies the Settings shape: a
 module singleton guarded by a lock, touched from request threads and Qt-main
@@ -9,7 +9,8 @@ a dev reload empties the store.
 One job may be queued/running at a time. That is not a simplification: Anki's
 progress (col.latest_progress) and cancellation (col.set_wants_abort) are
 global to the backend, so concurrent computations could not be told apart or
-aborted individually anyway.
+aborted individually anyway. Import jobs share this slot so a pending FSRS
+abort cannot target an import; imports themselves do not support API abort.
 """
 from __future__ import annotations
 
@@ -49,7 +50,7 @@ class JobStore:
                 if job.status in ACTIVE_STATUSES:
                     raise JobConflictError(
                         f"job {job.id} ({job.kind}) is already {job.status}; "
-                        "wait for it to finish or abort it"
+                        "wait for it to finish"
                     )
             # Keep the store bounded: drop the oldest finished jobs.
             finished = [j for j in self._jobs.values() if j.status in TERMINAL_STATUSES]

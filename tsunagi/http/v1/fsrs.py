@@ -141,8 +141,9 @@ def evaluate_params(body: EvaluateParamsRequest = Body(...)) -> JobSubmitted:
     summary="Poll a job",
     description="Status, best-effort progress while running, and the result "
                 "or error once terminal. Finished jobs are kept in memory "
-                "until evicted, not persisted.",
-    tags=["FSRS"],
+                "until evicted, not persisted. Import jobs report their result "
+                "or error but do not expose progress or support abort.",
+    tags=["Jobs"],
     operation_id="getJob",
 )
 @handle_mutation_errors("job read")
@@ -152,7 +153,7 @@ def get_job(job_id: str) -> JobInfo:
     if snap is None:
         raise ResourceNotFoundError("job", job_id)
     progress = None
-    if snap["status"] == "running":
+    if snap["status"] == "running" and snap["kind"] != "import_package":
         # The backend's abort flag is one-shot AND cleared when a computation
         # starts, so a single :abort can lose a race with the op's startup.
         # While an abort is pending, every poll re-raises the flag - the
@@ -171,8 +172,9 @@ def get_job(job_id: str) -> JobInfo:
                 "observe it. Anki is asked to stop the computation; if it "
                 "finishes anyway (its abort flag has blind spots), the result "
                 "is discarded - these computations write nothing, so nothing "
-                "is lost but the numbers. 409 if the job already ended.",
-    tags=["FSRS"],
+                "is lost but the numbers. 409 if the job already ended or is an "
+                "import job, which cannot be aborted through this endpoint.",
+    tags=["Jobs"],
     operation_id="abortJob",
 )
 @handle_mutation_errors("job abort")
@@ -181,6 +183,8 @@ def abort_job(job_id: str) -> JobInfo:
     snap = jobs.snapshot(job_id)
     if snap is None:
         raise ResourceNotFoundError("job", job_id)
+    if snap["kind"] == "import_package":
+        raise JobConflictError("Import jobs cannot be aborted; poll for completion")
     if snap["status"] not in ("queued", "running"):
         raise JobConflictError(f"job {job_id} is already {snap['status']}")
     jobs.mark_abort_requested(job_id)

@@ -279,7 +279,26 @@ The AnkiConnect `guiImportFile` action keeps its response pending until Anki's
 initial GUI call returns. The operation timeout applies while waiting for the UI
 thread to accept the request, but not while you interact with the dialog. A client
 can still impose its own HTTP timeout. Neither GUI route reports import completion;
-use `/v1/collection:import` for a programmatic package import and its result.
+use `/v1/collection:import` for a programmatic package import.
+
+### Import a package programmatically
+
+`POST /v1/collection:import` imports an `.apkg` from a path on the Anki machine.
+It uses saved Anki import choices unless you supply overrides; there is no options
+dialog. Its response depends on how long the import takes:
+
+| Response | Meaning |
+| --- | --- |
+| **200** with `imported` and `updated` | The import finished within the operation timeout. |
+| **202** with `job_id` | The same import is still pending or running. Poll `GET /v1/jobs/{job_id}` (also given in the `Location` header). |
+
+A finished job has status `done` and the import counts in `result`; a failed job
+has status `failed` and an `error`. **Poll the job rather than submitting the
+import again.** Import jobs do not expose progress or support abort. Only one
+import or FSRS job may be active at a time; another submission returns **409**.
+Set your HTTP client timeout longer than Tsunagi's operation timeout so it can
+receive the job response. Job records are kept in memory, so they do not survive
+an Anki restart or add-on reload. AnkiConnect's `importPackage` response contract is unchanged.
 
 ### Authentication and AnkiConnect requests
 

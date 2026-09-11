@@ -229,6 +229,17 @@ def import_package(col: Any, path: str, *,
         "updated": len(getattr(log, "updated", []) or []) if log else 0,
     }, result.changes)
 
+def submit_import_package(path, *, on_started, on_success, on_failure, **options):
+    """Submit exactly one import through the same write/notification path."""
+    from ..ops import collection_op_run_async
+
+    def run(col):
+        on_started()
+        return import_package.__wrapped__(col, path, **options)
+
+    collection_op_run_async(run, on_success=on_success, on_failure=on_failure)
+
+
 
 @as_query_op
 def collection_capabilities(col: Any) -> Dict[str, Any]:
