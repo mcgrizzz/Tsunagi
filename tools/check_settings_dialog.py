@@ -20,6 +20,7 @@ from aqt.qt import (  # noqa: E402
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QGroupBox,
     QLabel,
     QLineEdit,
     QPlainTextEdit,  # noqa: E402
@@ -142,9 +143,9 @@ def check_scenario(app, scenario):
                     tabs.setCurrentIndex(0)
                 history = window.findChild(QLabel, "ankiconnectImportHistory")
                 if scenario == "restore_history":
-                    assert "Last imported from AnkiConnect:" in history.text()
+                    assert history.text() not in ("Not recorded", "Unavailable")
                 else:
-                    assert history.text() == "No settings import recorded."
+                    assert history.text() == "Not recorded"
                 original_history = history.text()
                 status = window.findChild(QLabel, "ankiconnectStatus")
                 button = window.findChild(QPushButton, "ankiconnectImport")
@@ -174,23 +175,30 @@ def check_scenario(app, scenario):
                     assert status.text() == "Not installed"
                     assert not button.isEnabled()
                 else:
-                    assert status.text() == "Installed and enabled"
+                    assert status.text() == "Enabled"
                     origins = window.findChild(QPlainTextEdit)
                     origins.setPlainText("http://existing\nhttp://unsaved")
                     button.click()
                     assert origins.toPlainText().splitlines() == [
                         "http://existing", "http://unsaved", "http://imported"]
-                    assert "pending" in status.text()
+                    pending = window.findChild(QGroupBox, "ankiconnectPending")
+                    assert pending.isVisible() and not button.isVisible()
+                    assert window.findChild(QLabel, "ankiconnectPendingPort").text() == str(server.port)
+                    assert window.findChild(QLabel, "ankiconnectPendingKey").text() == "Copy from AnkiConnect"
                     assert history.text() == original_history
                     assert mode.currentIndex() == stack.currentIndex() == 1
                     assert fixed.value() == preferred.value() == server.port
-                    assert "1 new website origin(s)" in status.text()
+                    assert window.findChild(QLabel, "ankiconnectPendingOrigins").text() == "1 new origin"
+                    if scenario == "save" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
+                        target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
+                        app.processEvents()
+                        window.grab().save(str(target.with_stem(target.stem + "-pending")))
                     assert manager.addon_meta(ANKICONNECT_ID).enabled
                     assert server.sock is not None and timer.isActive()
                     assert writes == []
                     if scenario in ("restore", "restore_history"):
                         buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults).click()
-                        assert "pending" not in status.text()
+                        assert pending.isHidden() and button.isVisible()
                         assert mode.currentIndex() == (1 if DEFAULTS["port"] else 0)
                         assert preferred.value() == DEFAULTS["prefer_port"]
                 role = (QDialogButtonBox.StandardButton.Save if scenario in ("save", "restore", "restore_history")
@@ -215,15 +223,26 @@ def check_scenario(app, scenario):
                                   and w.windowTitle() == "Tsunagi Settings")
                     try:
                         history = window.findChild(QLabel, "ankiconnectImportHistory")
-                        assert "Last imported from AnkiConnect:" in history.text()
+                        assert history.text() not in ("Not recorded", "Unavailable")
                         button = window.findChild(QPushButton, "ankiconnectImport")
                         assert button.text() == "Import settings again"
                         status = window.findChild(QLabel, "ankiconnectStatus").text()
-                        assert status in ("Installed and disabled", "Not installed")
+                        assert status in ("Disabled", "Not installed")
                         assert button.isEnabled() == (status != "Not installed")
-                        if status == "Installed and disabled" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
+                        if status == "Disabled" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
                             target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
                             window.grab().save(str(target.with_stem(target.stem + "-imported")))
+                        if status == "Disabled":
+                            previous_history = history.text()
+                            button.click()
+                            assert window.findChild(QGroupBox, "ankiconnectPending").isVisible()
+                            assert window.findChild(QLabel, "ankiconnectPendingKey").text() == "Unchanged"
+                            assert window.findChild(QLabel, "ankiconnectPendingOrigins").text() == "No new origins"
+                            assert history.text() == previous_history
+                            if os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
+                                target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
+                                app.processEvents()
+                                window.grab().save(str(target.with_stem(target.stem + "-pending-again")))
                     except Exception as exc:
                         traceback.print_exc()
                         failures.append(exc)

@@ -67,6 +67,6 @@ def test_migration_does_not_invent_past_imports(offered):
 
 def test_history_shows_local_date_and_tolerates_invalid_metadata():
     recorded = "2026-09-11T12:34:00+00:00"
-    expected = datetime.fromisoformat(recorded).astimezone().strftime("%Y-%m-%d %H:%M")
+    expected = datetime.fromisoformat(recorded).astimezone().strftime("%d %b %Y at %H:%M")
     assert expected in settings_dialog.import_history_text({"ankiconnect_imported_at": recorded})
-    assert settings_dialog.import_history_text({"ankiconnect_imported_at": "bad date"}) == "Import history is unavailable."
+    assert settings_dialog.import_history_text({"ankiconnect_imported_at": "bad date"}) == "Unavailable"

@@ -265,12 +265,10 @@ def import_history_text(cfg: Dict[str, Any]) -> str:
     if recorded:
         try:
             local = datetime.fromisoformat(recorded).astimezone()
-            return f"Last imported from AnkiConnect: {local:%Y-%m-%d %H:%M}."
+            return f"{local:%d %b %Y at %H:%M}"
         except (TypeError, ValueError, OverflowError):
-            return "Import history is unavailable."
-    if cfg.get("ankiconnect_import_offered"):
-        return "No saved import record. Earlier versions did not record imports."
-    return "No settings import recorded."
+            return "Unavailable"
+    return "Not recorded"
 
 
 def open_settings(mw: Any) -> None:
@@ -290,6 +288,7 @@ def open_settings(mw: Any) -> None:
         QSizePolicy,
         QSpinBox,
         QStackedWidget,
+        Qt,
         QTabWidget,
         QVBoxLayout,
         QWidget,
@@ -455,20 +454,45 @@ def open_settings(mw: Any) -> None:
     populate(form_values_from_config(cfg))
 
     ac_box = QGroupBox("AnkiConnect")
+    ac_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
     ac_layout = QVBoxLayout(ac_box)
-    ac_status = QLabel()
+    ac_layout.setSpacing(8)
+    ac_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+    ac_overview = QFormLayout()
+    ac_overview.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+    ac_overview.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+    ac_status = guidance("")
     ac_status.setObjectName("ankiconnectStatus")
-    ac_status.setWordWrap(True)
-    ac_layout.addWidget(ac_status)
+    ac_overview.addRow("Add-on", ac_status)
     ac_history = guidance(import_history_text(cfg))
     ac_history.setObjectName("ankiconnectImportHistory")
-    ac_layout.addWidget(ac_history)
-    ac_details = QLabel(
-        "Import its API key and port, and add its website origins to your list. Save disables "
-        "AnkiConnect and stops its server before enabling Tsunagi on that port."
+    ac_history.setToolTip(
+        "The last saved settings import, in your local time. "
+        "Imports made with earlier versions were not recorded."
     )
-    ac_details.setWordWrap(True)
+    ac_overview.addRow("Last import", ac_history)
+    ac_layout.addLayout(ac_overview)
+    ac_details = guidance("")
     ac_layout.addWidget(ac_details)
+
+    pending_box = QGroupBox("Ready to import")
+    pending_box.setObjectName("ankiconnectPending")
+    pending_layout = QFormLayout(pending_box)
+    pending_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+    pending_port = guidance("")
+    pending_port.setObjectName("ankiconnectPendingPort")
+    pending_key = guidance("")
+    pending_key.setObjectName("ankiconnectPendingKey")
+    pending_origins = guidance("")
+    pending_origins.setObjectName("ankiconnectPendingOrigins")
+    pending_origins.setToolTip("Your existing allowed origins are kept.")
+    pending_layout.addRow("Port", pending_port)
+    pending_layout.addRow("API key", pending_key)
+    pending_layout.addRow("Website origins", pending_origins)
+    pending_hint = guidance("")
+    pending_layout.addRow(pending_hint)
+    ac_layout.addWidget(pending_box)
+
     import_button = QPushButton(
         "Import settings again" if cfg.get("ankiconnect_imported_at") else "Import AnkiConnect settings"
     )
@@ -476,31 +500,38 @@ def open_settings(mw: Any) -> None:
     ac_layout.addWidget(import_button)
     pages["Connection"].addWidget(ac_box)
     pending_import = False
-    import_summary = ""
 
     def refresh_ankiconnect() -> None:
         status = ankiconnect_status(mw.addonManager)
         if not status["installed"]:
-            text = "Not installed"
-        elif status["enabled"]:
-            text = "Installed and enabled"
+            ac_status.setText("Not installed")
         else:
-            text = "Installed and disabled"
-        if status["installed"] and not status["config_available"]:
-            text += ". Import settings are unavailable."
-        if pending_import:
-            text += ". Changes pending. " + import_summary + " Save applies these settings and disables AnkiConnect."
-        ac_status.setText(text)
+            ac_status.setText("Enabled" if status["enabled"] else "Disabled")
+        if not status["config_available"]:
+            ac_details.setText("No AnkiConnect settings are available to import.")
+        elif cfg.get("ankiconnect_imported_at"):
+            ac_details.setText("Import again if you've changed your AnkiConnect settings.")
+        else:
+            ac_details.setText("Copy the API key and port, and merge allowed website origins.")
+        pending_hint.setText(
+            "Save to apply these settings and disable AnkiConnect."
+            if status["enabled"] else "Save to apply these settings."
+        )
+        pending_box.hide()
+        ac_details.setVisible(not pending_import)
+        import_button.setVisible(not pending_import)
+        pending_box.setVisible(pending_import)
         import_button.setEnabled(status["config_available"] and not pending_import)
 
     def on_import() -> None:
-        nonlocal pending_import, import_summary
+        nonlocal pending_import
         ac = mw.addonManager.getConfig(ANKICONNECT_ID)
         if ac is None:
             refresh_ankiconnect()
             return
         current, _ = config_from_form(cfg, collect())
         old_origins = set(current.get("cors_allowlist") or [])
+        old_key = current.get("api_key")
         try:
             current.update(ankiconnect_import_changes(current, ac, include_port=True))
         except ValueError as exc:
@@ -509,7 +540,11 @@ def open_settings(mw: Any) -> None:
         populate(form_values_from_config(current))
         pending_import = True
         added = len(set(current.get("cors_allowlist") or []) - old_origins)
-        import_summary = f"Port {current['port']}, API key settings, and {added} new website origin(s) ready to import."
+        pending_port.setText(str(current["port"] or current["prefer_port"]))
+        pending_key.setText("Unchanged" if current.get("api_key") == old_key else "Copy from AnkiConnect")
+        pending_origins.setText(
+            "No new origins" if not added else f"{added} new origin" + ("s" if added != 1 else "")
+        )
         refresh_ankiconnect()
 
     import_button.clicked.connect(on_import)
