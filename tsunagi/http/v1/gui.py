@@ -240,9 +240,12 @@ def deck_review(body: DeckNameRequest = Body(...)) -> GuiResult:
     return GuiResult(ok=g.deck_review(body.name), stats=_stats(start))
 
 
-@_verb("import-file", "Open the import dialog",
-       "Opens Anki's import dialog, on the given file if one is named. The path "
-       "is resolved on the machine running Anki.")
+@_verb("import-file", "Request the import dialog",
+       "Schedules Anki's import UI, on the given file if one is named. The path "
+       "is resolved on the machine running Anki. Returns ok=true once the UI "
+       "thread accepts the launch request; this does not confirm that a file "
+       "was selected or imported. Cancellation and later errors are handled in "
+       "Anki, and no job ID is created.")
 def import_file(body: Optional[ImportFileRequest] = Body(None)) -> GuiResult:
     start = time.perf_counter()
     body = body or ImportFileRequest()

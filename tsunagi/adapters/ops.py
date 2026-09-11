@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from concurrent.futures import Future
 from functools import wraps
 from typing import Any, Callable, Concatenate, Optional, ParamSpec, TypeVar, cast
 
@@ -70,6 +71,34 @@ def call_on_main(fn: Callable[P, R], /, *args: P.args, timeout: Optional[float] 
 
     mw.taskman.run_on_main(_call)
     return cast(R, _wait(done, box, timeout, "Main-thread call"))
+
+def call_on_main_interactive(fn: Callable[[], R]) -> R:
+    """Bound UI dispatch, then wait for user interaction without a deadline.
+
+    A request that expires before dispatch is cancelled, so its queued callback
+    cannot open a dialog after the caller has received a timeout.
+    """
+    if threading.current_thread() is threading.main_thread():
+        return fn()
+
+    started = threading.Event()
+    result: Future[R] = Future()
+
+    def run() -> None:
+        if not result.set_running_or_notify_cancel():
+            return
+        started.set()
+        try:
+            result.set_result(fn())
+        except BaseException as exc:
+            result.set_exception(exc)
+
+    mw.taskman.run_on_main(run)
+    if not started.wait(OP_TIMEOUT) and result.cancel():
+        raise AnkiBusyError("Main-thread dispatch timed out; Anki did not accept the dialog request")
+    # If dispatch won the race with the timeout, it now owns the request.
+    return result.result()
+
 
 def on_main(func: Callable[P, R]) -> Callable[P, R]:
     """

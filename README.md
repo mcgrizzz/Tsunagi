@@ -268,6 +268,19 @@ replay; handle `reset` by refetching. Not every operation produces an event or a
 undo entry. Consult the endpoint descriptions for behavior before relying on
 undo, transactional writes or notifications.
 
+### Opening the import UI
+
+`POST /v1/gui:import-file` asks Anki to open its import UI. An optional `path`
+skips the file picker. The response acknowledges that Anki accepted the launch
+request; it does not mean a file was selected or imported. Anki handles subsequent
+choices, cancellation and errors. No job ID is returned.
+
+The AnkiConnect `guiImportFile` action keeps its response pending until Anki's
+initial GUI call returns. The operation timeout applies while waiting for the UI
+thread to accept the request, but not while you interact with the dialog. A client
+can still impose its own HTTP timeout. Neither GUI route reports import completion;
+use `/v1/collection:import` for a programmatic package import and its result.
+
 ### Authentication and AnkiConnect requests
 
 The examples above use a POSIX shell. In Windows PowerShell, use `curl.exe` for
