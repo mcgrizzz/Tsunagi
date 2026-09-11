@@ -14,11 +14,15 @@ keys only take effect after restarting Anki (or switching profiles);
 `dev_watch_seconds` always needs an Anki restart.
 
 The **AnkiConnect** section shows whether the standard AnkiConnect addon is
-installed and enabled. **Import settings and disable AnkiConnect** stages its
+installed and enabled, and when settings were last imported. **Import AnkiConnect settings** stages its
 API key, port and allowed website origins into the form, and selects **Enable
-Tsunagi server**. Review the values and click **OK** to disable AnkiConnect, stop
+Tsunagi server**. Review the values and click **Save** to disable AnkiConnect, stop
 its current listener, and start Tsunagi on the imported port. **Cancel** leaves
-both addons unchanged. **Restore Defaults** also cancels a pending import-and-disable action.
+both addons unchanged. **Restore all defaults** also cancels a pending import-and-disable action.
+The last-import date is saved with a successful import and remains visible after
+AnkiConnect is disabled or removed. Importing again updates that date; ordinary
+settings edits and restoring defaults preserve it. Older imports have no date
+record and are shown as unavailable history.
 The explicit takeover imports `webBindPort` (normally 8765) into both **Port**
 and **Preferred port**. Existing allowed origins, including unsaved form entries,
 are retained; imported origins are appended without duplicates. Optional capability
@@ -124,7 +128,9 @@ costs a directory scan per interval and reloads on any file change.
 Reloading swaps only Tsunagi's own modules. Changes to `__init__.py` or to the
 bundled libraries in `lib/` still need Anki restarted.
 
-### `ankiconnect_import_offered` / `config_version`
+### `ankiconnect_import_offered` / `ankiconnect_imported_at` / `config_version`
 Internal bookkeeping - don't edit. (`ankiconnect_import_offered` records that
 the one-time "import settings from AnkiConnect" dialog was shown; set it back
-to `false` to be offered again.)
+to `false` to be offered again.) `ankiconnect_imported_at` records the last saved
+import as a UTC ISO timestamp, or `null` when no record exists. The prompt flag
+does not prove an import happened: declining the prompt also sets it.

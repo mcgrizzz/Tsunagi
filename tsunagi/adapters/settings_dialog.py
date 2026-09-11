@@ -9,6 +9,7 @@ function-local aqt imports so this module imports without Qt.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Tuple
 
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
@@ -33,7 +34,7 @@ class Field(NamedTuple):
 
 # The form, in display order. Keys not listed here (gates aside, which render
 # as their own section) never appear in the dialog and pass through saves
-# untouched: ankiconnect_import_offered, config_version, dev_watch_seconds.
+# untouched: import history, config_version, dev_watch_seconds.
 FIELDS: Tuple[Field, ...] = (
     Field("enabled", "Connection", "bool", "Enable Tsunagi server", restart=True,
           tooltip="When off, the API server does not start with Anki."),
@@ -221,7 +222,12 @@ def _check_handover_port(cfg: Dict[str, Any]) -> None:
 
 def save_settings(mw: Any, new_cfg: Dict[str, Any], *, disable_ankiconnect: bool = False) -> None:
     """Disable/stop AnkiConnect before committing settings for the port handover."""
-    from .dialogs import ANKICONNECT_ID, ankiconnect_status, stop_ankiconnect_server
+    from .dialogs import (
+        ANKICONNECT_ID,
+        ankiconnect_import_record,
+        ankiconnect_status,
+        stop_ankiconnect_server,
+    )
 
     if not disable_ankiconnect:
         apply_config(mw, new_cfg, write=True)
@@ -237,6 +243,7 @@ def save_settings(mw: Any, new_cfg: Dict[str, Any], *, disable_ankiconnect: bool
             mw.addonManager.toggleEnabled(ANKICONNECT_ID, enable=False)
         restore_server = stop_ankiconnect_server()
         _check_handover_port(new_cfg)
+        new_cfg = {**new_cfg, **ankiconnect_import_record()}
         saving = True
         apply_config(mw, new_cfg, write=True)
     except Exception:
@@ -251,6 +258,19 @@ def save_settings(mw: Any, new_cfg: Dict[str, Any], *, disable_ankiconnect: bool
                 if restore_server is not None:
                     restore_server()
         raise
+
+
+def import_history_text(cfg: Dict[str, Any]) -> str:
+    recorded = cfg.get("ankiconnect_imported_at")
+    if recorded:
+        try:
+            local = datetime.fromisoformat(recorded).astimezone()
+            return f"Last imported from AnkiConnect: {local:%Y-%m-%d %H:%M}."
+        except (TypeError, ValueError, OverflowError):
+            return "Import history is unavailable."
+    if cfg.get("ankiconnect_import_offered"):
+        return "No saved import record. Earlier versions did not record imports."
+    return "No settings import recorded."
 
 
 def open_settings(mw: Any) -> None:
@@ -440,13 +460,18 @@ def open_settings(mw: Any) -> None:
     ac_status.setObjectName("ankiconnectStatus")
     ac_status.setWordWrap(True)
     ac_layout.addWidget(ac_status)
+    ac_history = guidance(import_history_text(cfg))
+    ac_history.setObjectName("ankiconnectImportHistory")
+    ac_layout.addWidget(ac_history)
     ac_details = QLabel(
         "Import its API key and port, and add its website origins to your list. Save disables "
         "AnkiConnect and stops its server before enabling Tsunagi on that port."
     )
     ac_details.setWordWrap(True)
     ac_layout.addWidget(ac_details)
-    import_button = QPushButton("Import AnkiConnect settings")
+    import_button = QPushButton(
+        "Import settings again" if cfg.get("ankiconnect_imported_at") else "Import AnkiConnect settings"
+    )
     import_button.setObjectName("ankiconnectImport")
     ac_layout.addWidget(import_button)
     pages["Connection"].addWidget(ac_box)
@@ -484,7 +509,7 @@ def open_settings(mw: Any) -> None:
         populate(form_values_from_config(current))
         pending_import = True
         added = len(set(current.get("cors_allowlist") or []) - old_origins)
-        import_summary = f"Imported port {current['port']}, API key settings, and {added} new website origin(s)."
+        import_summary = f"Port {current['port']}, API key settings, and {added} new website origin(s) ready to import."
         refresh_ankiconnect()
 
     import_button.clicked.connect(on_import)
@@ -507,8 +532,6 @@ def open_settings(mw: Any) -> None:
             showWarning("\n".join(errors), parent=dlg)
             return  # keep the dialog open
         new_cfg, server_restart = config_from_form(cfg, values)
-        if pending_import:
-            new_cfg["ankiconnect_import_offered"] = True
         try:
             save_settings(mw, new_cfg, disable_ankiconnect=pending_import)
         except Exception as exc:

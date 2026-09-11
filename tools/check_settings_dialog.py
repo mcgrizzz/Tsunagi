@@ -58,7 +58,7 @@ class ProbeServer:
 def main():
     set_lang("en")
     app = QApplication.instance() or QApplication([])
-    for scenario in ("missing", "cancel", "save", "restore", "preferred", "invalid", "save_error"):
+    for scenario in ("missing", "cancel", "save", "restore", "restore_history", "preferred", "invalid", "save_error"):
         check_scenario(app, scenario)
 
 
@@ -67,6 +67,8 @@ def check_scenario(app, scenario):
         base = Path(temporary)
         cfg = {**DEFAULTS, "api_key": "existing-key", "port": 7777,
                "cors_allowlist": ["http://existing"]}
+        if scenario == "restore_history":
+            cfg["ankiconnect_imported_at"] = "2026-09-01T12:34:00+00:00"
         server = ProbeServer() if scenario != "missing" else None
         timer = QTimer()
         timer.start(25)
@@ -138,6 +140,12 @@ def check_scenario(app, scenario):
                     window.grab().save(str(target.with_stem(target.stem + "-small")))
                     window.resize(640, 580)
                     tabs.setCurrentIndex(0)
+                history = window.findChild(QLabel, "ankiconnectImportHistory")
+                if scenario == "restore_history":
+                    assert "Last imported from AnkiConnect:" in history.text()
+                else:
+                    assert history.text() == "No settings import recorded."
+                original_history = history.text()
                 status = window.findChild(QLabel, "ankiconnectStatus")
                 button = window.findChild(QPushButton, "ankiconnectImport")
                 buttons = window.findChild(QDialogButtonBox)
@@ -173,18 +181,19 @@ def check_scenario(app, scenario):
                     assert origins.toPlainText().splitlines() == [
                         "http://existing", "http://unsaved", "http://imported"]
                     assert "pending" in status.text()
+                    assert history.text() == original_history
                     assert mode.currentIndex() == stack.currentIndex() == 1
                     assert fixed.value() == preferred.value() == server.port
                     assert "1 new website origin(s)" in status.text()
                     assert manager.addon_meta(ANKICONNECT_ID).enabled
                     assert server.sock is not None and timer.isActive()
                     assert writes == []
-                    if scenario == "restore":
+                    if scenario in ("restore", "restore_history"):
                         buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults).click()
                         assert "pending" not in status.text()
                         assert mode.currentIndex() == (1 if DEFAULTS["port"] else 0)
                         assert preferred.value() == DEFAULTS["prefer_port"]
-                role = (QDialogButtonBox.StandardButton.Save if scenario in ("save", "restore")
+                role = (QDialogButtonBox.StandardButton.Save if scenario in ("save", "restore", "restore_history")
                         else QDialogButtonBox.StandardButton.Cancel)
                 buttons.button(role).click()
             except Exception as exc:
@@ -199,6 +208,33 @@ def check_scenario(app, scenario):
              patch("aqt.utils.showWarning", lambda message, **kwargs: warnings.append(message)):
             QTimer.singleShot(0, exercise)
             dialog.open_settings(mw)
+            if scenario == "save" and not failures:
+                def inspect_saved_import():
+                    window = next(w for w in app.topLevelWidgets()
+                                  if isinstance(w, QDialog) and w.isVisible()
+                                  and w.windowTitle() == "Tsunagi Settings")
+                    try:
+                        history = window.findChild(QLabel, "ankiconnectImportHistory")
+                        assert "Last imported from AnkiConnect:" in history.text()
+                        button = window.findChild(QPushButton, "ankiconnectImport")
+                        assert button.text() == "Import settings again"
+                        status = window.findChild(QLabel, "ankiconnectStatus").text()
+                        assert status in ("Installed and disabled", "Not installed")
+                        assert button.isEnabled() == (status != "Not installed")
+                        if status == "Installed and disabled" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
+                            target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
+                            window.grab().save(str(target.with_stem(target.stem + "-imported")))
+                    except Exception as exc:
+                        traceback.print_exc()
+                        failures.append(exc)
+                    finally:
+                        window.reject()
+
+                QTimer.singleShot(0, inspect_saved_import)
+                dialog.open_settings(mw)
+                with patch.object(manager, "allAddons", return_value=[ADDON_PACKAGE]):
+                    QTimer.singleShot(0, inspect_saved_import)
+                    dialog.open_settings(mw)
         assert not failures, failures
         assert not warnings, warnings
         if scenario == "save":
@@ -213,13 +249,15 @@ def check_scenario(app, scenario):
                 tsunagi_listener.bind(("127.0.0.1", persisted["port"]))
                 tsunagi_listener.listen()
             assert persisted["ankiconnect_import_offered"] is True
+            assert persisted["ankiconnect_imported_at"]
         elif scenario == "preferred":
             persisted = manager.getConfig(ADDON_PACKAGE)
             assert persisted["port"] == 0 and persisted["prefer_port"] == 8888
             assert persisted["api_key"] == "existing-key"
             assert manager.addon_meta(ANKICONNECT_ID).enabled
-        elif scenario == "restore":
+        elif scenario in ("restore", "restore_history"):
             assert manager.addon_meta(ANKICONNECT_ID).enabled
+            assert manager.getConfig(ADDON_PACKAGE)["ankiconnect_imported_at"] == cfg["ankiconnect_imported_at"]
         else:
             assert writes == []
             assert manager.getConfig(ADDON_PACKAGE) == cfg
