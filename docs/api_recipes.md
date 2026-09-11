@@ -2,9 +2,12 @@
 
 [← Documentation](README.md) · [Install Tsunagi](../README.md#install)
 
-Yomitan turns a dictionary entry into an Anki note. Let's follow the requests
-behind three things you do in Yomitan: **choose a note type**, **check whether a
-word is already saved**, and **add it to Anki**.
+You look up **食べる** in Yomitan. Before you click anything, the popup needs to
+know whether it's already in Anki. If it is, the popup needs the existing note's
+ID. If you save a new note, it may also need the generated card IDs.
+
+Let's follow that data from Anki to the interface, starting with the note type
+you chose in settings.
 
 The AnkiConnect side below follows Yomitan's source at
 [`d34832d`](https://github.com/yomidevs/yomitan/tree/d34832d756e05dc00945e5b7d7ebc80963299a7a).
@@ -12,11 +15,11 @@ The native side shows how a client could implement the same workflow with
 Tsunagi. **Yomitan itself still uses AnkiConnect requests**; it can already send
 those to Tsunagi's compatibility API. This guide doesn't install a native Yomitan integration.
 
-| In Yomitan | Its AnkiConnect workflow | A native Tsunagi client could use |
+| What the interface needs | Yomitan's AnkiConnect workflow | With native Tsunagi |
 | --- | --- | --- |
-| Choose a deck and note type | `deckNames`, `modelNames`, then `modelFieldNames` for the selected type | Deck and model queries, with fields included in model results |
-| Check whether a word is saved | `canAddNotesWithErrorDetail`, then a lookup for duplicate note IDs | `POST /v1/notes:check`, which includes duplicate IDs |
-| Save the word | `addNote`, returning a note ID | `POST /v1/notes`, returning the note and generated card IDs |
+| Note types and their field names | Load names, then load fields when a type is selected | Load each type with its field names |
+| Duplicate status and existing note IDs | Check candidates, recognize duplicates in error text, then search for IDs | Read `state` and `duplicate_note_ids` from the check response |
+| New card IDs, when automatic suspension is enabled | Add the note, find its cards, then suspend them | Add the note, then suspend the returned cards |
 
 ## Try these examples
 
@@ -42,19 +45,15 @@ build the field-mapping controls. See the [settings controller](https://github.c
 and [field selection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170).
 
 The [AnkiConnect wrapper](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L208-L234)
-sends these action bodies to `POST /` (version/auth checks omitted here):
+sends actions to `POST /`. The note-type picker works in two stages:
 
-```json
-{"action":"deckNames","version":6}
-```
+| When | Action | Response data |
+| --- | --- | --- |
+| Settings load | `modelNames` | `["Basic", "Cloze", …]` |
+| You select Basic | `modelFieldNames` with `modelName: "Basic"` | `["Front", "Back"]` |
 
-```json
-{"action":"modelNames","version":6}
-```
-
-```json
-{"action":"modelFieldNames","version":6,"params":{"modelName":"Basic"}}
-```
+Deck names come from a separate `deckNames` action, loaded alongside the model
+names. Connection/version checks are omitted from the flows in this guide.
 
 **With native Tsunagi.** Fetch deck names with **`GET /v1/decks`** and note types
 with **`GET /v1/models`**:
@@ -74,18 +73,23 @@ The model query returns entries like:
 }
 ```
 
-**What changes for the app:** each model arrives with its field names attached,
-so selecting a model already loaded doesn't need another field-name request.
+The picker can now build Basic's field-mapping controls directly from
+`item.fields`. Switch to another model on the loaded page and its fields are
+already there too. `select` asks only for the ID, name and field names; templates
+and styling aren't needed for this control.
+
 Decks remain a separate query. Follow `next_cursor` when there are more pages;
 `limit=10` is a page size, not a limit on the collection's note types.
 
 ## 2. You look up a word that's already in Anki
 
-**What Yomitan does.** The backend checks candidate notes for duplicates through
-`canAddNotesWithErrorDetail`. For duplicates, it then looks up matching note IDs;
-it may also fetch additional information. This supports the existing-note behavior
-in the popup. See [duplicate detection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L659)
-and [assembling note information](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L705-L753).
+**The popup needs two answers:** is this candidate a duplicate, and which saved
+note does it match? A yes/no check alone can't supply the ID needed to open an
+existing note.
+
+**With AnkiConnect**, Yomitan first calls `canAddNotesWithErrorDetail`. Its
+[duplicate detection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L659)
+recognizes duplicates by checking the returned error text.
 
 For our example, the AnkiConnect check looks like this:
 
@@ -104,7 +108,25 @@ For our example, the AnkiConnect check looks like this:
 }
 ```
 
-**With native Tsunagi.** Send **`POST /v1/notes:check`**:
+For a duplicate, that response looks like:
+
+```json
+{
+  "result": [{
+    "canAdd": false,
+    "error": "cannot create note because it is a duplicate"
+  }],
+  "error": null
+}
+```
+
+There is no note ID in this result. Yomitan then
+[finds IDs for the duplicate candidates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L705-L753).
+Its [lookup helper](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L308-L364)
+builds Anki search queries and uses `findNotes` through `multi`. It already
+deduplicates queries and narrows searches for a batch of candidates.
+
+**With native Tsunagi**, send the candidate to **`POST /v1/notes:check`**:
 
 ```json
 {
@@ -118,7 +140,7 @@ For our example, the AnkiConnect check looks like this:
 }
 ```
 
-If the word is already present, a result includes:
+The response contains both answers:
 
 ```json
 {
@@ -131,13 +153,42 @@ If the word is already present, a result includes:
 }
 ```
 
-If it can be added, `can_add` is `true` and `duplicate_note_ids` is empty.
-The check doesn't add anything or reserve a note.
+| From this response | The popup has what it needs to… |
+| --- | --- |
+| `state: "duplicate"` | Recognize the duplicate without matching an error message |
+| `duplicate_note_ids: [1789162609990]` | Offer to open the saved note without searching for its ID |
+| `can_add: false` | Respect the requested `allowDuplicate: false` policy |
 
-**What changes for the app:** the check returns the duplicate IDs directly, so
-there's no separate ID lookup for this case. The client decides whether to offer
-viewing, updating or adding a duplicate. Keep the user's choice: don't treat every
-`can_add: false` as a duplicate; inspect `state` and `reason` for other problems.
+The request flow for this case becomes:
+
+```mermaid
+flowchart LR
+    subgraph ac["Yomitan with AnkiConnect"]
+        direction TB
+        A[Check candidate] --> B[Recognize duplicate in error text]
+        B --> C[Search for matching note IDs]
+        C --> D[Update popup with existing note IDs]
+    end
+    subgraph native["Native Tsunagi client"]
+        direction TB
+        E[Check candidate] --> F[Read state and duplicate_note_ids]
+        F --> G[Update popup with existing note IDs]
+    end
+```
+
+For several dictionary entries, put their candidates in the same `notes` array.
+Each result's `index` identifies its input candidate, with duplicate IDs attached
+to that result. Both APIs accept batches for the initial check; the difference
+here is that the native response also supplies the IDs.
+
+If the candidate can be added, `can_add` is `true`; for a new word, `state` is
+`"normal"` and `duplicate_note_ids` is empty. Other states can describe invalid
+fields or a missing note type. Keep those separate from duplicates when deciding
+what to show. The check doesn't add anything or reserve a note.
+
+This response covers duplicate status and IDs. Yomitan can also request note and
+card details through `notesInfo` followed by `cardsInfo`; a native client needing
+those details would still fetch them separately.
 
 The example deliberately uses collection-wide duplicate checking. A native port
 must also map Yomitan's configured duplicate scope and related options; don't
@@ -150,6 +201,15 @@ calls AnkiConnect's `addNote`. The returned note ID is used to update the popup'
 existing-note controls. If enabled, Yomitan also requests suspension of the new
 cards and a sync. See [the add-note handler](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/display/display-anki.js#L924-L961)
 and [the backend call](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L621-L623).
+
+Suppose you've enabled automatic suspension. Yomitan's
+[suspension handler](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816)
+must first find the cards generated from the new note:
+
+| API | Data flow when saving and suspending |
+| --- | --- |
+| AnkiConnect | `addNote` → note ID → `findCards` → card IDs → `suspend` |
+| Native Tsunagi | `POST /v1/notes` → note **and card IDs** → `POST /v1/cards:suspend` |
 
 The text-only AnkiConnect request is:
 
@@ -196,9 +256,10 @@ HTTP **201** returns the note in `result`, including:
 }
 ```
 
-**What changes for the app:** use `result.id` for the saved note and `result.cards`
-for any card follow-up, such as suspension. Suspension and sync remain separate,
-explicit requests. Keep them conditional on the user's settings.
+The popup uses `result.id` for its existing-note controls. The suspension step
+can use `result.cards` immediately, without a card-ID lookup. If suspension is
+disabled, there's no suspension request to make. Suspension and sync remain separate,
+explicit requests, conditional on the user's settings.
 
 To try the duplicate case in step 2, run its check again after saving this note.
 Run only one of the two create requests unless you intend to test duplicate rejection.
