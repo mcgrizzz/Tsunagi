@@ -166,12 +166,11 @@ def test_raw_store_values_do_not_create_files(client, col, params, error):
     assert list(Path(col.media.dir()).iterdir()) == []
 
 
-@pytest.mark.parametrize("malformed,error", [
-    (False, "'bool' object is not subscriptable"),
-    ("malformed", "string indices must be integers, not 'str'"),
-    (["malformed"], "list indices must be integers or slices, not str"),
-])
-def test_raw_attachment_failure_preserves_earlier_media(client, col, malformed, error):
+@pytest.mark.parametrize("malformed", [False, "malformed", ["malformed"]])
+def test_raw_attachment_failure_preserves_earlier_media(client, col, malformed):
+    # The shim preserves Python's error; its exact wording varies by version.
+    with pytest.raises(TypeError) as native_error:
+        malformed["filename"]
     note = col.new_note(col.models.by_name("Basic"))
     note["Front"], note["Back"] = "raw attachment test", "original"
     col.add_note(note, col.decks.id("Default"))
@@ -182,7 +181,7 @@ def test_raw_attachment_failure_preserves_earlier_media(client, col, malformed, 
             {"filename": "suffix.mp3", "data": "YXVkaW8=", "fields": ["Back"]},
         ]},
     }}).json()
-    assert reply == {"result": None, "error": error}
+    assert reply == {"result": None, "error": str(native_error.value)}
     assert col.get_note(note.id)["Back"] == "original"
     assert Path(col.media.dir(), "prefix.mp3").read_bytes() == b"audio"
     assert not Path(col.media.dir(), "suffix.mp3").exists()
