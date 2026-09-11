@@ -33,10 +33,11 @@ from ...shared.schemas.media import (
     MediaStored,
     MediaUpload,
 )
+from ...shared.version import ADDON_VERSION
 
 router = APIRouter()
 
-_UA = "Mozilla/5.0 (compatible; Tsunagi/0.0.1; +https://github.com/mcgrizzz/Tsunagi)"
+_UA = f"Mozilla/5.0 (compatible; Tsunagi/{ADDON_VERSION}; +https://github.com/mcgrizzz/Tsunagi)"
 
 
 def _stats(start: float) -> dict:

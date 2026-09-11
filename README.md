@@ -321,7 +321,8 @@ dependency and is never bundled. After the wheel cache is populated,
 
 ### Package for AnkiWeb
 
-Set the release version in `tools/version.py`, then run from the repository root:
+Keep the release version in `tools/version.py`, `tsunagi/shared/version.py` and
+`pyproject.toml` aligned, then run from the repository root:
 
 ```sh
 python tools/build_addon.py
