@@ -46,6 +46,12 @@ from fakes.anki_stubs import install, mw  # noqa: E402
 
 install()
 
+# Import the inner runtime package before pytest sets up the repository package.
+# Both directories are named "tsunagi" in the usual checkout. Without this,
+# selections with no collection-time runtime imports can bind the root add-on
+# bootstrap as sys.modules["tsunagi"], hiding tsunagi.adapters from fixtures.
+import tsunagi  # noqa: E402, F401
+
 
 @pytest.fixture()
 def col(tmp_path):

@@ -359,8 +359,20 @@ TSUNAGI_GUI_PYTHON=/path/to/qt-env/bin/python \
   python -m pytest -q tests/test_settings_dialog_qt.py
 ```
 
+The Scalar browser check needs a separate environment with Playwright and Chromium:
+
+```sh
+python -m pip install playwright
+python -m playwright install chromium
+```
+
+Set `TSUNAGI_BROWSER_PYTHON` to that environment's Python executable. Set both
+`TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` when running the full suite to
+include the optional Qt and browser checks. Tests for behavior specific to another
+Anki version will still skip.
+
 `tools/check_browser_startup.py`, `tools/check_add_cards.py` and other targeted
-Qt checks can also run with that interpreter. The shared Qt smoke harness creates
+Qt checks can also run with the Qt interpreter. The shared Qt smoke harness creates
 a temporary profile. Use disposable profiles for development and GUI experiments.
 Offscreen checks do not establish Windows foreground-window behavior.
 
