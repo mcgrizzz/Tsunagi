@@ -23,6 +23,15 @@ those to Tsunagi's compatibility API. This guide doesn't install a native Yomita
 
 ## Try these examples
 
+The pseudocode shows call order and how results feed the next step:
+
+- `AC(action, params)` sends an AnkiConnect action to **`POST /`** and unwraps
+  its result, including child results in `multi`.
+- `GET` and `POST` make native HTTP requests and return the decoded JSON.
+  `GET_PAGES` repeats a GET with the returned cursor until all pages are loaded.
+- UI helpers such as `showExisting` stand in for the client's interface code.
+  Connection checks, authentication and transport-error handling are omitted.
+
 Open the [interactive reference](http://127.0.0.1:7777/) while Anki is running.
 Use your configured port if different. Select the method/path below and use
 **Test Request** to enter the query parameters or JSON body.
@@ -44,24 +53,30 @@ in parallel. When a note type is selected, it requests that type's field names t
 build the field-mapping controls. See the [settings controller](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484)
 and [field selection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170).
 
-The [AnkiConnect wrapper](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L208-L234)
-sends actions to `POST /`. The note-type picker works in two stages:
+**AnkiConnect — actions sent to `POST /`:**
 
-| When | Action | Response data |
-| --- | --- | --- |
-| Settings load | `modelNames` | `["Basic", "Cloze", …]` |
-| You select Basic | `modelFieldNames` with `modelName: "Basic"` | `["Front", "Back"]` |
+```text
+when settings opens, in parallel:
+    decks = AC("deckNames")
+    models = AC("modelNames")
 
-Deck names come from a separate `deckNames` action, loaded alongside the model
-names. Connection/version checks are omitted from the flows in this guide.
+when the user selects a model:
+    fields = AC("modelFieldNames", {modelName: selectedModel})
+    showFieldMapping(fields)
+```
 
-**With native Tsunagi.** Fetch deck names with **`GET /v1/decks`** and note types
-with **`GET /v1/models`**:
+**Native Tsunagi:**
 
-| Request | Query parameters |
-| --- | --- |
-| `GET /v1/decks` | `select=id,name` and `limit=10` |
-| `GET /v1/models` | `select=id,name,fields[].name` and `limit=10` |
+```text
+when settings opens, in parallel:
+    decks = GET_PAGES("/v1/decks", {select: "id,name", limit: 10})
+    models = GET_PAGES("/v1/models", {
+        select: "id,name,fields[].name", limit: 10
+    })
+
+when the user selects a loaded model:
+    showFieldMapping(selectedModel.fields)   # already in the response
+```
 
 The model query returns entries like:
 
@@ -90,6 +105,45 @@ existing note.
 **With AnkiConnect**, Yomitan first calls `canAddNotesWithErrorDetail`. Its
 [duplicate detection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L659)
 recognizes duplicates by checking the returned error text.
+
+For this single-candidate example, `acNote` and `nativeNote` contain the word,
+meaning and duplicate options shown in the expandable request examples below.
+
+**AnkiConnect — actions sent to `POST /`:**
+
+```text
+check = AC("canAddNotesWithErrorDetail", {notes: [acNote]})[0]
+
+if check.error contains "cannot create note because it is a duplicate":
+    query = buildYomitanNoteSearch(acNote)
+    matches = AC("multi", {actions: [
+        {action: "findNotes", params: {query: query}}
+    ]})
+    showExisting(matches[0])                 # IDs from the second request
+else:
+    showValidation(check)
+```
+
+Yomitan's [lookup helper](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L308-L364)
+builds the search from the candidate's fields and scope. For multiple distinct
+queries, it can first search their union, then narrow the searches inside `multi`.
+The pseudocode above shows the one-candidate path.
+
+**Native Tsunagi:**
+
+```text
+check = POST("/v1/notes:check", {notes: [nativeNote]}).results[0]
+
+if check.state == "duplicate":
+    showExisting(check.duplicate_note_ids)   # IDs from the check itself
+else:
+    showValidation(check)
+
+setAddingAllowed(check.can_add)
+```
+
+<details>
+<summary>Request bodies and duplicate responses</summary>
 
 For our example, the AnkiConnect check looks like this:
 
@@ -122,9 +176,6 @@ For a duplicate, that response looks like:
 
 There is no note ID in this result. Yomitan then
 [finds IDs for the duplicate candidates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L705-L753).
-Its [lookup helper](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L308-L364)
-builds Anki search queries and uses `findNotes` through `multi`. It already
-deduplicates queries and narrows searches for a batch of candidates.
 
 **With native Tsunagi**, send the candidate to **`POST /v1/notes:check`**:
 
@@ -153,29 +204,13 @@ The response contains both answers:
 }
 ```
 
+</details>
+
 | From this response | The popup has what it needs to… |
 | --- | --- |
 | `state: "duplicate"` | Recognize the duplicate without matching an error message |
 | `duplicate_note_ids: [1789162609990]` | Offer to open the saved note without searching for its ID |
 | `can_add: false` | Respect the requested `allowDuplicate: false` policy |
-
-The request flow for this case becomes:
-
-```mermaid
-flowchart LR
-    subgraph ac["AnkiConnect"]
-        direction TB
-        A[Check candidate] --> B[Recognize duplicate in error text]
-        B --> C[Search for matching note IDs]
-        C --> D[Update popup with existing note IDs]
-    end
-    subgraph native["Native Tsunagi"]
-        direction TB
-        E[Check candidate] --> F[Read state and duplicate_note_ids]
-        F --> G[Update popup with existing note IDs]
-    end
-    ac ~~~ native
-```
 
 For several dictionary entries, put their candidates in the same `notes` array.
 Each result's `index` identifies its input candidate, with duplicate IDs attached
@@ -207,10 +242,30 @@ Suppose you've enabled automatic suspension. Yomitan's
 [suspension handler](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816)
 must first find the cards generated from the new note:
 
-| API | Data flow when saving and suspending |
-| --- | --- |
-| AnkiConnect | `addNote` → note ID → `findCards` → card IDs → `suspend` |
-| Native Tsunagi | `POST /v1/notes` → note **and card IDs** → `POST /v1/cards:suspend` |
+**AnkiConnect — actions sent to `POST /`:**
+
+```text
+noteId = AC("addNote", {note: acNote})
+showSaved(noteId)
+
+if settings.suspendNewCards:
+    cardIds = AC("findCards", {query: "nid:" + noteId})
+    if cardIds is not empty:
+        AC("suspend", {cards: cardIds})
+```
+
+**Native Tsunagi:**
+
+```text
+note = POST("/v1/notes", nativeNote).result
+showSaved(note.id)
+
+if settings.suspendNewCards and note.cards is not empty:
+    POST("/v1/cards:suspend", {cardIds: note.cards})
+```
+
+<details>
+<summary>Request bodies and save responses</summary>
 
 The text-only AnkiConnect request is:
 
@@ -262,7 +317,14 @@ can use `result.cards` immediately, without a card-ID lookup. If suspension is
 disabled, there's no suspension request to make. Suspension and sync remain separate,
 explicit requests, conditional on the user's settings.
 
+</details>
+
+The native save response supplies the card IDs for suspension. Both versions
+still make a separate suspension request only when the user enabled it. Optional
+sync is omitted from this pseudocode; it also remains a separate request.
+
 To try the duplicate case in step 2, run its check again after saving this note.
+If the example word is already saved, use a different word for the create request.
 Run only one of the two create requests unless you intend to test duplicate rejection.
 
 ## What a real native integration still needs
