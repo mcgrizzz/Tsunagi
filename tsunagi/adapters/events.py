@@ -85,12 +85,13 @@ class ApiOp:
     concurrent ops. After a dev reload an in-flight op still holding the old
     module's class maps to origin "ui" - harmless.
     """
-    __slots__ = ("details", "collection")
+    __slots__ = ("details", "collection", "changes")
 
     def __init__(self, details: Optional[Dict[str, Any]] = None, *,
                  collection: Any = None) -> None:
         self.details = dict(details or {})
         self.collection = collection
+        self.changes: Dict[str, Any] = {}
 
 
 class _Subscriber:
@@ -176,6 +177,11 @@ class EventBroker:
         """Hook callbacks skip payload/undo-label work when nobody is listening."""
         with self._lock:
             return bool(self._subscribers)
+
+    def has_change_subscribers(self) -> bool:
+        """Avoid preparing record payloads for review/sync-only listeners."""
+        with self._lock:
+            return any(sub.accepts("change", {}) for sub in self._subscribers.values())
 
     def publish(self, type: str, *, collection: Any = None, **payload: Any) -> None:
         """Fan out live events; reject a late operation from an old collection."""
@@ -363,7 +369,9 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     anki: dict = {"changes": flags}
     if label and handler is not None:
         anki["label"] = label
+    record_changes = handler.changes if isinstance(handler, ApiOp) else {}
     broker.publish("change",
+                   **({"changes": record_changes} if record_changes else {}),
                    collection=handler.collection if isinstance(handler, ApiOp) else None,
                    origin=origin, action=action,
                    targets=_targets(details), refresh=refresh_resources(flags),

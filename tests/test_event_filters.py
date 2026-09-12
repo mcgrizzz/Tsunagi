@@ -146,11 +146,11 @@ def test_filtered_subscriptions_do_not_cross_ready_or_session_boundaries(event_b
 
 
 @pytest.mark.parametrize("query", [
-    "types=", "types=REFRESH", "types=refresh,", "types=change",
+    "types=", "types=REFRESH", "types=refresh,", "types=unknown",
     "types=reset", "resources=", "resources=note", "resources=notes,,cards",
 ])
 def test_bad_filters_fail_before_opening_stream(client, event_broker, query):
-    response = client.get("/v1/events?" + query)
+    response = client.get("/v1/events?" + query + "&timeout=0.1")
     assert response.status_code == 422
     assert "comma-separated list" in response.json()["detail"]
     assert not event_broker.has_subscribers()

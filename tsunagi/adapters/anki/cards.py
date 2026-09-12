@@ -369,7 +369,8 @@ def _suspend(col: Collection, card_ids: Sequence[int]) -> Any:
 
 @as_collection_op(event_details=_ids_details)
 def suspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return ValueWithChanges(*_suspend(col, card_ids))
+    return ValueWithChanges(*_suspend(col, card_ids),
+                            event_changes=lambda: {"cards": {"fetch": list(card_ids)}})
 
 
 def _unsuspend(col: Collection, card_ids: Sequence[int]) -> Any:
@@ -381,7 +382,8 @@ def _unsuspend(col: Collection, card_ids: Sequence[int]) -> Any:
 
 @as_collection_op(event_details=_ids_details)
 def unsuspend_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return ValueWithChanges(*_unsuspend(col, card_ids))
+    return ValueWithChanges(*_unsuspend(col, card_ids),
+                            event_changes=lambda: {"cards": {"fetch": list(card_ids)}})
 
 
 def _bury(col: Collection, card_ids: Sequence[int]) -> Any:
@@ -391,7 +393,8 @@ def _bury(col: Collection, card_ids: Sequence[int]) -> Any:
 
 @as_collection_op(event_details=_ids_details)
 def bury_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return ValueWithChanges(*_bury(col, card_ids))
+    return ValueWithChanges(*_bury(col, card_ids),
+                            event_changes=lambda: {"cards": {"fetch": list(card_ids)}})
 
 
 def _unbury(col: Collection, card_ids: Sequence[int]) -> Any:
@@ -401,7 +404,8 @@ def _unbury(col: Collection, card_ids: Sequence[int]) -> Any:
 
 @as_collection_op(event_details=_ids_details)
 def unbury_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    return ValueWithChanges(*_unbury(col, card_ids))
+    return ValueWithChanges(*_unbury(col, card_ids),
+                            event_changes=lambda: {"cards": {"fetch": list(card_ids)}})
 
 
 def _forget(col: Collection, card_ids: Sequence[int], *,
