@@ -74,7 +74,9 @@ class Requests:
         response = self.send("POST", "/", json.dumps({"action": action, "version": 6, "params": params}).encode(), None)
         value = response.json()
         self.actions.append({"action": action, "milliseconds": (time.perf_counter() - start) * 1000,
-                             "response_bytes": len(response.content)})
+                             "response_bytes": len(response.content),
+                             "api_actions": ([child["action"] for child in params["actions"]]
+                                             if action == "multi" else [action])})
         if response.status_code != 200 or value.get("error"):
             raise RuntimeError(f"{action}: HTTP {response.status_code}: {value.get('error')}")
         return value["result"]
@@ -93,7 +95,7 @@ class Requests:
 
 
 def profile_counts(profiler):
-    backend, dispatch = Counter(), Counter()
+    backend, dispatch, anki_calls = Counter(), Counter(), Counter()
     functions = []
     for entry in profiler.getstats():
         code = entry.code
@@ -103,19 +105,22 @@ def profile_counts(profiler):
         functions.append({"function": f"{filename}:{code.co_firstlineno}:{code.co_name}",
                           "calls": entry.callcount, "self_ms": entry.inlinetime * 1000,
                           "cumulative_ms": entry.totaltime * 1000})
+        if ("/anki/" in filename and not filename.startswith(str(ROOT))
+                and not Path(filename).name.startswith("_backend")):
+            anki_calls[f"{Path(filename).name}:{code.co_qualname}"] += entry.callcount
         if "/anki/" in filename and Path(filename).name.startswith("_backend"):
             backend[code.co_name] += entry.callcount
         if filename.endswith("/fakes/anki_stubs.py") and code.co_name == "run_in_background":
             dispatch[code.co_qualname] += entry.callcount
-    return {"backend": dict(sorted(backend.items())), "fake_qt_dispatch": dict(dispatch),
+    return {"anki_api": dict(sorted(anki_calls.items())), "backend": dict(sorted(backend.items())), "fake_qt_dispatch": dict(dispatch),
             "top_self": sorted(functions, key=lambda row: row["self_ms"], reverse=True)[:30],
             "top_cumulative": sorted(functions, key=lambda row: row["cumulative_ms"], reverse=True)[:30]}
 
 
 def run_worker(config):
-    from .workloads import Workload
+    from .workloads import make_workload
     bootstrap()
-    workload = Workload(config["case"], config["implementation"])
+    workload = make_workload(config["case"], config["implementation"])
     samples = []
     fingerprints = set()
     with endpoint(config["implementation"], config["checkout"]) as send:

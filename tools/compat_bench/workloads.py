@@ -47,6 +47,10 @@ def note_spec(index, media):
 
 
 def seed_collection(col, case):
+    from .workflows import KINDS
+    from .workflows import seed_collection as seed_workflow
+    if case["kind"] in KINDS:
+        return seed_workflow(col, case)
     if case["kind"] == "read_cards":
         model = col.models.by_name("Basic")
         for i in range(case["size"]):
@@ -111,3 +115,8 @@ class Workload:
             assert (folder / name).read_bytes() == expected, f"media mismatch: {name}"
         assert {p.name for p in folder.iterdir() if not p.name.startswith(".")} == set(self.media)
         return digest(normalized)
+
+
+def make_workload(case, implementation):
+    from .workflows import KINDS, Workflow
+    return (Workflow if case["kind"] in KINDS else Workload)(case, implementation)
