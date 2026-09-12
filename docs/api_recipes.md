@@ -6,9 +6,10 @@ You look up **食べる** in Yomitan. Before you click anything, the popup needs
 know whether it's already in Anki. If it is, the popup needs the existing note's
 ID. If you save a new note, it may also need the generated card IDs.
 
-Start with the duplicate check, then follow a new note through saving and optional
-card suspension. The settings picker at the end shows a different choice: when
-to fetch the fields that the interface will need.
+Tsunagi can keep related work together inside Anki: reuse the note type and deck
+while checking a batch, return duplicate IDs with the check, and build a save
+response from the note it just created. The examples below show both the endpoint
+calls and the Anki work behind them.
 
 The AnkiConnect side below follows Yomitan's source at
 [`d34832d`](https://github.com/yomidevs/yomitan/tree/d34832d756e05dc00945e5b7d7ebc80963299a7a).
@@ -96,11 +97,37 @@ else:
 setAddingAllowed(check.can_add)
 ```
 
-For this already-saved word, the AnkiConnect path makes **two dependent HTTP
-requests**; the native path makes **one**. The client also no longer constructs a
-search query to recover the duplicate IDs. For a new word with no duplicate, both
-paths need only the initial check. These counts exclude connection checks and
-optional note/card details.
+**Inside Tsunagi: share the setup across the batch.** A dictionary popup can
+prepare several candidate notes using the same note type and deck. Send them in
+one `notes:check` request and Tsunagi resolves each distinct note type and deck
+once, then reuses them:
+
+```text
+POST /v1/notes:check with 10 candidates using Basic / Default
+    resolve Basic once
+    resolve Default once
+
+    for each candidate:
+        ask Anki to check its fields and duplicate status
+        if duplicate:
+            ask Anki's duplicate search for the matching note IDs
+        collect the state and IDs in that candidate's result
+
+    return all 10 results
+```
+
+The duplicate search uses Anki's note-type ID and first field directly. Yomitan
+therefore doesn't have to interpret a duplicate error, construct a separate Anki
+search string, and send it back to recover the IDs.
+
+For ten candidates sharing a note type and deck, the native adapter performs
+**one note-type resolution and one deck resolution**. Each candidate still gets
+its own validation and, when duplicate, an ID search. The shared setup is reused
+within this request, so it doesn't become a persistent cache that the client has
+to keep up to date.
+
+For one already-saved word, that also removes the second HTTP request. If the
+word is new, both APIs can finish with the initial check.
 
 <details>
 <summary>Request bodies and duplicate responses</summary>
@@ -279,21 +306,39 @@ explicit requests, conditional on the user's settings.
 
 </details>
 
-With suspension enabled and cards generated, the save-and-suspend path makes
-**three dependent requests** through AnkiConnect and **two** through native
-Tsunagi. If suspension is off, both save the note in **one request**. Optional
-sync is omitted from this pseudocode; it also remains a separate request.
+**Inside Tsunagi: use the note that's already in memory.** After Anki adds the
+note and generates its cards, Tsunagi builds the response from that same note
+object. It already knows the note type and fields. For the generated card IDs,
+it uses Anki's direct lookup for cards belonging to that note:
+
+```text
+POST /v1/notes
+    resolve the note type and deck
+    build and validate the note
+    Anki: add_note(note, deck_id)
+    Anki: card_ids_of_note(note.id)
+    return the existing note data together with those card IDs
+```
+
+Yomitan's current flow receives only a note ID, then sends `findCards` with a
+`nid:...` search before it can suspend the cards. The native save path gets those
+IDs through the direct Anki method and includes them immediately. It neither
+reloads the saved note nor calls Anki's browser card-search method to build this
+response.
+
+Suspension still changes the cards in a separate operation, conditional on the
+user's setting. The save-and-suspend flow uses two HTTP requests instead of three.
+Optional sync is omitted from the pseudocode and remains a separate request.
 
 To try the duplicate case in step 1, run its check again after saving this note.
 If the example word is already saved, use a different word for the create request.
 Run only one of the two create requests unless you intend to test duplicate rejection.
 
-## 3. Choosing when to load note-type fields
+## 3. Load note types together with their fields
 
-This example changes **when fields are fetched**. The client code stays similar,
-and native pagination needs its own handling. Fetching fields upfront can remove
-a wait when selecting a model; it also retrieves fields for models the user may
-never select.
+Anki stores a note type's name, fields and templates together in its model
+record. Tsunagi can return the parts needed for the field-mapping controls in the
+same result, so the client doesn't have to ask for the field names separately.
 
 **What Yomitan does.** Its settings controller fetches deck names and model names
 in parallel. When a note type is selected, it requests that type's field names to
@@ -342,14 +387,50 @@ Assuming each list fits in one page, the requests look like this:
 | Open settings | Two parallel requests: decks and models | Two parallel requests: decks and models with fields |
 | Select a model | One request for that model's fields | No request; read the loaded fields |
 
-The native example moves field loading into the initial model query. An
-AnkiConnect client could also prefetch and cache fields, using separate
-`modelFieldNames` actions, optionally grouped in `multi`.
+**Inside Tsunagi: shape the model data for the picker.** Once the model record
+is loaded through Anki's model manager, its field names are already there:
 
-`select` keeps the native response to IDs, names and field names. Decks still
-need their own query, and additional pages mean additional requests. `GET_PAGES`
-handles those pages; `limit=10` is a page size. This example alone doesn't establish
-lower total latency or simpler client code.
+```text
+GET /v1/models?select=id,name,fields[].name
+    load the Anki model records needed for the query
+    take each model's ID, name and field names
+    return them together; leave templates and styling out of the response
+```
+
+The picker receives a ready-to-use relationship: each model has its own fields.
+An AnkiConnect client can prefetch those too, but it needs a `modelFieldNames`
+action for each model and must combine the results itself. Putting those actions
+in `multi` batches their transport; they remain separate actions.
+
+The model record is still loaded internally; `select` trims the returned data.
+The benefit here is getting related information together and keeping unused
+model data out of the payload. Decks need a separate query, and `GET_PAGES`
+follows any additional pages. A page size of ten may also load fields for models
+the user never selects.
+
+<details>
+<summary>Implementation references and call checks</summary>
+
+- [Batch validation and duplicate lookup](../tsunagi/adapters/anki/notes.py#L120-L243):
+  the native adapter keeps request-local note-type/deck caches and uses Anki's
+  duplicate search to collect IDs.
+- [Note creation](../tsunagi/adapters/anki/notes.py#L251-L270) and
+  [response construction](../tsunagi/adapters/anki/notes.py#L49-L73): reuse the
+  created note and call `card_ids_of_note` for its card IDs.
+- [Model adapters](../tsunagi/adapters/anki/models.py#L27-L40): read Anki's model
+  records before the query response is projected to the requested fields.
+
+A disposable-collection check confirmed that ten distinct duplicate candidates
+sharing Basic / Default resolved the note type once and the deck once, with ten
+Anki duplicate-ID searches. A native save made one `card_ids_of_note` call, zero
+`find_cards` calls and zero `get_note` calls. These are adapter/API call counts,
+not SQL-query counts or a latency benchmark.
+
+These examples describe native requests. Existing Yomitan integrations can use
+Tsunagi's AnkiConnect compatibility API and its shared adapters, but retain
+Yomitan's separate action calls until the client adopts the native endpoints.
+
+</details>
 
 ## What a real native integration still needs
 
