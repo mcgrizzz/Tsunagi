@@ -98,7 +98,7 @@ def _rehydrate(
 
 def _keyset_scan(
     plan: Any,
-    limit: int,
+    limit: Optional[int],
     cursor: Optional[str],
     wants: Optional[set],
     id_getter: Callable[[Row], int],
@@ -108,13 +108,13 @@ def _keyset_scan(
     """
     _paged_scan for a plan whose source enumerates ids keyset-style
     (plan.page_ids): same pages, same cursors, same completeness guarantee,
-    but the full id list is never materialized. An unfiltered page is one id
-    query; a filtered one pulls id chunks until the page fills or a short
-    chunk says the ids ran out.
+    but the full id list is never materialized. A limited, unfiltered page is
+    one id query. Filtered and unlimited reads pull id chunks until the page
+    fills (if limited) or the ids run out.
     """
     last_key = decode_cursor(cursor).get("last_key")
 
-    if pred is None:
+    if pred is None and limit is not None:
         ids = [int(i) for i in plan.page_ids(last_key, limit + 1)]
         page_ids, more = ids[:limit], len(ids) > limit
         rows: List[Row] = []
@@ -128,20 +128,20 @@ def _keyset_scan(
     two_phase = wants is None and pred_wants is not None
     scan_wants = pred_wants if two_phase else wants
 
-    batch_size = max(min(limit, HYDRATE_CHUNK), 50)
+    batch_size = HYDRATE_CHUNK if limit is None else max(min(limit, HYDRATE_CHUNK), 50)
     out: List[Row] = []
     key = last_key
     exhausted = False
 
-    while not exhausted and len(out) < limit:
+    while not exhausted and (limit is None or len(out) < limit):
         chunk = [int(i) for i in plan.page_ids(key, batch_size)]
         if not chunk:
             break
         key = chunk[-1]
         exhausted = len(chunk) < batch_size
-        out.extend(r for r in plan.hydrate(chunk, scan_wants) if pred(_as_dict(r)))
+        out.extend(r for r in plan.hydrate(chunk, scan_wants) if pred is None or pred(_as_dict(r)))
 
-    if len(out) > limit:
+    if limit is not None and len(out) > limit:
         out = out[:limit]
         cur = encode_cursor({"last_key": id_getter(out[-1])})
     elif not exhausted and len(out) == limit:
@@ -155,7 +155,7 @@ def _keyset_scan(
 
 def _paged_scan(
     plan: Any,
-    limit: int,
+    limit: Optional[int],
     cursor: Optional[str],
     wants: Optional[set],
     id_getter: Callable[[Row], int],
@@ -181,7 +181,7 @@ def _paged_scan(
         ids = ids[bisect_right(ids, last_key):]   # sorted, so no linear scan
 
     if pred is None:
-        page_ids, more = ids[:limit], len(ids) > limit
+        page_ids, more = ids[:limit], limit is not None and len(ids) > limit
         rows: List[Row] = []
         for i in range(0, len(page_ids), HYDRATE_CHUNK):
             rows.extend(plan.hydrate(page_ids[i:i + HYDRATE_CHUNK], wants))
@@ -190,16 +190,16 @@ def _paged_scan(
     two_phase = wants is None and pred_wants is not None
     scan_wants = pred_wants if two_phase else wants
 
-    batch_size = max(min(limit, HYDRATE_CHUNK), 50)
+    batch_size = HYDRATE_CHUNK if limit is None else max(min(limit, HYDRATE_CHUNK), 50)
     out: List[Row] = []
     examined = 0
 
-    while examined < len(ids) and len(out) < limit:
+    while examined < len(ids) and (limit is None or len(out) < limit):
         chunk = ids[examined:examined + batch_size]
         examined += len(chunk)
         out.extend(r for r in plan.hydrate(chunk, scan_wants) if pred(_as_dict(r)))
 
-    if len(out) > limit:
+    if limit is not None and len(out) > limit:
         # Over-collected within a batch: cut to the page and resume from the
         # last INCLUDED row, so the surplus isn't skipped next time.
         out = out[:limit]
@@ -226,7 +226,7 @@ def _execute_query(
     select: Optional[str],
     where: Optional[List[str]],
     shape: Optional[str],
-    limit: int,
+    limit: Optional[int],
     cursor: Optional[str],
     caps: SourceCaps,
     id_getter: Callable[[Row], int],
@@ -348,7 +348,7 @@ def create_resource_routes(
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
         shape: Optional[str]  = Query(default="auto", description="Response shape: auto, object, or scalar"),
-        limit: int            = Query(default=1000, ge=1, description="Maximum results in this response; no fixed upper cap"),
+        limit: Optional[int] = Query(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap."),
         cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
     ) -> Any:
         """Query resource collection with URL parameters."""

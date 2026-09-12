@@ -38,14 +38,14 @@ def encode_cursor(state: dict) -> str:
 
 def paginate_keyset(
     items: Iterable[T],
-    limit: int,
+    limit: Optional[int],
     cursor: Optional[str],
     key_fn: Callable[[T], int],
 ) -> Tuple[List[T], Optional[str]]:
     state = decode_cursor(cursor)
     last_key = state.get("last_key")
 
-    lim = max(1, int(limit) if limit is not None else 1)
+    lim = max(1, int(limit)) if limit is not None else None
     out: List[T] = []
     page_last: Optional[int] = None
     more = False
@@ -54,7 +54,7 @@ def paginate_keyset(
         k = key_fn(it)
         if last_key is not None and k <= last_key:
             continue
-        if len(out) < lim:
+        if lim is None or len(out) < lim:
             out.append(it)
             page_last = k
         else:

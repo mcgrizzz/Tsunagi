@@ -131,7 +131,7 @@ def _resolve_upload(body: MediaUpload) -> tuple:
 def list_media_files(
     prefix: Optional[str] = Query(default=None, description="Only names starting with this"),
     suffix: Optional[str] = Query(default=None, description="Only names ending with this (e.g. '.mp3')"),
-    limit: int = Query(default=1000, ge=1, description="Maximum results in this response; no fixed upper cap"),
+    limit: Optional[int] = Query(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap."),
     cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
 ) -> MediaList:
     start = time.perf_counter()
@@ -146,7 +146,7 @@ def list_media_files(
     # int-only - doesn't apply).
     if last is not None:
         files = [f for f in files if f[0] > last]
-    page, more = files[:limit], len(files) > limit
+    page, more = files[:limit], limit is not None and len(files) > limit
     next_cursor = encode_cursor({"last_key": page[-1][0]}) if more and page else None
 
     return MediaList(
