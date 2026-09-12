@@ -1,4 +1,4 @@
-"""Public refresh subscriptions and delivery failures have different jobs."""
+"""Named data events, subscription boundaries and delivery gaps."""
 import asyncio
 
 import pytest
@@ -22,30 +22,26 @@ async def next_event(stream):
     return name, data, frame
 
 
-def test_notes_client_receives_changes_between_refresh_boundaries(event_broker):
+def test_notes_client_receives_queued_changes_after_ready(event_broker):
     async def consume():
         stream = await open_stream(resources="notes")
         try:
             # A change between subscription and initial delivery stays queued.
-            event_broker.publish("change", refresh=["notes", "cards"],
+            event_broker.publish("change", affected=["notes", "cards"],
                                  targets={"notes": [42], "cards": [99]},
                                  origin="api", action="collection.changed",
                                  anki={"changes": ["note"]})
             name, initial, frame = await next_event(stream)
-            assert name == "refresh"
-            assert initial["reason"] == "initial"
+            assert name == "ready"
             assert initial["resources"] == ["notes"]
-            assert initial["targets"] == {}
             assert initial["after_seq"] == 0
             assert "\nid:" not in frame
 
             name, change, _ = await next_event(stream)
-            assert name == "change"
-            assert change["changes"] == {}
-            assert change["refresh"] == ["notes"]
-            assert change["reason"] == "change"
-            assert change["resources"] == ["notes"]
-            assert change["targets"] == {"notes": [42]}
+            assert name == "notes.changed"
+            assert change["ids"] is None
+            assert change["reason"] == "details_unavailable"
+            assert "targets" not in change
             assert change["seq"] > initial["after_seq"]
             assert change["session_id"] == initial["session_id"]
             assert change["origin"] == "api"
@@ -53,13 +49,12 @@ def test_notes_client_receives_changes_between_refresh_boundaries(event_broker):
 
             event_broker.publish("sync", phase="finished")
             event_broker.publish("review", card_id=1, ease=3)
-            event_broker.publish("change", refresh=["config"])
+            event_broker.publish("change", affected=["config"])
             event_broker.publish("reset")
             name, broad, _ = await next_event(stream)
-            assert name == "refresh"
+            assert name == "notes.changed"
             assert broad["reason"] == "collection"
-            assert broad["resources"] == ["notes"]
-            assert broad["targets"] == {}
+            assert broad["ids"] is None
         finally:
             await stream.aclose()
         assert not event_broker.has_subscribers()
@@ -71,12 +66,15 @@ def test_notes_client_receives_changes_between_refresh_boundaries(event_broker):
     ("review", {"card_id": 42, "ease": 3}),
     ("sync", {"phase": "finished"}),
 ])
-def test_action_only_clients_receive_no_initial_or_broad_refresh(event_broker, type_, payload):
+def test_action_only_clients_get_ready_without_data_notifications(event_broker, type_, payload):
     async def consume():
         stream = await open_stream(types=type_, max_events=1)
+        name, ready, _ = await next_event(stream)
+        assert name == "ready"
+        assert ready["resources"] == []
         for _ in range(MAX_QUEUED + 1):
             event_broker.publish("reset")
-            event_broker.publish("change", refresh=["collection"])
+            event_broker.publish("change", affected=["collection"])
         event_broker.publish(type_, **payload)
         name, event, _ = await next_event(stream)
         assert name == type_
@@ -89,33 +87,33 @@ def test_action_only_clients_receive_no_initial_or_broad_refresh(event_broker, t
     asyncio.run(consume())
 
 
-def test_refresh_resources_are_intersected_with_each_change(event_broker):
+def test_resources_filter_each_named_change(event_broker):
     async def consume():
         stream = await open_stream(resources="notes,models")
         try:
             assert (await next_event(stream))[1]["resources"] == ["models", "notes"]
-            event_broker.publish("change", refresh=["notes", "cards"])
-            assert (await next_event(stream))[1]["resources"] == ["notes"]
+            event_broker.publish("change", affected=["notes", "cards"])
+            assert (await next_event(stream))[0] == "notes.changed"
             event_broker.publish("change", targets={})  # unknown affected views
-            assert (await next_event(stream))[1]["resources"] == ["models", "notes"]
+            assert (await next_event(stream))[0] == "models.changed"
+            assert (await next_event(stream))[0] == "notes.changed"
         finally:
             await stream.aclose()
 
     asyncio.run(consume())
 
 
-@pytest.mark.parametrize("types", ["refresh", "review", "refresh,review"])
-def test_delivery_gap_and_data_recovery_are_separate(event_broker, types):
-    wants_refresh = "refresh" in types
+@pytest.mark.parametrize("types", ["change", "review", "change,review"])
+def test_gap_reports_lost_messages_without_a_synthetic_data_change(event_broker, types):
+    wants_data = "change" in types
 
     async def consume():
-        stream = await open_stream(types=types, resources="notes" if wants_refresh else None,
+        stream = await open_stream(types=types, resources="notes" if wants_data else None,
                                    max_events=1)
-        if wants_refresh:
-            assert (await next_event(stream))[1]["reason"] == "initial"
+        assert (await next_event(stream))[0] == "ready"
         for _ in range(MAX_QUEUED + 1):
-            if wants_refresh:
-                event_broker.publish("change", refresh=["notes"])
+            if wants_data:
+                event_broker.publish("change", affected=["notes"])
             else:
                 event_broker.publish("review", card_id=42, ease=3)
         name, gap, frame = await next_event(stream)
@@ -124,23 +122,20 @@ def test_delivery_gap_and_data_recovery_are_separate(event_broker, types):
         assert gap["discarded"] == MAX_QUEUED + 1
         assert gap["after_seq"] == MAX_QUEUED + 1
         assert "\nid:" not in frame
-        assert "resources" not in gap
-        if wants_refresh:
-            name, recovery, frame = await next_event(stream)
-            assert name == "refresh"
-            assert recovery["reason"] == "recovery"
-            assert recovery["resources"] == ["notes"]
-            assert recovery["after_seq"] == gap["after_seq"]
-            assert recovery["targets"] == {}
-            assert "\nid:" not in frame
+        # Neither ready nor gap consumes the limit. The next frame describes
+        # this new operation, with no invented recovery/change frame in between.
+        if wants_data:
+            event_broker.publish("change", affected=["notes"],
+                                 changes={"notes": {"updated": [99]}})
+            name, update, _ = await next_event(stream)
+            assert name == "notes.updated"
+            assert update["ids"] == [99]
         else:
-            # The gap does not exhaust max_events, and recovery does not
-            # invent a refresh requirement for a client reacting to answers.
             event_broker.publish("review", card_id=99, ease=4)
-            name, review, _ = await next_event(stream)
+            name, update, _ = await next_event(stream)
             assert name == "review"
-            assert review["card_id"] == 99
-            assert review["seq"] > gap["after_seq"]
+            assert update["card_id"] == 99
+        assert update["seq"] > gap["after_seq"]
         assert (await next_event(stream))[:2] == ("close", {"reason": "max_events"})
         with pytest.raises(StopAsyncIteration):
             await stream.__anext__()
@@ -149,12 +144,12 @@ def test_delivery_gap_and_data_recovery_are_separate(event_broker, types):
 
 
 @pytest.mark.parametrize("transition", ["restart", "auth"])
-def test_gap_cannot_release_recovery_from_old_connection(event_broker, reset_settings, transition):
+def test_gap_cannot_resume_a_closed_connection(event_broker, reset_settings, transition):
     async def consume():
         stream = await open_stream(resources="notes")
-        await next_event(stream)  # initial refresh
+        await next_event(stream)  # ready
         for _ in range(MAX_QUEUED + 1):
-            event_broker.publish("change", refresh=["notes"])
+            event_broker.publish("change", affected=["notes"])
         assert (await next_event(stream))[0] == "gap"
         if transition == "restart":
             event_broker.start_session(object())
@@ -170,9 +165,9 @@ def test_gap_cannot_release_recovery_from_old_connection(event_broker, reset_set
     asyncio.run(consume())
 
 
-@pytest.mark.parametrize("types", ["review", "sync", "review,sync"])
+@pytest.mark.parametrize("types", ["review", "sync", "review,sync", "cards.updated"])
 def test_resource_filter_cannot_silently_do_nothing(client, event_broker, types):
     response = client.get("/v1/events", params={"types": types, "resources": "notes"})
     assert response.status_code == 422
-    assert response.json()["detail"] == "resources requires the change or refresh event type"
+    assert response.json()["detail"] == "types must match at least one selected data resource"
     assert not event_broker.has_subscribers()

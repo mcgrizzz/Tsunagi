@@ -28,7 +28,7 @@ def test_ready_captures_registration_boundary_without_becoming_a_notification():
     assert store.ready(a)["after_seq"] == 1
     assert store.ready(b)["after_seq"] == 2
     assert store.ready(a)["session_id"] == store.ready(b)["session_id"] == session
-    assert store.ready(a)["refresh"] == ["collection"]
+    assert "refresh" not in store.ready(a)
     assert "seq" not in store.ready(a)
     assert [e["seq"] for e in store.drain(a)] == [2]
     assert store.drain(b) == []
@@ -80,7 +80,7 @@ def test_old_collection_completion_cannot_publish_ids_in_new_profile():
     broker.start_session(old_collection)
     token = broker.subscribe()
     dispatch_op(OpChanges(note=True), old_op)
-    assert broker.drain(token)[0]["targets"] == {"notes": [42]}
+    assert broker.drain(token)[0]["ids"] is None
 
 
 def test_payload_cannot_override_session_or_sequence():
@@ -106,7 +106,7 @@ def test_suspended_generator_discards_remaining_batch(transition, reset_settings
         gen = response.body_iterator
         await gen.__anext__()  # retry/comment
         ready_frame = await gen.__anext__()
-        assert "event: refresh\n" in ready_frame
+        assert "event: ready\n" in ready_frame
         assert "\nid:" not in ready_frame
         broker.publish("review", card_id=1, ease=3)
         broker.publish("review", card_id=2, ease=3)

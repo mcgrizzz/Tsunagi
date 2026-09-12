@@ -24,7 +24,7 @@ def test_typing_burst_is_discarded_without_filling_queue(stream):
     assert broker.drain(token) == []
     assert broker.ready(broker.subscribe())["after_seq"] == 0
     events.dispatch_op(OpChanges(card=True), object())
-    assert [item["type"] for item in broker.drain(token)] == ["change"]
+    assert [item["type"] for item in broker.drain(token)] == ["notes.changed"]
 
 
 @pytest.mark.parametrize("handler", [None, events.ApiOp()])
@@ -88,7 +88,7 @@ def test_http_typing_does_not_consume_event_limit(client, stream, monkeypatch):
     monkeypatch.setattr(http_events, "broker", broker)
     response = client.get("/v1/events?resources=notes&max_events=1&timeout=1")
     initial, change, close = parse_frames(response.text)
-    assert initial[0] == "refresh"
-    assert change[0] == "change"
-    assert change[1]["changes"]["notes"] == {"fetch": [42], "remove": []}
+    assert initial[0] == "ready"
+    assert change[0] == "notes.created"
+    assert change[1]["ids"] == [42]
     assert close == ("close", {"reason": "max_events"})

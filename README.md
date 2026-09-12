@@ -29,7 +29,7 @@ goes beyond AnkiConnect's actions, including **access to Anki's FSRS tools**.
 | --- | --- |
 | **FSRS access** | Compute and evaluate FSRS parameters, and simulate study workload through the native API. |
 | **Undo in Anki** | Undo supported changes, such as note edits and card suspension, through the API or **Edit → Undo** (**Ctrl+Z** / **⌘Z**). Tsunagi uses Anki's collection operations so its windows update too. |
-| **Live change events** | Let your app refresh when collection changes arrive, with known IDs where available. See the [event guide](docs/events.md) for coverage. |
+| **Live change events** | React when notes or cards are created, updated or deleted, with affected IDs where available. See the [event guide](docs/events.md) for coverage. |
 | **Standard HTTP tooling** | Connect through FastAPI and Uvicorn, with validated requests, native HTTP status codes and an OpenAPI schema. Try native requests in the interactive reference. |
 
 Feature availability depends on your Anki version and settings. The
