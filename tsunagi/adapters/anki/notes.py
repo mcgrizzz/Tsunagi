@@ -250,7 +250,8 @@ def check_notes(col: Collection, candidates: List[Dict[str, Any]]) -> List[NoteC
 # Mutations
 # ====================
 
-def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any]) -> Any:
+def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any], *,
+                  include_duplicate_ids: bool = True) -> Any:
     """Build and validate one native note against the current collection."""
     note = col.new_note(nt)
     _apply_fields(note, _fields_to_map(req.fields), nt["name"])
@@ -262,7 +263,7 @@ def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any]) -> Any:
     if state == MISSING_CLOZE:
         raise ValidationError("cloze model requires at least one {{c1::...}} in a field")
     if state == DUPLICATE and not req.allow_duplicate:
-        raise DuplicateNoteError(_duplicate_ids(col, note))
+        raise DuplicateNoteError(_duplicate_ids(col, note) if include_duplicate_ids else [])
     return note
 
 

@@ -37,11 +37,11 @@ def create_notes(col: Collection, candidates: List[NoteCreate]) -> NoteBatchCrea
                 decks[deck_key] = _resolve_deck_id(col, req)
             # Validate immediately before adding: earlier successes in this
             # batch must participate in duplicate checks too.
-            note = _prepare_note(col, req, models[model_key])
+            note = _prepare_note(col, req, models[model_key], include_duplicate_ids=False)
             step = col.add_note(note, decks[deck_key])
-        except DuplicateNoteError as exc:
+        except DuplicateNoteError:
             failed.append(NoteCreateFailure(index=index, code="duplicate",
-                                            message=str(exc), duplicate_note_ids=exc.note_ids))
+                                            message="Note duplicates an existing note"))
             continue
         except ValidationError as exc:
             failed.append(NoteCreateFailure(index=index, code="invalid_note", message=str(exc)))
@@ -62,11 +62,12 @@ def create_notes(col: Collection, candidates: List[NoteCreate]) -> NoteBatchCrea
             # Merge after each write, before Anki's bounded undo history can
             # discard the first step. The returned flags cover the whole batch.
             changes = col.merge_undo_entries(target)
-        created.append(NoteCreated(index=index, id=int(note.id),
-                                   cards=list(col.card_ids_of_note(note.id))))
+        created.append(NoteCreated(index=index, id=int(note.id)))
 
     result = NoteBatchCreateResponse(created=created, failed=failed)
     return ValueWithChanges(result, changes, event_changes=lambda: {
         "notes": {"created": [note.id for note in created]},
-        "cards": {"created": [cid for note in created for cid in note.cards]},
+        # The operation runner evaluates this only for active change listeners.
+        # Card IDs are event details, not work every batch response must pay for.
+        "cards": {"created": [cid for note in created for cid in col.card_ids_of_note(note.id)]},
     })
