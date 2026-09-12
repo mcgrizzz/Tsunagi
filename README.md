@@ -31,6 +31,13 @@ Compatibility requests also use Tsunagi's internal routing and shared Anki
 adapters, so **existing tools may see performance benefits**. Any speedup depends
 on the requests and your collection.
 
+### Undo changes in Anki
+
+Tsunagi uses Anki's collection-operation system (`CollectionOp`) for changes such
+as note edits and card suspension. Anki updates its open windows and records the
+change in its undo history. **Undo supported changes through the API or Anki's
+Edit → Undo** — **Ctrl+Z**, or **⌘Z** on macOS.
+
 ### Build with fewer steps
 
 Tsunagi grew out of work on [Yomine](https://github.com/mcgrizzz/Yomine), where apps
@@ -43,6 +50,7 @@ names and their fields. Tsunagi can return those in one query.
 | **Search and page through results** | Find notes with Anki browser syntax and load a large result set a page at a time. |
 | **Follow collection activity** | Refresh your app when events arrive, instead of repeatedly checking for changes. |
 | **Try requests before coding** | Explore your collection through the interactive API reference. |
+| **Use standard HTTP tooling** | Native routes run on FastAPI and Uvicorn, with HTTP status codes, validated requests and an OpenAPI schema. |
 
 **[See it in practice → Yomitan walkthrough](docs/api_recipes.md)**
 
