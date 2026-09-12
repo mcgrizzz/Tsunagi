@@ -8,10 +8,10 @@ stdlib - protobuf OpChanges objects arrive duck-typed, so this module stays
 importable headless.
 
 Delivery is best-effort and live-only: each subscriber has a bounded queue,
-and a consumer that falls behind gets its oldest events dropped and a
-synthetic `reset {"reason": "lagged"}` on its next drain - clients must
-already handle `reset` (Anki fires it after sync and legacy mw.reset()), so
-overflow introduces no new failure mode.
+and a consumer that falls behind gets a `gap` replacing its incomplete
+backlog on the next drain. The HTTP layer follows that delivery notice with
+a scoped refresh for data subscribers. Anki's broad resets are separate
+data invalidations, relevant only to change subscribers.
 """
 from __future__ import annotations
 
@@ -110,10 +110,10 @@ class _Subscriber:
                       "refresh": ["collection"]}
 
     def accepts(self, type: str, payload: dict) -> bool:
-        # Reset is a delivery/session control, never an optional notification.
-        # Ready and close are emitted separately, outside subscriber queues.
+        # Anki's broad reset is a data invalidation, not a delivery failure.
+        # The HTTP layer presents both hook types as scoped refresh events.
         if type == "reset":
-            return True
+            type = "change"
         if self.types is not None and type not in self.types:
             return False
         if type != "change" or self.resources is None:
@@ -230,7 +230,7 @@ class EventBroker:
             return max(0.0, self._pending_edits.deadline - self._clock())
 
     def drain(self, token: int) -> List[Dict[str, Any]]:
-        """Pending events, or a reset replacing a queue with a delivery gap."""
+        """Pending events, or a gap replacing the incomplete subscriber backlog."""
         with self._lock:
             sub = self._subscribers.get(token)
             if sub is None:
@@ -239,12 +239,14 @@ class EventBroker:
             events = list(sub.queue)
             sub.queue.clear()
             if sub.dropped:
+                discarded = sub.dropped + len(events)
                 sub.dropped = 0
-                self._seq += 1
-                return [{"type": "reset", "seq": self._seq,
+                # Connection-local control: no global event ID. The boundary
+                # and discard happen under the same lock as live publication.
+                return [{"type": "gap", "after_seq": self._seq,
                          "session_id": self._session_id,
                          "ts": int(time.time() * 1000), "reason": "lagged",
-                         "refresh": ["collection"]}]
+                         "discarded": discarded}]
             return events
 
     def begin_drain(self, session_id: Optional[str] = None) -> None:

@@ -64,20 +64,20 @@ class TestBroker:
         token = store.subscribe()
         assert store.drain(token) == []
 
-    def test_overflow_drops_oldest_and_synthesizes_lagged_reset(self, store):
+    def test_overflow_discards_incomplete_backlog_and_reports_gap(self, store):
         token = store.subscribe()
         for i in range(MAX_QUEUED + 5):
             store.publish("review", card_id=i, ease=1)
         events = store.drain(token)
-        assert events[0] == {**events[0], "type": "reset", "reason": "lagged"}
+        assert events[0] == {**events[0], "type": "gap", "reason": "lagged"}
         assert len(events) == 1
-        assert events[0]["refresh"] == ["collection"]
-        reset_seq = events[0]["seq"]
+        assert events[0]["discarded"] == MAX_QUEUED + 5
+        gap_boundary = events[0]["after_seq"]
         # The lag was reported once; the next drain is clean.
         store.publish("review", card_id=99, ease=1)
         following = store.drain(token)
         assert [e["type"] for e in following] == ["review"]
-        assert following[0]["seq"] > reset_seq
+        assert following[0]["seq"] > gap_boundary
 
     def test_unsubscribe_stops_delivery(self, store):
         token = store.subscribe()
