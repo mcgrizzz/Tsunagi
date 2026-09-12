@@ -30,43 +30,41 @@ POLL_SECONDS = 0.25
 HEARTBEAT_SECONDS = 15.0
 
 _DESCRIPTION = """\
-Streams collection events as Server-Sent Events (`text/event-stream`).
+Streams collection notifications as Server-Sent Events (`text/event-stream`).
 
-Event types (each `data:` line is one JSON object with `seq` and `ts` epoch ms):
+- `change`: a completed mutation. `action` is `notes.created` or
+  `notes.updated` for identified UI saves, otherwise `collection.changed`.
+  `origin` is `api`, `ui`, or null when unknown. `targets` groups known IDs
+  by resource, e.g. `{"notes": [42]}`. These are hints, not an exhaustive
+  changed-record list. `refresh` names views that may need refreshing
+  (`notes`, `cards`, `models`, `decks`, `tags`, `reviews`, `scheduler`,
+  `config`, or `collection` for a broad refresh). Inspect `refresh` even
+  when targets are present: related records and query membership may change.
+  `anki.changes` preserves Anki's raw flags; optional `anki.label` is
+  localized display text, never an action identifier.
+- `review`: a reviewer answer, with `card_id` and `ease` (1–4). Also followed
+  by a general change notification.
+- `sync`: `phase` is `started` or `finished`; finished sync is followed by reset.
+- `reset`: `refresh: ["collection"]` requests a broad refresh.
+  `reason: "lagged"` means an overflowed queue was replaced by this reset.
+- `close`: the stream ends with `reason` equal to `shutdown`, `timeout`,
+  `max_events`, or `auth` (API key changed; reconnect using the current key).
 
-- `op` - a completed operation: `{"origin": "api"|"ui"|null, "changes": [...],
-  "label": "Update Note"}` where `changes` lists the true OpChanges flags
-  (card, note, deck, tag, notetype, config, study_queues, ...) and `label`
-  (when known) is the localized name of the operation. API-origin ops
-  additionally carry the ids the route knows - currently `note_ids` on note
-  update and delete (creation returns its id in the API response instead).
-  UI-origin ops structurally cannot carry ids - Anki's change events have
-  none - so for those treat `op` as an invalidation signal and requery,
-  e.g. `GET /v1/notes?search=edited:1`.
-- `review` - a card answered in Anki's reviewer: `{"card_id", "ease"}`.
-  Fires just before the matching `op`.
-- `sync` - `{"phase": "started"|"finished"}`; a finished sync is followed by
-  a `reset`.
-- `reset` - everything may have changed (Anki's legacy full refresh, or
-  `{"reason": "lagged"}` when this client fell behind and events were
-  dropped).
-- `close` - final frame before the stream ends:
-  `{"reason": "shutdown"|"timeout"|"max_events"|"auth"}`. `auth` means the
-  API key changed after this stream connected - reconnect with the current
-  key.
+Notifications contain `seq` and `ts` (Unix milliseconds); `close` frames
+carry only their reason. IDs are available for selected API mutations,
+notes saved in supported Anki editor paths, and notes added in the Add dialog.
+Editor IDs are captured from the operation/request and emitted only after
+success. General UI actions, undo and sync may lack target IDs. Add-dialog
+and newer-editor details supplement general change events; clients should
+coalesce refreshes, not count notifications as distinct mutations.
 
-`op.origin`: `"api"` is a change made through Tsunagi; `"ui"` is an Anki
-window acting on its own behalf; `null` means Anki did not attribute the
-operation to any window (many of its actions don't).
+Delivery is live-only and best-effort. There is no replay or collection-session
+identity yet. Fetch fresh data after reconnecting; Last-Event-ID does not resume
+missed notifications. Media/import coverage is incomplete, and direct database
+edits by another add-on may bypass hooks. This is not an exact collection replica.
 
-Delivery is live-only and best-effort - there is no replay. Browser
-`EventSource` cannot send headers, so this route also accepts the API key as
-the `api_key` query parameter. The `stats` envelope used by JSON routes does
-not apply to a stream.
-
-Not every change produces an event: media writes and import/export run
-outside Anki's change-tracking, and raw database edits by other addons are
-invisible. See the README for the full list.
+Browser EventSource cannot set custom headers; `api_key` is available as a
+query parameter. The `stats` envelope used by JSON routes does not apply.
 """
 
 

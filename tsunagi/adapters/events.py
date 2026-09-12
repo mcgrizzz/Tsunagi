@@ -18,6 +18,8 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Deque, Dict, List, Optional
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
@@ -74,6 +76,8 @@ class EventBroker:
 
     def publish(self, type: str, **payload: Any) -> None:
         """Fan an event out to every subscriber. Non-blocking; Qt-main safe."""
+        if type == "reset":
+            payload["refresh"] = ["collection"]
         with self._lock:
             self._seq += 1
             # Broker-owned keys last so no payload (e.g. attached op details)
@@ -86,8 +90,7 @@ class EventBroker:
                 sub.queue.append(event)
 
     def drain(self, token: int) -> List[Dict[str, Any]]:
-        """Pending events for `token`, prefixed with a lagged-reset if any
-        were dropped since the last drain. Unknown token -> empty."""
+        """Pending events, or a reset replacing a queue with a delivery gap."""
         with self._lock:
             sub = self._subscribers.get(token)
             if sub is None:
@@ -97,9 +100,11 @@ class EventBroker:
             if sub.dropped:
                 sub.dropped = 0
                 self._seq += 1
-                events.insert(0, {"type": "reset", "seq": self._seq,
-                                  "ts": int(time.time() * 1000),
-                                  "reason": "lagged"})
+                # Partial history is no longer sufficient. Do not put older
+                # sequence IDs after this reset; start fresh at this boundary.
+                return [{"type": "reset", "seq": self._seq,
+                         "ts": int(time.time() * 1000), "reason": "lagged",
+                         "refresh": ["collection"]}]
             return events
 
     # Server shutdown: stream generators poll is_draining() and close, which
@@ -128,6 +133,54 @@ class EventBroker:
 # Module singleton, mirroring adapters.jobs.jobs.
 broker = EventBroker()
 
+# Only populated while one specific, successful UI completion callback runs.
+# Match its exact OpChanges object, so nested/unrelated operations cannot
+# inherit the edited note's identity.
+_ui_change: ContextVar[Any] = ContextVar("tsunagi_ui_change", default=None)
+
+
+@contextmanager
+def ui_change_context(changes: Any, action: str, note_ids: List[int]):
+    token = _ui_change.set((changes, action, tuple(note_ids)))
+    try:
+        yield
+    finally:
+        _ui_change.reset(token)
+
+
+_REFRESH = {
+    # Notes, cards and reviews all accept Anki search, so a note/deck/tag
+    # change can alter a review query without changing a single revlog row.
+    "note": {"notes", "cards", "reviews", "tags", "models"},
+    "note_text": {"notes", "cards", "reviews"},
+    "card": {"cards", "notes", "reviews", "decks", "scheduler"},
+    "deck": {"decks", "cards", "notes", "reviews", "scheduler"},
+    "notetype": {"models", "notes", "cards", "reviews"},
+    "tag": {"tags", "notes", "cards", "reviews"},
+    "config": {"config", "cards", "notes", "reviews", "scheduler"},
+    "deck_config": {"decks", "config", "cards", "notes", "reviews", "scheduler"},
+    "study_queues": {"cards", "notes", "reviews", "scheduler"},
+}
+_UI_FLAGS = {"mtime", "browser_table", "browser_sidebar"}
+
+
+def refresh_resources(flags: List[str]) -> List[str]:
+    """Conservative view invalidation, including related data and future flags."""
+    resources: set[str] = set()
+    for flag in flags:
+        if flag in _REFRESH:
+            resources.update(_REFRESH[flag])
+        elif flag not in _UI_FLAGS:
+            return ["collection"]
+    return sorted(resources) if resources else ["collection"]
+
+
+def _targets(details: dict) -> dict:
+    return {resource: list(dict.fromkeys(details[key]))
+            for key, resource in (("note_ids", "notes"), ("card_ids", "cards"),
+                                  ("deck_ids", "decks"), ("model_ids", "models"))
+            if details.get(key)}
+
 
 def _changed_flags(changes: Any) -> List[str]:
     """True flags of an OpChanges, by descriptor - version-proof. The "kind"
@@ -144,7 +197,7 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
       changed" (legacy mw.reset(), fired after sync) -> `reset`
     - no flags true -> dropped (indistinguishable from a no-op; Tsunagi ops
       whose backend call returns no OpChanges land here)
-    - otherwise -> `op`, with origin "api" for Tsunagi's own mutations.
+    - otherwise -> `change`, with origin "api" for Tsunagi's own mutations.
     `label` comes from Anki's undo status. Only use it when a handler
     identifies the operation: after an untagged undo it names the next
     undoable action, not the change that just completed.
@@ -162,15 +215,39 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
         origin = None
     else:
         origin = "ui"
-    payload: dict = {"origin": origin, "changes": flags}
+    details = handler.details if isinstance(handler, ApiOp) else {}
+    action = "collection.changed"
+    ui = _ui_change.get()
+    if not isinstance(handler, ApiOp) and ui is not None and ui[0] is changes:
+        origin = "ui"
+        action = ui[1]
+        details = {"note_ids": ui[2]}
+    anki: dict = {"changes": flags}
     if label and handler is not None:
-        payload["label"] = label
-    if isinstance(handler, ApiOp):
-        # Identity the route attached (note_ids, ...). setdefault so details
-        # can never clobber the core keys.
-        for key, value in handler.details.items():
-            payload.setdefault(key, value)
-    broker.publish("op", **payload)
+        anki["label"] = label
+    broker.publish("change", origin=origin, action=action,
+                   targets=_targets(details), refresh=refresh_resources(flags),
+                   anki=anki)
+
+
+def publish_note_change(note_ids: List[int], action: str,
+                        changes: Any = None) -> None:
+    """A confirmed UI save whose own hook/response supplies the note IDs.
+
+    This supplements general operation notifications; it never suppresses
+    them, since they may cover additional side effects.
+    """
+    ids = list(dict.fromkeys(int(nid) for nid in note_ids if int(nid) > 0))
+    if not ids or not broker.has_subscribers():
+        return
+    flags = _changed_flags(changes) if changes is not None else []
+    if changes is not None and not getattr(changes, "note", False):
+        return
+    refresh = refresh_resources(flags) if flags else []
+    if "collection" not in refresh:
+        refresh = sorted(set(refresh) | {"notes", "cards", "tags", "models"})
+    broker.publish("change", origin="ui", action=action, targets={"notes": ids},
+                   refresh=refresh, anki={"changes": flags})
 
 
 def publish_review(card_id: int, ease: int) -> None:
