@@ -299,11 +299,12 @@ class TestSearchParam:
         # `client` fixture has no SearchSpec
         assert client.get("/v1/things", params={"search": "x"}).status_code == 400
 
-    def test_unfiltered_page_hydrates_in_bounded_chunks(self):
+    @pytest.mark.parametrize("method", ["GET", "POST"])
+    def test_unfiltered_page_hydrates_in_bounded_chunks(self, method):
         # Hydration runs inside an op with a wall-clock timeout, so a big page
         # must not be fetched in one call - each slice needs its own budget.
         # The page itself must still come back whole and in order.
-        rows = [{"id": i, "name": f"r{i}"} for i in range(1, 601)]
+        rows = [{"id": i, "name": f"r{i}"} for i in range(1, 6002)]
         chunks = []
 
         def hydrate(ids, wants=None):
@@ -319,9 +320,13 @@ class TestSearchParam:
             id_getter=make_id_getter("id"),
             resource_name="thing", resource_plural="things", tag="Things",
         ))
-        body = TestClient(app).get("/v1/things", params={"limit": 600}).json()
+        client = TestClient(app)
+        response = (client.get("/v1/things", params={"limit": 6001}) if method == "GET" else
+                    client.post("/v1/things/query", json={"limit": 6001}))
+        assert response.status_code == 200
+        body = response.json()
 
-        assert [r["id"] for r in body["items"]] == list(range(1, 601))
+        assert [r["id"] for r in body["items"]] == list(range(1, 6002))
         assert body["next_cursor"] is None
         assert len(chunks) > 1 and max(chunks) <= HYDRATE_CHUNK
 
