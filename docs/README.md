@@ -17,6 +17,7 @@ For installation and connection setup, start with the [project README](../README
 
 - [Development](development.md): build, test, sync and package the add-on.
 - [Request dataflow](dataflow/README.md): how routes reach the planner and Anki.
+- [API benchmarks](benchmarks.md): current measurements and how to reproduce them.
 - [Manual release checks](manual_testing.md): checks that need a real desktop UI.
 
 ## Historical records
