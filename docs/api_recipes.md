@@ -75,8 +75,8 @@ uses it to build a `nid:...` browser search, gets the card IDs, then suspends th
 **What Tsunagi returns together:** the saved note and its card IDs. It reads the
 persisted note once, so the response includes Anki’s normalized fields, tags and
 metadata, and obtains the cards through Anki’s direct `card_ids_of_note()` method.
-No browser card search is needed. [Event subscribers](events.md) can receive that
-same note result without another lookup.
+No browser card search is needed. [Event subscribers](events.md) receive the
+new note and card IDs and can fetch whichever contents they need.
 
 The client takes `result.cards` from the save response and passes them to the
 suspend endpoint. **Three requests become two.** Saving without suspension is

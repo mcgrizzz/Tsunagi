@@ -77,7 +77,7 @@ else:
             from .tsunagi.adapters.ui_events import install
             install()
         except Exception:
-            print("[tsunagi] editor event setup failed:\n" + traceback.format_exc())
+            print("[tsunagi] add-note event setup failed:\n" + traceback.format_exc())
         try:
             _start_dev_watch()
         except Exception:
@@ -112,10 +112,9 @@ else:
     # dispatch pointed at the live module across reload_addon()'s purge.
     def _on_op_executed(changes, handler=None) -> None:
         try:
-            from .tsunagi.adapters.events import broker, dispatch_op
-            # Nobody listening -> do nothing, not even the label fetch. The
-            # editor fires one Update Note op per keystroke, so this runs hot.
-            if not broker.has_subscribers():
+            from .tsunagi.adapters.events import broker, dispatch_op, is_ui_text_update
+            # Skip typing before fetching undo labels or preparing event data.
+            if not broker.has_subscribers() or is_ui_text_update(changes, handler):
                 return
             # OpChanges carries flags but no identity; the undo label ("Update
             # Note", "Answer Card", ...) names the op that just completed and
@@ -139,8 +138,8 @@ else:
 
     def _on_note_added(note) -> None:
         try:
-            from .tsunagi.adapters.events import publish_note_change
-            publish_note_change([note.id], "notes.created")
+            from .tsunagi.adapters.events import publish_note_added
+            publish_note_added([note.id])
         except Exception:
             pass
 

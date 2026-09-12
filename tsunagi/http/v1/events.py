@@ -35,82 +35,87 @@ CHANGE_RESOURCES = frozenset({
 })
 
 _DESCRIPTION = """\
-Streams live collection changes as Server-Sent Events (`text/event-stream`).
+Streams change notifications as Server-Sent Events (`text/event-stream`).
 
-Connect with `?resources=notes` to receive saved notes directly when available.
-Handle `change.changes.notes.upsert` by inserting/replacing complete native note
-records, `fetch` by reading those IDs, and `remove` by removing IDs now absent.
-The same keys apply under `changes.cards`. `change.refresh` lists subscribed
-resources whose affected records could not be fully identified. Reload the
-views you display for those resources. Input/context `targets` are only hints,
-not confirmed changes or deletion instructions.
+Connect with `?resources=notes` to receive note IDs. Events do not include full
+notes, card contents or media. Read those through the normal API, choosing the
+fields you need with select.
 
-### Coverage
+### Handle a change
 
-Native note creation/patch supplies the existing save response. Native creation
-also supplies generated card IDs to fetch. Compatibility note creation/field
-updates supply saved note IDs; note deletion supplies IDs now absent. Card
-suspend/unsuspend/bury/unbury supply IDs to fetch. Supported editor/Add saves
-supply saved note IDs, after typing debounce. Other changes use scoped refresh.
-Related resources may still need refreshing even when a note record is included.
-A fetch ID can be unchanged or missing; reconcile missing IDs with your store.
-Native saves read back the persisted note once to include backend normalization.
-Events share that result without per-subscriber reads or card rendering. Snapshots
-exceeding 64 KiB become fetches; over 1,000 IDs per resource falls back to refresh.
+- `changes.notes.fetch`: read these note IDs, then update your app's copies.
+- `changes.notes.remove`: remove these IDs from your app; they are now absent.
+- `refresh`: repeat your displayed query for these resources because the event
+  cannot identify every affected record. It never contains notes if changes.notes
+  is present in the same message. The same rules apply to changes.cards.
+
+A fetch ID can be unchanged or missing. Follow all query pages and remove IDs
+that are no longer found. ID lists over 1,000 per resource use refresh instead.
+Input/context targets are only hints, not confirmed changes or deletion instructions.
+
+### Which actions are reported?
+
+Native note creation/patch and compatibility note creation/field updates supply
+note IDs to fetch. Native creation also supplies generated card IDs. Note deletion
+supplies IDs now absent. Individual suspend/unsuspend/bury/unbury calls supply card
+IDs. Add-dialog saves supply new note IDs. Other operations use scoped refresh
+when IDs aren't known; related resources can still need their own refresh.
+
+Text-only note edits made inside Anki, including typing, are excluded. There is
+no typing debounce or later finished-typing notification. API edits and undo still
+produce events. UI operations affecting other data, such as card creation or tag
+changes, and unknown future change flags are not excluded by the text-edit filter.
+Anki saves are unaffected; the exclusion applies only to these notifications.
 
 ### Filters
 
-- `resources`: comma-separated notes, cards, models, decks, tags, reviews,
-  scheduler, config. Defaults to collection changes for just those resources.
-- `types`: comma-separated change, refresh, review, sync. `change` selects the
-  record-aware form; `refresh` alone selects invalidations without records.
-  Selecting both delivers each change once, in the richer form. Combining types
+- resources: comma-separated notes, cards, models, decks, tags, reviews,
+  scheduler, config. Supplying resources selects changes for just those resources.
+- types: comma-separated change, refresh, review, sync. change selects ID-based
+  notifications; refresh alone asks for reload requests without specific IDs.
+  Selecting both delivers each change once, with IDs when known. Combining types
   with resources requires change or refresh. Omit both filters for all activity.
-  Empty/unknown/incompatible values return HTTP 422.
+  Empty, unknown or incompatible values return HTTP 422.
 - Filtering occurs before the subscriber queue. Related changes still count:
-  for example, a deck rename can affect note queries using Anki search.
+  a deck rename can affect note queries using Anki search.
 
-`review` contains card_id and ease (1 Again, 2 Hard, 3 Good, 4 Easy). `sync`
-contains phase started/finished. Review/sync-only streams don't request data loads.
+review contains card_id and ease (1 Again, 2 Hard, 3 Good, 4 Easy). sync contains
+phase started/finished. Review/sync-only streams don't request data loads.
 
 ### Initial load and recovery
 
-Data subscriptions start with `refresh` reason initial. Broad Anki invalidations
+Data subscriptions start with refresh reason initial. Broad Anki invalidations
 use reason collection. Queue overflow discards the incomplete backlog and emits
-`gap` (reason lagged, discarded count), followed by scoped `refresh` reason
-recovery. The same refresh handler can reload your displayed view in each case;
-no reset acknowledgement or whole-collection download is required. Review/sync-only
-streams receive gap without refresh: answer counters must mark delivery incomplete.
-The invalidation-only mode also uses refresh reason change for ordinary mutations.
+gap (reason lagged, discarded count), followed by refresh reason recovery.
+Use the same handler to reload your displayed query each time. No acknowledgement
+or whole-collection download is required. Review/sync-only streams receive gap
+without refresh; answer counters must mark delivery incomplete. The refresh-only
+mode also uses reason change for ordinary mutations.
 
 ### Ordering and connections
 
-Apply records in stream order. Coordinate asynchronous HTTP loads so an older
-response cannot overwrite newer events: if a change arrives during a load, mark
-the view dirty and re-read afterward. Discard outstanding loads on disconnect.
-Re-evaluate filtered queries/pages when membership, sorting or counts may change:
-record coverage does not imply query membership stayed the same.
+HTTP reads return current data, not a historical copy from the event. If a change
+arrives during a read, arrange another read afterward so an older response cannot
+leave your display out of date. Discard outstanding loads on disconnect. Rerun
+filtered queries/pages when membership, sorting or counts may change.
 
-Live events carry session_id, seq, ts (Unix milliseconds); SSE ID is
-`<session_id>:<seq>`. Initial/recovery refreshes and gaps instead carry after_seq
+Live events carry session_id, seq and ts (Unix milliseconds); SSE ID is
+<session_id>:<seq>. Initial/recovery refreshes and gaps instead carry after_seq
 and no SSE ID. Registration and the initial boundary are atomic; subsequent live
 events have larger seq. Filtering can leave normal sequence gaps. Separate HTTP
 reads are not atomic snapshots. Event IDs are shared, payloads scoped by resource.
 
 Delivery is best-effort and live-only: Last-Event-ID does not replay events.
 Reconnects always receive an initial refresh. Server restarts/profile switches
-create a new session and close old streams. `close` reports shutdown, auth (API
-key changed), timeout or max_events. Initial refresh and gap don't count toward
+create a new session and close old streams. close reports shutdown, auth (API key
+changed), timeout or max_events. Initial refresh and gap don't count toward
 max_events; recovery refresh does. Heartbeat comments keep idle connections alive.
 No active session returns HTTP 503. Browser EventSource may use api_key when it
 cannot set an authentication header.
 
-Ordinary saved-editor notifications wait for 300 ms of quiet, with a 1-second
-maximum during continuous typing. Other activity flushes pending edits first.
-API writes bypass debounce. General/detailed UI notifications can overlap;
-notification counts are not mutation counts. Undo/general UI/sync may lack IDs,
-media/import coverage is incomplete, and direct database writes by other add-ons
-may bypass hooks. Optional origin/action/anki fields are diagnostics.
+General and detailed Add-dialog notifications can overlap; event counts are not
+mutation counts. Media/import coverage is incomplete, and direct database writes
+by other add-ons may bypass hooks. Optional origin/action/anki fields are diagnostics.
 """
 
 
@@ -142,18 +147,17 @@ def _refresh_event(event: dict, resources: FrozenSet[str], reason: str) -> dict:
 
 
 def _change_event(event: dict, resources: FrozenSet[str]) -> dict:
-    """Apply known record changes; invalidate only the uncovered resources."""
+    """Provide known IDs; request a reload only for uncovered resources."""
     result = _refresh_event(event, resources, "change")
     selected = set(result["resources"])
     changes = {key: value for key, value in event.get("changes", {}).items()
                if key in selected}
-    # Saved-editor hooks report real note IDs after success. Project them here,
-    # after the broker has coalesced typing notifications, without reading Anki.
+    # Add-dialog hooks report the new note's ID after success.
     if ("notes" in selected and "notes" not in changes
             and event.get("origin") == "ui"
-            and event.get("action") in {"notes.created", "notes.updated"}
+            and event.get("action") == "notes.created"
             and event.get("targets", {}).get("notes")):
-        changes["notes"] = {"upsert": [], "fetch": event["targets"]["notes"], "remove": []}
+        changes["notes"] = {"fetch": event["targets"]["notes"], "remove": []}
     result.update(type="change", changes=changes,
                   refresh=sorted(selected.difference(changes)))
     return result
@@ -288,9 +292,6 @@ def stream_events(
                     yield ": ping\n\n"
                     last_beat = now
                 delay = POLL_SECONDS
-                edit_delay = broker.seconds_until_edit_flush(token)
-                if edit_delay is not None:
-                    delay = min(delay, edit_delay)
                 if timeout is not None:
                     delay = min(delay, max(0.0, timeout - (now - start)))
                 await asyncio.sleep(delay)
