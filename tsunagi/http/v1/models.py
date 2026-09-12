@@ -1,4 +1,5 @@
 import time
+from functools import partial
 
 from fastapi import Body
 
@@ -14,6 +15,7 @@ from ...adapters.anki.models import (
     delete_template,
     find_and_replace_in_models,
     get_model_ids,
+    get_model_names_and_counts,
     get_model_names_and_ids,
     get_models_by_ids,
     get_models_by_names,
@@ -64,24 +66,25 @@ mutation_caps = MutationCaps(
 )
 
 caps = SourceCaps(
-    scan=ScanSpec(find_ids=get_model_ids, hydrate=get_models_by_ids),
+    scan=ScanSpec(find_ids=get_model_ids, hydrate=partial(get_models_by_ids, include_counts=True)),
     indices=[
         # Faster simply because we don't call get() on all models
         IndexSpec(
             path=("id",),
-            fetch_values=get_models_by_ids,
+            fetch_values=partial(get_models_by_ids, include_counts=True),
             coerce=lambda v: int(v) if isinstance(v, (int, str)) and str(v).isdigit() else None
         ),
         # Same as above but 1 total extra query
         IndexSpec(
             path=("name",),
             fetch_values=lambda xs, wants=None: get_models_by_names(
-                [str(x) for x in xs if x is not None], wants
+                [str(x) for x in xs if x is not None], wants, include_counts=True
             ),
         ),
     ],
     columns_fetchers={
         frozenset({"id", "name"}): get_model_names_and_ids,  # Fastest because this only runs 1 SQL query under the hood
+        frozenset({"id", "name", "note_count"}): get_model_names_and_counts,
     },
     mutations=mutation_caps,
 )
@@ -99,7 +102,10 @@ router = create_resource_routes(
     resource_name="model",
     resource_plural="models",
     tag="Models",
-    description="Note types define the structure of cards in Anki."
+    description="Note types define the structure of cards in Anki. Select note_count "
+                "for the live number of notes using each type across all decks, or "
+                "filter with where=note_count>0. Counts are included in full native "
+                "query results; name/ID-only queries do not calculate them."
 )
 
 
