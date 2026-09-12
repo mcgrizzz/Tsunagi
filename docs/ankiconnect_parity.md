@@ -163,6 +163,12 @@ or GUI state matches upstream.
 | `updateNoteModel` | implemented |  |
 | `updateNoteTags` | implemented |  |
 
+Plain-note batches sent to `canAddNotes` or `canAddNotesWithErrorDetail` share
+note-type and deck lookups within bounded groups of 64 candidates. Every
+candidate still gets its own validation and result; no lookup cache survives
+that operation. Requests containing media keep the individual validation path
+and its existing media side effects.
+
 ### Media Actions
 
 | Action | Status | Notes |

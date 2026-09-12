@@ -27,6 +27,7 @@ from ....adapters.anki.compat_only import (
 from ....adapters.anki.notes import (
     ac_add_note,
     ac_check_note,
+    ac_check_notes,
     ac_stage_note_media,
     ac_update_note_fields,
     ac_validate_note,
@@ -195,14 +196,13 @@ def ac_addNotes(p: AddNotesParams) -> List[int]:
 
 @registry.register("canAddNotes", params=AddNotesParams)
 def ac_canAddNotes(p: AddNotesParams) -> List[bool]:
-    return [ok for ok, _err in (_can_add(spec) for spec in _iter_notes(p.notes))]
+    return [ok for ok, _err in _can_add_many(p.notes)]
 
 
 @registry.register("canAddNotesWithErrorDetail", params=AddNotesParams)
 def ac_canAddNotesWithErrorDetail(p: AddNotesParams) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    for spec in _iter_notes(p.notes):
-        ok, err = _can_add(spec)
+    for ok, err in _can_add_many(p.notes):
         # Success has NO "error" key
         out.append({"canAdd": True} if ok else {"canAdd": False, "error": err})
     return out
@@ -224,6 +224,30 @@ def _can_add(spec):
         return True, None
     except Exception as e:
         return False, str(e)
+
+
+_CHECK_BATCH_SIZE = 64
+
+
+def _can_add_many(notes):
+    # Only choose a faster route here; leave validation and unusual containers
+    # to the existing path. Even an empty attachment key retains media semantics.
+    if not (type(notes) is list and all(
+        type(spec) is dict and not any(kind in spec for kind in _MARKUP)
+        for spec in notes
+    )):
+        for spec in _iter_notes(notes):
+            yield _can_add(spec)
+        return
+    for offset in range(0, len(notes), _CHECK_BATCH_SIZE):
+        chunk = notes[offset:offset + _CHECK_BATCH_SIZE]
+        try:
+            results = ac_check_notes(chunk)
+        except Exception as exc:
+            # Same per-input error envelope as _can_add, without retrying an
+            # operation which may still be running after the request timed out.
+            results = [(False, str(exc))] * len(chunk)
+        yield from results
 
 
 @registry.register("updateNoteFields", params=UpdateNoteFieldsParams)
