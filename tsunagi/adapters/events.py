@@ -21,6 +21,7 @@ from collections import deque
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Deque, Dict, List, Optional
+from uuid import uuid4
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 
@@ -34,18 +35,25 @@ class ApiOp:
     concurrent ops. After a dev reload an in-flight op still holding the old
     module's class maps to origin "ui" - harmless.
     """
-    __slots__ = ("details",)
+    __slots__ = ("details", "collection")
 
-    def __init__(self, details: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, details: Optional[Dict[str, Any]] = None, *,
+                 collection: Any = None) -> None:
         self.details = dict(details or {})
+        self.collection = collection
 
 
 class _Subscriber:
-    __slots__ = ("queue", "dropped")
+    __slots__ = ("queue", "dropped", "ready")
 
-    def __init__(self) -> None:
+    def __init__(self, session_id: str, after_seq: int) -> None:
         self.queue: Deque[Dict[str, Any]] = deque(maxlen=MAX_QUEUED)
         self.dropped = 0
+        # Registration and its boundary are captured under the publish lock.
+        # Kept outside the bounded queue, so overflow cannot displace ready.
+        self.ready = {"type": "ready", "session_id": session_id,
+                      "after_seq": after_seq, "ts": int(time.time() * 1000),
+                      "refresh": ["collection"]}
 
 
 class EventBroker:
@@ -54,39 +62,59 @@ class EventBroker:
         self._seq = 0
         self._subscribers: Dict[int, _Subscriber] = {}
         self._next_token = 1
-        self._draining = False
+        self._draining = True
+        self._session_id: Optional[str] = None
+        self._collection: Any = None
 
-    def subscribe(self) -> int:
+    def start_session(self, collection: Any) -> str:
+        """Start a server/collection lifetime; old tokens stay closed forever."""
         with self._lock:
+            self._subscribers.clear()
+            self._session_id = uuid4().hex
+            self._collection = collection
+            self._seq = 0
+            self._draining = False
+            return self._session_id
+
+    def subscribe(self) -> Optional[int]:
+        with self._lock:
+            if self._draining or self._session_id is None:
+                return None
             token = self._next_token
             self._next_token += 1
-            self._subscribers[token] = _Subscriber()
+            self._subscribers[token] = _Subscriber(self._session_id, self._seq)
             return token
+
+    def ready(self, token: int) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            sub = self._subscribers.get(token)
+            return dict(sub.ready) if sub is not None else None
 
     def unsubscribe(self, token: int) -> None:
         with self._lock:
             self._subscribers.pop(token, None)
 
     def has_subscribers(self) -> bool:
-        """Hook callbacks (Qt main thread) check this first so a session
-        with no stream open pays one lock acquisition per op and nothing
-        else - not even the undo_status() label fetch."""
+        """Hook callbacks skip payload/undo-label work when nobody is listening."""
         with self._lock:
             return bool(self._subscribers)
 
-    def publish(self, type: str, **payload: Any) -> None:
-        """Fan an event out to every subscriber. Non-blocking; Qt-main safe."""
+    def publish(self, type: str, *, collection: Any = None, **payload: Any) -> None:
+        """Fan out live events; reject a late operation from an old collection."""
         if type == "reset":
             payload["refresh"] = ["collection"]
         with self._lock:
+            if self._draining:
+                return
+            if (collection is not None and self._collection is not None
+                    and collection is not self._collection):
+                return
             self._seq += 1
-            # Broker-owned keys last so no payload (e.g. attached op details)
-            # can clobber them.
             event = {**payload, "type": type, "seq": self._seq,
-                     "ts": int(time.time() * 1000)}
+                     "session_id": self._session_id, "ts": int(time.time() * 1000)}
             for sub in self._subscribers.values():
                 if len(sub.queue) == sub.queue.maxlen:
-                    sub.dropped += 1  # deque drops the oldest on append
+                    sub.dropped += 1
                 sub.queue.append(event)
 
     def drain(self, token: int) -> List[Dict[str, Any]]:
@@ -100,34 +128,28 @@ class EventBroker:
             if sub.dropped:
                 sub.dropped = 0
                 self._seq += 1
-                # Partial history is no longer sufficient. Do not put older
-                # sequence IDs after this reset; start fresh at this boundary.
                 return [{"type": "reset", "seq": self._seq,
+                         "session_id": self._session_id,
                          "ts": int(time.time() * 1000), "reason": "lagged",
                          "refresh": ["collection"]}]
             return events
 
-    # Server shutdown: stream generators poll is_draining() and close, which
-    # is what lets stop_server's join(5) succeed with streams open.
-    def begin_drain(self) -> None:
+    def begin_drain(self, session_id: Optional[str] = None) -> None:
+        """Close streams, unless this is a late shutdown from an older server."""
         with self._lock:
+            if session_id is not None and session_id != self._session_id:
+                return
             self._draining = True
+            self._subscribers.clear()
+            self._collection = None
 
-    def end_drain(self) -> None:
+    def is_draining(self, token: Optional[int] = None) -> bool:
         with self._lock:
-            self._draining = False
-
-    def is_draining(self) -> bool:
-        with self._lock:
-            return self._draining
+            return self._draining or (token is not None and token not in self._subscribers)
 
     def reset(self) -> None:
-        """Test helper - drop everything."""
-        with self._lock:
-            self._seq = 0
-            self._subscribers.clear()
-            self._next_token = 1
-            self._draining = False
+        """Test helper: start an isolated, unbound session with no subscribers."""
+        self.start_session(None)
 
 
 # Module singleton, mirroring adapters.jobs.jobs.
@@ -225,7 +247,9 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     anki: dict = {"changes": flags}
     if label and handler is not None:
         anki["label"] = label
-    broker.publish("change", origin=origin, action=action,
+    broker.publish("change",
+                   collection=handler.collection if isinstance(handler, ApiOp) else None,
+                   origin=origin, action=action,
                    targets=_targets(details), refresh=refresh_resources(flags),
                    anki=anki)
 

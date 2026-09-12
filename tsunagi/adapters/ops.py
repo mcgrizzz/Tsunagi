@@ -263,7 +263,7 @@ def collection_op_run_async(
         # can attribute the change to the API rather than Anki's own UI, and
         # carry any identity the adapter attached (note_ids etc.).
         try:
-            op.run_in_background(initiator=ApiOp(event_details))
+            op.run_in_background(initiator=ApiOp(event_details, collection=collection))
         except TypeError:
             op.run_in_background()  # older signature without initiator
 
@@ -316,7 +316,7 @@ def as_collection_op(
     Decorator: run function via CollectionOp (off UI thread), block for result.
     Bare (`@as_collection_op`) or parameterized: `event_details` is called
     with the wrapper's arguments (i.e. without `col`) and its dict rides on
-    the op's event-stream record - how note ids get onto `op` events.
+    the op's event-stream record - how note ids get onto `change` events.
     """
     def decorate(f: Callable[Concatenate[Collection, P], R]) -> Callable[P, R]:
         @wraps(f)
