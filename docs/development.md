@@ -121,23 +121,32 @@ or `--refresh` to download them again; these options cannot be combined.
 
 ## GitHub releases
 
-The [Release workflow](../.github/workflows/release.yml) runs when you push a version
-tag such as `v0.1.0`. Commit the matching version values first, then push the tag:
+To prepare a release on GitHub, commit matching versions in `tools/version.py`,
+`tsunagi/shared/version.py` and `pyproject.toml`, then push your changes. Open
+**Actions → Release → Run workflow**, select **main**, and run it. The workflow
+uses the declared version (for example, `0.1.0` becomes `v0.1.0`).
+
+You can also start the [Release workflow](../.github/workflows/release.yml) by
+pushing a version tag yourself:
 
 ```sh
 git tag -a v0.1.0 -m "Tsunagi 0.1.0"
 git push origin v0.1.0
 ```
 
-The workflow checks the tag against all three version declarations, runs the
-existing CI matrix on Anki 23.10 and current Anki, then builds the package. It
+The workflow checks all three version declarations, runs the existing CI matrix
+on Anki 23.10 and current Anki, then builds the package. A tag-triggered run also
+checks that the tag matches the declared version. After validation, a manual run
+creates the version tag at the exact commit it tested, if the tag doesn't exist. It
 creates a **draft GitHub release** with generated release notes, the `.ankiaddon`
 and its checksum attached. Review the draft and publish it when ready. AnkiWeb
 upload remains a separate step using the same `.ankiaddon` file.
 
-To retry, rerun the workflow or manually run **Release** against the existing tag
+To retry the same release, rerun its workflow or manually run **Release** against the existing tag
 (for example, `gh workflow run release.yml --ref v0.1.0`). Reruns update assets on
-an existing draft; published releases are left intact. The workflow uses GitHub's
+an existing draft; published releases are left intact. An existing tag must point
+to the tested commit: running from a newer `main` commit requires a new version,
+not reusing the old tag. The workflow uses GitHub's
 built-in token, so no additional release secret is needed. Optional Qt/browser
 checks remain separate from the CI matrix; run them [before tagging](#tests).
 
