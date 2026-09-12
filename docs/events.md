@@ -9,6 +9,9 @@ Anki is running, using your configured port:
 curl -N http://127.0.0.1:7777/v1/events
 ```
 
+Apps opt in by opening this connection. Subscriptions currently receive all
+event types; type/resource filters are not yet available.
+
 If authentication is enabled, send `X-API-Key` or a Bearer token. Browser
 `EventSource` cannot set custom headers; it can use the `api_key` query parameter.
 
@@ -50,6 +53,31 @@ are view categories, not instructions to download every record or URL paths.
 Unknown future Anki flags conservatively request a collection refresh.
 Related query membership counts too: changing a note's tags can change a
 review-history query using that tag, even though no review row was modified.
+
+## While you type
+
+Ordinary Anki editor changes are **debounced**: Tsunagi sends notifications after
+**300 ms without another edit**, or after **1 second of continuous editing**.
+These are notification deadlines; network and task scheduling can add delivery
+time. Anki still saves normally, and queries read the current collection.
+
+A burst can update several notes. Notifications with the same action and
+compatible Anki metadata combine their target IDs and refresh hints. General
+`collection.changed` and detailed `notes.updated` notifications stay distinct,
+so a newer-editor burst can produce both. They do not represent a notification
+per keystroke or a record of every intermediate field value.
+
+API writes, reviews, undo/unknown-origin operations, known creation/deletion and
+changes affecting other resources bypass the typing debounce. Such events flush
+waiting edits first. A new subscriber also flushes earlier edits **before** its
+`ready` boundary; an input-count limit can flush an unusually large burst early.
+Shutdown discards pending edits as it closes subscriptions; reconnecting always
+requires a fresh read.
+
+Sequence IDs are assigned after grouping, so listeners receive the same event
+ID and payload. The stream wakes for the next debounce deadline instead of
+adding a full polling interval to that deadline. `max_events` counts delivered
+notifications, including grouped ones.
 
 ## Which changes have IDs?
 

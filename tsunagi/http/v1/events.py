@@ -64,6 +64,15 @@ success. General UI actions, undo and sync may lack target IDs. Add-dialog
 and newer-editor details supplement general change events; clients should
 coalesce refreshes, not count notifications as distinct mutations.
 
+Ordinary UI note/text edits are debounced for 300 ms of quiet, with a 1-second
+maximum during continuous editing (delivery is subject to scheduling/network
+delay). Matching actions/Anki metadata combine target IDs and refresh hints.
+General and detailed editor notifications stay distinct. Other activity flushes
+pending edits first; API writes, reviews, undo/unknown origins, known
+creation/deletion and changes affecting other resources bypass this debounce.
+A new subscription also flushes prior edits before its ready boundary. An input
+limit may flush large bursts early. Anki saves and reads are not delayed.
+
 Registration and `ready.after_seq` are captured atomically; queued notifications
 have greater sequence numbers. A server restart or profile switch creates a new
 random session ID and closes old subscriptions. Reconnecting to the same running
@@ -163,7 +172,13 @@ def stream_events(
                 if now - last_beat >= HEARTBEAT_SECONDS:
                     yield ": ping\n\n"
                     last_beat = now
-                await asyncio.sleep(POLL_SECONDS)
+                delay = POLL_SECONDS
+                edit_delay = broker.seconds_until_edit_flush(token)
+                if edit_delay is not None:
+                    delay = min(delay, edit_delay)
+                if timeout is not None:
+                    delay = min(delay, max(0.0, timeout - (now - start)))
+                await asyncio.sleep(delay)
         finally:
             broker.unsubscribe(token)
 
