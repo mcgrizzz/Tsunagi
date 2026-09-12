@@ -83,6 +83,10 @@ upstream checkout. The broad audit is not part of the maintained test suite.
 
 </details>
 
+For opt-in bulk performance comparisons against upstream AnkiConnect, see the
+[benchmark guide](benchmarks.md). These use disposable collections and stay outside
+the routine test suite.
+
 ## Sync to a development installation
 
 Install a built package first. To copy source changes into a chosen development
