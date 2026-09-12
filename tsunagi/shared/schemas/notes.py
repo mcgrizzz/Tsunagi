@@ -125,14 +125,12 @@ class NoteBatchCreateRequest(BaseModel):
 class NoteCreated(BaseModel):
     index: int = Field(description="Zero-based position in the submitted notes array.")
     id: int
-    cards: List[int]
 
 
 class NoteCreateFailure(BaseModel):
     index: int = Field(description="Zero-based position in the submitted notes array.")
     code: str = Field(description="duplicate, invalid_note, or anki_error.")
     message: str
-    duplicate_note_ids: List[int] = Field(default_factory=list)
 
 
 class NoteBatchCreateResponse(BaseModel):

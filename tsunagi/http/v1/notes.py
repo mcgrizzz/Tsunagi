@@ -85,7 +85,7 @@ def check(body: NoteCheckRequest = Body(..., description="Candidate notes")) -> 
     summary="Create multiple notes",
     description=(
         "Processes notes in input order. Valid notes are saved even when another note is rejected. "
-        "Returns created note/card IDs and failures, each with its zero-based input index. "
+        "Returns created note IDs and failures, each with its zero-based input index. "
         "Duplicates include earlier successes in this batch. All successful additions form one undo step. "
         "Malformed request bodies return 422 before any notes are added. "
         "Upload media separately and reference the returned filenames in fields."
