@@ -1,164 +1,135 @@
-# Event stream
+# Update your app when Anki changes
 
 [← Documentation](README.md)
 
-When a note is saved through Tsunagi’s native API, a subscriber can receive the
-saved note in the event itself. Put it into your interface’s data store—there is
-no need to fetch that note again.
+`GET /v1/events` keeps a connection open and sends messages when something
+changes in Anki. Your app can listen for note changes, card changes, reviewer
+answers, or sync progress.
 
-When a complete record isn’t available, the event gives you IDs to fetch. A
-broader refresh is the fallback when Anki doesn’t identify the affected records.
+## Connect
 
-## Subscribe to what you use
-
-Anki must be running. Use your configured port if different:
+Start Anki, then run:
 
 ```sh
 curl -N 'http://127.0.0.1:7777/v1/events?resources=notes'
 ```
 
-| I want… | Query | Notifications |
-| --- | --- | --- |
-| Note changes | `resources=notes` | `change`, plus `refresh` when needed |
-| Note and card changes | `resources=notes,cards` | Same, scoped to those resources |
-| Reviewer answers | `types=review` | `review`, with `card_id` and `ease` |
-| Sync progress | `types=sync` | `sync`, with `phase: started/finished` |
+Leave this running. It prints messages about notes as they arrive. Use your
+configured port if it isn't `7777`.
 
-Filtering happens before your queue: unrelated traffic cannot fill it.
-
-## Apply a saved note directly
-
-A `change` event separates the work your client can do:
-
-| Field | What to do |
+| To listen for… | Use |
 | --- | --- |
-| `changes.notes.upsert` | Insert or replace these complete note records. They use the native API’s note response shape. |
-| `changes.notes.fetch` | Fetch these IDs; the event doesn’t contain their records. |
-| `changes.notes.remove` | Remove these IDs from your data store; they are now absent. |
-| `refresh` | Reload your displayed query for these resources. Their affected records weren’t fully identified. |
+| Note changes | `?resources=notes` |
+| Card changes | `?resources=cards` |
+| Both | `?resources=notes,cards` |
+| Reviewer answers | `?types=review` |
+| Sync starting or finishing | `?types=sync` |
 
-Cards use the same keys under `changes.cards`. For a native note save, the note
-is in `upsert` and `refresh` does **not** include `notes`.
+## What should your app do?
 
-This JavaScript illustrates the handling; the data-store and fetch helpers belong
-to your app:
+For notes, handle two message names: **`change`** and **`refresh`**.
+
+A `change` message tells you what to update:
+
+| In the message | Meaning | Your app should… |
+| --- | --- | --- |
+| `changes.notes.upsert` | Here are the saved notes, including fields and tags. | Add each note to its stored notes, or replace the note with the same ID. |
+| `changes.notes.fetch` | Here are note IDs, but no note contents. | Fetch those notes from the API. |
+| `changes.notes.remove` | These note IDs no longer exist. | Remove them from its stored notes. |
+| `refresh: ["notes"]` | The message cannot identify every affected note. | Run the request that loaded its note list again. |
+
+`upsert` means **add or replace**. For cards, the same fields appear under
+`changes.cards`.
+
+For example, suppose your app shows **note 123**:
+
+- **You edit it through the native API.** The saved note arrives in
+  `changes.notes.upsert`. Replace your copy of note 123 with this note. You
+  already have its new fields and tags; there is no follow-up note request.
+- **You edit it in Anki's editor.** When the editor reports the saved note's ID,
+  it arrives in `changes.notes.fetch`. Fetch note 123 to get its new contents.
+- **You delete it through Tsunagi.** Its ID arrives in `changes.notes.remove`.
+  Remove note 123 from your app too.
+
+A separate `refresh` message asks your app to load its notes. You receive one
+when you first connect, reconnect, or when Anki reports a change without enough
+information to update individual notes. Use the same note-list request your app
+already uses; you don't need to download the whole collection.
+
+## Handling the messages
+
+In this example, `notesById` is a JavaScript Map containing your app's notes.
+The three helper functions are code you write: fetch notes by ID, reload your
+note list, and draw the notes on screen.
 
 ```js
 const events = new EventSource("http://127.0.0.1:7777/v1/events?resources=notes");
 
 events.addEventListener("change", ({data}) => {
-    const event = JSON.parse(data);
-    const notes = event.changes.notes;
+    const message = JSON.parse(data);
+    const notes = message.changes.notes;
+
     if (notes) {
         for (const note of notes.upsert) notesById.set(note.id, note);
         for (const id of notes.remove) notesById.delete(id);
         if (notes.fetch.length) fetchNotesById(notes.fetch);
     }
-    if (event.refresh.includes("notes")) reloadDisplayedNotes();
-    renderNotes();
+
+    if (message.refresh.includes("notes")) reloadNoteList();
+    drawNotes();
 });
 
-events.addEventListener("refresh", () => reloadDisplayedNotes());
+events.addEventListener("refresh", () => reloadNoteList());
 ```
 
-`refresh` also supplies the initial load and recovery after a reconnect. It asks
-for your app’s current view, not the whole collection. Ordinary saved-editor
-notifications keep the typing debounce: 300 ms of quiet, at most one second
-while typing continues. API writes arrive without that debounce.
+For `fetch: [123,456]`, request `/v1/notes` with the query parameter
+`where=id in [123,456]`. Follow any returned pages. If an ID is no longer found,
+remove it from your app. Redraw after the fetched notes arrive.
 
 <details>
-<summary>Which operations supply records or IDs?</summary>
+<summary>Which actions send notes, IDs, or a reload request?</summary>
 
-| Operation | Useful event data |
+| Action | Message contents |
 | --- | --- |
-| Native note creation or patch | Full note in `upsert`, reused from the save response |
-| Native note creation | Generated card IDs in `changes.cards.fetch` |
-| AnkiConnect-compatible note creation or field update | Saved note ID in `fetch` |
-| Note deletion, native or compatibility API | Note IDs in `remove` |
-| Suspend, unsuspend, bury, unbury | Card IDs in `fetch` |
-| Supported editor/Add-dialog saves | Saved note IDs in `fetch`, after any typing debounce |
-| Other operations, general UI activity, undo, sync | Scoped refresh where precise coverage is unavailable |
+| Create or edit a note through the native API | Saved note in `upsert` |
+| Create or update note fields through the AnkiConnect compatibility API | Note ID in `fetch` |
+| Delete notes through either API | Note IDs in `remove` |
+| Create a note through the native API | Its new card IDs in `changes.cards.fetch` |
+| Call suspend, unsuspend, bury, or unbury for cards | Card IDs in `fetch` |
+| Save a note in Anki’s editor or Add dialog | Note IDs in `fetch` |
+| Undo, sync, or another change without note/card IDs | Request to reload the note/card list |
 
-A `fetch` list can include an unchanged or missing ID. Read the listed records,
-and remove IDs no longer found. For example, query `/v1/notes` with
-`where=id in [123,456]` and follow pagination. `remove` means the ID is absent
-after successful removal; it doesn’t claim every ID existed beforehand.
+One message can do both: deleting a note supplies its note ID, but may still ask
+a card-list listener to reload because the deleted card IDs aren't included.
 
-Related resources can still need refreshing: deleting notes doesn’t give us all
-of their deleted card IDs; patching a note can change its generated cards. These
-remain explicit in `refresh` for subscribers interested in cards.
-
-Native saves read the persisted note once, including Anki’s normalized tags and
-metadata. Events reuse that result; they add no per-subscriber reads or card
-rendering. Result details are copied once before the
-operation’s success callback and shared across subscribers. Snapshots over the
-64 KiB result-detail budget become ID fetches; sets over 1,000 IDs per resource
-fall back to refresh. No cross-request collection cache is involved.
+If saved-note data exceeds 64 KiB, Tsunagi sends IDs to fetch instead. If a list
+would contain more than 1,000 note IDs or card IDs, it asks your app to reload
+that list instead.
 
 </details>
 
 <details>
-<summary>Queries, loading, and event ordering</summary>
+<summary>Keeping displayed notes correct</summary>
 
-A full record describes that operation’s result. Apply live events in stream
-order. An HTTP fetch may finish after a newer event: don’t let its older response
-overwrite that event. While loading, mark the view dirty if another change
-arrives, then re-read after the load before treating the view as current. On
-connection loss, discard outstanding loads and start again at the next initial
-refresh. The short example above omits this application-specific coordination.
+**While typing:** Anki editor notifications wait for 300 ms without typing, or
+up to one second if you keep typing. API writes don't wait for this delay.
 
-Updating a record store is different from maintaining a filtered or paginated
-query. A changed note can enter or leave an Anki search, and `notes` records do
-not contain every dependency of that search. If your client cannot evaluate
-membership, sorting or counts itself, rerun its displayed query. An empty
-`refresh` means the event covered the affected records for that resource; it
-doesn’t guarantee your query’s membership or page boundaries stayed the same.
+**While loading:** suppose a request starts loading note 123, then an event
+arrives with a newer edit to that note. The older request must not overwrite the
+edit. If an event arrives during a load, remember that another load is needed
+and run it afterward. Ignore unfinished requests from a closed connection.
+The example above leaves this request coordination to your app.
 
-Live events contain `session_id`, `seq`, and `ts` (Unix milliseconds). Their SSE
-ID is `<session_id>:<seq>`. Subscription registration and the initial refresh’s
-`after_seq` boundary are captured together; subsequent notifications have larger
-sequence numbers. Filtering naturally leaves gaps in sequence numbers.
-Resources and record details are scoped to each subscriber.
+**While showing search results:** suppose your list shows `tag:verb` and a note
+loses that tag. Replacing its fields isn't enough—you must also remove it from
+that list. If your app can't work out whether the note still matches the search,
+run the search again. The same applies to sorting, counts, and page boundaries.
+
+**After a disconnect:** old messages aren't replayed. Load the list again when
+the new connection sends `refresh`. If your app falls behind while connected,
+Tsunagi sends `gap`, then `refresh` to request the same reload.
 
 </details>
 
-<details>
-<summary>Other filters, recovery, and coverage</summary>
-
-**Filters.** `resources` accepts `notes`, `cards`, `models`, `decks`, `tags`,
-`reviews`, `scheduler`, and `config`. Combine note changes with reviewer answers
-using `?types=change,review&resources=notes`. With no filters, receive all activity.
-`types=refresh` explicitly selects the older invalidation-only presentation,
-without records. If selecting both `change` and `refresh`, changes are delivered
-once, in the richer form. Empty, unknown or incompatible filters return HTTP 422.
-
-**Refresh boundaries.** A data subscription starts with reason `initial`.
-Broad Anki invalidations use `collection`. If the bounded queue overflows, the
-incomplete backlog is discarded: a `gap` notice reports `reason: lagged` and its
-`discarded` count, followed by `refresh` reason `recovery`. No acknowledgement is
-required. Initial/recovery refreshes and gaps use `after_seq`, not an SSE ID.
-
-**Reconnects.** Delivery is live-only and best-effort. `Last-Event-ID` doesn’t
-replay missed events. Reconnects get a fresh initial refresh; profile switches
-and server restarts also change the session ID. Reviewer-only and sync-only
-subscriptions receive no refreshes. If counting reviewer answers, treat a gap
-or disconnect as incomplete delivery.
-
-**Closing.** `close` gives the reason: `shutdown`, `auth` (API key changed),
-`timeout`, or `max_events`. Heartbeat comments keep idle connections alive.
-Initial refreshes and gap notices don’t count toward `max_events`; recovery
-refreshes do. No active collection session returns HTTP 503.
-
-**Diagnostics.** `origin` is `api`, `ui`, or null. `action` and raw `anki` flags
-can help debugging; don’t parse localized labels for application logic.
-`targets` retains input/context hints for uncovered operations. Unlike `changes`,
-these hints don’t establish complete coverage and must not imply deletion.
-
-**Limits.** General and detailed editor notifications can overlap. Event counts
-are not mutation counts. Media/import coverage is incomplete; another add-on’s
-direct database edits may bypass hooks. Browser EventSource can supply a
-configured key through the `api_key` query parameter.
-
-</details>
-
-See the [interactive reference](playground.md) for full endpoint details.
+For API keys, combined filters, review ratings, connection-close reasons, and all
+message fields, open **GET /v1/events** in the [interactive reference](playground.md).
