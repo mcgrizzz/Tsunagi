@@ -60,7 +60,12 @@ already uses; you don't need to download the whole collection.
 
 In this example, `notesById` is a JavaScript Map containing your app's notes.
 The three helper functions are code you write: fetch notes by ID, reload your
-note list, and draw the notes on screen.
+note list, and draw the notes on screen. Drawing uses the notes already loaded;
+it doesn't make an API request.
+
+**For notes, only one branch runs.** If `message.changes.notes` exists,
+`message.refresh` will not contain `"notes"`. The `if` checks whether this message
+contains instructions for specific notes.
 
 ```js
 const events = new EventSource("http://127.0.0.1:7777/v1/events?resources=notes");
@@ -70,13 +75,15 @@ events.addEventListener("change", ({data}) => {
     const notes = message.changes.notes;
 
     if (notes) {
+        // This message tells us which notes to update.
         for (const note of notes.upsert) notesById.set(note.id, note);
         for (const id of notes.remove) notesById.delete(id);
         if (notes.fetch.length) fetchNotesById(notes.fetch);
+        drawNotes();
+    } else if (message.refresh.includes("notes")) {
+        // It cannot identify the notes, so load the list again.
+        reloadNoteList();
     }
-
-    if (message.refresh.includes("notes")) reloadNoteList();
-    drawNotes();
 });
 
 events.addEventListener("refresh", () => reloadNoteList());
@@ -99,8 +106,9 @@ remove it from your app. Redraw after the fetched notes arrive.
 | Save a note in Anki’s editor or Add dialog | Note IDs in `fetch` |
 | Undo, sync, or another change without note/card IDs | Request to reload the note/card list |
 
-One message can do both: deleting a note supplies its note ID, but may still ask
-a card-list listener to reload because the deleted card IDs aren't included.
+Notes and cards are handled separately. Deleting note 123 can tell your app to
+remove that note and reload its **cards**, because the deleted card IDs aren't
+included. It won't also ask you to reload **notes**.
 
 If saved-note data exceeds 64 KiB, Tsunagi sends IDs to fetch instead. If a list
 would contain more than 1,000 note IDs or card IDs, it asks your app to reload
