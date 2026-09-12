@@ -448,16 +448,38 @@ def _ac_duplicate_state(col: Collection, note: Any, deck: Dict[str, Any],
     return NORMAL
 
 
-def _ac_prepare(col: Collection, spec):
+class _CheckLookups:
+    """Successful lookups owned by one serialized validation operation."""
+
+    def __init__(self):
+        self.models = {}
+        self.decks = {}
+
+    @staticmethod
+    def resolve(cache, lookup, name):
+        # Preserve Anki's errors for invalid/unhashable names.
+        if type(name) is not str:
+            return lookup(name)
+        if name not in cache:
+            value = lookup(name)
+            if value is not None:
+                cache[name] = value
+            return value
+        return cache[name]
+
+
+def _ac_prepare(col: Collection, spec, lookups=None):
     """Resolve and fill raw note input in AnkiConnect's validation order."""
     from ...http.compat.errors import DECK_NOT_FOUND, MODEL_NOT_FOUND
 
     model_name = spec["modelName"]
-    model = col.models.by_name(model_name)
+    model = (col.models.by_name(model_name) if lookups is None else
+             lookups.resolve(lookups.models, col.models.by_name, model_name))
     if model is None:
         raise ValueError(MODEL_NOT_FOUND.format(model_name))
     deck_name = spec["deckName"]
-    deck = col.decks.by_name(deck_name)
+    deck = (col.decks.by_name(deck_name) if lookups is None else
+            lookups.resolve(lookups.decks, col.decks.by_name, deck_name))
     if deck is None:
         raise ValueError(DECK_NOT_FOUND.format(deck_name))
 
@@ -603,15 +625,35 @@ def ac_add_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -> 
 @as_collection_op
 def ac_check_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -> bool:
     """Prepare a probe, including upstream media side effects, without adding it."""
-    try:
-        from anki.collection import OpChanges
+    from anki.collection import OpChanges
 
-        note, _model, deck, raw_options = _ac_prepare(col, spec)
+    return ValueWithChanges(_ac_check(col, spec, media), OpChanges())
+
+
+def _ac_check(col, spec, media=(), lookups=None):
+    try:
+        note, _model, deck, raw_options = _ac_prepare(col, spec, lookups)
         _ac_write_media(col, note, media)
         _ac_finish_check(col, note, deck, _ac_options(raw_options))
-        return ValueWithChanges(True, OpChanges())
+        return True
     except Exception as exc:
         raise ValueError(str(exc)) from exc
+
+
+@as_collection_op
+def ac_check_notes(col: Collection, specs):
+    """Check a bounded, attachment-free batch using fresh Notes and shared setup."""
+    from anki.collection import OpChanges
+
+    lookups = _CheckLookups()
+    results = []
+    for spec in specs:
+        try:
+            _ac_check(col, spec, lookups=lookups)
+            results.append((True, None))
+        except Exception as exc:
+            results.append((False, str(exc)))
+    return ValueWithChanges(results, OpChanges())
 
 
 def _ac_prepare_update(col: Collection, note_id: Any, fields: Any, *, fields_missing=False):
