@@ -9,9 +9,8 @@ importable headless.
 
 Delivery is best-effort and live-only: each subscriber has a bounded queue,
 and a consumer that falls behind gets a `gap` replacing its incomplete
-backlog on the next drain. The HTTP layer follows that delivery notice with
-a scoped refresh for data subscribers. Anki's broad resets are separate
-data invalidations, relevant only to change subscribers.
+backlog on the next drain. Collection notifications describe each affected
+resource with a named event, before subscriber filtering and queueing.
 """
 from __future__ import annotations
 
@@ -21,9 +20,37 @@ from collections import deque
 from typing import Any, Deque, Dict, FrozenSet, List, Optional
 from uuid import uuid4
 
-from .event_results import MAX_RESULT_IDS
+from .event_results import freeze_changes
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
+
+
+CHANGE_RESOURCES = frozenset({
+    "notes", "cards", "models", "decks", "tags", "reviews", "scheduler", "config",
+})
+DATA_EVENT_TYPES = (frozenset(f"{resource}.changed" for resource in CHANGE_RESOURCES)
+                    | frozenset(f"{resource}.{kind}" for resource in ("notes", "cards")
+                                for kind in ("created", "updated", "deleted")))
+EVENT_TYPES = DATA_EVENT_TYPES | {"change", "review", "sync"}
+
+
+def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
+    """Describe each resource once, using confirmed results where available."""
+    affected = payload.get("affected")
+    resources = (CHANGE_RESOURCES if broad or not affected or "collection" in affected
+                 else set(affected))
+    results = {} if broad else payload.get("changes", {})
+    metadata = {key: payload[key] for key in ("origin", "anki") if key in payload}
+    events = []
+    for resource in sorted(resources | results.keys()):
+        if resource in results:
+            for kind, ids in results[resource].items():
+                if ids:
+                    events.append({**metadata, "type": f"{resource}.{kind}", "ids": ids})
+        else:
+            events.append({**metadata, "type": f"{resource}.changed", "ids": None,
+                           "reason": "collection" if broad else "details_unavailable"})
+    return events
 
 
 class ApiOp:
@@ -58,23 +85,15 @@ class _Subscriber:
         # Registration and its boundary are captured under the publish lock.
         # Kept outside the bounded queue, so overflow cannot displace ready.
         self.ready = {"type": "ready", "session_id": session_id,
-                      "after_seq": after_seq, "ts": int(time.time() * 1000),
-                      "refresh": ["collection"]}
+                      "after_seq": after_seq, "ts": int(time.time() * 1000)}
 
-    def accepts(self, type: str, payload: dict) -> bool:
-        # Anki's broad reset is a data invalidation, not a delivery failure.
-        # The HTTP layer presents both hook types as scoped refresh events.
-        if type == "reset":
-            type = "change"
+    def accepts(self, type: str) -> bool:
+        is_data = type in DATA_EVENT_TYPES
         if self.types is not None and type not in self.types:
-            return False
-        if type != "change" or self.resources is None:
-            return True
-        refresh = payload.get("refresh")
-        # Targets are incomplete and cannot safely filter invalidations. A
-        # broad or unknown change must still let clients refresh their data.
-        return (not refresh or "collection" in refresh
-                or not self.resources.isdisjoint(refresh))
+            if not (is_data and "change" in self.types):
+                return False
+        return (not is_data or self.resources is None
+                or type.split(".", 1)[0] in self.resources)
 
 
 class EventBroker:
@@ -125,26 +144,30 @@ class EventBroker:
     def has_change_subscribers(self) -> bool:
         """Avoid preparing changed IDs for review/sync-only listeners."""
         with self._lock:
-            return any(sub.accepts("change", {}) for sub in self._subscribers.values())
+            return any(sub.types is None or "change" in sub.types
+                       or bool(sub.types & DATA_EVENT_TYPES)
+                       for sub in self._subscribers.values())
 
     def publish(self, type: str, *, collection: Any = None, **payload: Any) -> None:
         """Fan out live events; reject a late operation from an old collection."""
-        if type == "reset":
-            payload["refresh"] = ["collection"]
         with self._lock:
             if self._draining:
                 return
             if (collection is not None and self._collection is not None
                     and collection is not self._collection):
                 return
-            self._enqueue_locked(type, payload)
+            if type in ("change", "reset"):
+                for event in _collection_events(payload, broad=type == "reset"):
+                    self._enqueue_locked(event["type"], event)
+            else:
+                self._enqueue_locked(type, payload)
 
     def _enqueue_locked(self, type: str, payload: dict) -> None:
         self._seq += 1
         event = {**payload, "type": type, "seq": self._seq,
                  "session_id": self._session_id, "ts": int(time.time() * 1000)}
         for sub in self._subscribers.values():
-            if not sub.accepts(type, payload):
+            if not sub.accepts(type):
                 continue
             if len(sub.queue) == sub.queue.maxlen:
                 sub.dropped += 1
@@ -190,7 +213,7 @@ class EventBroker:
 # Module singleton, mirroring adapters.jobs.jobs.
 broker = EventBroker()
 
-_REFRESH = {
+_AFFECTED_RESOURCES = {
     # Notes, cards and reviews all accept Anki search, so a note/deck/tag
     # change can alter a review query without changing a single revlog row.
     "note": {"notes", "cards", "reviews", "tags", "models"},
@@ -206,25 +229,15 @@ _REFRESH = {
 _UI_FLAGS = {"mtime", "browser_table", "browser_sidebar"}
 
 
-def refresh_resources(flags: List[str]) -> List[str]:
+def affected_resources(flags: List[str]) -> List[str]:
     """Conservative view invalidation, including related data and future flags."""
     resources: set[str] = set()
     for flag in flags:
-        if flag in _REFRESH:
-            resources.update(_REFRESH[flag])
+        if flag in _AFFECTED_RESOURCES:
+            resources.update(_AFFECTED_RESOURCES[flag])
         elif flag not in _UI_FLAGS:
             return ["collection"]
     return sorted(resources) if resources else ["collection"]
-
-
-def _targets(details: dict) -> dict:
-    targets = {}
-    for key, resource in (("note_ids", "notes"), ("card_ids", "cards"),
-                          ("deck_ids", "decks"), ("model_ids", "models")):
-        ids = list(dict.fromkeys((details.get(key) or [])))
-        if 0 < len(ids) <= MAX_RESULT_IDS:
-            targets[resource] = ids
-    return targets
 
 
 def _changed_flags(changes: Any) -> List[str]:
@@ -273,8 +286,6 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
         origin = None
     else:
         origin = "ui"
-    details = handler.details if isinstance(handler, ApiOp) else {}
-    action = "collection.changed"
     anki: dict = {"changes": flags}
     if label and handler is not None:
         anki["label"] = label
@@ -282,8 +293,7 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     broker.publish("change",
                    **({"changes": record_changes} if record_changes else {}),
                    collection=handler.collection if isinstance(handler, ApiOp) else None,
-                   origin=origin, action=action,
-                   targets=_targets(details), refresh=refresh_resources(flags),
+                   origin=origin, affected=affected_resources(flags),
                    anki=anki)
 
 
@@ -299,11 +309,12 @@ def publish_note_added(note_ids: List[int], changes: Any = None) -> None:
     flags = _changed_flags(changes) if changes is not None else []
     if changes is not None and not getattr(changes, "note", False):
         return
-    refresh = refresh_resources(flags) if flags else []
-    if "collection" not in refresh:
-        refresh = sorted(set(refresh) | {"notes", "cards", "tags", "models"})
-    broker.publish("change", origin="ui", action="notes.created", targets={"notes": ids},
-                   refresh=refresh, anki={"changes": flags})
+    affected = affected_resources(flags) if flags else []
+    if "collection" not in affected:
+        affected = sorted(set(affected) | {"notes", "cards", "tags", "models"})
+    broker.publish("change", origin="ui",
+                   changes=freeze_changes({"notes": {"created": ids}}),
+                   affected=affected, anki={"changes": flags})
 
 
 def publish_review(card_id: int, ease: int) -> None:

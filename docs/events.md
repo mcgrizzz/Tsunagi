@@ -1,16 +1,16 @@
-# Update your app when Anki changes
+# Listen for changes in Anki
 
 [← Documentation](README.md)
 
-`GET /v1/events` keeps a connection open and sends messages when something
-changes. **Messages contain IDs, not full notes or cards.** Your app fetches the
-contents it needs through the normal API.
+`GET /v1/events` keeps a connection open and sends messages describing what
+happened: **`notes.created`**, **`notes.updated`**, **`notes.deleted`**, and so on.
+Messages contain IDs. Your app decides whether it needs to fetch any contents.
 
 Text-only note edits made inside Anki, including typing, are not announced.
 API edits, new notes added in Anki, reviews, undo, sync and other collection
 actions can still produce messages.
 
-## Connect
+## See the messages
 
 Start Anki, then run:
 
@@ -18,130 +18,139 @@ Start Anki, then run:
 curl -N 'http://127.0.0.1:7777/v1/events?resources=notes'
 ```
 
-Leave this running to see messages about notes. Use your configured port if it
-isn't `7777`.
+Use your configured port if it isn't `7777`. After you edit **note 123 through
+the API**, a message looks like this (connection metadata omitted):
 
-| To listen for… | Use |
+```text
+event: notes.updated
+data: {"type":"notes.updated","ids":[123]}
+```
+
+Delete it, and the message is:
+
+```text
+event: notes.deleted
+data: {"type":"notes.deleted","ids":[123]}
+```
+
+| Message | What happened |
 | --- | --- |
-| Note changes | `?resources=notes` |
-| Card changes | `?resources=cards` |
+| `notes.created` | New notes were added. `ids` identifies them. |
+| `notes.updated` | A note update completed. `ids` identifies the affected notes. |
+| `notes.deleted` | A deletion completed. These `ids` are now absent. |
+| `notes.changed` | Note data or note search results may have changed, but the affected IDs or kind of change aren't known. `ids` is `null`. |
+
+Cards use the same names: `cards.created`, `cards.updated`, `cards.deleted`,
+`cards.changed`.
+
+**Known IDs and an unknown change are alternatives for the same resource.**
+Deleting note 123 can produce `notes.deleted` and `cards.changed`, because its
+deleted card IDs aren't included. That operation won't also produce
+`notes.changed`.
+
+## Choose what to receive
+
+| Interest | Query |
+| --- | --- |
+| All note changes | `?resources=notes` |
+| All card changes | `?resources=cards` |
 | Both | `?resources=notes,cards` |
+| Only confirmed note deletions | `?types=notes.deleted` |
+| Note creations and updates | `?types=notes.created,notes.updated` |
 | Reviewer answers | `?types=review` |
 | Sync starting or finishing | `?types=sync` |
 
-## What should your app do?
+Filters apply before messages enter your connection's queue. A client listening
+for note deletions won't queue reviews or card updates.
 
-For notes, handle two message names: **`change`** and **`refresh`**.
+Use `resources=notes` when maintaining a note list. An exact type filter such as
+`types=notes.deleted` excludes `notes.changed`, so it won't cover a deletion
+whose details Anki didn't report, or a change in which notes match a search.
 
-A `change` message gives your app one of these instructions:
+## React in your app
 
-| In the message | Your app should… |
-| --- | --- |
-| `changes.notes.fetch` | Fetch the notes with these IDs. |
-| `changes.notes.remove` | Remove these IDs from its stored notes. |
-| `refresh: ["notes"]` | Run the request that loaded its note list again. The affected IDs aren't all known. |
-
-**It won't ask you to update specific notes and reload the note list in the same
-message.** If `changes.notes` exists, `refresh` does not contain `"notes"`.
-Cards use the same fields under `changes.cards`.
-
-For example, after you edit **note 123 through the API**, this part of the
-message tells your app to fetch it:
-
-```json
-{
-  "changes": {
-    "notes": {"fetch": [123], "remove": []}
-  },
-  "refresh": []
-}
-```
-
-Request `/v1/notes` with `where=id in [123]` to get its current contents. Use
-`select` if you only need some fields. If you delete note 123 through Tsunagi,
-its ID arrives in `remove` instead, so your app can remove it without a lookup.
-
-A separate `refresh` message asks your app to load its notes. You receive one
-when you first connect, reconnect, or when Anki reports a change without enough
-information to identify the notes. Use the same note-list request your app
-already uses; you don't need to download the whole collection.
-
-## Handling the messages
-
-Here, `notesById` is a JavaScript Map containing your app's notes. The helper
-functions fetch notes by ID, reload your note list, and draw the notes on screen.
-Drawing uses the data already loaded; it doesn't make an API request.
+The event describes the change; the handler decides what to do with it. Here,
+`notesById` is a JavaScript Map, and the helper functions load notes and draw them:
 
 ```js
 const events = new EventSource("http://127.0.0.1:7777/v1/events?resources=notes");
 
-events.addEventListener("change", ({data}) => {
-    const message = JSON.parse(data);
-    const notes = message.changes.notes;
+for (const type of ["notes.created", "notes.updated"]) {
+    events.addEventListener(type, ({data}) => {
+        fetchNotesById(JSON.parse(data).ids);
+    });
+}
 
-    if (notes) {
-        for (const id of notes.remove) notesById.delete(id);
-        if (notes.fetch.length) fetchNotesById(notes.fetch);
-        drawNotes();
-    } else if (message.refresh.includes("notes")) {
-        reloadNoteList();
-    }
+events.addEventListener("notes.deleted", ({data}) => {
+    for (const id of JSON.parse(data).ids) notesById.delete(id);
+    drawNotes();
 });
 
-events.addEventListener("refresh", () => reloadNoteList());
+events.addEventListener("notes.changed", () => reloadNoteList());
+events.addEventListener("ready", () => reloadNoteList());
+events.addEventListener("gap", () => reloadNoteList());
 ```
 
-`fetchNotesById` should request the IDs, follow any returned pages, update
-`notesById`, and redraw when done. If an ID is no longer found, remove it from
-the Map. The `refresh` listener runs only for messages named `refresh`, not after
-every `change`.
+`fetchNotesById` requests `/v1/notes` with `where=id in [123]`, follows any
+returned pages, and updates the Map and display. Use `select` to choose the
+fields needed. If an ID no longer exists by the time you read it, remove it
+from the Map.
+
+`ready` means the subscription is active. `gap` means queued messages were lost.
+Neither says that a note changed. This example loads its list on connection and
+reloads it after a gap; a client that just reacts to actions may handle them
+differently. There is no separate `refresh` message.
 
 <details>
-<summary>Which actions send IDs or a reload request?</summary>
+<summary>Which operations provide IDs?</summary>
 
-| Action | Message contents |
+| Operation | Event |
 | --- | --- |
-| Create or edit a note through the native API | Note ID in `fetch` |
-| Create or update note fields through the compatibility API | Note ID in `fetch` |
-| Delete notes through either API | Note IDs in `remove` |
-| Create a note through the native API | Its new card IDs in `changes.cards.fetch` too |
-| Call suspend, unsuspend, bury, or unbury for cards | Card IDs in `fetch` |
-| Save a new note in Anki’s Add dialog | Note ID in `fetch` |
-| Undo, sync, or another reported change without note/card IDs | Request to reload the note/card list |
+| Create a note through either API or Anki's Add dialog | `notes.created` |
+| Update a note through the native API, or its fields through compatibility | `notes.updated` |
+| Delete notes through either API | `notes.deleted` |
+| Create a note through the native API | `cards.created` for its new cards too |
+| Suspend, unsuspend, bury or unbury cards | `cards.updated` |
+| Other operations without complete IDs, including undo | `notes.changed`, `cards.changed`, or another affected resource's `.changed` |
 
-Notes and cards are handled separately. Deleting note 123 can tell your app to
-remove that note and reload its **cards**, because the deleted card IDs aren't
-included. It won't also ask you to reload **notes**.
+Lists contain at most 1,000 IDs per resource. Larger sets produce `.changed`
+with `ids: null` instead. No extra note or card contents are read to build events.
+Deletion batches can include IDs already absent; card-update batches can include
+cards already in the requested state. An operation that changes nothing sends
+no event.
 
-If a list would contain more than 1,000 note IDs or card IDs, Tsunagi asks your
-app to reload that list instead. No extra notes or cards are fetched to build
-an event.
+An operation can produce messages about several resources. Other resources
+currently use `.changed` notifications, such as `decks.changed`. A broad change
+can also affect related searches: renaming a deck can change the results of a
+note query that uses that deck's name.
+
+General and detailed Add-dialog notifications can overlap. Media/import coverage
+is incomplete, and other add-ons can bypass Anki's notification hooks.
 
 </details>
 
 <details>
 <summary>Keeping displayed notes correct</summary>
 
-**While editing in Anki:** text-only note edits are excluded. There is no message
-after a typing pause or when typing stops. Anki still saves your edits normally.
-Changes that also affect other data, such as generating cards or changing tags,
-can still produce messages. API edits and undo are still reported.
+**While editing in Anki:** text-only note edits are excluded, with no later
+finished-typing message. Anki still saves normally. Changes that also generate
+cards or affect tags can still produce messages. API edits and undo are reported.
 
-**While loading:** if another change arrives during a request, remember that
-another load is needed and run it afterward. Otherwise an older response could
-leave your display out of date. Ignore unfinished requests from a closed
-connection. The example above leaves this request coordination to your app.
+**While loading:** if a change arrives during a request, schedule another load
+afterward. An older response must not overwrite newer data. Ignore unfinished
+requests from a closed connection. The example leaves this coordination to your
+app's helper functions.
 
-**While showing search results:** suppose your list shows `tag:verb` and a note
-loses that tag. Fetching its new contents isn't enough—you must also remove it
-from that list. If your app can't work out whether it still matches the search,
-run the search again. The same applies to sorting, counts, and page boundaries.
+**While showing search results:** if your list shows `tag:verb` and a note loses
+that tag, fetching the new contents isn't enough—you must also remove it from
+that list. Repeat the search if your app can't determine whether it still
+matches. Sorting, counts and page boundaries can change too.
 
-**After a disconnect:** old messages aren't replayed. Load the list again when
-the new connection sends `refresh`. If your app falls behind while connected,
-Tsunagi sends `gap`, then `refresh` to request the same reload.
+**After a disconnect:** missed messages aren't replayed. A new connection sends
+`ready`; load the relevant data again. A `gap` while connected means that
+connection fell behind and lost queued messages.
 
 </details>
 
-For API keys, combined filters, review ratings, connection-close reasons, and all
+For API keys, combined filters, review ratings, connection-close reasons and all
 message fields, open **GET /v1/events** in the [interactive reference](playground.md).

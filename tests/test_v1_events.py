@@ -50,14 +50,14 @@ class TestStream:
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/event-stream")
         assert resp.text.startswith("retry: 3000")
-        assert [f[0] for f in parse_frames(resp.text)] == ["refresh", "close"]
+        assert [f[0] for f in parse_frames(resp.text)] == ["ready", "close"]
         assert parse_frames(resp.text)[-1] == ("close", {"reason": "timeout"})
 
     def test_events_arrive_with_id_lines_and_close_on_max(self, client):
         publish_soon(("review", {"card_id": 42, "ease": 3}))
         resp = client.get("/v1/events?max_events=1&timeout=5")
         frames = parse_frames(resp.text)
-        assert frames[0][0] == "refresh"
+        assert frames[0][0] == "ready"
         assert frames[1][0] == "review"
         assert frames[1][1]["card_id"] == 42
         assert frames[1][1]["ease"] == 3
@@ -70,7 +70,7 @@ class TestStream:
                      ("reset", {}))
         resp = client.get("/v1/events?max_events=3&timeout=5")
         frames = parse_frames(resp.text)
-        assert [f[0] for f in frames] == ["refresh", "sync", "sync", "refresh", "close"]
+        assert [f[0] for f in frames] == ["ready", "sync", "sync", "cards.changed", "close"]
         assert [f[1].get("phase") for f in frames[1:3]] == ["started", "finished"]
 
     def test_drain_closes_an_open_stream(self, client):

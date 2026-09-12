@@ -7,10 +7,10 @@ from anki.notes_pb2 import AddNoteResponse
 
 from tsunagi.adapters.events import (
     ApiOp,
+    affected_resources,
     broker,
     dispatch_op,
     publish_note_added,
-    refresh_resources,
 )
 from tsunagi.adapters.ui_events import UiEventObservers
 
@@ -18,7 +18,7 @@ from tsunagi.adapters.ui_events import UiEventObservers
 @pytest.fixture
 def stream():
     broker.reset()
-    token = broker.subscribe()
+    token = broker.subscribe(resources={"notes"})
     yield token
     broker.reset()
 
@@ -47,8 +47,8 @@ def test_modern_add_dialog_uses_confirmed_response(observer, stream):
     assert broker.drain(stream) == []
     callbacks.pop()()
     event = broker.drain(stream)[0]
-    assert event["targets"] == {"notes": [42]}
-    assert event["action"] == "notes.created"
+    assert event["ids"] == [42]
+    assert event["type"] == "notes.created"
 
 
 def test_editor_update_handler_is_not_wrapped(observer, stream):
@@ -152,19 +152,20 @@ def test_added_note_not_draft_and_no_extra_queries(stream):
     assert broker.drain(stream) == []
     publish_note_added([42])
     event = broker.drain(stream)[0]
-    assert event["action"] == "notes.created"
-    assert event["targets"] == {"notes": [42]}
+    assert event["type"] == "notes.created"
+    assert event["ids"] == [42]
 
 
 def test_api_targets_are_hints_and_unknown_flags_request_full_refresh(stream):
     dispatch_op(OpChanges(card=True), ApiOp({"card_ids": [42, 42, 99]}))
     event = broker.drain(stream)[0]
-    assert event["targets"] == {"cards": [42, 99]}
-    assert event["refresh"] == ["cards", "decks", "notes", "reviews", "scheduler"]
-    assert refresh_resources(["note", "future_flag"]) == ["collection"]
-    assert refresh_resources(["browser_table"]) == ["collection"]
+    assert event["type"] == "notes.changed"
+    assert event["ids"] is None
+    assert "targets" not in event
+    assert affected_resources(["note", "future_flag"]) == ["collection"]
+    assert affected_resources(["browser_table"]) == ["collection"]
 
 
 def test_refresh_covers_search_membership_without_review_row_changes():
     for flag in ("note", "note_text", "tag", "deck", "notetype"):
-        assert {"notes", "cards", "reviews"} <= set(refresh_resources([flag]))
+        assert {"notes", "cards", "reviews"} <= set(affected_resources([flag]))

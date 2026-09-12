@@ -25,8 +25,8 @@ windows, and the event stream. Same request, three audiences.
 4. **The write.** Worker thread runs the raw verb:
    `col.sched.suspend_cards(ids)` → Rust `Op::Suspend` inside a backend
    transaction — one undo entry — returning `OpChangesWithCount`. The
-   adapter wraps it as `ValueWithChanges(count, changes)`: the caller-facing
-   affected count plus the REAL change flags. (Before this existed, the op
+   adapter wraps it as `ValueWithChanges(count, changes, event_changes=...)`: the
+   affected count, real change flags, and a lazy factory for `cards.updated` IDs. (Before this existed, the op
    reported a fabricated blank `OpChanges` — no browser repaint, no event.)
 
    The `affected` count itself is one **scoped** search — `cid:a,b,c ...`
@@ -38,11 +38,13 @@ windows, and the event stream. Same request, three audiences.
      - **Anki's own windows** (browser, deck list) check the flags and
        repaint — the same signal their own UI actions produce.
      - **Tsunagi's hook** (root `__init__.py`) → `dispatch_op` → the SSE
-       broker: subscribers receive
-       `change {origin:"api", action:"collection.changed",
-       targets:{cards:[...]}, refresh:["cards","decks","notes","reviews","scheduler"],
-       anki:{label:"Suspend", changes:["card","study_queues",...]}}`.
-       Targets are hints; `refresh` also covers potentially related data.
+       broker: card subscribers receive
+       `cards.updated {type:"cards.updated", ids:[...], origin:"api", ...}`.
+       The completed result supplies these IDs through `ApiOp.changes`;
+       argument hints alone are never treated as confirmed changes. Related
+       resources get separate notifications, such as `notes.changed` with
+       `ids:null`. Exact type/resource filters apply before queueing; every
+       emitted notification has its own sequence number.
    - `_success(result)` unwraps `.value` → Event.set → the request thread
      resumes with the affected count.
 

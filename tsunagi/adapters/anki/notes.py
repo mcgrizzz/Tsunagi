@@ -272,7 +272,7 @@ def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
     # The backend normalizes tags/fields and updates metadata without changing
     # this Python Note. Read the persisted result once for both HTTP and events.
     info = _note_info(col, col.get_note(note.id), {int(nt["id"]): nt["name"]})
-    return ValueWithChanges(info, changes, event_changes=lambda: note_result(info))
+    return ValueWithChanges(info, changes, event_changes=lambda: note_result(info, created=True))
 
 
 def _change_notetype(col: Collection, note: Any, req: NotePatch) -> None:
@@ -337,7 +337,7 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
     changes = col.update_note(note)
     info = _note_info(col, col.get_note(note.id), model_names)
     return ValueWithChanges(info, changes,
-                            event_changes=lambda: note_result(info, include_cards=False))
+                            event_changes=lambda: note_result(info))
 
 
 @as_collection_op(event_details=lambda ids: {"note_ids": [int(i) for i in ids]})
@@ -345,7 +345,7 @@ def delete_notes(col: Collection, ids: Sequence[int]) -> int:
     """Batch by design: one undoable op. Compat's deleteNotes reuses this."""
     res = col.remove_notes([int(i) for i in ids])
     return ValueWithChanges(int(getattr(res, "count", 0) or 0), res,
-                            event_changes=lambda: {"notes": {"remove": list(ids)}})
+                            event_changes=lambda: {"notes": {"deleted": list(ids)}})
 
 
 # ====================
@@ -624,7 +624,7 @@ def ac_add_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -> 
         if int(getattr(res, "count", 1) or 0) < 1:
             raise ValueError(EMPTY_QUESTION)
         return ValueWithChanges(int(note.id), res,
-                                event_changes=lambda: {"notes": {"fetch": [int(note.id)]}})
+                                event_changes=lambda: {"notes": {"created": [int(note.id)]}})
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 
@@ -691,7 +691,7 @@ def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
         note = _ac_prepare_update(col, note_id, fields, fields_missing=fields_missing)
         _ac_write_media(col, note, media)
         return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True),
-                                event_changes=lambda: {"notes": {"fetch": [int(note.id)]}})
+                                event_changes=lambda: {"notes": {"updated": [int(note.id)]}})
     except Exception as exc:
         if type(exc).__name__ == "NotFoundError":
             raise ValueError(NOTE_NOT_FOUND.format(note_id)) from exc
