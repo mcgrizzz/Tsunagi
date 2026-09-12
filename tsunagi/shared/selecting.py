@@ -218,6 +218,10 @@ def project_scalars(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Dict
     # nodes are frozen dataclasses -> hashable; cache key is the tuple
     spec = _build_spec(tuple(nodes))
     try:
+        # Plain field lists need only mapping lookups. Keep aliases, missing
+        # values, and composite field values without traversing glom per key.
+        if all(isinstance(node, SelectScalar) and len(node.path) == 1 for node in nodes):
+            return {node.as_name or node.path[0]: obj.get(node.path[0]) for node in nodes}
         return glom(obj, spec, default=None)
     except Exception as e:
         raise SelectValidationError(f"Projection failed: {e}") from e

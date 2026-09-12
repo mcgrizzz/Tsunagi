@@ -69,6 +69,23 @@ class TestProjectScalars:
         nodes = parse_select_csv("id,missing")
         assert project_scalars(OBJ, nodes) == {"id": 1, "missing": None}
 
+    def test_top_level_aliases_keep_composite_values_and_last_alias(self):
+        row = {"id": 7, "name": "食べる", "fields": [{"name": "Front", "value": "食べる"}],
+               "metadata": {"language": "ja"}, "optional": None}
+        nodes = parse_select_csv("fields:content,metadata,optional,id:key,missing:key,name:label")
+        assert project_scalars(row, nodes) == {
+            "content": row["fields"], "metadata": {"language": "ja"}, "optional": None,
+            "key": None, "label": "食べる",
+        }
+
+    def test_same_projection_reads_current_row_values(self):
+        row = {"name": "before", "fields": []}
+        nodes = parse_select_csv("name,fields")
+        assert project_scalars(row, nodes) == {"name": "before", "fields": []}
+        row.update(name="after", fields=[{"name": "New field"}])
+        assert project_scalars(row, nodes) == {"name": "after", "fields": [{"name": "New field"}]}
+        assert project_scalars({}, nodes) == {"name": None, "fields": None}
+
     def test_array_child_pluck(self):
         nodes = parse_select_csv("fields[].name")
         assert project_scalars(OBJ, nodes) == {"fields": ["Front", "Back"]}
