@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +27,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Match tag to build, runtime and project versions
+      - name: Resolve release tag and check version declarations
         id: version
         env:
           RELEASE_REF_TYPE: ${{ github.ref_type }}
@@ -36,20 +37,22 @@ jobs:
           import os, re, runpy, tomllib
           from pathlib import Path
 
-          tag = os.environ['RELEASE_TAG']
-          if os.environ['RELEASE_REF_TYPE'] != 'tag' or not re.fullmatch(
-              r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag
-          ):
-              raise SystemExit('Run this workflow on a release tag such as v0.1.0.')
           versions = {
               'tools/version.py': runpy.run_path('tools/version.py')['VERSION'],
               'tsunagi/shared/version.py': runpy.run_path('tsunagi/shared/version.py')['ADDON_VERSION'],
               'pyproject.toml': tomllib.loads(Path('pyproject.toml').read_text())['project']['version'],
           }
+          tag = (
+              os.environ['RELEASE_TAG'] if os.environ['RELEASE_REF_TYPE'] == 'tag'
+              else f"v{versions['tools/version.py']}"
+          )
+          if not re.fullmatch(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', tag):
+              raise SystemExit(f'Invalid release tag {tag!r}; expected a version such as v0.1.0.')
           if any(version != tag[1:] for version in versions.values()):
               raise SystemExit(f'Tag {tag} does not match release versions: {versions}')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
               output.write(f'version={tag[1:]}\n')
+              output.write(f'tag={tag}\n')
           print(f'Validated {tag}')
           PY
 
@@ -98,8 +101,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
         run: |
           addon="tsunagi-${RELEASE_VERSION}.ankiaddon"
           sha256sum --check "${addon}.sha256"
@@ -108,6 +112,51 @@ jobs:
               echo "Release $RELEASE_TAG is already published; refusing to replace its assets." >&2
               exit 1
             fi
+            release_exists=true
+          else
+            release_exists=false
+          fi
+
+          python - <<'PY'
+          import json, os
+          from urllib.error import HTTPError
+          from urllib.request import Request, urlopen
+
+          tag = os.environ['RELEASE_TAG']
+          sha = os.environ['RELEASE_SHA']
+          base = f"{os.environ['GITHUB_API_URL']}/repos/{os.environ['GH_REPO']}/git"
+
+          def api(path, data=None):
+              request = Request(
+                  f'{base}/{path}',
+                  data=None if data is None else json.dumps(data).encode(),
+                  headers={
+                      'Authorization': f"Bearer {os.environ['GH_TOKEN']}",
+                      'Accept': 'application/vnd.github+json',
+                      'Content-Type': 'application/json',
+                  },
+              )
+              with urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          try:
+              target = api(f'ref/tags/{tag}')['object']
+          except HTTPError as error:
+              if error.code != 404:
+                  raise
+              # Create only after tests, packaging and checksum verification pass.
+              target = api('refs', {'ref': f'refs/tags/{tag}', 'sha': sha})['object']
+          while target['type'] == 'tag':
+              target = api(f"tags/{target['sha']}")['object']
+          if target['type'] != 'commit' or target['sha'] != sha:
+              raise SystemExit(
+                  f'Tag {tag} does not point to tested commit {sha}; refusing to replace release assets. '
+                  'Retry using the existing tag, or bump all three version declarations for a new release.'
+              )
+          print(f'Confirmed {tag} points to tested commit {sha}')
+          PY
+
+          if [ "$release_exists" = true ]; then
             gh release upload "$RELEASE_TAG" "$addon" "${addon}.sha256" --clobber
           else
             gh release create "$RELEASE_TAG" "$addon" "${addon}.sha256" \
