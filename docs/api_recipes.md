@@ -6,8 +6,9 @@ You look up **食べる** in Yomitan. Before you click anything, the popup needs
 know whether it's already in Anki. If it is, the popup needs the existing note's
 ID. If you save a new note, it may also need the generated card IDs.
 
-Let's follow that data from Anki to the interface, starting with the note type
-you chose in settings.
+Start with the duplicate check, then follow a new note through saving and optional
+card suspension. The settings picker at the end shows a different choice: when
+to fetch the fields that the interface will need.
 
 The AnkiConnect side below follows Yomitan's source at
 [`d34832d`](https://github.com/yomidevs/yomitan/tree/d34832d756e05dc00945e5b7d7ebc80963299a7a).
@@ -17,9 +18,9 @@ those to Tsunagi's compatibility API. This guide doesn't install a native Yomita
 
 | What the interface needs | Yomitan's AnkiConnect workflow | With native Tsunagi |
 | --- | --- | --- |
-| Note types and their field names | Load names, then load fields when a type is selected | Load each type with its field names |
 | Duplicate status and existing note IDs | Check candidates, recognize duplicates in error text, then search for IDs | Read `state` and `duplicate_note_ids` from the check response |
 | New card IDs, when automatic suspension is enabled | Add the note, find its cards, then suspend them | Add the note, then suspend the returned cards |
+| Note types and their field names | Fetch fields when a type is selected | Fetch fields alongside the model list |
 
 ## Try these examples
 
@@ -46,57 +47,7 @@ fields only; your IDs will differ.
 > for experiments. If you configured an API key, supply it in the reference's
 > authentication controls.
 
-## 1. You choose a note type in Yomitan settings
-
-**What Yomitan does.** Its settings controller fetches deck names and model names
-in parallel. When a note type is selected, it requests that type's field names to
-build the field-mapping controls. See the [settings controller](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484)
-and [field selection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170).
-
-**AnkiConnect — actions sent to `POST /`:**
-
-```text
-when settings opens, in parallel:
-    decks = AC("deckNames")
-    models = AC("modelNames")
-
-when the user selects a model:
-    fields = AC("modelFieldNames", {modelName: selectedModel})
-    showFieldMapping(fields)
-```
-
-**Native Tsunagi:**
-
-```text
-when settings opens, in parallel:
-    decks = GET_PAGES("/v1/decks", {select: "id,name", limit: 10})
-    models = GET_PAGES("/v1/models", {
-        select: "id,name,fields[].name", limit: 10
-    })
-
-when the user selects a loaded model:
-    showFieldMapping(selectedModel.fields)   # already in the response
-```
-
-The model query returns entries like:
-
-```json
-{
-  "items": [
-    {"id": 1789162609922, "name": "Basic", "fields": ["Front", "Back"]}
-  ]
-}
-```
-
-The picker can now build Basic's field-mapping controls directly from
-`item.fields`. Switch to another model on the loaded page and its fields are
-already there too. `select` asks only for the ID, name and field names; templates
-and styling aren't needed for this control.
-
-Decks remain a separate query. Follow `next_cursor` when there are more pages;
-`limit=10` is a page size, not a limit on the collection's note types.
-
-## 2. You look up a word that's already in Anki
+## 1. You look up a word that's already in Anki
 
 **The popup needs two answers:** is this candidate a duplicate, and which saved
 note does it match? A yes/no check alone can't supply the ID needed to open an
@@ -112,10 +63,12 @@ meaning and duplicate options shown in the expandable request examples below.
 **AnkiConnect — actions sent to `POST /`:**
 
 ```text
+# Request 1: check whether the candidate can be added
 check = AC("canAddNotesWithErrorDetail", {notes: [acNote]})[0]
 
 if check.error contains "cannot create note because it is a duplicate":
     query = buildYomitanNoteSearch(acNote)
+    # Request 2: find the existing note IDs
     matches = AC("multi", {actions: [
         {action: "findNotes", params: {query: query}}
     ]})
@@ -132,6 +85,7 @@ The pseudocode above shows the one-candidate path.
 **Native Tsunagi:**
 
 ```text
+# Request 1: get validation state and existing note IDs together
 check = POST("/v1/notes:check", {notes: [nativeNote]}).results[0]
 
 if check.state == "duplicate":
@@ -141,6 +95,12 @@ else:
 
 setAddingAllowed(check.can_add)
 ```
+
+For this already-saved word, the AnkiConnect path makes **two dependent HTTP
+requests**; the native path makes **one**. The client also no longer constructs a
+search query to recover the duplicate IDs. For a new word with no duplicate, both
+paths need only the initial check. These counts exclude connection checks and
+optional note/card details.
 
 <details>
 <summary>Request bodies and duplicate responses</summary>
@@ -230,7 +190,7 @@ The example deliberately uses collection-wide duplicate checking. A native port
 must also map Yomitan's configured duplicate scope and related options; don't
 silently substitute this example's policy for the user's settings.
 
-## 3. You click the add-note button
+## 2. You click the add-note button
 
 **What Yomitan does.** The popup passes the prepared note to its backend, which
 calls AnkiConnect's `addNote`. The returned note ID is used to update the popup's
@@ -319,13 +279,77 @@ explicit requests, conditional on the user's settings.
 
 </details>
 
-The native save response supplies the card IDs for suspension. Both versions
-still make a separate suspension request only when the user enabled it. Optional
+With suspension enabled and cards generated, the save-and-suspend path makes
+**three dependent requests** through AnkiConnect and **two** through native
+Tsunagi. If suspension is off, both save the note in **one request**. Optional
 sync is omitted from this pseudocode; it also remains a separate request.
 
-To try the duplicate case in step 2, run its check again after saving this note.
+To try the duplicate case in step 1, run its check again after saving this note.
 If the example word is already saved, use a different word for the create request.
 Run only one of the two create requests unless you intend to test duplicate rejection.
+
+## 3. Choosing when to load note-type fields
+
+This example changes **when fields are fetched**. The client code stays similar,
+and native pagination needs its own handling. Fetching fields upfront can remove
+a wait when selecting a model; it also retrieves fields for models the user may
+never select.
+
+**What Yomitan does.** Its settings controller fetches deck names and model names
+in parallel. When a note type is selected, it requests that type's field names to
+build the field-mapping controls. See the [settings controller](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484)
+and [field selection](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170).
+
+**AnkiConnect — actions sent to `POST /`:**
+
+```text
+when settings opens, in parallel:
+    decks = AC("deckNames")
+    models = AC("modelNames")
+
+when the user selects a model:
+    fields = AC("modelFieldNames", {modelName: selectedModel})
+    showFieldMapping(fields)
+```
+
+**Native Tsunagi:**
+
+```text
+when settings opens, in parallel:
+    decks = GET_PAGES("/v1/decks", {select: "id,name", limit: 10})
+    models = GET_PAGES("/v1/models", {
+        select: "id,name,fields[].name", limit: 10
+    })
+
+when the user selects a loaded model:
+    showFieldMapping(selectedModel.fields)   # already in the response
+```
+
+The model query returns entries like:
+
+```json
+{
+  "items": [
+    {"id": 1789162609922, "name": "Basic", "fields": ["Front", "Back"]}
+  ]
+}
+```
+
+Assuming each list fits in one page, the requests look like this:
+
+| Moment | AnkiConnect | Native example |
+| --- | --- | --- |
+| Open settings | Two parallel requests: decks and models | Two parallel requests: decks and models with fields |
+| Select a model | One request for that model's fields | No request; read the loaded fields |
+
+The native example moves field loading into the initial model query. An
+AnkiConnect client could also prefetch and cache fields, using separate
+`modelFieldNames` actions, optionally grouped in `multi`.
+
+`select` keeps the native response to IDs, names and field names. Decks still
+need their own query, and additional pages mean additional requests. `GET_PAGES`
+handles those pages; `limit=10` is a page size. This example alone doesn't establish
+lower total latency or simpler client code.
 
 ## What a real native integration still needs
 
