@@ -110,6 +110,30 @@ it loads the page's model records; `select` keeps unused templates and styling
 out of the response. For full field metadata, use `select=id,name,fields` on the
 same endpoint. Decks remain a separate query, and more pages mean more requests.
 
+<details>
+<summary>Also show how many notes use each type</summary>
+
+A picker can label a type “Basic · 250 notes” without downloading those notes:
+
+```text
+GET /v1/models?select=id,name,note_count
+  → {items: [{id: 123, name: "Basic", note_count: 250}, ...], ...}
+```
+
+`note_count` counts notes across all decks, including zero for an unused type.
+It does not count generated cards. Tsunagi gets names, IDs and counts together
+through Anki's `all_use_counts()` method. Queries asking only for names and IDs
+keep the cheaper path described above.
+
+You can filter with `where=note_count>0`, or request fields and counts together
+with `select=id,name,note_count,fields[].name`. Counts are read from the current
+collection on each request, so additions, deletions and undo are reflected.
+They are also included in full model queries, but may be null in mutation
+responses. Follow `next_cursor` for additional pages; the collection can change
+between page requests.
+
+</details>
+
 ## Try the endpoints
 
 Open the [interactive reference](http://127.0.0.1:7777/) with Anki running, using

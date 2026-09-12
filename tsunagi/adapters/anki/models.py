@@ -34,19 +34,25 @@ def get_model_ids(col: Collection) -> List[int]:
     return [int(nt.id) for nt in col.models.all_names_and_ids()]
 
 @as_query_op
-def get_models_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[ModelInfo]: #3*each notetype
-    # `wants` (requested top-level fields) is accepted for the fetcher
-    # contract; a model has no field expensive enough to skip.
+def get_models_by_ids(col: Collection, ids: Sequence[int], wants=None, *,
+                      include_counts=False) -> List[Any]:
+    if wants is not None and "note_count" in wants and wants <= {"id", "name", "note_count"}:
+        by_id = {row["id"]: row for row in _model_counts(col)}
+        return [by_id[mid] for mid in ids if mid in by_id]
     mm = col.models
     out: List[ModelInfo] = []
     for mid in ids:
         m = mm.get(mid)
         if m:
-            out.append(ModelInfo.parse_obj(m))
+            out.append(_model_info(mm, m, wants, include_counts))
     return out
 
 @as_query_op
-def get_models_by_names(col: Collection, names: Sequence[str], wants=None) -> List[ModelInfo]: #1 + #3*each notetype
+def get_models_by_names(col: Collection, names: Sequence[str], wants=None, *,
+                        include_counts=False) -> List[Any]:
+    if wants is not None and "note_count" in wants and wants <= {"id", "name", "note_count"}:
+        by_name = {row["name"]: row for row in _model_counts(col)}
+        return [by_name[name] for name in names if name in by_name]
     mm = col.models
     name_to_id: Dict[str, int] = {}
     for nt in mm.all_names_and_ids():
@@ -57,8 +63,26 @@ def get_models_by_names(col: Collection, names: Sequence[str], wants=None) -> Li
         if name in name_to_id:
             m = mm.get(name_to_id[name]) # type: ignore
             if m:
-                out.append(ModelInfo.parse_obj(m))
+                out.append(_model_info(mm, m, wants, include_counts))
     return out
+
+
+def _model_info(mm, model, wants, include_counts):
+    info = ModelInfo.parse_obj(model)
+    if (wants is None and include_counts) or (wants is not None and "note_count" in wants):
+        info.note_count = int(mm.use_count(model))
+    return info
+
+
+def _model_counts(col):
+    return [{"id": int(nt.id), "name": nt.name, "note_count": int(nt.use_count)}
+            for nt in col.models.all_use_counts()]
+
+
+@as_query_op
+def get_model_names_and_counts(col: Collection, wants=None) -> List[Mapping[str, Any]]:
+    """Anki owns the count query; no model definitions or note IDs are loaded."""
+    return _model_counts(col)
 
 @as_query_op
 def get_raw_models(col: Collection, ids: Sequence[int] = (),

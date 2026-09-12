@@ -175,6 +175,12 @@ class ModelInfo(BaseModel):
     id: int
     name: str
 
+    note_count: Optional[int] = Field(
+        default=None,
+        description="Read-only count of notes using this type, across all decks. "
+                    "Computed by native model queries; may be null in mutation replies.",
+    )
+
     # keep as plain ints (no enums)
     type: int = 0
     mod: int = 0
