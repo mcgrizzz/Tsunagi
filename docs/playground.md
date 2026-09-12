@@ -23,6 +23,15 @@ it requires internet access unless already cached. If it cannot load, reference
 links remain visible. No Scalar proxy is configured; AI features and telemetry
 are disabled.
 
+## Choosing a page size
+
+Collection queries and media listings default to `limit=1000`. Set a larger
+positive limit when you want more data in one response, for example
+`/v1/cards?select=id,note_id&limit=10000`; there is no fixed upper cap.
+Larger pages reduce the number of requests but use more memory per response.
+If `next_cursor` is not `null`, keep the same query and pass it as `cursor` to
+get the remaining results. Smaller pages let your app process each chunk sooner.
+
 ## Browser verification
 
 The optional Chromium check exercises the real Scalar bundle with the

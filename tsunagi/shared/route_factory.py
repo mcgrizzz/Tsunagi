@@ -348,7 +348,7 @@ def create_resource_routes(
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
         shape: Optional[str]  = Query(default="auto", description="Response shape: auto, object, or scalar"),
-        limit: int            = Query(default=1000, ge=1, le=5000, description="Maximum number of results"),
+        limit: int            = Query(default=1000, ge=1, description="Maximum results in this response; no fixed upper cap"),
         cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
     ) -> Any:
         """Query resource collection with URL parameters."""
