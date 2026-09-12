@@ -1,4 +1,4 @@
-# Bulk API benchmarks
+# API benchmarks
 
 [← Development](development.md)
 
@@ -86,7 +86,7 @@ native batch-create endpoint in this comparison. These are successful-workload
 comparisons; failure behavior and undo grouping are not measured as equivalent
 contracts.
 
-Fixtures use Basic notes with one card each, no review history, and synthetic
+Bulk fixtures use Basic notes with one card each, no review history, and synthetic
 media. They test storing and referencing attachments, not image/audio playback.
 Candidate notes are new in every write trial; “existing media” means the files
 already exist, not that the notes are duplicates.
@@ -102,13 +102,57 @@ each other. Do not run a second benchmark or test suite alongside them.
 process, but open a fresh collection copy; they are not a fully warmed Anki
 session. Operating-system caches are not cleared.
 
+## Workflows that combine related answers
+
+These cases compare several AnkiConnect actions with one native request. Run
+both separate-action and `multi` variants; batching is available to AnkiConnect
+clients too.
+
+```sh
+python tools/benchmark_compat.py \
+  --checkout /path/to/anki-connect \
+  --workloads model_fields,model_fields_multi,duplicate_ids,duplicate_ids_multi,duplicate_mixed_multi,save_card_ids \
+  --workflow-sizes 10,100 --repeats 5 \
+  --output /tmp/tsunagi-related-workflows.json
+```
+
+| Needed result | AnkiConnect and shim | Native Tsunagi |
+| --- | --- | --- |
+| Every model's ID, name and ordered field names | `modelNamesAndIds`, then `modelFieldNames` for each model | `GET /v1/models?select=id,name,fields[].name` |
+| Each candidate's duplicate status and matching note IDs | `canAddNotesWithErrorDetail`, then `findNotes` for each duplicate | `POST /v1/notes:check` |
+| A newly saved note's ID and generated card IDs | `addNote`, then `findCards` using the returned note ID | `POST /v1/notes` |
+
+`_multi` batches the field or duplicate-ID lookups into the second HTTP request.
+The initial action must finish first because its result determines those lookups.
+The report counts child actions separately from HTTP requests; the `multi`
+wrapper is not an additional child action.
+
+Model fixtures contain exactly the requested number of Basic-derived note types.
+Duplicate fixtures use distinct first-field values and collection-wide duplicate
+checking. `duplicate_ids` checks already-saved words; `duplicate_mixed_multi`
+alternates duplicates and new words. The AnkiConnect lookup uses an exact regular
+expression on the first field within Basic. This is a controlled equivalent
+workflow, not a reproduction of every Yomitan search option or optimization.
+
+`save_card_ids` always saves **one** Basic (and reversed card) note, generating two
+cards. It models one add-button click, not a bulk insertion. All returned card IDs
+must belong to the created note. IDs, model fields and duplicate states are
+checked against the collection outside the timer; native's extra response data
+is still included in the timed serialization and decoding.
+
+The native model request omits `limit` to get every model in one response. All
+workflows retain the same fresh-collection and sequential-run rules as the bulk
+cases above. These timings do not include network round trips; fewer requests
+are recorded as a separate benefit, without assigning them an invented latency.
+
 ## Read the report
 
 The JSON report contains:
 
-- First-use and repeated timings, per-action timings, response sizes and throughput.
+- First-use and repeated timings, per-request timings, response sizes and throughput.
+- HTTP request counts and API action counts, including children of `multi`.
 - Median, minimum and maximum repeated times; raw samples remain available.
-- Backend calls, fake Qt dispatch counts and the most expensive Python functions
+- Anki API calls, backend calls, fake Qt dispatch counts and the most expensive Python functions
   from a separate profiling trial. These are function-call counts, not SQL-query counts.
 - Peak resident memory for each worker on platforms providing `getrusage()`.
   This includes imports, requests, decoding, profiling and verification; it is
@@ -172,3 +216,79 @@ The final single-response read was measured at `4f5796e`; the text baseline at
 `ba3a1ae` and media workloads at `6626913` use the same write implementation.
 Use `--repeats 2 --write-sizes 1000 --workloads add_media_new,add_media_existing`
 to reproduce the larger media configuration, or increase repeats for more samples.
+
+## Related-workflow findings — Anki 26.8.1 / Python 3.12.12
+
+Five repeated samples per implementation, plus a separate first-use and profiling
+trial. Every trial passed the result checks. An eight-case Anki 23.10 smoke run
+also verified the new workflows and existing card-read/text-create paths.
+The table uses AnkiConnect's `multi`
+variant where available, so all three columns compare **two HTTP requests versus
+one native request**, rather than assuming every child action needs a round trip.
+
+| Task | Items | AnkiConnect | Shim | Native |
+| --- | ---: | ---: | ---: | ---: |
+| Duplicate status + IDs (`multi`) | 10 | 4.8 ms | 4.3 ms | 2.0 ms |
+| Duplicate status + IDs (`multi`) | 100 | 36.3 ms | 30.3 ms | 13.2 ms |
+| Half duplicate, half new (`multi`) | 10 | 3.1 ms | 3.2 ms | 2.1 ms |
+| Half duplicate, half new (`multi`) | 100 | 20.3 ms | 16.6 ms | 10.8 ms |
+| Models + field names (`multi`) | 10 | 2.0 ms | 1.6 ms | 2.6 ms |
+| Models + field names (`multi`) | 100 | 8.3 ms | 3.8 ms | 16.6 ms |
+| Save one note + its two card IDs | 1 | 6.3 ms | 6.3 ms | 6.2 ms |
+
+**Duplicate checks show a processing benefit as well as fewer requests.** For
+100 duplicates, native takes about 64% less time than upstream's `multi` flow in
+this harness. All three still validate 100 candidates and perform 100 duplicate-ID
+searches. Upstream resolves the model and deck 100 times each; the shim does that
+twice because it validates in chunks of 64; native does it once for the batch.
+The native response also avoids dispatching 100 separate `findNotes` actions.
+Without `multi`, the upstream check-and-ID workflow takes 93.5 ms and 101 requests.
+
+**Model reads save Anki calls, but native processing is still too expensive.**
+For 100 models, upstream makes 200 model-name-to-ID lookups, the shim makes 100,
+and native makes none. Each implementation loads 100 model records. Native still
+loses to `multi`: building and converting Pydantic objects and evaluating the
+nested `fields[].name` selection outweigh those savings. The profile records
+7,208 `_get_value` calls, 402 `validate_model` calls and 2,400 glom `_glom` calls
+on the native path. These counts identify work to investigate; they are not
+additional database queries. Separate upstream field requests take 58.2 ms, but
+that comparison alone would hide the better `multi` option.
+
+**Saving one note is roughly tied in processing time.** Native saves one request
+and returns both generated card IDs directly. Its path also reloads the saved
+note to report persisted values; that correctness step remains included. The
+small timing difference does not establish a speed win.
+
+These are headless results. Real Qt dispatch and socket measurements may change
+the balance: native's 100-model read uses two fake QueryOp dispatches versus 101
+for the shim. The harness counts them but does not reproduce their desktop cost.
+Changing implementation order reproduced the same conclusions: 100 duplicates
+took 13.0 ms native versus 35.2 ms upstream; 100 models took 16.2 ms native
+versus 7.9 ms upstream, both using `multi` on the AnkiConnect side. Single-save
+medians rounded to 6.4 ms for all three.
+
+Raw reports: `tsunagi-related-workflows.json` and the separately ordered check
+`tsunagi-related-workflows-reordered.json`. For the second run, use the command
+above with `--workloads model_fields_multi,duplicate_ids_multi,save_card_ids`
+and `--implementations native,shim,upstream`, and change the output filename.
+
+## Next overhead investigations
+
+1. **Avoid repeated response conversion.** Native reads currently pass through
+   Pydantic conversion, projection, envelope construction and FastAPI response
+   handling. Measure which passes can be removed while keeping validation,
+   human-readable field names and JSON behavior identical.
+2. **Avoid constructing unused model data.** A field-name picker should not pay
+   to build and convert template/style response objects it never receives.
+   Preserve the shared query machinery and the current Anki source of truth.
+3. **Speed up common nested selections.** Simple scalar selections already use
+   direct dictionary lookups. Check whether common array projections can have a
+   similarly small fast path, keeping aliases and missing-field behavior intact.
+4. **Measure real operation dispatch.** The headless harness cannot tell us how
+   much time is spent queueing work through Anki's QueryOp/CollectionOp. Measure
+   that before combining dispatches or changing hydration chunk sizes.
+
+Native batch creation and media-plus-note requests could reduce per-note request
+costs too, but need deliberate API and failure/undo semantics. They are separate
+from eliminating overhead in existing endpoints. None of these proposals relies
+on keeping a cached copy of collection results.

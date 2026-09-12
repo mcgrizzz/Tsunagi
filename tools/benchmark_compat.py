@@ -18,6 +18,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 from compat_bench.runtime import ROOT, bootstrap, collection, run_worker
+from compat_bench.workflows import KINDS as WORKFLOWS
 from compat_bench.workloads import seed_collection
 
 
@@ -37,6 +38,8 @@ def parse_args():
     parser.add_argument("--output", type=Path, default=Path("/tmp/tsunagi-bulk-benchmark.json"))
     parser.add_argument("--read-sizes", type=numbers, default=[1000, 10000])
     parser.add_argument("--write-sizes", type=numbers, default=[100, 1000])
+    parser.add_argument("--workflow-sizes", type=numbers, default=[10, 100],
+                        help="models or duplicate candidates; save_card_ids always saves one note")
     parser.add_argument("--batches", type=numbers, default=[0], help="card response sizes for all implementations; 0 means all")
     parser.add_argument("--repeats", type=int, default=5, help="repeated samples after a first-use sample")
     parser.add_argument("--media-bytes", type=int, default=16384, help="bytes per image and audio attachment")
@@ -55,7 +58,7 @@ def parse_args():
             parser.error("repeats must be >=2, media-bytes >=128, and worker-timeout positive")
     args.workloads = args.workloads.split(",")
     args.implementations = args.implementations.split(",")
-    if not set(args.workloads) <= {"read_cards", "add_text", "add_media_new", "add_media_existing"}:
+    if not set(args.workloads) <= ({"read_cards", "add_text", "add_media_new", "add_media_existing"} | WORKFLOWS):
         parser.error("unknown workload")
     if not set(args.implementations) <= {"upstream", "shim", "native"}:
         parser.error("unknown implementation")
@@ -110,6 +113,17 @@ def run_case(args, case, scratch, index):
             raise RuntimeError(f"{implementation} {case}:\n{completed.stderr[-6000:]}\n{completed.stdout[-2000:]}")
         measured = json.loads(output_path.read_text())
         measured["summary"] = summarize(measured, case["size"])
+        samples = measured["samples"]
+        requests = {len(sample["actions"]) for sample in samples}
+        actions = {sum(len(action.get("api_actions", [action["action"]]))
+                       for action in sample["actions"]) for sample in samples}
+        assert len(requests) == len(actions) == 1, "request flow changed between trials"
+        measured["summary"].update(
+            http_requests=requests.pop(), api_actions=actions.pop(),
+            median_response_bytes=statistics.median(
+                sum(action["response_bytes"] for action in sample["actions"])
+                for sample in samples if sample["phase"] == "repeated"),
+        )
         result["implementations"][implementation] = measured
     if len({entry["fingerprint"] for entry in result["implementations"].values()}) != 1:
         raise RuntimeError(f"equivalent-result verification failed: {case}")
@@ -133,9 +147,14 @@ def main():
     cases.extend({"kind": kind, "size": size, "batch": 0, "media_bytes": args.media_bytes}
                  for size in args.write_sizes if size
                  for kind in ("add_text", "add_media_new", "add_media_existing"))
+    cases.extend({"kind": kind, "size": size, "batch": 0, "media_bytes": 0}
+                 for kind in sorted(WORKFLOWS)
+                 for size in ([1] if kind == "save_card_ids" else args.workflow_sizes) if size)
     cases = [case for case in cases if case["kind"] in args.workloads]
+    if not cases:
+        raise SystemExit("No workloads selected at a positive size.")
     report = {
-        "schema": 2, "mode": "headless_processing",
+        "schema": 3, "mode": "headless_processing",
         "python": platform.python_version(), "anki": version("anki"),
         "tsunagi": ADDON_VERSION, "platform": platform.platform(),
         "tsunagi_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
@@ -143,7 +162,7 @@ def main():
         "benchmark_files_sha256": {
             name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
             for name in ("tools/benchmark_compat.py", "tools/compat_bench/runtime.py",
-                         "tools/compat_bench/workloads.py", "tools/compat_bench/native.py", "tools/upstream_reference.py",
+                         "tools/compat_bench/workloads.py", "tools/compat_bench/native.py", "tools/compat_bench/workflows.py", "tools/upstream_reference.py",
                          "tests/fakes/anki_stubs.py")},
         "upstream_commit": UPSTREAM_REVISION, "repeats": args.repeats,
         "limits": [
@@ -152,7 +171,7 @@ def main():
             "First/repeated mean first-in-process and restored repeats; OS caches are not cleared.",
             "Worker peak RSS includes imports, requests, decoding, profiling and verification.",
             "Inline base64 media only; network downloads, playback and GUI responsiveness are unmeasured.",
-            "One synthetic Basic note type, one card per note, no review history or rendered LaTeX.",
+            "Synthetic fixtures without review history or LaTeX: Basic bulk notes; workflow-specific models and reversed cards.",
         ], "cases": [], "failures": [], "completed": False,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
