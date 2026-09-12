@@ -20,10 +20,60 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Deque, Dict, List, Optional
+from copy import deepcopy
+from typing import Any, Callable, Deque, Dict, List, Optional
 from uuid import uuid4
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
+EDIT_QUIET_SECONDS = 0.3
+EDIT_MAX_WAIT_SECONDS = 1.0
+# Card/queue/config changes accompany creation/deletion. Unknown future flags
+# also bypass debounce; only ordinary note/text/UI changes can wait.
+_EDIT_FLAGS = {"note", "note_text", "mtime", "browser_table", "browser_sidebar"}
+
+
+def _is_note_edit(type: str, payload: dict) -> bool:
+    if (type != "change" or payload.get("origin") != "ui"
+            or payload.get("action") not in ("notes.updated", "collection.changed")):
+        return False
+    # Extra metadata needs an explicit merge rule before it can be grouped.
+    if set(payload) - {"origin", "action", "targets", "refresh", "anki"}:
+        return False
+    anki = payload.get("anki", {})
+    flags = set(anki.get("changes", []))
+    return (not (set(anki) - {"changes", "label"})
+            and {"note", "note_text"} <= flags <= _EDIT_FLAGS)
+
+
+class _PendingEdits:
+    """One bounded burst of notifications, never cached collection data."""
+
+    def __init__(self, now: float) -> None:
+        self.first = self.last = now
+        self.count = 0
+        self.groups: dict = {}
+
+    @property
+    def deadline(self) -> float:
+        return min(self.last + EDIT_QUIET_SECONDS, self.first + EDIT_MAX_WAIT_SECONDS)
+
+    def add(self, payload: dict, now: float) -> None:
+        self.last = now
+        self.count += 1
+        anki = payload["anki"]
+        key = (payload["action"], tuple(sorted(anki["changes"])), anki.get("label"))
+        previous = self.groups.pop(key, None)
+        merged = deepcopy(payload)
+        if previous is not None:
+            for resource, ids in previous.get("targets", {}).items():
+                targets = merged.setdefault("targets", {})
+                targets[resource] = list(dict.fromkeys(ids + targets.get(resource, [])))
+            refresh = set(previous["refresh"]) | set(merged["refresh"])
+            merged["refresh"] = (["collection"] if "collection" in refresh else sorted(refresh))
+        # Preserve general vs detailed action and metadata. Order groups by
+        # their last input; sequence IDs are assigned only at emission.
+        self.groups[key] = merged
+
 
 class ApiOp:
     """
@@ -57,7 +107,7 @@ class _Subscriber:
 
 
 class EventBroker:
-    def __init__(self) -> None:
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
         self._lock = threading.Lock()
         self._seq = 0
         self._subscribers: Dict[int, _Subscriber] = {}
@@ -65,11 +115,14 @@ class EventBroker:
         self._draining = True
         self._session_id: Optional[str] = None
         self._collection: Any = None
+        self._clock = clock
+        self._pending_edits: Optional[_PendingEdits] = None
 
     def start_session(self, collection: Any) -> str:
         """Start a server/collection lifetime; old tokens stay closed forever."""
         with self._lock:
             self._subscribers.clear()
+            self._pending_edits = None
             self._session_id = uuid4().hex
             self._collection = collection
             self._seq = 0
@@ -80,6 +133,8 @@ class EventBroker:
         with self._lock:
             if self._draining or self._session_id is None:
                 return None
+            # Prior edits belong before this subscriber's ready boundary.
+            self._flush_edits_locked()
             token = self._next_token
             self._next_token += 1
             self._subscribers[token] = _Subscriber(self._session_id, self._seq)
@@ -93,6 +148,8 @@ class EventBroker:
     def unsubscribe(self, token: int) -> None:
         with self._lock:
             self._subscribers.pop(token, None)
+            if not self._subscribers:
+                self._pending_edits = None
 
     def has_subscribers(self) -> bool:
         """Hook callbacks skip payload/undo-label work when nobody is listening."""
@@ -109,13 +166,45 @@ class EventBroker:
             if (collection is not None and self._collection is not None
                     and collection is not self._collection):
                 return
-            self._seq += 1
-            event = {**payload, "type": type, "seq": self._seq,
-                     "session_id": self._session_id, "ts": int(time.time() * 1000)}
-            for sub in self._subscribers.values():
-                if len(sub.queue) == sub.queue.maxlen:
-                    sub.dropped += 1
-                sub.queue.append(event)
+            now = self._clock()
+            self._flush_due_edits_locked(now)
+            if self._subscribers and _is_note_edit(type, payload):
+                if self._pending_edits is None:
+                    self._pending_edits = _PendingEdits(now)
+                self._pending_edits.add(payload, now)
+                if self._pending_edits.count >= MAX_QUEUED:
+                    self._flush_edits_locked()
+            else:
+                # Other activity is an ordering barrier, including API writes,
+                # undo/unknown origins, reviews, creation/deletion and resets.
+                self._flush_edits_locked()
+                self._enqueue_locked(type, payload)
+
+    def _enqueue_locked(self, type: str, payload: dict) -> None:
+        self._seq += 1
+        event = {**payload, "type": type, "seq": self._seq,
+                 "session_id": self._session_id, "ts": int(time.time() * 1000)}
+        for sub in self._subscribers.values():
+            if len(sub.queue) == sub.queue.maxlen:
+                sub.dropped += 1
+            sub.queue.append(event)
+
+    def _flush_edits_locked(self) -> None:
+        pending, self._pending_edits = self._pending_edits, None
+        if pending is not None:
+            for payload in pending.groups.values():
+                self._enqueue_locked("change", payload)
+
+    def _flush_due_edits_locked(self, now: float) -> None:
+        if self._pending_edits is not None and now >= self._pending_edits.deadline:
+            self._flush_edits_locked()
+
+    def seconds_until_edit_flush(self, token: int) -> Optional[float]:
+        """Let streams wake at the deadline instead of adding a full poll delay."""
+        with self._lock:
+            if token not in self._subscribers or self._pending_edits is None:
+                return None
+            return max(0.0, self._pending_edits.deadline - self._clock())
 
     def drain(self, token: int) -> List[Dict[str, Any]]:
         """Pending events, or a reset replacing a queue with a delivery gap."""
@@ -123,6 +212,7 @@ class EventBroker:
             sub = self._subscribers.get(token)
             if sub is None:
                 return []
+            self._flush_due_edits_locked(self._clock())
             events = list(sub.queue)
             sub.queue.clear()
             if sub.dropped:
@@ -140,6 +230,7 @@ class EventBroker:
             if session_id is not None and session_id != self._session_id:
                 return
             self._draining = True
+            self._pending_edits = None
             self._subscribers.clear()
             self._collection = None
 
