@@ -49,9 +49,11 @@ def _fields_to_map(fields: Any) -> Dict[str, str]:
 def _note_info(col: Collection, note: Any, model_names: Dict[int, str],
                wants: Optional[Set[str]] = None,
                cards_by_nid: Optional[Dict[int, List[int]]] = None) -> NoteInfo:
-    names = list(note.keys())
-    fields = [{"name": n, "value": v, "ord": i}
-              for i, (n, v) in enumerate(zip(names, note.fields))]
+    fields = []
+    if wants is None or "fields" in wants:
+        names = list(note.keys())
+        fields = [{"name": n, "value": v, "ord": i}
+                  for i, (n, v) in enumerate(zip(names, note.fields))]
     # A backend call per note unless the page prefetched the map, and only
     # when the caller asked for the field at all.
     cards = None
@@ -176,7 +178,7 @@ def find_note_ids(col: Collection, query: str) -> List[int]:
 @as_query_op
 def get_notes_by_ids(col: Collection, ids: Sequence[int],
                      wants: Optional[Set[str]] = None) -> List[NoteInfo]:
-    model_names = _model_names(col)
+    model_names = _model_names(col) if wants is None or "model_name" in wants else {}
     ints = [int(i) for i in ids]
     # One query for the whole page's card ids instead of a backend call per
     # note (ids are ints we produced; `order by nid, ord` matches
