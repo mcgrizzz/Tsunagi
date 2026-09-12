@@ -21,7 +21,7 @@ from collections import deque
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Any, Callable, Deque, Dict, List, Optional
+from typing import Any, Callable, Deque, Dict, FrozenSet, List, Optional
 from uuid import uuid4
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
@@ -94,9 +94,13 @@ class ApiOp:
 
 
 class _Subscriber:
-    __slots__ = ("queue", "dropped", "ready")
+    __slots__ = ("queue", "dropped", "ready", "types", "resources")
 
-    def __init__(self, session_id: str, after_seq: int) -> None:
+    def __init__(self, session_id: str, after_seq: int, *,
+                 types: Optional[FrozenSet[str]],
+                 resources: Optional[FrozenSet[str]]) -> None:
+        self.types = types
+        self.resources = resources
         self.queue: Deque[Dict[str, Any]] = deque(maxlen=MAX_QUEUED)
         self.dropped = 0
         # Registration and its boundary are captured under the publish lock.
@@ -104,6 +108,21 @@ class _Subscriber:
         self.ready = {"type": "ready", "session_id": session_id,
                       "after_seq": after_seq, "ts": int(time.time() * 1000),
                       "refresh": ["collection"]}
+
+    def accepts(self, type: str, payload: dict) -> bool:
+        # Reset is a delivery/session control, never an optional notification.
+        # Ready and close are emitted separately, outside subscriber queues.
+        if type == "reset":
+            return True
+        if self.types is not None and type not in self.types:
+            return False
+        if type != "change" or self.resources is None:
+            return True
+        refresh = payload.get("refresh")
+        # Targets are incomplete and cannot safely filter invalidations. A
+        # broad or unknown change must still let clients refresh their data.
+        return (not refresh or "collection" in refresh
+                or not self.resources.isdisjoint(refresh))
 
 
 class EventBroker:
@@ -129,7 +148,8 @@ class EventBroker:
             self._draining = False
             return self._session_id
 
-    def subscribe(self) -> Optional[int]:
+    def subscribe(self, *, types: Optional[FrozenSet[str]] = None,
+                  resources: Optional[FrozenSet[str]] = None) -> Optional[int]:
         with self._lock:
             if self._draining or self._session_id is None:
                 return None
@@ -137,7 +157,8 @@ class EventBroker:
             self._flush_edits_locked()
             token = self._next_token
             self._next_token += 1
-            self._subscribers[token] = _Subscriber(self._session_id, self._seq)
+            self._subscribers[token] = _Subscriber(
+                self._session_id, self._seq, types=types, resources=resources)
             return token
 
     def ready(self, token: int) -> Optional[Dict[str, Any]]:
@@ -185,6 +206,8 @@ class EventBroker:
         event = {**payload, "type": type, "seq": self._seq,
                  "session_id": self._session_id, "ts": int(time.time() * 1000)}
         for sub in self._subscribers.values():
+            if not sub.accepts(type, payload):
+                continue
             if len(sub.queue) == sub.queue.maxlen:
                 sub.dropped += 1
             sub.queue.append(event)
