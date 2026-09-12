@@ -50,17 +50,19 @@ class TestStream:
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/event-stream")
         assert resp.text.startswith("retry: 3000")
-        assert parse_frames(resp.text) == [("close", {"reason": "timeout"})]
+        assert [f[0] for f in parse_frames(resp.text)] == ["ready", "close"]
+        assert parse_frames(resp.text)[-1] == ("close", {"reason": "timeout"})
 
     def test_events_arrive_with_id_lines_and_close_on_max(self, client):
         publish_soon(("review", {"card_id": 42, "ease": 3}))
         resp = client.get("/v1/events?max_events=1&timeout=5")
         frames = parse_frames(resp.text)
-        assert frames[0][0] == "review"
-        assert frames[0][1]["card_id"] == 42
-        assert frames[0][1]["ease"] == 3
+        assert frames[0][0] == "ready"
+        assert frames[1][0] == "review"
+        assert frames[1][1]["card_id"] == 42
+        assert frames[1][1]["ease"] == 3
         assert frames[-1] == ("close", {"reason": "max_events"})
-        assert f"id: {frames[0][1]['seq']}\n" in resp.text
+        assert f"id: {frames[1][1]['session_id']}:{frames[1][1]['seq']}\n" in resp.text
 
     def test_multiple_events_keep_publish_order(self, client):
         publish_soon(("sync", {"phase": "started"}),
@@ -68,15 +70,15 @@ class TestStream:
                      ("reset", {}))
         resp = client.get("/v1/events?max_events=3&timeout=5")
         frames = parse_frames(resp.text)
-        assert [f[0] for f in frames] == ["sync", "sync", "reset", "close"]
-        assert [f[1].get("phase") for f in frames[:2]] == ["started", "finished"]
+        assert [f[0] for f in frames] == ["ready", "sync", "sync", "reset", "close"]
+        assert [f[1].get("phase") for f in frames[1:3]] == ["started", "finished"]
 
     def test_drain_closes_an_open_stream(self, client):
         # The shutdown path: stop_server flips this flag before should_exit;
-        # a stream with no timeout must still end promptly.
-        broker.begin_drain()
-        resp = client.get("/v1/events")
-        assert parse_frames(resp.text) == [("close", {"reason": "shutdown"})]
+        # a stream must end for shutdown before its timeout expires.
+        threading.Timer(0.1, broker.begin_drain).start()
+        resp = client.get("/v1/events?timeout=5")
+        assert parse_frames(resp.text)[-1] == ("close", {"reason": "shutdown"})
 
     def test_subscribers_are_cleaned_up(self, client):
         client.get("/v1/events?timeout=0.2")
@@ -88,7 +90,7 @@ class TestStream:
         # open stream survived setting a key and kept receiving events).
         threading.Timer(0.1, lambda: reset_settings.update(api_key="new")).start()
         resp = client.get("/v1/events?timeout=5")
-        assert parse_frames(resp.text) == [("close", {"reason": "auth"})]
+        assert parse_frames(resp.text)[-1] == ("close", {"reason": "auth"})
 
 
 class TestOpenApi:

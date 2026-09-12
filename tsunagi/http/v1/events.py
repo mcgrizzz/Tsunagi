@@ -23,6 +23,7 @@ from starlette.responses import StreamingResponse
 
 from ...adapters.events import broker
 from ...adapters.settings import settings
+from ...shared.errors import CollectionUnavailableError
 
 router = APIRouter()
 
@@ -32,6 +33,10 @@ HEARTBEAT_SECONDS = 15.0
 _DESCRIPTION = """\
 Streams collection notifications as Server-Sent Events (`text/event-stream`).
 
+- `ready`: first named event on each connection, with `session_id`,
+  `after_seq` and `refresh: ["collection"]`. Wait for it before fetching initial
+  data; retain notifications received during that fetch and refresh as needed.
+  It has no SSE ID and does not count toward `max_events`.
 - `change`: a completed mutation. `action` is `notes.created` or
   `notes.updated` for identified UI saves, otherwise `collection.changed`.
   `origin` is `api`, `ui`, or null when unknown. `targets` groups known IDs
@@ -50,18 +55,24 @@ Streams collection notifications as Server-Sent Events (`text/event-stream`).
 - `close`: the stream ends with `reason` equal to `shutdown`, `timeout`,
   `max_events`, or `auth` (API key changed; reconnect using the current key).
 
-Notifications contain `seq` and `ts` (Unix milliseconds); `close` frames
-carry only their reason. IDs are available for selected API mutations,
+Notifications contain `session_id`, `seq` and `ts` (Unix milliseconds); their
+SSE ID is `<session_id>:<seq>`. `close` frames carry only their reason. IDs are
+available for selected API mutations,
 notes saved in supported Anki editor paths, and notes added in the Add dialog.
 Editor IDs are captured from the operation/request and emitted only after
 success. General UI actions, undo and sync may lack target IDs. Add-dialog
 and newer-editor details supplement general change events; clients should
 coalesce refreshes, not count notifications as distinct mutations.
 
-Delivery is live-only and best-effort. There is no replay or collection-session
-identity yet. Fetch fresh data after reconnecting; Last-Event-ID does not resume
-missed notifications. Media/import coverage is incomplete, and direct database
-edits by another add-on may bypass hooks. This is not an exact collection replica.
+Registration and `ready.after_seq` are captured atomically; queued notifications
+have greater sequence numbers. A server restart or profile switch creates a new
+random session ID and closes old subscriptions. Reconnecting to the same running
+server keeps the ID, but always requires a fresh read: delivery is live-only and
+best-effort, and Last-Event-ID does not resume missed notifications. Discard an
+unfinished initial load if the stream closes; begin again after the next ready.
+No active session returns HTTP 503. This boundary is not a collection snapshot.
+Media/import coverage is incomplete, and direct database edits by another add-on
+may bypass hooks. This is not an exact collection replica.
 
 Browser EventSource cannot set custom headers; `api_key` is available as a
 query parameter. The `stats` envelope used by JSON routes does not apply.
@@ -69,9 +80,10 @@ query parameter. The `stats` envelope used by JSON routes does not apply.
 
 
 def _sse_frame(event: Dict[str, Any]) -> str:
-    return (f"event: {event['type']}\n"
-            f"id: {event['seq']}\n"
-            f"data: {json.dumps(event, separators=(',', ':'))}\n\n")
+    event_id = (f"id: {event['session_id']}:{event['seq']}\n"
+                if "seq" in event else "")
+    return (f"event: {event['type']}\n" + event_id
+            + f"data: {json.dumps(event, separators=(',', ':'))}\n\n")
 
 
 def _close_frame(reason: str) -> str:
@@ -94,38 +106,56 @@ def stream_events(
                                 "seconds (for scripts and polling clients)."),
     max_events: Optional[int] = Query(
         None, gt=0, description="Close the stream cleanly after this many "
-                                "events."),
+                                "notifications (ready does not count)."),
     api_key: Optional[str] = Query(
         None, description="Alternative to the X-Api-Key header for clients "
                           "that cannot send headers (browser EventSource). "
                           "Checked by the auth middleware."),
 ) -> StreamingResponse:
+    if broker.is_draining():
+        raise CollectionUnavailableError("No active event session")
+    key_at_connect: str = settings.get("api_key", "")
+
     async def gen() -> AsyncIterator[str]:
         token = broker.subscribe()
-        # Auth is checked by the middleware once, at connection time - but a
-        # stream lives for hours. If the API key changes underneath us, the
-        # connection was authorized under rules that no longer exist: close
-        # it and make the client reconnect with the current key.
-        key_at_connect: str = settings.get("api_key", "")
+        if token is None:
+            yield _close_frame("shutdown")
+            return
+
+        def close_reason() -> Optional[str]:
+            if broker.is_draining(token):
+                return "shutdown"
+            if settings.get("api_key", "") != key_at_connect:
+                return "auth"
+            return None
+
         try:
-            # retry: sets the client's reconnect delay; the comment line
-            # forces the response headers out through buffering proxies.
             yield "retry: 3000\n\n: connected\n\n"
+            ready = broker.ready(token)
+            reason = close_reason()
+            if reason or ready is None:
+                yield _close_frame(reason or "shutdown")
+                return
+            yield _sse_frame(ready)
             sent = 0
             start = last_beat = time.monotonic()
             while True:
+                reason = close_reason()
+                if reason:
+                    yield _close_frame(reason)
+                    return
                 for event in broker.drain(token):
+                    # A yield can suspend across shutdown, profile switch or
+                    # key rotation. Never continue emitting a drained batch.
+                    reason = close_reason()
+                    if reason:
+                        yield _close_frame(reason)
+                        return
                     yield _sse_frame(event)
                     sent += 1
                     if max_events is not None and sent >= max_events:
                         yield _close_frame("max_events")
                         return
-                if broker.is_draining():
-                    yield _close_frame("shutdown")
-                    return
-                if settings.get("api_key", "") != key_at_connect:
-                    yield _close_frame("auth")
-                    return
                 now = time.monotonic()
                 if timeout is not None and now - start >= timeout:
                     yield _close_frame("timeout")

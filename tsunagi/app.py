@@ -283,14 +283,18 @@ def health() -> Health:
         port=_SERVER_STATE.port or 0
     )
 
-def _serve(server: Any) -> None:
+def _serve(server: Any, session_id: str) -> None:
     try:
         server.run()
     except Exception:
         _log(f"[fatal] uvicorn crashed:\n{traceback.format_exc()}")
+    finally:
+        from .adapters.events import broker
+        broker.begin_drain(session_id)
 
 def start_server(mw) -> None:
     if _SERVER_STATE.started: return
+    session_id = None
     try:
         cfg = load_config()
         if not cfg.get("enabled", True):
@@ -318,7 +322,9 @@ def start_server(mw) -> None:
         port = choose_port(cfg)
 
         from .adapters.events import broker
-        broker.end_drain()  # accept event streams again after a stop/start
+        if mw.col is None:
+            raise RuntimeError("No collection is open")
+        session_id = broker.start_session(mw.col)
 
         import uvicorn
         server = uvicorn.Server(uvicorn.Config(
@@ -336,7 +342,7 @@ def start_server(mw) -> None:
             # in stop_server closes streams first; this catches stragglers.
             timeout_graceful_shutdown=3,
         ))
-        t = threading.Thread(target=_serve, args=(server,),
+        t = threading.Thread(target=_serve, args=(server, session_id),
                              daemon=True, name="tsunagi-http")
         t.start()
         _SERVER_STATE.thread = t
@@ -346,6 +352,8 @@ def start_server(mw) -> None:
         _SERVER_STATE.started = True
         _log(f"listening on http://{host}:{port}")
     except Exception as e:
+        if session_id is not None:
+            broker.begin_drain(session_id)
         _log(f"[fatal] start_server failed:\n{traceback.format_exc()}")
         msg = f"Tsunagi failed to start: {e}"
         try:

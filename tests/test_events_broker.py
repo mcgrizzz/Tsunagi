@@ -19,7 +19,9 @@ from tsunagi.adapters.events import (
 
 @pytest.fixture()
 def store():
-    return EventBroker()
+    store = EventBroker()
+    store.start_session(object())
+    return store
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +96,7 @@ class TestBroker:
         assert store.is_draining() is False
         store.begin_drain()
         assert store.is_draining() is True
-        store.end_drain()
+        store.start_session(object())
         assert store.is_draining() is False
 
     def test_reset_drops_everything(self, store):
