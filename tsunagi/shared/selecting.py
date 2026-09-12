@@ -212,17 +212,71 @@ def _build_spec(nodes: Tuple[SelectNode, ...]) -> Dict[str, object]:
             raise RuntimeError(f"Unknown node: {n!r}")
     return spec
         
+def selection_include(nodes: Sequence[SelectNode]) -> Dict[str, Any]:
+    """Pydantic include mask: convert only the values the projection reads."""
+    include: Dict[str, Any] = {}
+    for node in nodes:
+        if isinstance(node, SelectScalar):
+            include[node.path[0]] = True
+            continue
+        base = node.base[0]
+        if include.get(base) is True:
+            continue
+        if isinstance(node, SelectArrayPluck):
+            paths = [node.child] if node.child is not None else []
+        else:
+            paths = [path for path, _ in node.children]
+        if len(node.base) != 1 or not paths or any(len(path) != 1 for path in paths):
+            include[base] = True
+        else:
+            include.setdefault(base, {"__all__": set()})["__all__"].update(path[0] for path in paths)
+    return include
+
+
+def _project_simple(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Optional[Dict[str, Any]]:
+    """Direct lookups for single-level fields and arrays of dictionaries.
+
+    Unusual shapes retain glom's behavior, including whole-projection failure.
+    This only caches query syntax elsewhere; every value comes from this row.
+    """
+    result = {}
+    for node in nodes:
+        if isinstance(node, SelectScalar):
+            if len(node.path) != 1:
+                return None
+            result[node.as_name or node.path[0]] = obj.get(node.path[0])
+            continue
+        if not isinstance(node, (SelectArrayPluck, SelectArrayMulti)) or len(node.base) != 1:
+            return None
+        values = obj.get(node.base[0], [])
+        if not isinstance(values, list):
+            return None
+        alias = node.as_name or node.base[0]
+        if isinstance(node, SelectArrayPluck) and node.child is None:
+            result[alias] = values
+            continue
+        if not all(isinstance(value, Mapping) for value in values):
+            return None
+        if isinstance(node, SelectArrayPluck):
+            if len(node.child) != 1:
+                return None
+            result[alias] = [value.get(node.child[0]) for value in values]
+        else:
+            if any(len(path) != 1 for path, _ in node.children):
+                return None
+            result[alias] = [{name or path[0]: value.get(path[0]) for path, name in node.children}
+                             for value in values]
+    return result
+
+
 def project_scalars(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Dict[str, Any]:
     if not nodes:
         return dict(obj)
-    # nodes are frozen dataclasses -> hashable; cache key is the tuple
-    spec = _build_spec(tuple(nodes))
     try:
-        # Plain field lists need only mapping lookups. Keep aliases, missing
-        # values, and composite field values without traversing glom per key.
-        if all(isinstance(node, SelectScalar) and len(node.path) == 1 for node in nodes):
-            return {node.as_name or node.path[0]: obj.get(node.path[0]) for node in nodes}
-        return glom(obj, spec, default=None)
+        result = _project_simple(obj, nodes)
+        if result is not None:
+            return result
+        return glom(obj, _build_spec(tuple(nodes)), default=None)
     except Exception as e:
         raise SelectValidationError(f"Projection failed: {e}") from e
 

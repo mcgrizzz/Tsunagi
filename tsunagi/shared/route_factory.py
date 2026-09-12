@@ -6,6 +6,8 @@ from bisect import bisect_right
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ..shared.pagination import decode_cursor, encode_cursor, paginate_keyset
@@ -30,6 +32,7 @@ from .selecting import (
     parse_select_csv,
     project_scalars,
     referenced_top_fields,
+    selection_include,
 )
 
 Row = Union[Mapping[str, Any], Any]
@@ -51,12 +54,23 @@ def _plain(x: Any) -> Any:
     # reaches rows typed as Any - Anki wire aliases would leak through.
     return x.dict() if isinstance(x, BaseModel) else x
 
-def _as_dict(x: Any) -> Mapping[str, Any]:
+def _as_dict(x: Any, include: Optional[Union[set, dict]] = None) -> Mapping[str, Any]:
     # Use the schema's human-readable field names (fields, templates,
     # sort_field) as the canonical keys for select/where. Aliases (flds,
     # tmpls, ...) remain available via `select` aliasing if a caller wants
     # Anki's wire names. This matches the non-aliased response output.
-    return x if isinstance(x, Mapping) else x.dict()
+    if isinstance(x, Mapping):
+        return x
+    if isinstance(include, dict):
+        # An array selector can target an irregular value. Do not reshape it
+        # before glom has a chance to apply its existing fallback behavior.
+        include = dict(include)
+        for key, mask in include.items():
+            if isinstance(mask, dict) and "__all__" in mask:
+                value = getattr(x, key, None)
+                if not isinstance(value, list) or not all(isinstance(v, (BaseModel, Mapping)) for v in value):
+                    include[key] = True
+    return x.dict(include=include)
 
 def _finish(
     page_rows: List[Row],
@@ -70,7 +84,8 @@ def _finish(
         return Paginated[ModelRow](items=[_plain(r) for r in page_rows],
                                    next_cursor=next_cursor, stats=_stats(start))
     nodes = parse_select_csv(select)
-    projected = [project_scalars(_as_dict(r), nodes) for r in page_rows]
+    include = selection_include(nodes)
+    projected = [project_scalars(_as_dict(r, include), nodes) for r in page_rows]
     final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
     return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
 
@@ -333,6 +348,15 @@ def create_resource_routes(
     resource_name_title = resource_name.title()
     resource_plural_title = resource_plural.title()
 
+    def query_response(page):
+        # The shared query engine already validated this envelope. Preserve
+        # custom response models through FastAPI's normal validation path.
+        if response_model is Paginated[ModelRow] and type(page) is response_model:
+            # _finish already emits human row names. Match FastAPI's initial
+            # by_alias=True preparation for any nested models inside Any values.
+            return JSONResponse(jsonable_encoder(page, by_alias=True))
+        return page
+
     # GET endpoint - query params in URL
     @router.get(
         path,
@@ -354,10 +378,10 @@ def create_resource_routes(
         """Query resource collection with URL parameters."""
         # Keyword args: _execute_query's positional order must never be
         # assumed here - a silent shift would land `shape` in `search`.
-        return _execute_query(
+        return query_response(_execute_query(
             select=select, where=where, search=search, shape=shape,
             limit=limit, cursor=cursor, caps=caps, id_getter=id_getter,
-        )
+        ))
 
     # POST endpoint - query params in body
     @router.post(
@@ -373,7 +397,7 @@ def create_resource_routes(
         query: QueryRequest = Body(..., description="Query parameters in request body"),
     ) -> Any:
         """Query resource collection with POST body parameters."""
-        return _execute_query(
+        return query_response(_execute_query(
             select=query.select,
             where=query.where,
             search=query.search,
@@ -382,7 +406,7 @@ def create_resource_routes(
             cursor=query.cursor,
             caps=caps,
             id_getter=id_getter,
-        )
+        ))
 
     # Mutation endpoints (if mutations provided)
     if caps.mutations:
