@@ -7,6 +7,7 @@ For installation and connection setup, start with the [project README](../README
 - [Yomitan walkthrough](api_recipes.md): follow its AnkiConnect workflow and see
   the corresponding native Tsunagi requests.
 - [Interactive API reference](playground.md): explore and try operations in Anki.
+- [Create notes in a batch](creating_notes.md): save multiple notes and identify any rejected inputs.
 - [Events guide](events.md): keep your app’s data current or react to reviewer answers.
 - [Native discovery](capabilities.md): available operations and settings restrictions.
 - [AnkiConnect compatibility](ankiconnect_parity.md): action coverage and differences.
