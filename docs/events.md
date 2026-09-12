@@ -9,11 +9,82 @@ Anki is running, using your configured port:
 curl -N http://127.0.0.1:7777/v1/events
 ```
 
-Apps opt in by opening this connection. Subscriptions currently receive all
-event types; type/resource filters are not yet available.
+Apps opt in by opening this connection. Without filters it receives all events;
+add filters to receive the notifications your app uses.
 
 If authentication is enabled, send `X-API-Key` or a Bearer token. Browser
 `EventSource` cannot set custom headers; it can use the `api_key` query parameter.
+
+## Keep a note list up to date
+
+Subscribe to changes that could affect your notes:
+
+```sh
+curl -N 'http://127.0.0.1:7777/v1/events?types=change&resources=notes'
+```
+
+The client needs three handlers:
+
+| Event | What to do |
+| --- | --- |
+| `ready` | Load your notes. This also runs after reconnecting. |
+| `change` | Refresh your notes: something may have changed. |
+| `reset` | Refresh your notes: the server cannot describe all the changes. |
+
+**You don't need to interpret Anki flags or find IDs in each event.** The server
+already checked whether the change could affect the views you subscribed to.
+For example, renaming a deck can change a note query that uses `deck:...`, so
+that notification still reaches a notes subscription.
+
+Use one refresh loop so overlapping requests cannot overwrite newer results:
+
+```text
+on ready, change, or reset:
+    mark refresh needed
+    if a refresh is already running: return
+
+    while refresh is needed and this connection is still ready:
+        clear refresh needed
+        notes = fetch the current notes your interface displays
+        if this connection is still current:
+            show(notes)
+```
+
+If a change arrives during a read, the loop reads again afterward. If the
+connection closes or fails, discard unfinished reads and wait for the next
+`ready` before loading again. Treat each `ready` as a new connection, even if
+its session ID is unchanged. Retry failed reads through your app's normal error
+handling. Events are refresh notices; the query response supplies current data.
+
+## Choose your notifications
+
+| Interest | Query parameters |
+| --- | --- |
+| Changes affecting notes | `types=change&resources=notes` |
+| Changes affecting either notes or models | `types=change&resources=notes,models` |
+| Reviewer answers | `types=review` |
+| Sync progress | `types=sync` |
+| Everything | Omit both filters |
+
+- **`types`** accepts `change`, `review`, and `sync`.
+- **`resources`** filters `change` events by their `refresh` views: `notes`,
+  `cards`, `models`, `decks`, `tags`, `reviews`, `scheduler`, and `config`.
+  It doesn't filter reviewer answers or sync progress; use `types=change` to
+  omit those.
+- Separate multiple values with commas. Values in one filter are alternatives;
+  when you supply both filters, both apply. Unknown or empty values return
+  HTTP **422** before the stream opens.
+
+Filtering happens **before events enter your subscription's queue**, so unwanted
+traffic cannot fill it. `max_events` counts delivered notifications, including
+resets; filtered events and `ready` don't count.
+
+Every subscription still receives `ready`, `reset`, and `close`, plus heartbeat
+comments that keep the connection alive. Broad or unknown changes pass every
+resource filter so the client can refresh after undo or an operation with limited
+details. Filters do not remove fields from matching events. IDs and raw Anki
+flags remain available for clients that need them; target-ID filtering is not
+offered because those IDs are not a complete list of affected records.
 
 ## A note was saved: what should my app do?
 
@@ -116,7 +187,8 @@ notification.
 
 Notifications carry `session_id`, `seq` and `ts` (Unix milliseconds). Their SSE
 `id` is `<session_id>:<seq>`. Sequence numbers increase within a session and can
-have gaps; a gap alone does not mean you missed a mutation. Closing frames contain
+have gaps, including when other events are filtered out; a gap alone does not
+mean you missed a mutation. Closing frames contain
 only their reason. Labels are localized; never parse them to identify actions.
 
 ## Connect, then load your data

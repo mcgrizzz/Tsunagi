@@ -16,9 +16,9 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Annotated, Any, AsyncIterator, Dict, FrozenSet, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from starlette.responses import StreamingResponse
 
 from ...adapters.events import broker
@@ -29,9 +29,28 @@ router = APIRouter()
 
 POLL_SECONDS = 0.25
 HEARTBEAT_SECONDS = 15.0
+EVENT_TYPES = frozenset({"change", "review", "sync"})
+CHANGE_RESOURCES = frozenset({
+    "notes", "cards", "models", "decks", "tags", "reviews", "scheduler", "config",
+})
 
 _DESCRIPTION = """\
 Streams collection notifications as Server-Sent Events (`text/event-stream`).
+
+To keep a note list current, connect to
+`/v1/events?types=change&resources=notes`. On `ready`, fetch your notes; on
+`change` or `reset`, refresh them. Retain a refresh request if a read is already
+in progress, so a change during that read triggers another read afterward.
+
+`types` selects comma-separated notification types (`change`, `review`, `sync`).
+`resources` selects comma-separated views affected by **change** notifications;
+it does not filter reviewer answers or sync progress. Use `types=change` to omit
+those. Omitted filters accept everything. Values within a filter are alternatives;
+both filters apply when supplied. Empty/unknown values return HTTP 422 before
+streaming. Filtering happens before events enter the subscriber's bounded queue.
+`ready`, `reset`, and `close` always pass, as do heartbeat comments. Broad or
+unknown changes pass every resource filter. Sequence gaps from filtering are
+normal, and `max_events` counts only delivered notifications (including resets).
 
 - `ready`: first named event on each connection, with `session_id`,
   `after_seq` and `refresh: ["collection"]`. Wait for it before fetching initial
@@ -99,6 +118,20 @@ def _close_frame(reason: str) -> str:
     return f"event: close\ndata: {json.dumps({'reason': reason})}\n\n"
 
 
+def _parse_filter(value: Optional[str], name: str,
+                  allowed: FrozenSet[str]) -> Optional[FrozenSet[str]]:
+    if value is None:
+        return None
+    selected = frozenset(part.strip() for part in value.split(","))
+    if not selected <= allowed:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{name} must be a non-empty comma-separated list of: "
+                   + ", ".join(sorted(allowed)),
+        )
+    return selected
+
+
 @router.get(
     "/v1/events",
     response_model=None,
@@ -120,13 +153,25 @@ def stream_events(
         None, description="Alternative to the X-Api-Key header for clients "
                           "that cannot send headers (browser EventSource). "
                           "Checked by the auth middleware."),
+    types: Annotated[Optional[str], Query(
+        description="Notification types, comma-separated: change, review, sync. "
+                    "Omit for all. Ready, reset and close always pass.",
+    )] = None,
+    resources: Annotated[Optional[str], Query(
+        description="Affected views for change events, comma-separated: "
+                    "notes, cards, models, decks, tags, reviews, scheduler, config. "
+                    "Omit for all. Broad changes always pass. "
+                    "Use types=change to omit review and sync events.",
+    )] = None,
 ) -> StreamingResponse:
+    selected_types = _parse_filter(types, "types", EVENT_TYPES)
+    selected_resources = _parse_filter(resources, "resources", CHANGE_RESOURCES)
     if broker.is_draining():
         raise CollectionUnavailableError("No active event session")
     key_at_connect: str = settings.get("api_key", "")
 
     async def gen() -> AsyncIterator[str]:
-        token = broker.subscribe()
+        token = broker.subscribe(types=selected_types, resources=selected_resources)
         if token is None:
             yield _close_frame("shutdown")
             return
