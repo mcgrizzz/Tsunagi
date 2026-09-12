@@ -2,6 +2,7 @@ import time
 
 from fastapi import Body
 
+from ...adapters.anki.note_batches import create_notes
 from ...adapters.anki.notes import (
     check_notes,
     create_note,
@@ -14,7 +15,12 @@ from ...adapters.anki.notes import (
 from ...shared.errors import handle_mutation_errors
 from ...shared.planning import IndexSpec, MutationCaps, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
-from ...shared.schemas.notes import NoteCheckRequest, NoteCheckResponse
+from ...shared.schemas.notes import (
+    NoteBatchCreateRequest,
+    NoteBatchCreateResponse,
+    NoteCheckRequest,
+    NoteCheckResponse,
+)
 from ...shared.schemas.wrappers import Paginated
 
 caps = SourceCaps(
@@ -71,3 +77,22 @@ def check(body: NoteCheckRequest = Body(..., description="Candidate notes")) -> 
         results=results,
         stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
     )
+
+
+@router.post(
+    "/v1/notes:batch-create",
+    response_model=NoteBatchCreateResponse,
+    summary="Create multiple notes",
+    description=(
+        "Processes notes in input order. Valid notes are saved even when another note is rejected. "
+        "Returns created note/card IDs and failures, each with its zero-based input index. "
+        "Duplicates include earlier successes in this batch. All successful additions form one undo step. "
+        "Malformed request bodies return 422 before any notes are added. "
+        "Upload media separately and reference the returned filenames in fields."
+    ),
+    tags=["Notes"],
+    operation_id="batchCreateNotes",
+)
+@handle_mutation_errors("batch create notes")
+def batch_create(body: NoteBatchCreateRequest) -> NoteBatchCreateResponse:
+    return create_notes(body.notes)

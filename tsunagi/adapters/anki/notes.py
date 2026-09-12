@@ -250,12 +250,8 @@ def check_notes(col: Collection, candidates: List[Dict[str, Any]]) -> List[NoteC
 # Mutations
 # ====================
 
-@as_collection_op
-def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
-    req = NoteCreate.parse_obj(data)
-    nt = _resolve_notetype(col, req)
-    deck_id = _resolve_deck_id(col, req)
-
+def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any]) -> Any:
+    """Build and validate one native note against the current collection."""
     note = col.new_note(nt)
     _apply_fields(note, _fields_to_map(req.fields), nt["name"])
     note.tags = list(req.tags)
@@ -267,6 +263,15 @@ def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
         raise ValidationError("cloze model requires at least one {{c1::...}} in a field")
     if state == DUPLICATE and not req.allow_duplicate:
         raise DuplicateNoteError(_duplicate_ids(col, note))
+    return note
+
+
+@as_collection_op
+def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
+    req = NoteCreate.parse_obj(data)
+    nt = _resolve_notetype(col, req)
+    deck_id = _resolve_deck_id(col, req)
+    note = _prepare_note(col, req, nt)
 
     changes = col.add_note(note, deck_id)
     # The backend normalizes tags/fields and updates metadata without changing
