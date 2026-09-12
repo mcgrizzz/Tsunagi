@@ -1,6 +1,5 @@
 """Subscription interests must reduce traffic without hiding invalidations."""
 import asyncio
-from types import SimpleNamespace
 
 import pytest
 from test_v1_events import parse_frames
@@ -95,35 +94,6 @@ def test_matching_traffic_overflow_reports_a_delivery_gap(event_broker):
     assert gap["discarded"] == MAX_QUEUED + 1
     assert "refresh" not in gap
     assert event_broker.drain(token) == []
-
-
-def test_debounced_edits_keep_ids_and_respect_each_subscription():
-    clock = SimpleNamespace(now=0.0)
-    broker = EventBroker(clock=lambda: clock.now)
-    broker.start_session(object())
-    notes = subscribe(broker, types={"change"}, resources={"notes"})
-    config = subscribe(broker, types={"change"}, resources={"config"})
-    all_events = subscribe(broker)
-    for note_id in [10, 20]:
-        broker.publish("change", origin="ui", action="notes.updated",
-                       targets={"notes": [note_id]}, refresh=["notes", "cards"],
-                       anki={"changes": ["note", "note_text"]})
-        clock.now += 0.1
-    assert broker.drain(notes) == []
-    clock.now = 0.4
-    merged = broker.drain(notes)
-    assert len(merged) == 1
-    assert merged[0]["targets"] == {"notes": [10, 20]}
-    assert broker.drain(all_events) == merged
-    assert broker.drain(config) == []
-
-    # A filtered-out review is still an ordering barrier for pending edits.
-    broker.publish("change", origin="ui", action="notes.updated",
-                   targets={"notes": [30]}, refresh=["notes"],
-                   anki={"changes": ["note", "note_text"]})
-    broker.publish("review", card_id=42, ease=3)
-    assert [e["type"] for e in broker.drain(notes)] == ["change"]
-    assert [e["type"] for e in broker.drain(all_events)] == ["change", "review"]
 
 
 def test_filtered_subscriptions_do_not_cross_ready_or_session_boundaries(event_broker):

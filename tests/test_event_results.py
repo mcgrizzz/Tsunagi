@@ -1,4 +1,4 @@
-"""Completed mutation data, without extra collection reads or rendering."""
+"""Completed mutation IDs, without event records or extra collection reads."""
 import pytest
 from anki.collection import OpChanges
 from test_events_broker import recorded_ops as recorded_ops
@@ -6,7 +6,6 @@ from test_events_broker import recorded_ops as recorded_ops
 from tsunagi.adapters import ops
 from tsunagi.adapters.anki import cards, notes
 from tsunagi.adapters.event_results import (
-    MAX_RESULT_BYTES,
     MAX_RESULT_IDS,
     freeze_changes,
 )
@@ -47,16 +46,20 @@ def test_create_reuses_persisted_result_without_subscriber_reads(col, subscripti
         return get_note(nid)
     monkeypatch.setattr(col, "get_note", counted)
     monkeypatch.setattr(col, "get_card", unexpected)
+    monkeypatch.setattr(notes.NoteInfo, "dict", unexpected)
     broker.subscribe(types={"change"})
     saved = new_note()
     assert reads == [saved.id]  # one authoritative save result, shared by subscribers
     event = emit_last(recorded_ops, subscription)
-    assert event["changes"]["notes"]["upsert"] == [saved.dict()]
+    assert event["changes"]["notes"] == {"fetch": [saved.id], "remove": []}
     assert event["changes"]["cards"]["fetch"] == saved.cards
     assert event["refresh"] == []
     # Result objects may be changed by a caller after success. Queued events cannot.
-    saved.tags.append("after-return")
-    assert event["changes"]["notes"]["upsert"][0]["tags"] == []
+    saved_id = saved.id
+    saved.id = 123
+    saved.cards.append(456)
+    assert event["changes"]["notes"]["fetch"] == [saved_id]
+    assert 456 not in event["changes"]["cards"]["fetch"]
 
 
 def test_patch_returns_saved_fields_and_tags(col, subscription, recorded_ops):
@@ -65,7 +68,8 @@ def test_patch_returns_saved_fields_and_tags(col, subscription, recorded_ops):
     updated = notes.patch_note(saved.id, {"fields": {"Front": "changed"},
                                           "tags": ["zebra", "Alpha", "Alpha"]})
     event = emit_last(recorded_ops, subscription, ("notes",))
-    snapshot = event["changes"]["notes"]["upsert"][0]
+    assert event["changes"]["notes"] == {"fetch": [saved.id], "remove": []}
+    snapshot = updated.dict()  # the ordinary write response still has the saved data
     actual = col.get_note(saved.id)
     assert snapshot == updated.dict()
     assert {f["name"]: f["value"] for f in snapshot["fields"]} == dict(actual.items())
@@ -108,7 +112,7 @@ def test_compat_save_and_update_emit_ids(col, subscription, recorded_ops):
             "fields": {"Front": "compat", "Back": "meaning"}}
     nid = notes.ac_add_note(spec)
     event = emit_last(recorded_ops, subscription, ("notes",))
-    assert event["changes"]["notes"] == {"upsert": [], "fetch": [nid], "remove": []}
+    assert event["changes"]["notes"] == {"fetch": [nid], "remove": []}
     notes.ac_update_note_fields(nid, {"Front": "updated"}, [])
     event = emit_last(recorded_ops, subscription, ("notes",))
     assert event["changes"]["notes"]["fetch"] == [nid]
@@ -153,34 +157,53 @@ def test_review_only_listener_skips_event_factory(col, recorded_ops):
         broker.begin_drain()
 
 
-def test_oversize_records_become_fetches_and_oversize_id_sets_invalidate():
-    frozen = freeze_changes({"notes": {"upsert": [
-        {"id": 7, "fields": ["x" * MAX_RESULT_BYTES]}]}})
-    assert frozen == {"notes": {"upsert": [], "fetch": [7], "remove": []}}
+def test_id_lists_are_detached_and_bounded():
+    ids = [7, 7, 8]
+    frozen = freeze_changes({"notes": {"fetch": ids}})
+    ids.append(9)
+    assert frozen == {"notes": {"fetch": [7, 8], "remove": []}}
     assert freeze_changes({"cards": {"fetch": list(range(MAX_RESULT_IDS + 1))}}) == {}
+
+
+def test_record_payloads_are_rejected():
+    with pytest.raises(ValueError, match="only fetch/remove IDs"):
+        freeze_changes({"notes": {"upsert": [{"id": 7, "fields": ["secret"]}]}})
+
+
+def test_large_id_sets_do_not_leak_through_target_hints(subscription):
+    from tsunagi.adapters.events import ApiOp
+
+    ids = list(range(MAX_RESULT_IDS + 1))
+    initiator = ApiOp({"note_ids": ids})
+    initiator.changes = freeze_changes({"notes": {"fetch": ids}})
+    dispatch_op(OpChanges(note=True), initiator)
+    event = _change_event(broker.drain(subscription)[0], frozenset({"notes"}))
+    assert event["changes"] == {}
+    assert event["targets"] == {}
+    assert event["refresh"] == ["notes"]
 
 
 def test_projection_keeps_other_resources_and_input_hints_separate():
     event = {"type": "change", "refresh": ["notes", "cards", "models"],
-             "changes": {"notes": {"upsert": [{"id": 1}]},
+             "changes": {"notes": {"fetch": [1]},
                          "cards": {"fetch": [2]}},
              "targets": {"notes": [999], "models": [3]}}
     scoped = _change_event(event, frozenset({"notes", "models"}))
-    assert scoped["changes"] == {"notes": {"upsert": [{"id": 1}]}}
+    assert scoped["changes"] == {"notes": {"fetch": [1]}}
     assert scoped["refresh"] == ["models"]
     assert scoped["targets"]["notes"] == [999]  # never promoted to confirmed changes
 
 
-def test_saved_editor_ids_support_fetch_after_debounce():
+def test_add_dialog_ids_support_fetch():
     event = {"type": "change", "refresh": ["notes", "cards"],
-             "origin": "ui", "action": "notes.updated", "targets": {"notes": [10, 20]}}
+             "origin": "ui", "action": "notes.created", "targets": {"notes": [10, 20]}}
     scoped = _change_event(event, frozenset({"notes", "cards"}))
     assert scoped["changes"]["notes"]["fetch"] == [10, 20]
     assert scoped["refresh"] == ["cards"]
 
 
 @pytest.mark.parametrize("types", [None, "change", "change,refresh", "refresh"])
-def test_http_delivers_records_or_explicit_invalidation_mode(client, col, subscription,
+def test_http_delivers_ids_or_explicit_invalidation_mode(client, col, subscription,
                                                           recorded_ops, monkeypatch, types):
     original = broker.subscribe
     saved = []
@@ -212,7 +235,10 @@ def test_http_delivers_records_or_explicit_invalidation_mode(client, col, subscr
         assert "changes" not in update[1]
     else:
         assert update[0] == "change"
-        assert update[1]["changes"]["notes"]["upsert"] == [saved[0].dict()]
+        assert update[1]["changes"]["notes"] == {"fetch": [saved[0].id], "remove": []}
+        assert "word" not in response.text
+        assert "upsert" not in response.text
+        assert "fields" not in response.text
         assert set(update[1]["changes"]) == {"notes"}
         assert update[1]["refresh"] == []
     assert update[1]["seq"] > initial[1]["after_seq"]

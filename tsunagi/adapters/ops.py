@@ -37,7 +37,7 @@ class ValueWithChanges:
     OpChanges here, because aqt passes `.changes` to the hook verbatim and
     col.op_made_changes() expects the bare message.
 
-    event_changes is an optional factory of resource upsert/fetch/remove data.
+    event_changes is an optional factory of resource fetch/remove IDs.
     Declare only fully covered resources and use existing operation results;
     the runner copies them before success callbacks, only for data listeners.
     """
@@ -251,7 +251,7 @@ def collection_op_run_async(
                 except Exception:
                     initiator.changes = {}
                     logging.getLogger(__name__).exception(
-                        "Could not prepare record changes; using resource invalidation")
+                        "Could not prepare changed IDs; using resource invalidation")
             # If the result already has .changes, return as-is
             if hasattr(result, 'changes'):
                 return result
