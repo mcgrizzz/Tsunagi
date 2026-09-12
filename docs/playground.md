@@ -25,12 +25,18 @@ are disabled.
 
 ## Choosing a page size
 
-Collection queries and media listings default to `limit=1000`. Set a larger
-positive limit when you want more data in one response, for example
-`/v1/cards?select=id,note_id&limit=10000`; there is no fixed upper cap.
-Larger pages reduce the number of requests but use more memory per response.
-If `next_cursor` is not `null`, keep the same query and pass it as `cursor` to
-get the remaining results. Smaller pages let your app process each chunk sooner.
+Collection queries and media listings return **all matches when `limit` is
+omitted**, with `next_cursor: null`. For example, `/v1/cards?select=id,note_id`
+returns those fields for every card.
+
+Supply a positive `limit` to read a page at a time, such as
+`/v1/cards?select=id,note_id&limit=100`. If `next_cursor` is not `null`, keep the
+same query and pass it as `cursor` for the next page. Omitting `limit` on a
+continuation returns all remaining matches. There is no fixed upper cap on an
+explicit limit; zero and negative limits are rejected.
+
+All-at-once reads use more memory per response. Pages let your app process the
+first results sooner. Neither mode keeps a cached collection snapshot.
 
 ## Browser verification
 
