@@ -19,8 +19,8 @@ windows, and the event stream. Same request, three audiences.
    `CollectionOp` and calls
    `run_in_background(initiator=ApiOp({"card_ids": [...]}))`. The
    `initiator` is delivered VERBATIM to `operation_did_execute` later —
-   that is how an op event knows it came from the API and which cards it
-   touched, with no correlation race.
+   that is how a change event knows it came from the API and which cards
+   were targeted, with no correlation race.
 
 4. **The write.** Worker thread runs the raw verb:
    `col.sched.suspend_cards(ids)` → Rust `Op::Suspend` inside a backend
@@ -39,8 +39,10 @@ windows, and the event stream. Same request, three audiences.
        repaint — the same signal their own UI actions produce.
      - **Tsunagi's hook** (root `__init__.py`) → `dispatch_op` → the SSE
        broker: subscribers receive
-       `op {origin:"api", card_ids:[...], label:"Suspend",
-       changes:["card","study_queues",...]}`.
+       `change {origin:"api", action:"collection.changed",
+       targets:{cards:[...]}, refresh:["cards","decks","notes","reviews","scheduler"],
+       anki:{label:"Suspend", changes:["card","study_queues",...]}}`.
+       Targets are hints; `refresh` also covers potentially related data.
    - `_success(result)` unwraps `.value` → Event.set → the request thread
      resumes with the affected count.
 

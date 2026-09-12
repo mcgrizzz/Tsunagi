@@ -7,6 +7,7 @@ For installation and connection setup, start with the [project README](../README
 - [Yomitan walkthrough](api_recipes.md): follow its AnkiConnect workflow and see
   the corresponding native Tsunagi requests.
 - [Interactive API reference](playground.md): explore and try operations in Anki.
+- [Event stream](events.md): change notifications, available IDs and refresh behavior.
 - [Native discovery](capabilities.md): available operations and settings restrictions.
 - [AnkiConnect compatibility](ankiconnect_parity.md): action coverage and differences.
 - [Configuration](../config.md): connection, access and advanced settings.

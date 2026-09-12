@@ -74,6 +74,11 @@ else:
         except Exception:
             print("[tsunagi] boot failed:\n" + traceback.format_exc())
         try:
+            from .tsunagi.adapters.ui_events import install
+            install()
+        except Exception:
+            print("[tsunagi] editor event setup failed:\n" + traceback.format_exc())
+        try:
             _start_dev_watch()
         except Exception:
             print("[tsunagi] dev watch failed:\n" + traceback.format_exc())
@@ -84,6 +89,11 @@ else:
             print("[tsunagi] ankiconnect import offer failed:\n" + traceback.format_exc())
 
     def _on_profile_close() -> None:
+        try:
+            from .tsunagi.adapters.ui_events import uninstall
+            uninstall()
+        except Exception:
+            pass
         try:
             from .tsunagi.app import stop_server
             stop_server()
@@ -127,6 +137,13 @@ else:
         except Exception:
             pass
 
+    def _on_note_added(note) -> None:
+        try:
+            from .tsunagi.adapters.events import publish_note_change
+            publish_note_change([note.id], "notes.created")
+        except Exception:
+            pass
+
     def _on_sync_start() -> None:
         try:
             from .tsunagi.adapters.events import publish_sync
@@ -146,6 +163,7 @@ else:
     for _hook_name, _callback in (
         ("operation_did_execute", _on_op_executed),
         ("reviewer_did_answer_card", _on_card_answered),
+        ("add_cards_did_add_note", _on_note_added),
         ("sync_will_start", _on_sync_start),
         ("sync_did_finish", _on_sync_finish),
     ):
@@ -264,6 +282,9 @@ def reload_addon() -> str:
         return ("previous server thread is still alive, so the port is likely "
                 "still held - restart Anki instead of reloading")
 
+    from .tsunagi.adapters.ui_events import uninstall
+    uninstall()
+
     pkg = __name__ + ".tsunagi"
     purged = [n for n in list(sys.modules) if n == pkg or n.startswith(pkg + ".")]
     for name in purged:
@@ -272,6 +293,8 @@ def reload_addon() -> str:
     try:
         from .tsunagi.app import start_server
         start_server(mw)
+        from .tsunagi.adapters.ui_events import install
+        install()
     except Exception:
         return "reload failed:\n" + traceback.format_exc()
 

@@ -68,13 +68,14 @@ class TestBroker:
             store.publish("review", card_id=i, ease=1)
         events = store.drain(token)
         assert events[0] == {**events[0], "type": "reset", "reason": "lagged"}
-        assert len(events) == MAX_QUEUED + 1
-        # The oldest five were dropped; the newest survives.
-        assert events[-1]["card_id"] == MAX_QUEUED + 4
-        assert events[1]["card_id"] == 5
+        assert len(events) == 1
+        assert events[0]["refresh"] == ["collection"]
+        reset_seq = events[0]["seq"]
         # The lag was reported once; the next drain is clean.
         store.publish("review", card_id=99, ease=1)
-        assert [e["type"] for e in store.drain(token)] == ["review"]
+        following = store.drain(token)
+        assert [e["type"] for e in following] == ["review"]
+        assert following[0]["seq"] > reset_seq
 
     def test_unsubscribe_stops_delivery(self, store):
         token = store.subscribe()
@@ -144,22 +145,22 @@ class TestDispatchOp:
         # happens to touch everything keeps its identity.
         token = broker.subscribe()
         dispatch_op(all_true_changes(), object())
-        assert [e["type"] for e in broker.drain(token)] == ["op"]
+        assert [e["type"] for e in broker.drain(token)] == ["change"]
 
     def test_api_origin(self):
         token = broker.subscribe()
         dispatch_op(op_changes(card=True, study_queues=True), ApiOp())
         event = broker.drain(token)[0]
-        assert event["type"] == "op"
+        assert event["type"] == "change"
         assert event["origin"] == "api"
-        assert sorted(event["changes"]) == ["card", "study_queues"]
+        assert sorted(event["anki"]["changes"]) == ["card", "study_queues"]
 
     def test_api_details_are_merged_into_the_event(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True), ApiOp({"note_ids": [42, 43]}))
         event = broker.drain(token)[0]
         assert event["origin"] == "api"
-        assert event["note_ids"] == [42, 43]
+        assert event["targets"]["notes"] == [42, 43]
 
     def test_api_details_cannot_clobber_core_keys(self):
         token = broker.subscribe()
@@ -167,7 +168,7 @@ class TestDispatchOp:
                     ApiOp({"origin": "spoofed", "changes": [], "seq": -1}))
         event = broker.drain(token)[0]
         assert event["origin"] == "api"
-        assert event["changes"] == ["note"]
+        assert event["anki"]["changes"] == ["note"]
         assert event["seq"] > 0
 
     def test_ui_origin(self):
@@ -188,31 +189,31 @@ class TestDispatchOp:
                     label="Update Deck")
         events = broker.drain(token)
         assert len(events) == 1
-        assert events[0]["type"] == "op"
+        assert events[0]["type"] == "change"
         assert events[0]["origin"] is None
-        assert sorted(events[0]["changes"]) == ["card", "study_queues"]
-        assert "label" not in events[0]
+        assert sorted(events[0]["anki"]["changes"]) == ["card", "study_queues"]
+        assert "label" not in events[0]["anki"]
 
     def test_identified_api_operation_keeps_its_label(self):
         token = broker.subscribe()
         dispatch_op(op_changes(card=True), ApiOp({"card_ids": [42]}),
                     label="Suspend")
         event = broker.drain(token)[0]
-        assert event["label"] == "Suspend"
+        assert event["anki"]["label"] == "Suspend"
         assert event["origin"] == "api"
-        assert event["card_ids"] == [42]
+        assert event["targets"]["cards"] == [42]
 
     def test_label_is_carried_when_known(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True), object(), label="Update Note")
-        assert broker.drain(token)[0]["label"] == "Update Note"
+        assert broker.drain(token)[0]["anki"]["label"] == "Update Note"
 
     def test_label_is_omitted_when_unknown(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True), object())
         dispatch_op(op_changes(note=True), object(), label="")
         for event in broker.drain(token):
-            assert "label" not in event
+            assert "label" not in event["anki"]
 
 
 @pytest.fixture()
