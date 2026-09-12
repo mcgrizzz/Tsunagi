@@ -38,15 +38,35 @@ as note edits and card suspension. Anki updates its open windows and records the
 change in its undo history. **Undo supported changes through the API or Anki's
 Edit → Undo** — **Ctrl+Z**, or **⌘Z** on macOS.
 
-### Build with fewer steps
+### Get related data together
 
-Tsunagi grew out of work on [Yomine](https://github.com/mcgrizzz/Yomine), where apps
-needed related Anki data together. For example, a note-type picker needs both type
-names and their fields. Tsunagi can return those in one query.
+Tsunagi grew out of building [Yomine](https://github.com/mcgrizzz/Yomine). AnkiConnect
+provided the data the app needed, but related information often arrived in separate
+pieces that the app had to look up and join together.
+
+**Take a note-type picker.** It needs model names and their fields. With AnkiConnect,
+the client calls `modelNames`, then `modelFieldNames` for each type it needs, and
+pairs up the results. With Tsunagi, ask for them together:
+
+```sh
+curl --get 'http://127.0.0.1:7777/v1/models' \
+  --data-urlencode 'select=id,name,fields[].name' \
+  --data-urlencode 'limit=10'
+```
+
+Each returned model has its ID, name and field names attached. **No follow-up
+field request for those models.** Follow `next_cursor` to load another page.
+
+**Inside Anki, the fields are already part of the model record.** Tsunagi loads
+the records for this page and takes the requested data from them. If you ask only
+for `id,name`, it uses Anki's lightweight `all_names_and_ids()` instead, without
+loading full model definitions. For complete field metadata, change the selection
+to `id,name,fields`; the endpoint stays the same.
+
+### More ways to use the native API
 
 | With the native API, you can… | For example… |
 | --- | --- |
-| **Choose the data you receive** | Get note-type names and fields together, leaving out templates and other details. |
 | **Search and page through results** | Find notes with Anki browser syntax and load a large result set a page at a time. |
 | **Follow collection activity** | Refresh your app when events arrive, instead of repeatedly checking for changes. |
 | **Try requests before coding** | Explore your collection through the interactive API reference. |
