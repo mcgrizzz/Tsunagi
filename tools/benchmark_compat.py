@@ -36,6 +36,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkout", default=os.environ.get("TSUNAGI_ANKICONNECT_CHECKOUT"))
     parser.add_argument("--output", type=Path, default=Path("/tmp/tsunagi-bulk-benchmark.json"))
+    parser.add_argument("--scratch-dir", type=Path, help="parent for disposable collections; defaults to the system temp directory")
     parser.add_argument("--read-sizes", type=numbers, default=[1000, 10000])
     parser.add_argument("--write-sizes", type=numbers, default=[100, 1000])
     parser.add_argument("--workflow-sizes", type=numbers, default=[10, 100],
@@ -139,6 +140,9 @@ def main():
         return
     args.output = args.output.resolve()
     args.checkout = str(Path(args.checkout).resolve())
+    if args.scratch_dir:
+        args.scratch_dir = args.scratch_dir.resolve()
+        args.scratch_dir.mkdir(parents=True, exist_ok=True)
     bootstrap()
     from tools.upstream_reference import UPSTREAM_REVISION
     from tsunagi.shared.version import ADDON_VERSION
@@ -155,6 +159,7 @@ def main():
         raise SystemExit("No workloads selected at a positive size.")
     report = {
         "schema": 3, "mode": "headless_processing",
+        "scratch_dir": str(args.scratch_dir or tempfile.gettempdir()),
         "python": platform.python_version(), "anki": version("anki"),
         "tsunagi": ADDON_VERSION, "platform": platform.platform(),
         "tsunagi_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
@@ -175,7 +180,7 @@ def main():
         ], "cases": [], "failures": [], "completed": False,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="tsunagi-bulk-benchmark-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="tsunagi-bulk-benchmark-", dir=args.scratch_dir) as scratch:
         for index, case in enumerate(cases):
             print(f"[{index + 1}/{len(cases)}] {case['kind']} size={case['size']} batch={case['batch']}", flush=True)
             try:

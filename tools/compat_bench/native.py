@@ -24,8 +24,9 @@ def canonical_cards(cards):
 def run(workload, request):
     if workload.case["kind"] == "read_cards":
         # A zero benchmark batch means the entire known fixture in one response.
-        query = {"select": CARD_SELECT, "shape": "object",
-                 "limit": workload.case["batch"] or workload.case["size"]}
+        query = {"select": CARD_SELECT, "shape": "object"}
+        if workload.case["batch"]:
+            query["limit"] = workload.case["batch"]
         cards, cursors = [], set()
         while True:
             page = request.native("GET", "/v1/cards", query)
@@ -37,7 +38,7 @@ def run(workload, request):
             cursors.add(cursor)
             query["cursor"] = cursor
 
-    ids = []
+    notes = []
     for source in workload.notes:
         note = {key: source[key] for key in ("modelName", "deckName", "tags")}
         note["fields"] = dict(source["fields"])
@@ -52,5 +53,8 @@ def run(workload, request):
                 })["filename"]
                 markup = f"[sound:{stored}]" if kind == "audio" else f'<img src="{stored}">'
                 note["fields"]["Back"] += markup
-        ids.append(request.native("POST", "/v1/notes", note)["result"]["id"])
-    return ids
+        notes.append(note)
+    result = request.native("POST", "/v1/notes:batch-create", {"notes": notes})
+    assert not result["failed"], result["failed"]
+    assert [note["index"] for note in result["created"]] == list(range(len(notes)))
+    return [note["id"] for note in result["created"]]
