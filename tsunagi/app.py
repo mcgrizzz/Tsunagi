@@ -9,7 +9,7 @@ from typing import Any, Optional
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, JSONResponse
 
 from .adapters.config import ADDON_PACKAGE, choose_port, load_config
 from .adapters.settings import apply_config, make_persist, settings
@@ -228,7 +228,13 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
 
     # Anki work happens off the event loop: the handlers block on QueryOp /
     # CollectionOp round-trips to Anki's threads.
-    return await run_in_threadpool(handle_ankiconnect_rpc, body, origin=origin)
+    def dispatch_response() -> JSONResponse:
+        # Compatibility handlers already return JSON values. Encode once here
+        # instead of having FastAPI recursively convert the full result again.
+        # Keep large-response encoding off the event loop with the Anki work.
+        return JSONResponse(handle_ankiconnect_rpc(body, origin=origin))
+
+    return await run_in_threadpool(dispatch_response)
 
 # Actions listing endpoint
 @app.get(
