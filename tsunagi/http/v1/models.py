@@ -13,11 +13,10 @@ from ...adapters.anki.models import (
     delete_model,
     delete_template,
     find_and_replace_in_models,
+    get_model_ids,
     get_model_names_and_ids,
     get_models_by_ids,
     get_models_by_names,
-    # Query operations
-    list_models,
     patch_field,
     patch_model,
     patch_template,
@@ -25,7 +24,13 @@ from ...adapters.anki.models import (
     reorder_templates,
 )
 from ...shared.errors import handle_mutation_errors
-from ...shared.planning import IndexSpec, MutationCaps, SourceCaps, SubresourceMutations
+from ...shared.planning import (
+    IndexSpec,
+    MutationCaps,
+    ScanSpec,
+    SourceCaps,
+    SubresourceMutations,
+)
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.models import FindReplaceRequest, FindReplaceResult
 from ...shared.schemas.wrappers import Paginated
@@ -59,7 +64,7 @@ mutation_caps = MutationCaps(
 )
 
 caps = SourceCaps(
-    fetch_all = list_models,
+    scan=ScanSpec(find_ids=get_model_ids, hydrate=get_models_by_ids),
     indices=[
         # Faster simply because we don't call get() on all models
         IndexSpec(

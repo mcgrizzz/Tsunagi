@@ -73,6 +73,13 @@ class SearchSpec:
     # search query can't use it - Anki search ids only come as a full list.
     page_ids: Optional[PageIdsFn] = None
 
+
+@dataclass(frozen=True)
+class ScanSpec:
+    """Enumerate lightweight IDs without exposing Anki browser search."""
+    find_ids: BoundIdsFn
+    hydrate: FetchValuesFn
+
 # Subresource Mutation Capabilities
 @dataclass
 class SubresourceMutations:
@@ -104,6 +111,7 @@ class SourceCaps:
     columns_fetchers: Optional[Dict[FrozenSet[str], FetchColumnsFn]] = None # optional: exact top-level sets → fetcher
     search: Optional[SearchSpec] = None                                      # optional: backend search
     mutations: Optional[MutationCaps] = None                                 # optional: mutation operations
+    scan: Optional[ScanSpec] = None
 
 @dataclass
 class Plan:
@@ -224,11 +232,15 @@ def make_plan(
     if plan is not None:
         return plan
 
-    # 3) FALLBACK
+    # 3) PAGE BEFORE HYDRATION for resources with a lightweight ID listing.
+    if caps.scan is not None:
+        return Plan("scan", find_ids=caps.scan.find_ids, hydrate=caps.scan.hydrate)
+
+    # 4) FALLBACK
     if caps.fetch_all is not None:
         return Plan("full", caps.fetch_all)
 
-    # 4) SCAN — search-backed resources with no fetch_all: a bare listing is
+    # 5) SCAN — search-backed resources with no fetch_all: a bare listing is
     # the same path as a search, with the empty query (= whole collection).
     # When the source can enumerate ids keyset-style, hand that through so
     # the page never materializes the full id list.

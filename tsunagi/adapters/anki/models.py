@@ -27,6 +27,12 @@ from ..ops import ValueWithChanges, as_collection_op, as_query_op
 def list_models(col: Collection, wants=None) -> List[ModelInfo]:
     return [ModelInfo.parse_obj(m) for m in col.models.all()] # 1 query + 3*each notetype This is worst case since it runs on all notetypes
 
+
+@as_query_op
+def get_model_ids(col: Collection) -> List[int]:
+    """List IDs through Anki's lightweight metadata API, without loading models."""
+    return [int(nt.id) for nt in col.models.all_names_and_ids()]
+
 @as_query_op
 def get_models_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[ModelInfo]: #3*each notetype
     # `wants` (requested top-level fields) is accepted for the fetcher
