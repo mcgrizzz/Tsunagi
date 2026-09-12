@@ -34,16 +34,17 @@ def test_ready_captures_registration_boundary_without_becoming_a_notification():
     assert store.drain(b) == []
 
 
-def test_overflow_preserves_ready_and_uses_session_on_reset():
+def test_overflow_preserves_boundary_and_uses_session_on_gap():
     session = broker.start_session(object())
     token = broker.subscribe()
     for i in range(MAX_QUEUED + 1):
         broker.publish("review", card_id=i, ease=3)
     assert broker.ready(token)["after_seq"] == 0
     event, = broker.drain(token)
-    assert event["type"] == "reset"
+    assert event["type"] == "gap"
     assert event["session_id"] == session
-    assert event["seq"] > MAX_QUEUED + 1
+    assert event["after_seq"] == MAX_QUEUED + 1
+    assert "seq" not in event
 
 
 def test_reconnect_reuses_session_but_restart_permanently_closes_old_tokens():
@@ -105,7 +106,7 @@ def test_suspended_generator_discards_remaining_batch(transition, reset_settings
         gen = response.body_iterator
         await gen.__anext__()  # retry/comment
         ready_frame = await gen.__anext__()
-        assert "event: ready\n" in ready_frame
+        assert "event: refresh\n" in ready_frame
         assert "\nid:" not in ready_frame
         broker.publish("review", card_id=1, ease=3)
         broker.publish("review", card_id=2, ease=3)

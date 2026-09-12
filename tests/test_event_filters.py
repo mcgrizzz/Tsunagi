@@ -67,7 +67,7 @@ def test_resource_interests_filter_changes_and_types_select_other_notifications(
     event_broker.publish("change", refresh=["collection"])
     event_broker.publish("sync", phase="finished")
     event_broker.publish("reset")
-    assert [event["type"] for event in event_broker.drain(token)] == ["sync", "reset"]
+    assert [event["type"] for event in event_broker.drain(token)] == ["sync"]
 
 
 def test_unrelated_traffic_cannot_overflow_filtered_queue(event_broker):
@@ -84,15 +84,16 @@ def test_unrelated_traffic_cannot_overflow_filtered_queue(event_broker):
     assert event_broker.drain(unfiltered)[0]["reason"] == "lagged"
 
 
-def test_matching_traffic_still_overflows_to_mandatory_reset(event_broker):
+def test_matching_traffic_overflow_reports_a_delivery_gap(event_broker):
     token = subscribe(event_broker, types={"review"})
     for _ in range(MAX_QUEUED + 1):
         event_broker.publish("review", card_id=42, ease=3)
     assert event_broker.ready(token)["type"] == "ready"
-    reset, = event_broker.drain(token)
-    assert reset["type"] == "reset"
-    assert reset["reason"] == "lagged"
-    assert reset["refresh"] == ["collection"]
+    gap, = event_broker.drain(token)
+    assert gap["type"] == "gap"
+    assert gap["reason"] == "lagged"
+    assert gap["discarded"] == MAX_QUEUED + 1
+    assert "refresh" not in gap
     assert event_broker.drain(token) == []
 
 
@@ -145,7 +146,7 @@ def test_filtered_subscriptions_do_not_cross_ready_or_session_boundaries(event_b
 
 
 @pytest.mark.parametrize("query", [
-    "types=", "types=CHANGE", "types=change,", "types=changed",
+    "types=", "types=REFRESH", "types=refresh,", "types=change",
     "types=reset", "resources=", "resources=note", "resources=notes,,cards",
 ])
 def test_bad_filters_fail_before_opening_stream(client, event_broker, query):
@@ -171,13 +172,13 @@ def test_http_filters_parse_lists_and_count_only_delivered_events(client, event_
 
     monkeypatch.setattr(event_broker, "subscribe", with_events)
     response = client.get("/v1/events", params={
-        "types": " change, sync,change ", "resources": "notes, cards",
+        "types": " refresh, sync,refresh ", "resources": "notes, cards",
         "max_events": 4, "timeout": 2,
     })
     assert response.status_code == 200
     frames = parse_frames(response.text)
-    assert [name for name, _ in frames] == ["ready", "change", "change", "sync",
-                                          "reset", "close"]
+    assert [name for name, _ in frames] == ["refresh", "refresh", "refresh", "sync",
+                                          "refresh", "close"]
     assert [event["seq"] for _, event in frames[1:-1]] == [3, 4, 5, 6]
     assert frames[-1][1] == {"reason": "max_events"}
     assert not event_broker.has_subscribers()
@@ -187,11 +188,9 @@ def test_http_filters_parse_lists_and_count_only_delivered_events(client, event_
 def test_filtered_streams_keep_close_controls(event_broker, reset_settings, reason):
     async def consume():
         response = http_events.stream_events(
-            timeout=None, max_events=None, types="review", resources="notes")
+            timeout=None, max_events=None, types="review")
         stream = response.body_iterator
         await stream.__anext__()  # connection comment
-        ready = parse_frames(await stream.__anext__())
-        assert ready[0][0] == "ready"
         if reason == "auth":
             reset_settings.update(api_key="changed")
         else:

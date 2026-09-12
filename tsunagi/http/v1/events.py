@@ -29,81 +29,92 @@ router = APIRouter()
 
 POLL_SECONDS = 0.25
 HEARTBEAT_SECONDS = 15.0
-EVENT_TYPES = frozenset({"change", "review", "sync"})
+EVENT_TYPES = frozenset({"refresh", "review", "sync"})
 CHANGE_RESOURCES = frozenset({
     "notes", "cards", "models", "decks", "tags", "reviews", "scheduler", "config",
 })
 
 _DESCRIPTION = """\
-Streams collection notifications as Server-Sent Events (`text/event-stream`).
+Streams live notifications as Server-Sent Events (`text/event-stream`).
 
-To keep a note list current, connect to
-`/v1/events?types=change&resources=notes`. On `ready`, fetch your notes; on
-`change` or `reset`, refresh them. Retain a refresh request if a read is already
-in progress, so a change during that read triggers another read afterward.
+**Keep notes current:** connect to `/v1/events?resources=notes` and handle
+`refresh` by reloading the notes your interface displays. The same handler covers
+initial loading, later changes, broad Anki invalidations and gap recovery.
+No separate ready/reset handler or acknowledgement is needed.
 
-`types` selects comma-separated notification types (`change`, `review`, `sync`).
-`resources` selects comma-separated views affected by **change** notifications;
-it does not filter reviewer answers or sync progress. Use `types=change` to omit
-those. Omitted filters accept everything. Values within a filter are alternatives;
-both filters apply when supplied. Empty/unknown values return HTTP 422 before
-streaming. Filtering happens before events enter the subscriber's bounded queue.
-`ready`, `reset`, and `close` always pass, as do heartbeat comments. Broad or
-unknown changes pass every resource filter. Sequence gaps from filtering are
-normal, and `max_events` counts only delivered notifications (including resets).
+**React to reviewer answers:** use `/v1/events?types=review`. This subscription
+receives no initial refresh or collection invalidations. `types=sync` similarly
+selects sync progress. With neither filter, all three notification types arrive.
 
-- `ready`: first named event on each connection, with `session_id`,
-  `after_seq` and `refresh: ["collection"]`. Wait for it before fetching initial
-  data; retain notifications received during that fetch and refresh as needed.
-  It has no SSE ID and does not count toward `max_events`.
-- `change`: a completed mutation. `action` is `notes.created` or
-  `notes.updated` for identified UI saves, otherwise `collection.changed`.
-  `origin` is `api`, `ui`, or null when unknown. `targets` groups known IDs
-  by resource, e.g. `{"notes": [42]}`. These are hints, not an exhaustive
-  changed-record list. `refresh` names views that may need refreshing
-  (`notes`, `cards`, `models`, `decks`, `tags`, `reviews`, `scheduler`,
-  `config`, or `collection` for a broad refresh). Inspect `refresh` even
-  when targets are present: related records and query membership may change.
-  `anki.changes` preserves Anki's raw flags; optional `anki.label` is
-  localized display text, never an action identifier.
-- `review`: a reviewer answer, with `card_id` and `ease` (1–4). Also followed
-  by a general change notification.
-- `sync`: `phase` is `started` or `finished`; finished sync is followed by reset.
-- `reset`: `refresh: ["collection"]` requests a broad refresh.
-  `reason: "lagged"` means an overflowed queue was replaced by this reset.
-- `close`: the stream ends with `reason` equal to `shutdown`, `timeout`,
-  `max_events`, or `auth` (API key changed; reconnect using the current key).
+- `types`: comma-separated `refresh`, `review`, `sync`. If omitted with resources,
+  defaults to refresh; otherwise all types. Explicit types with resources must
+  include refresh. Empty/unknown values or incompatible filters return HTTP 422.
+- `resources`: comma-separated views to keep current: notes, cards, models,
+  decks, tags, reviews, scheduler, config. A refresh contains only subscribed
+  views that may be affected. Broad/unknown changes cover all subscribed views.
+  Filtering happens before the subscriber queue; unrelated traffic cannot fill it.
 
-Notifications contain `session_id`, `seq` and `ts` (Unix milliseconds); their
-SSE ID is `<session_id>:<seq>`. `close` frames carry only their reason. IDs are
-available for selected API mutations,
-notes saved in supported Anki editor paths, and notes added in the Add dialog.
-Editor IDs are captured from the operation/request and emitted only after
-success. General UI actions, undo and sync may lack target IDs. Add-dialog
-and newer-editor details supplement general change events; clients should
-coalesce refreshes, not count notifications as distinct mutations.
+### Notification payloads
 
-Ordinary UI note/text edits are debounced for 300 ms of quiet, with a 1-second
-maximum during continuous editing (delivery is subject to scheduling/network
-delay). Matching actions/Anki metadata combine target IDs and refresh hints.
-General and detailed editor notifications stay distinct. Other activity flushes
-pending edits first; API writes, reviews, undo/unknown origins, known
-creation/deletion and changes affecting other resources bypass this debounce.
-A new subscription also flushes prior edits before its ready boundary. An input
-limit may flush large bursts early. Anki saves and reads are not delayed.
+- `refresh`: `resources` names affected views, and `targets` contains known IDs
+  within those views (possibly empty). `reason` is initial, change, collection
+  (broad Anki invalidation), or recovery (after a gap). All reasons can use the
+  same refresh handler; they never instruct the client to reset Anki or download
+  the whole collection. Mutation details may include origin (api/ui/null), action
+  (notes.created/notes.updated/collection.changed), and raw anki flags/label.
+  Targets are hints, not an exhaustive change set; query membership can change.
+- `review`: reviewer answer with `card_id` and `ease` (1–4).
+- `sync`: `phase` is started or finished. The broad invalidation after sync goes
+  only to subscribers selecting refresh.
 
-Registration and `ready.after_seq` are captured atomically; queued notifications
-have greater sequence numbers. A server restart or profile switch creates a new
-random session ID and closes old subscriptions. Reconnecting to the same running
-server keeps the ID, but always requires a fresh read: delivery is live-only and
-best-effort, and Last-Event-ID does not resume missed notifications. Discard an
-unfinished initial load if the stream closes; begin again after the next ready.
-No active session returns HTTP 503. This boundary is not a collection snapshot.
-Media/import coverage is incomplete, and direct database edits by another add-on
-may bypass hooks. This is not an exact collection replica.
+### Connection and delivery
 
-Browser EventSource cannot set custom headers; `api_key` is available as a
-query parameter. The `stats` envelope used by JSON routes does not apply.
+A refresh subscription starts with `refresh` reason initial, outside the bounded
+queue. Registration and its `after_seq` boundary are captured atomically. Start
+reading data on this event; changes during that read are queued. Retain a refresh
+request arriving during a read and read again afterward. Discard unfinished reads
+when the connection fails/closes; the next connection sends another initial
+refresh, even when its session ID is unchanged. Review/sync-only streams start
+with a connection comment and do not request an initial data load.
+
+`gap` reports an overflowed subscriber queue: reason lagged, discarded notification
+count, session_id, ts and after_seq. Its incomplete backlog was discarded. Data
+subscribers automatically receive a scoped refresh reason recovery immediately
+after the gap; their normal refresh handler is sufficient to reload current data.
+Clients counting reviewer answers should treat gap as incomplete delivery, not
+invent missing answers. Gap is a delivery notice, not a collection invalidation.
+`close` ends the stream with reason shutdown, timeout, max_events or auth
+(API key changed). Neither notice needs acknowledgement. Heartbeat comments keep
+idle connections alive.
+
+Live notifications have session_id, seq and ts (Unix milliseconds); their SSE ID
+is `<session_id>:<seq>`. Filtering can leave sequence gaps. Initial/recovery refresh
+and gap are connection-local boundaries with after_seq instead of seq, and no SSE
+ID. Subsequent live notifications have greater seq. The same live event keeps its
+ID across subscriptions, but its resources/targets are scoped to each subscriber.
+Initial refresh and gap do not count toward max_events; recovery refresh does.
+
+Server restart/profile switch creates a new session ID and closes old streams.
+Delivery is best-effort and live-only: Last-Event-ID does not replay missed events,
+and gap does not detect every network loss. Boundaries do not make separate HTTP
+reads an atomic snapshot. No active session returns HTTP 503.
+
+### Editing and coverage
+
+Ordinary UI note/text notifications wait for 300 ms of quiet, with a 1-second
+maximum during continuous editing (plus scheduling/network delay). Compatible
+notifications merge targets; general/detailed editor actions remain distinct.
+Other activity flushes pending edits first. API writes, reviews, undo/unknown
+origins, known creation/deletion and broader changes bypass this debounce.
+Registration flushes prior edits before its boundary. Saves and reads stay live.
+
+Selected API mutations and supported editor/Add-dialog saves supply IDs only
+after success. Undo, general UI work and sync can lack IDs. Coalesce refreshes;
+notification counts are not mutation counts. Media/import coverage is incomplete,
+and direct database writes by another add-on may bypass hooks.
+
+Browser EventSource can use the api_key query parameter when custom authentication
+headers are unavailable. The JSON routes' stats envelope does not apply.
 """
 
 
@@ -116,6 +127,22 @@ def _sse_frame(event: Dict[str, Any]) -> str:
 
 def _close_frame(reason: str) -> str:
     return f"event: close\ndata: {json.dumps({'reason': reason})}\n\n"
+
+
+def _refresh_event(event: dict, resources: FrozenSet[str], reason: str) -> dict:
+    """Present hook invalidations and connection boundaries in one client shape."""
+    affected = event.get("refresh")
+    selected = (resources if not affected or "collection" in affected
+                else resources.intersection(affected))
+    result = {key: event[key] for key in ("session_id", "seq", "after_seq", "ts")
+              if key in event}
+    result.update(type="refresh", reason=reason, resources=sorted(selected),
+                  targets={key: ids for key, ids in event.get("targets", {}).items()
+                           if key in selected})
+    for key in ("origin", "action", "anki"):
+        if key in event:
+            result[key] = event[key]
+    return result
 
 
 def _parse_filter(value: Optional[str], name: str,
@@ -148,30 +175,40 @@ def stream_events(
                                 "seconds (for scripts and polling clients)."),
     max_events: Optional[int] = Query(
         None, gt=0, description="Close the stream cleanly after this many "
-                                "notifications (ready does not count)."),
+                                "notifications (initial refresh and gap do not count)."),
     api_key: Optional[str] = Query(
         None, description="Alternative to the X-Api-Key header for clients "
                           "that cannot send headers (browser EventSource). "
                           "Checked by the auth middleware."),
     types: Annotated[Optional[str], Query(
-        description="Notification types, comma-separated: change, review, sync. "
-                    "Omit for all. Ready, reset and close always pass.",
+        description="Notification types, comma-separated: refresh, review, sync. "
+                    "Defaults to refresh when resources is supplied, otherwise all.",
     )] = None,
     resources: Annotated[Optional[str], Query(
-        description="Affected views for change events, comma-separated: "
+        description="Views to keep current, comma-separated: "
                     "notes, cards, models, decks, tags, reviews, scheduler, config. "
-                    "Omit for all. Broad changes always pass. "
-                    "Use types=change to omit review and sync events.",
+                    "Selects refresh events unless types is explicit. "
+                    "If types is supplied, it must include refresh.",
     )] = None,
 ) -> StreamingResponse:
     selected_types = _parse_filter(types, "types", EVENT_TYPES)
     selected_resources = _parse_filter(resources, "resources", CHANGE_RESOURCES)
+    if selected_resources is not None:
+        if selected_types is None:
+            selected_types = frozenset({"refresh"})
+        elif "refresh" not in selected_types:
+            raise HTTPException(status_code=422,
+                                detail="resources requires the refresh event type")
+    wants_refresh = selected_types is None or "refresh" in selected_types
+    refresh_resources = selected_resources or CHANGE_RESOURCES
+    hook_types = (None if selected_types is None else frozenset(
+        "change" if type_ == "refresh" else type_ for type_ in selected_types))
     if broker.is_draining():
         raise CollectionUnavailableError("No active event session")
     key_at_connect: str = settings.get("api_key", "")
 
     async def gen() -> AsyncIterator[str]:
-        token = broker.subscribe(types=selected_types, resources=selected_resources)
+        token = broker.subscribe(types=hook_types, resources=selected_resources)
         if token is None:
             yield _close_frame("shutdown")
             return
@@ -190,7 +227,8 @@ def stream_events(
             if reason or ready is None:
                 yield _close_frame(reason or "shutdown")
                 return
-            yield _sse_frame(ready)
+            if wants_refresh:
+                yield _sse_frame(_refresh_event(ready, refresh_resources, "initial"))
             sent = 0
             start = last_beat = time.monotonic()
             while True:
@@ -205,6 +243,21 @@ def stream_events(
                     if reason:
                         yield _close_frame(reason)
                         return
+                    if event["type"] == "gap":
+                        yield _sse_frame(event)
+                        # A consumer may suspend after the gap across a profile
+                        # switch/key rotation. Do not send an old recovery frame.
+                        reason = close_reason()
+                        if reason:
+                            yield _close_frame(reason)
+                            return
+                        if not wants_refresh:
+                            continue
+                        event = _refresh_event(event, refresh_resources, "recovery")
+                    elif event["type"] in ("change", "reset"):
+                        event = _refresh_event(
+                            event, refresh_resources,
+                            "change" if event["type"] == "change" else "collection")
                     yield _sse_frame(event)
                     sent += 1
                     if max_events is not None and sent >= max_events:

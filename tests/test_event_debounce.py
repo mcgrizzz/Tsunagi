@@ -173,7 +173,7 @@ def test_last_disconnect_discards_pending_edits_and_no_listener_keeps_no_batch(s
     assert store.drain(store.subscribe()) == []
 
 
-def test_pending_inputs_are_bounded_and_slow_subscribers_still_get_reset(store):
+def test_pending_inputs_are_bounded_and_slow_subscribers_still_get_gap(store):
     token = store.subscribe()
     for _ in range(MAX_QUEUED):
         store.publish("change", **edit())
@@ -183,9 +183,9 @@ def test_pending_inputs_are_bounded_and_slow_subscribers_still_get_reset(store):
         store.publish("change", **edit())
         store.publish("review", card_id=42, ease=3)
     event, = store.drain(token)
-    assert event["type"] == "reset"
+    assert event["type"] == "gap"
     assert event["reason"] == "lagged"
-    assert event["refresh"] == ["collection"]
+    assert event["discarded"] == 2 * (MAX_QUEUED + 1)
 
 
 def test_real_anki_changes_debounce_updates_but_not_add_delete_or_undo(col, clock, monkeypatch):
@@ -232,7 +232,7 @@ def test_http_wakes_for_quiet_deadline_and_counts_emitted_notifications(clock, m
     async def run():
         gen = http_events.stream_events(timeout=None, max_events=1).body_iterator
         await gen.__anext__()  # retry/comment
-        assert "event: ready" in await gen.__anext__()
+        assert "event: refresh" in await gen.__anext__()
         broker.publish("change", **edit(1))
         broker.publish("change", **edit(2))
         frame = await gen.__anext__()
