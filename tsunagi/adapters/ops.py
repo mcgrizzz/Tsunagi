@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from concurrent.futures import Future
 from functools import wraps
@@ -11,7 +12,8 @@ from aqt.operations import CollectionOp, QueryOp
 from typing_extensions import Concatenate, ParamSpec
 
 from ..shared.errors import AnkiBusyError, CollectionUnavailableError
-from .events import ApiOp
+from .event_results import freeze_changes
+from .events import ApiOp, broker
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -34,11 +36,17 @@ class ValueWithChanges:
     Wrapper protos (OpChangesWithCount/WithId/...) are unwrapped to the inner
     OpChanges here, because aqt passes `.changes` to the hook verbatim and
     col.op_made_changes() expects the bare message.
-    """
-    __slots__ = ("value", "changes")
 
-    def __init__(self, value: Any, changes: Any) -> None:
+    event_changes is an optional factory of resource upsert/fetch/remove data.
+    Declare only fully covered resources and use existing operation results;
+    the runner copies them before success callbacks, only for data listeners.
+    """
+    __slots__ = ("value", "changes", "event_changes")
+
+    def __init__(self, value: Any, changes: Any, *,
+                 event_changes: Optional[Callable[[], dict]] = None) -> None:
         self.value = value
+        self.event_changes = event_changes
         self.changes = getattr(changes, "changes", changes)
 
 def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], what: str) -> Any:
@@ -227,11 +235,23 @@ def collection_op_run_async(
         def _failure(exc: Exception) -> None:
             on_failure(exc)
 
+        initiator = ApiOp(event_details, collection=collection)
+
         # Wrap the function to return a ResultWithChanges object
         def wrapped_op(col: Collection) -> Any:
             if col is not collection:
                 raise CollectionUnavailableError()
             result = fn(col, *args, **kwargs)
+            if isinstance(result, ValueWithChanges) and result.event_changes:
+                # Capture on the collection thread, before Anki's success hook.
+                # Event decoration must never turn a successful write into a failure.
+                try:
+                    if broker.has_change_subscribers():
+                        initiator.changes = freeze_changes(result.event_changes())
+                except Exception:
+                    initiator.changes = {}
+                    logging.getLogger(__name__).exception(
+                        "Could not prepare record changes; using resource invalidation")
             # If the result already has .changes, return as-is
             if hasattr(result, 'changes'):
                 return result
@@ -263,7 +283,7 @@ def collection_op_run_async(
         # can attribute the change to the API rather than Anki's own UI, and
         # carry any identity the adapter attached (note_ids etc.).
         try:
-            op.run_in_background(initiator=ApiOp(event_details, collection=collection))
+            op.run_in_background(initiator=initiator)
         except TypeError:
             op.run_in_background()  # older signature without initiator
 

@@ -72,9 +72,11 @@ Tsunagi:
 **The AnkiConnect response:** `addNote` returns only the note ID. Yomitan
 uses it to build a `nid:...` browser search, gets the card IDs, then suspends them.
 
-**What Tsunagi reuses:** the note it just created. It builds the response from
-that object and obtains its card IDs through Anki's direct `card_ids_of_note()`
-method. There is no saved-note reload or browser card search to build this response.
+**What Tsunagi returns together:** the saved note and its card IDs. It reads the
+persisted note once, so the response includes Anki’s normalized fields, tags and
+metadata, and obtains the cards through Anki’s direct `card_ids_of_note()` method.
+No browser card search is needed. [Event subscribers](events.md) can receive that
+same note result without another lookup.
 
 The client takes `result.cards` from the save response and passes them to the
 suspend endpoint. **Three requests become two.** Saving without suspension is

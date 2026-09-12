@@ -17,6 +17,7 @@ from ...shared.schemas.notes import (
     NoteInfo,
     NotePatch,
 )
+from ..event_results import note_result
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 # note.fields_check() states (anki.notes.NoteFieldsCheckResult)
@@ -268,8 +269,10 @@ def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
         raise DuplicateNoteError(_duplicate_ids(col, note))
 
     changes = col.add_note(note, deck_id)
-    return ValueWithChanges(
-        _note_info(col, note, {int(nt["id"]): nt["name"]}), changes)
+    # The backend normalizes tags/fields and updates metadata without changing
+    # this Python Note. Read the persisted result once for both HTTP and events.
+    info = _note_info(col, col.get_note(note.id), {int(nt["id"]): nt["name"]})
+    return ValueWithChanges(info, changes, event_changes=lambda: note_result(info))
 
 
 def _change_notetype(col: Collection, note: Any, req: NotePatch) -> None:
@@ -332,14 +335,17 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
         note.tags = [t for t in note.tags if t not in drop]
 
     changes = col.update_note(note)
-    return ValueWithChanges(_note_info(col, note, model_names), changes)
+    info = _note_info(col, col.get_note(note.id), model_names)
+    return ValueWithChanges(info, changes,
+                            event_changes=lambda: note_result(info, include_cards=False))
 
 
 @as_collection_op(event_details=lambda ids: {"note_ids": [int(i) for i in ids]})
 def delete_notes(col: Collection, ids: Sequence[int]) -> int:
     """Batch by design: one undoable op. Compat's deleteNotes reuses this."""
     res = col.remove_notes([int(i) for i in ids])
-    return ValueWithChanges(int(getattr(res, "count", 0) or 0), res)
+    return ValueWithChanges(int(getattr(res, "count", 0) or 0), res,
+                            event_changes=lambda: {"notes": {"remove": list(ids)}})
 
 
 # ====================
@@ -617,7 +623,8 @@ def ac_add_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -> 
         res = col.add_note(note, int(deck["id"]))
         if int(getattr(res, "count", 1) or 0) < 1:
             raise ValueError(EMPTY_QUESTION)
-        return ValueWithChanges(int(note.id), res)
+        return ValueWithChanges(int(note.id), res,
+                                event_changes=lambda: {"notes": {"fetch": [int(note.id)]}})
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 
@@ -683,7 +690,8 @@ def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
     try:
         note = _ac_prepare_update(col, note_id, fields, fields_missing=fields_missing)
         _ac_write_media(col, note, media)
-        return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True))
+        return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True),
+                                event_changes=lambda: {"notes": {"fetch": [int(note.id)]}})
     except Exception as exc:
         if type(exc).__name__ == "NotFoundError":
             raise ValueError(NOTE_NOT_FOUND.format(note_id)) from exc

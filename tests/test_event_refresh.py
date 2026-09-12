@@ -22,7 +22,7 @@ async def next_event(stream):
     return name, data, frame
 
 
-def test_notes_client_needs_one_handler_for_initial_change_and_collection(event_broker):
+def test_notes_client_receives_changes_between_refresh_boundaries(event_broker):
     async def consume():
         stream = await open_stream(resources="notes")
         try:
@@ -40,7 +40,9 @@ def test_notes_client_needs_one_handler_for_initial_change_and_collection(event_
             assert "\nid:" not in frame
 
             name, change, _ = await next_event(stream)
-            assert name == "refresh"
+            assert name == "change"
+            assert change["changes"] == {}
+            assert change["refresh"] == ["notes"]
             assert change["reason"] == "change"
             assert change["resources"] == ["notes"]
             assert change["targets"] == {"notes": [42]}
@@ -172,5 +174,5 @@ def test_gap_cannot_release_recovery_from_old_connection(event_broker, reset_set
 def test_resource_filter_cannot_silently_do_nothing(client, event_broker, types):
     response = client.get("/v1/events", params={"types": types, "resources": "notes"})
     assert response.status_code == 422
-    assert response.json()["detail"] == "resources requires the refresh event type"
+    assert response.json()["detail"] == "resources requires the change or refresh event type"
     assert not event_broker.has_subscribers()

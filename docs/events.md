@@ -2,143 +2,163 @@
 
 [← Documentation](README.md)
 
-Events tell your app when its Anki data may have changed, so it can refresh
-without repeatedly checking. Your app chooses what it wants to hear about.
+When a note is saved through Tsunagi’s native API, a subscriber can receive the
+saved note in the event itself. Put it into your interface’s data store—there is
+no need to fetch that note again.
 
-## Choose what you receive
+When a complete record isn’t available, the event gives you IDs to fetch. A
+broader refresh is the fallback when Anki doesn’t identify the affected records.
 
-Connect to `http://127.0.0.1:7777/v1/events` with one of these queries.
-Anki must be running; use your configured port if different.
+## Subscribe to what you use
 
-| I want to… | Add to the URL | Listen for |
-| --- | --- | --- |
-| Keep notes up to date | `?resources=notes` | `refresh` |
-| Keep notes and note types up to date | `?resources=notes,models` | `refresh` |
-| React when a card is answered | `?types=review` | `review` |
-| Follow sync progress | `?types=sync` | `sync` |
-
-## Example: keep a note list up to date
-
-Try the subscription in a terminal:
+Anki must be running. Use your configured port if different:
 
 ```sh
 curl -N 'http://127.0.0.1:7777/v1/events?resources=notes'
 ```
 
-Or listen in your browser app:
+| I want… | Query | Notifications |
+| --- | --- | --- |
+| Note changes | `resources=notes` | `change`, plus `refresh` when needed |
+| Note and card changes | `resources=notes,cards` | Same, scoped to those resources |
+| Reviewer answers | `types=review` | `review`, with `card_id` and `ease` |
+| Sync progress | `types=sync` | `sync`, with `phase: started/finished` |
 
-```javascript
-const stream = new EventSource("http://127.0.0.1:7777/v1/events?resources=notes");
-stream.addEventListener("refresh", () => requestNotesRefresh());
+Filtering happens before your queue: unrelated traffic cannot fill it.
+
+## Apply a saved note directly
+
+A `change` event separates the work your client can do:
+
+| Field | What to do |
+| --- | --- |
+| `changes.notes.upsert` | Insert or replace these complete note records. They use the native API’s note response shape. |
+| `changes.notes.fetch` | Fetch these IDs; the event doesn’t contain their records. |
+| `changes.notes.remove` | Remove these IDs from your data store; they are now absent. |
+| `refresh` | Reload your displayed query for these resources. Their affected records weren’t fully identified. |
+
+Cards use the same keys under `changes.cards`. For a native note save, the note
+is in `upsert` and `refresh` does **not** include `notes`.
+
+This JavaScript illustrates the handling; the data-store and fetch helpers belong
+to your app:
+
+```js
+const events = new EventSource("http://127.0.0.1:7777/v1/events?resources=notes");
+
+events.addEventListener("change", ({data}) => {
+    const event = JSON.parse(data);
+    const notes = event.changes.notes;
+    if (notes) {
+        for (const note of notes.upsert) notesById.set(note.id, note);
+        for (const id of notes.remove) notesById.delete(id);
+        if (notes.fetch.length) fetchNotesById(notes.fetch);
+    }
+    if (event.refresh.includes("notes")) reloadDisplayedNotes();
+    renderNotes();
+});
+
+events.addEventListener("refresh", () => reloadDisplayedNotes());
 ```
 
-**The first `refresh` tells you to load your notes. Later ones tell you to update
-them.** The same handler works after reconnecting or syncing. Refresh the data
-your interface displays; you don't need to download the entire collection.
-
-`requestNotesRefresh()` is your app's reload function. It should:
-
-- Run one read at a time. If a notification arrives during a read, read again afterward.
-- Discard unfinished reads when the connection fails or closes. Start again on the next connection's initial `refresh`.
-
-Tsunagi groups ordinary typing notifications: after **300 ms of quiet**, or at
-most **1 second** during continuous editing, plus delivery delay. Anki still saves
-normally, and your reads return current data.
-
-If you use an API key, add `api_key=YOUR_KEY` to the browser connection URL.
-Other clients can send `X-API-Key` or a Bearer token.
-
-## Using reviewer or sync events
-
-A `review` event gives you `card_id` and `ease` (1 = Again, 2 = Hard, 3 = Good,
-4 = Easy). A `sync` event gives you `phase`: `started` or `finished`.
-These subscriptions don't receive note-refresh requests.
-
-Delivery is best-effort. If your app counts reviewer answers, a `gap` means some
-notifications were lost; mark the count incomplete. Missed events aren't replayed
-on reconnect. A refresh subscription recovers by requesting current data through
-its normal handler.
+`refresh` also supplies the initial load and recovery after a reconnect. It asks
+for your app’s current view, not the whole collection. Ordinary saved-editor
+notifications keep the typing debounce: 300 ms of quiet, at most one second
+while typing continues. API writes arrive without that debounce.
 
 <details>
-<summary>More subscription options and event fields</summary>
+<summary>Which operations supply records or IDs?</summary>
+
+| Operation | Useful event data |
+| --- | --- |
+| Native note creation or patch | Full note in `upsert`, reused from the save response |
+| Native note creation | Generated card IDs in `changes.cards.fetch` |
+| AnkiConnect-compatible note creation or field update | Saved note ID in `fetch` |
+| Note deletion, native or compatibility API | Note IDs in `remove` |
+| Suspend, unsuspend, bury, unbury | Card IDs in `fetch` |
+| Supported editor/Add-dialog saves | Saved note IDs in `fetch`, after any typing debounce |
+| Other operations, general UI activity, undo, sync | Scoped refresh where precise coverage is unavailable |
+
+A `fetch` list can include an unchanged or missing ID. Read the listed records,
+and remove IDs no longer found. For example, query `/v1/notes` with
+`where=id in [123,456]` and follow pagination. `remove` means the ID is absent
+after successful removal; it doesn’t claim every ID existed beforehand.
+
+Related resources can still need refreshing: deleting notes doesn’t give us all
+of their deleted card IDs; patching a note can change its generated cards. These
+remain explicit in `refresh` for subscribers interested in cards.
+
+Native saves read the persisted note once, including Anki’s normalized tags and
+metadata. Events reuse that result; they add no per-subscriber reads or card
+rendering. Result details are copied once before the
+operation’s success callback and shared across subscribers. Snapshots over the
+64 KiB result-detail budget become ID fetches; sets over 1,000 IDs per resource
+fall back to refresh. No cross-request collection cache is involved.
+
+</details>
+
+<details>
+<summary>Queries, loading, and event ordering</summary>
+
+A full record describes that operation’s result. Apply live events in stream
+order. An HTTP fetch may finish after a newer event: don’t let its older response
+overwrite that event. While loading, mark the view dirty if another change
+arrives, then re-read after the load before treating the view as current. On
+connection loss, discard outstanding loads and start again at the next initial
+refresh. The short example above omits this application-specific coordination.
+
+Updating a record store is different from maintaining a filtered or paginated
+query. A changed note can enter or leave an Anki search, and `notes` records do
+not contain every dependency of that search. If your client cannot evaluate
+membership, sorting or counts itself, rerun its displayed query. An empty
+`refresh` means the event covered the affected records for that resource; it
+doesn’t guarantee your query’s membership or page boundaries stayed the same.
+
+Live events contain `session_id`, `seq`, and `ts` (Unix milliseconds). Their SSE
+ID is `<session_id>:<seq>`. Subscription registration and the initial refresh’s
+`after_seq` boundary are captured together; subsequent notifications have larger
+sequence numbers. Filtering naturally leaves gaps in sequence numbers.
+Resources and record details are scoped to each subscriber.
+
+</details>
+
+<details>
+<summary>Other filters, recovery, and coverage</summary>
 
 **Filters.** `resources` accepts `notes`, `cards`, `models`, `decks`, `tags`,
-`reviews`, `scheduler`, and `config`. `types` accepts `refresh`, `review`, and
-`sync`. Separate values with commas. To combine note refreshes with answers, use
-`?types=refresh,review&resources=notes`.
+`reviews`, `scheduler`, and `config`. Combine note changes with reviewer answers
+using `?types=change,review&resources=notes`. With no filters, receive all activity.
+`types=refresh` explicitly selects the older invalidation-only presentation,
+without records. If selecting both `change` and `refresh`, changes are delivered
+once, in the richer form. Empty, unknown or incompatible filters return HTTP 422.
 
-Supplying `resources` alone selects refresh events. If you also supply `types`,
-it must include `refresh`. Omit both filters to receive everything. Empty,
-unknown, or incompatible filter values return HTTP **422**.
+**Refresh boundaries.** A data subscription starts with reason `initial`.
+Broad Anki invalidations use `collection`. If the bounded queue overflows, the
+incomplete backlog is discarded: a `gap` notice reports `reason: lagged` and its
+`discarded` count, followed by `refresh` reason `recovery`. No acknowledgement is
+required. Initial/recovery refreshes and gaps use `after_seq`, not an SSE ID.
 
-Filtering happens before notifications enter your queue. Related changes count:
-a deck rename can affect a note query using `deck:...`. Broad or unknown changes
-refresh your subscribed views.
+**Reconnects.** Delivery is live-only and best-effort. `Last-Event-ID` doesn’t
+replay missed events. Reconnects get a fresh initial refresh; profile switches
+and server restarts also change the session ID. Reviewer-only and sync-only
+subscriptions receive no refreshes. If counting reviewer answers, treat a gap
+or disconnect as incomplete delivery.
 
-**Refresh fields.** The relevant part of a note update can look like this:
+**Closing.** `close` gives the reason: `shutdown`, `auth` (API key changed),
+`timeout`, or `max_events`. Heartbeat comments keep idle connections alive.
+Initial refreshes and gap notices don’t count toward `max_events`; recovery
+refreshes do. No active collection session returns HTTP 503.
 
-```json
-{
-  "type": "refresh",
-  "reason": "change",
-  "resources": ["notes"],
-  "targets": {"notes": [1789162609990]}
-}
-```
+**Diagnostics.** `origin` is `api`, `ui`, or null. `action` and raw `anki` flags
+can help debugging; don’t parse localized labels for application logic.
+`targets` retains input/context hints for uncovered operations. Unlike `changes`,
+these hints don’t establish complete coverage and must not imply deletion.
 
-`resources` lists subscribed views that may need refreshing. `reason` is `initial`,
-`change`, `collection` (broad Anki invalidation), or `recovery` (after a delivery
-gap). All four can use the same handler.
-
-`targets` contains known IDs within those views, or an empty object. These are
-hints, not a complete change set: an edit can also affect related records or
-which results match a query. Selected Tsunagi mutations and supported editor/Add
-saves supply IDs; other UI actions, undo and sync may not. API note creation
-returns its ID in the HTTP response, but its general event doesn't yet include it.
-
-Optional `origin`, `action`, and `anki` fields describe the mutation. Actions are
-`notes.created`, `notes.updated`, or `collection.changed`; origin is `api`, `ui`,
-or null when unknown. Anki flags and localized labels are for diagnostics, not
-required for refreshing data.
+**Limits.** General and detailed editor notifications can overlap. Event counts
+are not mutation counts. Media/import coverage is incomplete; another add-on’s
+direct database edits may bypass hooks. Browser EventSource can supply a
+configured key through the `api_key` query parameter.
 
 </details>
 
-<details>
-<summary>Connection and delivery details</summary>
-
-**Queue overflow.** `gap` reports a lost backlog with reason `lagged` and a
-`discarded` notification count. Refresh subscribers immediately receive a scoped
-recovery refresh. Review/sync-only clients receive the delivery notice without a
-refresh request. No message needs acknowledgement.
-
-**Closing.** `close` gives the reason: `shutdown`, `auth`, `timeout`, or
-`max_events`. For `auth`, reconnect with the current API key. Heartbeat comments
-keep idle connections alive. `max_events` counts delivered notifications,
-including recovery refreshes; initial refresh and gap notices don't count.
-
-**Ordering.** The initial refresh marks when your subscription started. Changes
-arriving before you receive it are already queued. Live notifications carry
-`session_id`, `seq`, and `ts` (Unix milliseconds), with SSE ID `<session_id>:<seq>`.
-Initial/recovery refreshes and gaps instead have `after_seq`, with no SSE ID;
-subsequent live events have greater sequence numbers. Filtering can leave normal
-gaps in those numbers. Event IDs are shared across subscribers, while resources
-and target hints are scoped to each subscription.
-
-**Reconnecting.** Server restarts and profile switches create a new session ID
-and close old streams. A reconnect to the same running session still starts
-fresh. `Last-Event-ID` doesn't replay missed events, and `gap` doesn't detect every
-network loss. Separate HTTP reads aren't an atomic collection snapshot.
-
-**Timing and coverage.** API writes, reviews, undo, known creation/deletion and
-broader changes bypass typing debounce. Other activity and new subscriptions
-flush pending edits first. General and detailed editor notifications can overlap;
-notification counts aren't mutation counts. Media/import coverage is incomplete,
-and another add-on's direct database edits may bypass hooks. No active session
-returns HTTP **503**.
-
-Earlier development versions used public `ready`, `change`, and `reset` events.
-These are now `refresh`; its `resources` field replaces the old `refresh` field.
-
-</details>
-
-See the [interactive reference](playground.md) for the full endpoint description.
+See the [interactive reference](playground.md) for full endpoint details.
