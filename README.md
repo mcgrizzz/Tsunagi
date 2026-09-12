@@ -51,7 +51,7 @@ clients keep their current workflow; both APIs can be used together.
 
 ## Install
 
-**AnkiWeb add-on code:** `<ANKIWEB_ADDON_ID>` *(placeholder until publication)*
+**AnkiWeb add-on code:** `666370974`
 
 1. In Anki desktop, open **Tools → Add-ons → Get Add-ons**.
 2. Paste the code above and click **OK**.
