@@ -6,7 +6,6 @@ from bisect import bisect_right
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -27,6 +26,7 @@ from .errors import (
 )
 from .filtering import build_predicate, parse_where
 from .planning import SourceCaps, make_plan
+from .query_encoding import encode_query_page
 from .selecting import (
     maybe_flatten,
     parse_select_csv,
@@ -352,9 +352,7 @@ def create_resource_routes(
         # The shared query engine already validated this envelope. Preserve
         # custom response models through FastAPI's normal validation path.
         if response_model is Paginated[ModelRow] and type(page) is response_model:
-            # _finish already emits human row names. Match FastAPI's initial
-            # by_alias=True preparation for any nested models inside Any values.
-            return JSONResponse(jsonable_encoder(page, by_alias=True))
+            return JSONResponse(encode_query_page(page))
         return page
 
     # GET endpoint - query params in URL

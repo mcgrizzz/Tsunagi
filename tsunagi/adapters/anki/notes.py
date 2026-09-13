@@ -205,7 +205,8 @@ def get_notes_by_ids(col: Collection, ids: Sequence[int],
 
 
 @as_query_op
-def check_notes(col: Collection, candidates: List[Dict[str, Any]]) -> List[NoteCheckResult]:
+def check_notes(col: Collection, candidates: List[NoteCreate], *,
+                include_duplicate_ids: bool = True) -> List[NoteCheckResult]:
     """
     Can these notes be added? Builds scratch notes that are never added, so
     this is a read - no undo entry, no collection mutation.
@@ -215,9 +216,8 @@ def check_notes(col: Collection, candidates: List[Dict[str, Any]]) -> List[NoteC
     # reference once instead of two backend lookups per candidate.
     nt_cache: Dict[Any, Dict[str, Any]] = {}
     deck_cache: Dict[Any, int] = {}
-    for index, data in enumerate(candidates):
+    for index, req in enumerate(candidates):
         try:
-            req = NoteCreate.parse_obj(data)
             nt_key = (req.model_id, req.model_name)
             nt = nt_cache.get(nt_key)
             if nt is None:
@@ -230,7 +230,9 @@ def check_notes(col: Collection, candidates: List[Dict[str, Any]]) -> List[NoteC
             note.tags = list(req.tags)
 
             state = fields_check_impl(col, note)
-            dupes = _duplicate_ids(col, note) if state == DUPLICATE else []
+            dupes = None
+            if include_duplicate_ids:
+                dupes = _duplicate_ids(col, note) if state == DUPLICATE else []
             can_add = state == NORMAL or (state == DUPLICATE and req.allow_duplicate)
             results.append(NoteCheckResult(
                 index=index,
@@ -242,6 +244,7 @@ def check_notes(col: Collection, candidates: List[Dict[str, Any]]) -> List[NoteC
         except ValidationError as ve:
             results.append(NoteCheckResult(
                 index=index, can_add=False, state="invalid", reason=str(ve),
+                duplicate_note_ids=[] if include_duplicate_ids else None,
             ))
     return results
 
