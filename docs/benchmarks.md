@@ -147,6 +147,36 @@ JSON encoding cost. These optimizations keep that behavior intact; they do not
 bypass validation, retain collection results between requests, or share mutable
 Note instances between cards.
 
+### Membership filters
+
+When a query reaches Python filtering, `in [...]` and `not in [...]` prepare
+one membership set per clause. Each row still reads its current values. The
+same implementation handles notes, cards and other query resources; Anki search
+and index routes can bypass this filter entirely.
+
+A native `GET /v1/notes` diagnostic selects note IDs and filters `tags[]` against
+a supplied list. These are complete request timings through the headless HTTP
+harness, including real Anki reads and response decoding. Only the shared filter
+module is swapped for the comparison; all other code is identical.
+
+| Notes scanned | Tags in the filter | Previous filter | Current filter |
+| --- | ---: | ---: | ---: |
+| 100 | 10 | 3.2 ms | 2.7 ms |
+| 100 | 1,000 | 6.8 ms | 6.0 ms |
+| 10,000 | 10 | 191.5 ms | 185.0 ms |
+| 10,000 | 1,000 | 316.5 ms | 241.9 ms |
+
+Measured at `a6d62ea`, using the filter from `e3a59e8` as the control, on Python
+3.12.12 / Anki 26.8.1. Values are medians of seven repeated requests, with a
+separate first request. The largest case returns 5,000 matching IDs and builds
+one set instead of 10,000. An equality filter without a membership list measured
+191.5 ms versus 196.4 ms for 10,000 notes, with overlapping trial ranges.
+
+Workers run sequentially on copies of the same disposable collection. Each
+worker repeats reads on its open collection. Separate checks confirm GET/POST
+results, set-construction counts, and that the same query sees a saved tag edit
+immediately. These timings exclude real Qt scheduling and network transport.
+
 ### Real Qt dispatch
 
 The bulk harness substitutes synchronous Qt dispatch so request-processing
@@ -224,6 +254,17 @@ Run these sequentially. To repeat the media storage check, add
 use `--write-sizes 40 --repeats 2`. Stop video transcoding and other heavy
 work during timing.
 
+For the native filter comparison (no AnkiConnect checkout needed):
+
+```sh
+python tools/benchmark_filtering.py --baseline-ref e3a59e8 \
+  --rows 100 10000 --allowed 0 10 1000 --repeats 7 \
+  --output dist/benchmarks/current-filtering.json
+```
+
+`--allowed 0` adds the equality control. The baseline commit must be available
+in the local Git checkout.
+
 For the Qt measurement, use an environment with aqt and PyQt installed:
 
 ```sh
@@ -233,11 +274,13 @@ python tools/benchmark_dispatch.py --count 100 --repeats 5 \
 
 ## Read the raw reports
 
-Reports record versions, the source commit, source hashes, execution order,
+The main comparison reports record versions, the source commit, source hashes, execution order,
 first-use and repeated timings, response sizes, request/action counts, worker
 peak RSS, verification fingerprints, and a separate profiled trial. Worker RSS
 includes the interpreter and fixture setup; it is not the memory used by one
-request. A source-dirty flag also includes documentation edits.
+request. A source-dirty flag also includes documentation edits. The filter
+diagnostic records first/repeated timings, membership-set counts and result/live-edit
+checks; it does not collect a profile or peak RSS.
 
 Card verification compares complete equivalent records in order. Write checks
 verify note/card counts, fields, tags and media content; generated IDs and
