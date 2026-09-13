@@ -218,39 +218,35 @@ def _cmp(vals: Iterable[Any], x: Any, op: str) -> bool:
     if op == "<=": return any(v <= x for v in vs)
     return False
 
-def _any_in(vals: Iterable[Any], coll: Any) -> bool:
+def _compile_membership(coll: Any, *, negate: bool) -> Callable[[Iterable[Any]], bool]:
     if not isinstance(coll, list):
-        return False
-    try:
-        s = set(coll)
-        for v in vals:
-            try:
-                if v in s:
-                    return True
-            except TypeError:
-                # v unhashable → fallback to linear scan
-                if any(_eq_strict(v, c) for c in coll):
-                    return True
-        return False
-    except TypeError:
-        # coll has unhashables → linear scan
-        return any(any(_eq_strict(v, c) for c in coll) for v in vals)
+        return lambda vals: False
 
-def _none_in(vals: Iterable[Any], coll: Any) -> bool:
-    if not isinstance(coll, list):
-        return False
+    def linear(vals: Iterable[Any]) -> bool:
+        return any(any(_eq_strict(v, c) for c in coll) for v in vals) != negate
+
     try:
-        s = set(coll)
-        for v in vals:
-            try:
-                if v in s:
-                    return False
-            except TypeError:
-                if any(_eq_strict(v, c) for c in coll):
-                    return False
-        return True
+        members = set(coll)
     except TypeError:
-        return all(all(not _eq_strict(v, c) for c in coll) for v in vals)
+        # Preserve linear matching for unhashable query values.
+        return linear
+
+    def matches(vals: Iterable[Any]) -> bool:
+        try:
+            for v in vals:
+                try:
+                    if v in members:
+                        return not negate
+                except TypeError:
+                    # An unhashable row value still uses the original values
+                    # and strict comparison, including bool/number handling.
+                    if any(_eq_strict(v, c) for c in coll):
+                        return not negate
+            return negate
+        except TypeError:
+            return linear(vals)
+
+    return matches
 
 _OPS: Dict[str, Callable[..., bool]] = {
     "==":  _any_eq,
@@ -260,9 +256,15 @@ _OPS: Dict[str, Callable[..., bool]] = {
     ">=":  partial(_cmp, op=">="),
     "<":   partial(_cmp, op="<"),
     "<=":  partial(_cmp, op="<="),
-    "in":      _any_in,
-    "not in":  _none_in, # NONE in
 }
+
+def _compile_operator(clause: Clause) -> Callable[[Iterable[Any]], bool]:
+    if clause.op in ("in", "not in"):
+        # Only query constants are prepared here. Row values remain live.
+        return _compile_membership(clause.value, negate=clause.op == "not in")
+    operation = _OPS[clause.op]
+    return lambda vals: operation(vals, clause.value)
+
 
 # Small helper to peek without materializing the whole iterator
 def _peek(it: Iterable[Any]) -> tuple[bool, Iterable[Any]]:
@@ -279,16 +281,16 @@ def build_predicate(where_params: List[str]) -> Callable[[Mapping[str, Any]], bo
     Missing paths -> no values -> clause fails (consistent, predictable).
     """
     clauses = [parse_where(w) for w in where_params]
-    compiled: List[Tuple[Accessor, str, Any]] = [
-        (_compile_accessor(tuple(c.tokens)), c.op, c.value) for c in clauses
+    compiled = [
+        (_compile_accessor(tuple(c.tokens)), _compile_operator(c)) for c in clauses
     ]
 
     def _pred(obj: Mapping[str, Any]) -> bool:
-        for accessor, op, val in compiled:
+        for accessor, operation in compiled:
             has_any, vals = _peek(accessor(obj))
             if not has_any:
                 return False
-            if not _OPS[op](vals, val):
+            if not operation(vals):
                 return False
         return True
 
