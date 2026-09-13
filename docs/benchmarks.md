@@ -12,27 +12,28 @@ verifies the resulting data before accepting a sample.
 ## Current results
 
 Anki **26.8.1**, Python **3.12.12**, Linux/WSL. Core measurements use runtime
-`d6e32db`. Media measurements use `e46b946`; those write paths are unchanged.
+`2d77431`. Media measurements use `e46b946`; those write paths are unchanged.
 Upstream is pinned to `de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e`.
 These medians use five repeated trials after a separately recorded first-use
-trial. Every trial starts from a restored collection. All thirteen workloads passed
+trial. Every trial starts from a restored collection. All fourteen workloads passed
 their equivalence checks. Times are in **milliseconds**; lower is faster.
 
 | Equivalent task | AnkiConnect | Tsunagi shim | Native Tsunagi |
 | --- | ---: | ---: | ---: |
-| 10,000 cards, full equivalent records | 702.9 | 1,103.8 | 1,419.2 |
-| 1,000 text notes | 1,538.7 | 1,554.4 | 1,574.3 |
-| 10 duplicates: status and note IDs | 4.5 | 4.4 | 2.2 |
-| 100 duplicates: status and note IDs | 34.6 | 29.7 | 10.9 |
-| 10 mixed candidates: status and note IDs | 3.2 | 3.0 | 1.7 |
-| 100 mixed candidates: status and note IDs | 19.7 | 16.3 | 9.1 |
-| 10 duplicates: status only | 1.2 | 1.2 | 1.5 |
-| 100 duplicates: status only | 5.3 | 4.7 | 7.3 |
-| 10 mixed candidates: status only | 1.2 | 1.5 | 1.5 |
-| 100 mixed candidates: status only | 4.6 | 4.4 | 6.6 |
-| 10 models with their field names | 2.0 | 1.6 | 1.5 |
-| 100 models with their field names | 8.0 | 4.1 | 7.5 |
-| Save one note and get its two card IDs | 6.3 | 6.8 | 5.8 |
+| 100 cards, full equivalent records | 15.0 | 18.3 | 18.9 |
+| 10,000 cards, full equivalent records | 700.0 | 1,089.5 | 1,281.5 |
+| 1,000 text notes | 1,526.3 | 1,594.9 | 1,545.4 |
+| 10 duplicates: status and note IDs | 4.7 | 4.1 | 1.8 |
+| 100 duplicates: status and note IDs | 35.7 | 31.1 | 12.0 |
+| 10 mixed candidates: status and note IDs | 3.5 | 3.5 | 1.9 |
+| 100 mixed candidates: status and note IDs | 19.1 | 17.1 | 8.1 |
+| 10 duplicates: status only | 1.1 | 1.1 | 1.6 |
+| 100 duplicates: status only | 5.4 | 4.6 | 7.1 |
+| 10 mixed candidates: status only | 1.1 | 1.3 | 1.5 |
+| 100 mixed candidates: status only | 4.5 | 3.9 | 6.5 |
+| 10 models with their field names | 2.1 | 1.9 | 1.6 |
+| 100 models with their field names | 7.9 | 3.8 | 7.2 |
+| Save one note and get its two card IDs | 6.7 | 6.2 | 5.8 |
 
 Native batch creation is roughly even with the other implementations for this
 text workload. It returns created note IDs and groups successful additions into
@@ -45,7 +46,7 @@ The **status only** rows omit those searches on both sides: AnkiConnect and the
 shim use one `canAddNotesWithErrorDetail` action; native uses
 `POST /v1/notes:check?include_duplicate_ids=false`.
 
-For 100 duplicates, native takes 10.9 ms with IDs and 7.3 ms without them.
+For 100 duplicates, native takes 12.0 ms with IDs and 7.1 ms without them.
 Skipping IDs removes 100 duplicate searches, but native validation-only remains
 slower than the equivalent AnkiConnect and shim actions in this fixture. The
 default native check still returns IDs. See [note checks](creating_notes.md#check-without-saving)
@@ -116,11 +117,18 @@ are wanted. There is no implicit native page limit.
   whole-page conversion; custom response schemas retain normal validation.
   Aliases, dates, custom model encoders and SQLAlchemy attribute exclusions keep
   their existing behavior. Full-card schema validation still runs.
+- **Row export:** ordinary validated models use a shared exporter for full rows
+  and flat field selections. Nested selection masks, custom export methods,
+  schema-level include/exclude rules and unusual values use Pydantic's original
+  export. Rows still use human-readable field names and fresh containers.
+  The 10,000-card fixture retains 30,001 validations: 10,000 card models,
+  20,000 note-field models and one page envelope. These are separate objects,
+  not three validation passes over each card.
 - **Note checks:** the adapter uses the already-validated request models directly.
   It resolves each distinct note type and deck once within the request, while
   validating every candidate against the current collection. Disabling duplicate
   IDs skips only the additional ID lookup, not duplicate detection.
-- **Selected fields:** Pydantic conversion includes only the requested source
+- **Selected fields:** row conversion includes only the requested source
   fields. Common scalar and array selections use direct projection; unusual
   structures retain the existing projection behavior. Model validation still
   runs, including for fields omitted from the response.
@@ -161,16 +169,16 @@ module is swapped for the comparison; all other code is identical.
 
 | Notes scanned | Tags in the filter | Previous filter | Current filter |
 | --- | ---: | ---: | ---: |
-| 100 | 10 | 3.2 ms | 2.7 ms |
-| 100 | 1,000 | 6.8 ms | 6.0 ms |
-| 10,000 | 10 | 191.5 ms | 185.0 ms |
-| 10,000 | 1,000 | 316.5 ms | 241.9 ms |
+| 100 | 10 | 2.2 ms | 2.3 ms |
+| 100 | 1,000 | 6.4 ms | 6.4 ms |
+| 10,000 | 10 | 152.0 ms | 149.6 ms |
+| 10,000 | 1,000 | 285.1 ms | 182.9 ms |
 
-Measured at `a6d62ea`, using the filter from `e3a59e8` as the control, on Python
+Measured at `2d77431`, using the filter from `e3a59e8` as the control, on Python
 3.12.12 / Anki 26.8.1. Values are medians of seven repeated requests, with a
 separate first request. The largest case returns 5,000 matching IDs and builds
 one set instead of 10,000. An equality filter without a membership list measured
-191.5 ms versus 196.4 ms for 10,000 notes, with overlapping trial ranges.
+149.8 ms versus 151.3 ms for 10,000 notes.
 
 Workers run sequentially on copies of the same disposable collection. Each
 worker repeats reads on its open collection. Separate checks confirm GET/POST
@@ -238,7 +246,7 @@ collections and do not contact a running Anki instance.
 python tools/benchmark_compat.py \
   --checkout /path/to/anki-connect \
   --workloads read_cards,add_text,duplicate_ids_multi,duplicate_mixed_multi,duplicate_status,duplicate_mixed_status,model_fields_multi,save_card_ids \
-  --read-sizes 10000 --write-sizes 1000 --workflow-sizes 10,100 \
+  --read-sizes 100,10000 --write-sizes 1000 --workflow-sizes 10,100 \
   --batches 0 --repeats 5 --implementations native,upstream,shim \
   --output dist/benchmarks/current-core.json
 
