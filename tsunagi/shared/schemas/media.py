@@ -8,6 +8,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from ..errors import ValidationError
+from .creation import CreationResult
 
 # Windows reserved device names (a file named CON.png is unopenable there)
 _RESERVED = {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {
@@ -82,3 +83,11 @@ class MediaDeletionResult(BaseModel):
     success: bool
     filename: str
     stats: dict
+
+
+class MediaCreated(MediaStored):
+    index: int
+
+
+class MediaCreateResponse(CreationResult[MediaCreated]):
+    pass

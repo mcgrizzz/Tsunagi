@@ -8,7 +8,7 @@ import mimetypes
 import os
 import time
 import urllib.request
-from typing import Optional
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Body, Path, Query
 from fastapi.responses import FileResponse
@@ -17,8 +17,8 @@ from ...adapters.anki.media import (
     delete_media_file,
     list_media,
     resolve_media_path,
-    store_media_bytes,
 )
+from ...adapters.anki.media_batches import create_media
 from ...adapters.settings import settings
 from ...shared.errors import (
     ResourceNotFoundError,
@@ -27,10 +27,10 @@ from ...shared.errors import (
 )
 from ...shared.pagination import decode_cursor, encode_cursor
 from ...shared.schemas.media import (
+    MediaCreateResponse,
     MediaDeletionResult,
     MediaFile,
     MediaList,
-    MediaStored,
     MediaUpload,
 )
 from ...shared.version import ADDON_VERSION
@@ -176,23 +176,22 @@ def get_media_file(filename: str = Path(..., description="Media filename")) -> F
 
 @router.post(
     "/v1/media",
-    response_model=MediaStored,
-    status_code=201,
-    summary="Store a media file",
-    description="Provide exactly one of base64 'data', a server-local 'path' (disabled by default), or a 'url'. Anki renames on collision, so the response reports the name actually stored.",
+    response_model=MediaCreateResponse,
+    summary="Store one or more media files",
+    description=("Accepts one upload object or an array. Each input provides exactly one of base64 'data', "
+                 "a server-local 'path' (disabled by default), or a 'url'. Always returns created and "
+                 "failed arrays with zero-based input indexes. Successful files stay stored when another "
+                 "is rejected. Anki renames on collision; use the returned filename. "
+                 "The configured upload-size limit applies per file. Media storage is not undoable."),
     tags=["Media"],
     operation_id="storeMedia",
 )
 @handle_mutation_errors("store_media")
-def store_media(body: MediaUpload = Body(..., description="File source")) -> MediaStored:
-    requested, data = _resolve_upload(body)
-    stored, renamed = store_media_bytes(requested, data)
-    return MediaStored(
-        filename=stored,
-        requested_filename=requested,
-        renamed=renamed,
-        size=len(data),
-    )
+def store_media(
+    body: Union[List[MediaUpload], MediaUpload] = Body(..., description="One upload or an array of uploads"),
+) -> MediaCreateResponse:
+    return create_media(body if isinstance(body, list) else [body], _resolve_upload)
+
 
 
 @router.delete(

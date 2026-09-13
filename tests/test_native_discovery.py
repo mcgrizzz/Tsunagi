@@ -39,7 +39,9 @@ def test_settings_apply_to_the_operation_or_its_option(client, reset_settings, e
     if not enabled:
         assert "disabled in settings" in memory["reason"]
         response = client.post("/v1/media", json={"filename": "probe", "path": "/missing"})
-        assert response.status_code == 400
+        assert response.status_code == 200
+        assert response.json()["created"] == []
+        assert response.json()["failed"][0]["code"] == "invalid_media"
         assert "disabled" in response.text
 
 

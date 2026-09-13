@@ -94,7 +94,9 @@ class Workflow:
         # A single interactive save, with two generated cards. No bulk-write claim.
         note = self.notes[0]
         if self.native:
-            saved = request.native("POST", "/v1/notes", self.native_note(note))["result"]
+            result = request.native("POST", "/v1/notes?include=cards", self.native_note(note))
+            assert not result["failed"], result["failed"]
+            saved = result["created"][0]
             return {"id": saved["id"], "cards": saved["cards"]}
         nid = request("addNote", {"note": note})
         return {"id": nid, "cards": request("findCards", {"query": f"nid:{nid}"})}

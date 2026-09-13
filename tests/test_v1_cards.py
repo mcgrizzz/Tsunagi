@@ -8,7 +8,7 @@ def add_note(client, front="犬", back="dog", deck="Default", model="Basic"):
     body = {"modelName": model, "deckName": deck, "fields": {"Front": front, "Back": back}}
     if model == "Cloze":
         body["fields"] = {"Text": front, "Back Extra": back}
-    return client.post("/v1/notes", json=body).json()["result"]
+    return client.post("/v1/notes?include=cards", json=body).json()["created"][0]
 
 
 @pytest.fixture()

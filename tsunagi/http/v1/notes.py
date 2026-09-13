@@ -1,11 +1,11 @@
 import time
+from typing import List, Literal, Optional, Union
 
-from fastapi import Body
+from fastapi import Body, Query
 
 from ...adapters.anki.note_batches import create_notes
 from ...adapters.anki.notes import (
     check_notes,
-    create_note,
     delete_notes,
     find_note_ids,
     get_notes_by_ids,
@@ -16,10 +16,10 @@ from ...shared.errors import handle_mutation_errors
 from ...shared.planning import IndexSpec, MutationCaps, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.notes import (
-    NoteBatchCreateRequest,
-    NoteBatchCreateResponse,
     NoteCheckRequest,
     NoteCheckResponse,
+    NoteCreate,
+    NoteCreateResponse,
 )
 from ...shared.schemas.wrappers import Paginated
 
@@ -41,7 +41,6 @@ caps = SourceCaps(
     search=SearchSpec(find_ids=find_note_ids, hydrate=get_notes_by_ids,
                       page_ids=page_note_ids),
     mutations=MutationCaps(
-        create=create_note,
         patch=patch_note,
         delete=lambda nid: delete_notes([nid]) > 0,
     ),
@@ -80,19 +79,24 @@ def check(body: NoteCheckRequest = Body(..., description="Candidate notes")) -> 
 
 
 @router.post(
-    "/v1/notes:batch-create",
-    response_model=NoteBatchCreateResponse,
-    summary="Create multiple notes",
+    "/v1/notes",
+    response_model=NoteCreateResponse,
+    response_model_exclude_none=True,
+    summary="Create one or more notes",
     description=(
-        "Processes notes in input order. Valid notes are saved even when another note is rejected. "
-        "Returns created note IDs and failures, each with its zero-based input index. "
-        "Duplicates include earlier successes in this batch. All successful additions form one undo step. "
-        "Malformed request bodies return 422 before any notes are added. "
-        "Upload media separately and reference the returned filenames in fields."
+        "Accepts one note object or an array. Always returns created and failed arrays, "
+        "with zero-based input indexes (0 for a single object). Valid notes stay saved "
+        "when another note is rejected. Inputs are processed in order and successful additions "
+        "form one undo step. Malformed request bodies return 422 before writes. "
+        "Add include=cards to return generated card IDs. Upload media separately and reference "
+        "the stored filenames in fields."
     ),
     tags=["Notes"],
-    operation_id="batchCreateNotes",
+    operation_id="createNotes",
 )
-@handle_mutation_errors("batch create notes")
-def batch_create(body: NoteBatchCreateRequest) -> NoteBatchCreateResponse:
-    return create_notes(body.notes)
+@handle_mutation_errors("create notes")
+def create(
+    body: Union[List[NoteCreate], NoteCreate] = Body(..., description="One note or an array of notes"),
+    include: Optional[Literal["cards"]] = Query(default=None, description="Also return generated card IDs"),
+) -> NoteCreateResponse:
+    return create_notes(body if isinstance(body, list) else [body], include_cards=include == "cards")

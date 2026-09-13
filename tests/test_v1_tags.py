@@ -8,7 +8,7 @@ def add(client, front, tags):
     return client.post("/v1/notes", json={
         "modelName": "Basic", "deckName": "Default",
         "fields": {"Front": front}, "tags": tags,
-    }).json()["result"]["id"]
+    }).json()["created"][0]["id"]
 
 
 @pytest.fixture()

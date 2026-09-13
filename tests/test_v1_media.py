@@ -75,60 +75,61 @@ class TestDownload:
 class TestUpload:
     def test_base64_upload(self, client, col):
         resp = client.post("/v1/media", json={"filename": "dog.png", "data": B64})
-        assert resp.status_code == 201
-        body = resp.json()
-        assert body == {"filename": "dog.png", "requested_filename": "dog.png",
+        assert resp.status_code == 200
+        assert resp.json()["failed"] == []
+        body = resp.json()["created"][0]
+        assert body == {"index": 0, "filename": "dog.png", "requested_filename": "dog.png",
                         "renamed": False, "size": len(PNG)}
         assert col.media.have("dog.png")
 
     def test_identical_content_keeps_name(self, client):
         client.post("/v1/media", json={"filename": "dog.png", "data": B64})
-        body = client.post("/v1/media", json={"filename": "dog.png", "data": B64}).json()
+        body = client.post("/v1/media", json={"filename": "dog.png", "data": B64}).json()["created"][0]
         assert body["filename"] == "dog.png"
         assert body["renamed"] is False
 
     def test_collision_with_different_bytes_is_renamed(self, client):
         client.post("/v1/media", json={"filename": "dog.png", "data": B64})
         other = base64.b64encode(b"different bytes entirely").decode()
-        body = client.post("/v1/media", json={"filename": "dog.png", "data": other}).json()
+        body = client.post("/v1/media", json={"filename": "dog.png", "data": other}).json()["created"][0]
         assert body["renamed"] is True
         assert body["filename"] != "dog.png"
         assert body["requested_filename"] == "dog.png"
 
     def test_requires_exactly_one_source(self, client):
-        assert client.post("/v1/media", json={"filename": "a.png"}).status_code == 400
-        assert client.post("/v1/media", json={
-            "filename": "a.png", "data": B64, "url": "http://x/y.png"}).status_code == 400
+        assert_upload_rejected(client.post("/v1/media", json={"filename": "a.png"}))
+        assert_upload_rejected(client.post("/v1/media", json={
+            "filename": "a.png", "data": B64, "url": "http://x/y.png"}))
 
     def test_data_requires_filename(self, client):
-        assert client.post("/v1/media", json={"data": B64}).status_code == 400
+        assert_upload_rejected(client.post("/v1/media", json={"data": B64}))
 
-    def test_invalid_base64_is_400(self, client):
-        assert client.post("/v1/media", json={
-            "filename": "a.png", "data": "not base64!!"}).status_code == 400
+    def test_invalid_base64_is_rejected(self, client):
+        assert_upload_rejected(client.post("/v1/media", json={
+            "filename": "a.png", "data": "not base64!!"}))
 
-    def test_oversize_is_400(self, client, reset_settings):
+    def test_oversize_is_rejected(self, client, reset_settings):
         reset_settings.update(media_max_bytes=4)
-        assert client.post("/v1/media", json={
-            "filename": "a.png", "data": B64}).status_code == 400
+        assert_upload_rejected(client.post("/v1/media", json={
+            "filename": "a.png", "data": B64}))
 
     def test_local_path_disabled_by_default(self, client, tmp_path):
         f = tmp_path / "local.png"
         f.write_bytes(PNG)
         resp = client.post("/v1/media", json={"path": str(f)})
-        assert resp.status_code == 400
-        assert "media_allow_local_path" in resp.json()["detail"]
+        assert_upload_rejected(resp)
+        assert "media_allow_local_path" in resp.json()["failed"][0]["message"]
 
     def test_local_path_when_enabled(self, client, reset_settings, tmp_path):
         reset_settings.update(gates={"media_allow_local_path": True})
         f = tmp_path / "local.png"
         f.write_bytes(PNG)
-        body = client.post("/v1/media", json={"path": str(f)}).json()
+        body = client.post("/v1/media", json={"path": str(f)}).json()["created"][0]
         assert body["filename"] == "local.png"
 
     def test_url_upload(self, client, monkeypatch):
         monkeypatch.setattr("tsunagi.http.v1.media._fetch_url", lambda url: PNG)
-        body = client.post("/v1/media", json={"url": "https://x.test/dog.png"}).json()
+        body = client.post("/v1/media", json={"url": "https://x.test/dog.png"}).json()["created"][0]
         assert body["filename"] == "dog.png"
 
     def test_non_http_url_rejected(self):
@@ -154,7 +155,7 @@ class TestFilenameSecurity:
 
     @pytest.mark.parametrize("name", BAD_NAMES)
     def test_rejected_on_upload(self, client, name):
-        assert client.post("/v1/media", json={"filename": name, "data": B64}).status_code == 400
+        assert_upload_rejected(client.post("/v1/media", json={"filename": name, "data": B64}))
 
     @pytest.mark.parametrize("name", ["..", "CON", "a:b"])
     def test_rejected_on_download(self, client, name):
@@ -162,7 +163,7 @@ class TestFilenameSecurity:
 
     @pytest.mark.parametrize("name", ["../secret", "..\\secret", "a/b", "/etc/passwd", "C:\\x"])
     def test_traversal_rejected_on_upload(self, client, name):
-        assert client.post("/v1/media", json={"filename": name, "data": B64}).status_code == 400
+        assert_upload_rejected(client.post("/v1/media", json={"filename": name, "data": B64}))
 
     def test_symlink_escape_rejected(self, client, col, tmp_path):
         # Name-level rules can't catch a symlink INSIDE the media folder
@@ -175,3 +176,13 @@ class TestFilenameSecurity:
         except (OSError, NotImplementedError):
             pytest.skip("symlinks unavailable on this platform")
         assert client.get("/v1/media/innocent.txt").status_code == 400
+
+
+def assert_upload_rejected(response):
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["created"] == []
+    assert len(result["failed"]) == 1
+    assert result["failed"][0]["index"] == 0
+    assert result["failed"][0]["code"] == "invalid_media"
+    assert result["failed"][0]["message"]

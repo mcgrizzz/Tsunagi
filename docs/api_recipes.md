@@ -65,21 +65,20 @@ AnkiConnect:
   suspend(cardIds)
 
 Tsunagi:
-  POST /v1/notes                 → note ID + card IDs
+  POST /v1/notes?include=cards   → note ID + card IDs
   POST /v1/cards:suspend         ← those card IDs
 ```
 
 **The AnkiConnect response:** `addNote` returns only the note ID. Yomitan
 uses it to build a `nid:...` browser search, gets the card IDs, then suspends them.
 
-**What Tsunagi returns together:** the saved note and its card IDs. It reads the
-persisted note once, so the response includes Anki’s normalized fields, tags and
-metadata, and obtains the cards through Anki’s direct `card_ids_of_note()` method.
-No browser card search is needed. [Event subscribers](events.md) receive the
-new note and card IDs and can fetch whichever contents they need.
+**What Tsunagi returns together:** the new note ID and its card IDs, when requested
+with `include=cards`. The note ID is already known from the write. Anki's direct
+`card_ids_of_note()` method supplies the card IDs, with no saved-note reload or
+browser card search. [Event subscribers](events.md) also receive the new IDs.
 
-The client takes `result.cards` from the save response and passes them to the
-suspend endpoint. **Three requests become two.** Saving without suspension is
+The client checks that `failed` is empty, takes `created[0].cards` from the save
+response and passes them to the suspend endpoint. **Three requests become two.** Saving without suspension is
 one request in either API; Tsunagi doesn't change that user setting.
 
 ## 3. Get field names with the model list
@@ -140,7 +139,8 @@ between page requests.
 
 Open the [interactive reference](http://127.0.0.1:7777/) with Anki running, using
 your configured port if different. Search for the native path above and use
-**Test Request**. Full request bodies and response schemas are available there.
+**Test Request**. Full request bodies and response schemas are available there. The
+[creation guide](creating_notes.md) shows single requests, batches and failures.
 Use a disposable profile when trying note creation or suspension.
 
 <details>
@@ -171,13 +171,14 @@ The model example omits deck loading and shows a page of models. Follow
 `multi`, but still needs a field-name action per model. Native `select` trims the
 response; the model record itself is still loaded internally.
 
-Implementation: [note checks and creation](../tsunagi/adapters/anki/notes.py),
+Implementation: [note checks](../tsunagi/adapters/anki/notes.py),
+[note creation](../tsunagi/adapters/anki/note_batches.py),
 [model adapters](../tsunagi/adapters/anki/models.py), and
 [query planning](../tsunagi/shared/planning.py).
 
 A disposable-collection check confirmed one note-type resolution and one deck
 resolution for ten distinct duplicate candidates, plus ten duplicate-ID searches.
-A native save made one `card_ids_of_note` call, no `find_cards` calls and no
+A native save requesting `include=cards` makes one `card_ids_of_note` call, no `find_cards` calls and no
 `get_note` calls. These are adapter/API call counts, not SQL counts or measured
 speedups.
 
