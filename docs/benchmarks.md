@@ -11,24 +11,28 @@ verifies the resulting data before accepting a sample.
 
 ## Current results
 
-Anki **26.8.1**, Python **3.12.12**, Linux/WSL. The comparisons use runtime
-`e46b946`, with single and batch creation sharing the same note/media routes.
+Anki **26.8.1**, Python **3.12.12**, Linux/WSL. Core measurements use runtime
+`d6e32db`. Media measurements use `e46b946`; those write paths are unchanged.
 Upstream is pinned to `de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e`.
 These medians use five repeated trials after a separately recorded first-use
-trial. Every trial starts from a restored collection. All nine workloads passed
+trial. Every trial starts from a restored collection. All thirteen workloads passed
 their equivalence checks. Times are in **milliseconds**; lower is faster.
 
 | Equivalent task | AnkiConnect | Tsunagi shim | Native Tsunagi |
 | --- | ---: | ---: | ---: |
-| 10,000 cards, full equivalent records | 711.2 | 1,099.4 | 1,803.1 |
-| 1,000 text notes | 1,513.2 | 1,560.1 | 1,542.1 |
-| 10 duplicates: status and note IDs | 4.8 | 4.0 | 2.1 |
-| 100 duplicates: status and note IDs | 34.7 | 31.3 | 13.4 |
-| 10 mixed new/duplicate candidates | 3.3 | 3.1 | 2.0 |
-| 100 mixed new/duplicate candidates | 19.1 | 16.3 | 10.3 |
-| 10 models with their field names | 2.0 | 1.6 | 1.7 |
-| 100 models with their field names | 8.0 | 3.8 | 8.3 |
-| Save one note and get its two card IDs | 6.0 | 7.0 | 5.8 |
+| 10,000 cards, full equivalent records | 702.9 | 1,103.8 | 1,419.2 |
+| 1,000 text notes | 1,538.7 | 1,554.4 | 1,574.3 |
+| 10 duplicates: status and note IDs | 4.5 | 4.4 | 2.2 |
+| 100 duplicates: status and note IDs | 34.6 | 29.7 | 10.9 |
+| 10 mixed candidates: status and note IDs | 3.2 | 3.0 | 1.7 |
+| 100 mixed candidates: status and note IDs | 19.7 | 16.3 | 9.1 |
+| 10 duplicates: status only | 1.2 | 1.2 | 1.5 |
+| 100 duplicates: status only | 5.3 | 4.7 | 7.3 |
+| 10 mixed candidates: status only | 1.2 | 1.5 | 1.5 |
+| 100 mixed candidates: status only | 4.6 | 4.4 | 6.6 |
+| 10 models with their field names | 2.0 | 1.6 | 1.5 |
+| 100 models with their field names | 8.0 | 4.1 | 7.5 |
+| Save one note and get its two card IDs | 6.3 | 6.8 | 5.8 |
 
 Native batch creation is roughly even with the other implementations for this
 text workload. It returns created note IDs and groups successful additions into
@@ -36,12 +40,16 @@ one undo step. The duplicate workflows benefit from receiving
 status and IDs together. Full-card reads remain faster through upstream, and
 loading 100 models with fields is fastest through the shim in this fixture.
 
-The duplicate rows compare **status plus matching IDs**. For the 100-duplicate
-fixture, upstream's check-only action takes 5.5 ms, the shim's takes 5.3 ms, and
-the native request takes 13.4 ms including IDs. Native currently always retrieves
-duplicate IDs; a client needing only yes/no pays for that extra work. The
-34.7 ms upstream total includes its follow-up ID searches. Individual action
-medians need not add up exactly to the median of the complete workflow.
+The **status plus IDs** rows include each API's work to find matching notes.
+The **status only** rows omit those searches on both sides: AnkiConnect and the
+shim use one `canAddNotesWithErrorDetail` action; native uses
+`POST /v1/notes:check?include_duplicate_ids=false`.
+
+For 100 duplicates, native takes 10.9 ms with IDs and 7.3 ms without them.
+Skipping IDs removes 100 duplicate searches, but native validation-only remains
+slower than the equivalent AnkiConnect and shim actions in this fixture. The
+default native check still returns IDs. See [note checks](creating_notes.md#check-without-saving)
+for the response and duplicate policy.
 
 These are different tasks, not a single overall speed score. In particular,
 fewer HTTP requests do not guarantee less server processing: native responses
@@ -75,6 +83,7 @@ request. All three still call Anki's media storage backend 2,000 times.
 | Read all cards | `findCards`, then `cardsInfo` | `GET /v1/cards` with equivalent fields selected; omitted `limit` returns everything |
 | Create text notes | One `addNotes` action | One `POST /v1/notes` with an array |
 | Create notes with media | One `addNotes` action, with attachments | One `POST /v1/media` array, then one `POST /v1/notes` array |
+| Duplicate status only | One `canAddNotesWithErrorDetail` action | One `POST /v1/notes:check?include_duplicate_ids=false` |
 | Duplicate status and IDs | `canAddNotesWithErrorDetail`, then `findNotes` actions inside one `multi` for duplicate candidates | One `POST /v1/notes:check` |
 | Models with field names | `modelNamesAndIds`, then `modelFieldNames` actions inside one `multi` | One model query selecting `id,name,fields[].name` |
 | Save a note and get its card IDs | `addNote`, then `findCards` | One `POST /v1/notes?include=cards` returning note and card IDs |
@@ -101,10 +110,16 @@ are wanted. There is no implicit native page limit.
 
 ## What the overhead investigation established
 
-- **Query responses:** the standard native query envelope is validated and
-  encoded without FastAPI repeating the same response conversion. Custom response
-  schemas retain the normal validation path. JSON values and aliases remain
-  consistent with FastAPI's encoder.
+- **Query responses:** standard pages containing JSON values use a small shared
+  encoder instead of another recursive Pydantic conversion and a general-purpose
+  encoder visit for every scalar. Special values fall back to the original
+  whole-page conversion; custom response schemas retain normal validation.
+  Aliases, dates, custom model encoders and SQLAlchemy attribute exclusions keep
+  their existing behavior. Full-card schema validation still runs.
+- **Note checks:** the adapter uses the already-validated request models directly.
+  It resolves each distinct note type and deck once within the request, while
+  validating every candidate against the current collection. Disabling duplicate
+  IDs skips only the additional ID lookup, not duplicate detection.
 - **Selected fields:** Pydantic conversion includes only the requested source
   fields. Common scalar and array selections use direct projection; unusual
   structures retain the existing projection behavior. Model validation still
@@ -192,9 +207,10 @@ collections and do not contact a running Anki instance.
 ```sh
 python tools/benchmark_compat.py \
   --checkout /path/to/anki-connect \
-  --workloads read_cards,add_text,duplicate_ids_multi,duplicate_mixed_multi,model_fields_multi,save_card_ids \
+  --workloads read_cards,add_text,duplicate_ids_multi,duplicate_mixed_multi,duplicate_status,duplicate_mixed_status,model_fields_multi,save_card_ids \
   --read-sizes 10000 --write-sizes 1000 --workflow-sizes 10,100 \
-  --batches 0 --repeats 5 --output dist/benchmarks/current-core.json
+  --batches 0 --repeats 5 --implementations native,upstream,shim \
+  --output dist/benchmarks/current-core.json
 
 python tools/benchmark_compat.py \
   --checkout /path/to/anki-connect \
@@ -205,7 +221,8 @@ python tools/benchmark_compat.py \
 
 Run these sequentially. To repeat the media storage check, add
 `--scratch-dir /dev/shm` and use a different output path. For a quick smoke test,
-use `--write-sizes 40 --repeats 2`. Keep other heavy work stopped during timing.
+use `--write-sizes 40 --repeats 2`. Stop video transcoding and other heavy
+work during timing.
 
 For the Qt measurement, use an environment with aqt and PyQt installed:
 
