@@ -12,6 +12,24 @@ def candidate(front="word", **options):
             "fields": {"Front": front, "Back": "meaning"}, **options}
 
 
+def test_response_schema_still_validates_and_filters_adapter_records(client, monkeypatch):
+    from fastapi.exceptions import ResponseValidationError
+
+    records = [{"index": "0", "can_add": True, "state": "normal",
+                "duplicate_note_ids": [], "internal": "hidden"}]
+    monkeypatch.setattr("tsunagi.http.v1.notes.check_notes", lambda *args, **kwargs: records)
+    response = client.post("/v1/notes:check", json={"notes": [candidate()]})
+    assert response.status_code == 200
+    assert response.json()["results"] == [{
+        "index": 0, "can_add": True, "state": "normal", "reason": None,
+        "duplicate_note_ids": [],
+    }]
+
+    records[0]["index"] = "invalid"
+    with pytest.raises(ResponseValidationError):
+        client.post("/v1/notes:check", json={"notes": [candidate()]})
+
+
 def test_skipping_ids_preserves_all_other_results(client, col, monkeypatch):
     client.post("/v1/notes", json=candidate())
     submitted = [candidate(), candidate(allowDuplicate=True), candidate("new"),
@@ -55,7 +73,7 @@ def test_adapter_reuses_validated_candidate_without_converting_or_changing_it(co
     monkeypatch.setattr(NoteCreate, "dict", unexpected)
     monkeypatch.setattr(NoteCreate, "parse_obj", unexpected)
     result = notes.check_notes.__wrapped__(col, [req], include_duplicate_ids=False)
-    assert result[0].can_add is True
+    assert result[0]["can_add"] is True
     assert req.__dict__ == original.__dict__
 
 

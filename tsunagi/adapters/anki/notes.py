@@ -12,7 +12,6 @@ from anki.collection import Collection
 
 from ...shared.errors import DuplicateNoteError, ResourceNotFoundError, ValidationError
 from ...shared.schemas.notes import (
-    NoteCheckResult,
     NoteCreate,
     NoteInfo,
     NotePatch,
@@ -206,12 +205,13 @@ def get_notes_by_ids(col: Collection, ids: Sequence[int],
 
 @as_query_op
 def check_notes(col: Collection, candidates: List[NoteCreate], *,
-                include_duplicate_ids: bool = True) -> List[NoteCheckResult]:
+                include_duplicate_ids: bool = True) -> List[Dict[str, Any]]:
     """
     Can these notes be added? Builds scratch notes that are never added, so
     this is a read - no undo entry, no collection mutation.
     """
-    results: List[NoteCheckResult] = []
+    # The HTTP response schema validates these records once at the boundary.
+    results: List[Dict[str, Any]] = []
     # A bulk check usually repeats one model/deck pair; resolve each distinct
     # reference once instead of two backend lookups per candidate.
     nt_cache: Dict[Any, Dict[str, Any]] = {}
@@ -234,7 +234,7 @@ def check_notes(col: Collection, candidates: List[NoteCreate], *,
             if include_duplicate_ids:
                 dupes = _duplicate_ids(col, note) if state == DUPLICATE else []
             can_add = state == NORMAL or (state == DUPLICATE and req.allow_duplicate)
-            results.append(NoteCheckResult(
+            results.append(dict(
                 index=index,
                 can_add=can_add,
                 state=_STATE_NAMES.get(state, "unknown"),
@@ -242,7 +242,7 @@ def check_notes(col: Collection, candidates: List[NoteCreate], *,
                 duplicate_note_ids=dupes,
             ))
         except ValidationError as ve:
-            results.append(NoteCheckResult(
+            results.append(dict(
                 index=index, can_add=False, state="invalid", reason=str(ve),
                 duplicate_note_ids=[] if include_duplicate_ids else None,
             ))
