@@ -64,14 +64,20 @@ router = create_resource_routes(
     "/v1/notes:check",
     response_model=NoteCheckResponse,
     summary="Check whether notes can be added",
-    description="Reports per candidate whether it can be added, and why not (empty first field, duplicate, unknown model/deck). Adds nothing.",
+    description=("Reports per candidate whether it can be added, and why not (empty first field, "
+                 "duplicate, unknown model/deck). Adds nothing. Duplicate note IDs are included "
+                 "by default. Set include_duplicate_ids=false to skip their lookup; "
+                 "duplicate_note_ids is then null, while validation and duplicate policy are unchanged."),
     tags=["Notes"],
     operation_id="checkNotes",
 )
 @handle_mutation_errors("check")
-def check(body: NoteCheckRequest = Body(..., description="Candidate notes")) -> NoteCheckResponse:
+def check(
+    body: NoteCheckRequest = Body(..., description="Candidate notes"),
+    include_duplicate_ids: bool = Query(default=True, description="Look up matching duplicate note IDs"),
+) -> NoteCheckResponse:
     start = time.perf_counter()
-    results = check_notes([n.dict(by_alias=True) for n in body.notes])
+    results = check_notes(body.notes, include_duplicate_ids=include_duplicate_ids)
     return NoteCheckResponse(
         results=results,
         stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)},

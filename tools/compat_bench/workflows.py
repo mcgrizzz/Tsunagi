@@ -6,7 +6,7 @@ from copy import deepcopy
 from .workloads import digest, note_spec
 
 KINDS = {"model_fields", "model_fields_multi", "duplicate_ids", "duplicate_ids_multi",
-         "duplicate_mixed_multi", "save_card_ids"}
+         "duplicate_mixed_multi", "duplicate_status", "duplicate_mixed_status", "save_card_ids"}
 
 
 def seed_collection(col, case):
@@ -22,7 +22,7 @@ def seed_collection(col, case):
     elif case["kind"].startswith("duplicate"):
         model = col.models.by_name("Basic")
         for i in range(case["size"]):
-            if case["kind"] == "duplicate_mixed_multi" and i % 2:
+            if case["kind"].startswith("duplicate_mixed") and i % 2:
                 continue
             note = col.new_note(model)
             note["Front"], note["Back"] = f"bulk-benchmark-{i}", f"meaning-{i}"
@@ -69,8 +69,10 @@ class Workflow:
             return [{"id": mid, "name": name, "fields": names}
                     for (name, mid), names in zip(models.items(), fields)]
         if kind.startswith("duplicate"):
+            status_only = kind.endswith("_status")
             if self.native:
-                return request.native("POST", "/v1/notes:check", {
+                path = "/v1/notes:check" + ("?include_duplicate_ids=false" if status_only else "")
+                return request.native("POST", path, {
                     "notes": [self.native_note(note) for note in self.notes]
                 })["results"]
             checks = request("canAddNotesWithErrorDetail", {"notes": self.notes})
@@ -84,6 +86,10 @@ class Workflow:
                     duplicates.append(i)
                 result.append({"index": i, "can_add": check["canAdd"],
                                "state": "duplicate" if error else "normal", "duplicate_note_ids": []})
+            if status_only:
+                for row in result:
+                    row["duplicate_note_ids"] = None
+                return result
             matches = call_actions(request, [
                 {"action": "findNotes", "params": {"query": f"note:Basic Front:re:^bulk-benchmark-{i}$"}}
                 for i in duplicates
@@ -113,13 +119,14 @@ class Workflow:
             return digest(expected)
         if kind.startswith("duplicate"):
             existing = {col.get_note(nid)["Front"]: nid for nid in col.find_notes("")}
-            assert len(existing) == ((size + 1) // 2 if kind == "duplicate_mixed_multi" else size)
+            assert len(existing) == ((size + 1) // 2 if kind.startswith("duplicate_mixed") else size)
             expected, actual = [], []
             for i, spec in enumerate(self.notes):
                 nid = existing.get(spec["fields"]["Front"])
                 expected.append({"index": i, "can_add": nid is None,
                                  "state": "normal" if nid is None else "duplicate",
-                                 "duplicate_note_ids": [] if nid is None else [nid]})
+                                 "duplicate_note_ids": (None if kind.endswith("_status") else
+                                                        [] if nid is None else [nid])})
             for row in result:
                 actual.append({key: row[key] for key in expected[0]})
             assert actual == expected

@@ -63,9 +63,29 @@ when you only need the note IDs.
 
 Notes are checked and saved in input order. `allowDuplicate` defaults to `false`;
 set it to `true` on an input to permit duplicates, including earlier notes in the
-same batch. One undo step removes all successful additions in the request,
+same batch. Native checking supports collection scope; omit `duplicateScope`
+or set it to `"collection"`. Other scopes return 422 instead of being silently
+interpreted as collection-wide checks.
+
+One undo step removes all successful additions in the request,
 without undoing earlier work. A request that creates nothing leaves undo history
 unchanged.
+
+## Check without saving
+
+Use **`POST /v1/notes:check`** with a body containing `{"notes": [...]}`.
+Each entry uses the same note fields as creation. The response reports
+`can_add`, `state` and any `duplicate_note_ids` for each input. Nothing is saved.
+
+**Only need validation?** Use
+**`POST /v1/notes:check?include_duplicate_ids=false`**. Anki still checks for
+duplicates and applies your `allowDuplicate` policy, but Tsunagi skips the extra
+search for matching IDs. `duplicate_note_ids` is then `null` for every result.
+When IDs are requested, an empty array means no IDs were returned.
+
+The default still includes IDs, so a dictionary popup can check a word and get
+its existing note IDs in one request. A check reads the current collection;
+it doesn't reserve a note or guarantee a later save will succeed.
 
 ## Upload files, then use their stored names
 

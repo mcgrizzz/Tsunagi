@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -75,7 +75,10 @@ class NoteCreate(BaseModel):
     fields: FieldsInput
     tags: List[str] = Field(default_factory=list)
     allow_duplicate: bool = Field(alias="allowDuplicate", default=False)
-    duplicate_scope: Optional[str] = Field(alias="duplicateScope", default=None)
+    duplicate_scope: Optional[Literal["collection"]] = Field(
+        alias="duplicateScope", default=None,
+        description="Native duplicate checking supports collection scope only; omit or use collection.",
+    )
 
 
 class NotePatch(BaseModel):
@@ -108,7 +111,10 @@ class NoteCheckResult(BaseModel):
     can_add: bool
     state: str                       # normal|empty|duplicate|missing_cloze|unknown_model|unknown_deck|unknown_field
     reason: Optional[str] = None
-    duplicate_note_ids: List[int] = Field(default_factory=list)
+    duplicate_note_ids: Optional[List[int]] = Field(
+        default_factory=list, nullable=True,
+        description="Matching note IDs; null when include_duplicate_ids=false skips the lookup.",
+    )
 
 
 class NoteCheckResponse(BaseModel):
