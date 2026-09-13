@@ -13,7 +13,7 @@ def candidate(front, **overrides):
 
 
 def create(client, notes):
-    response = client.post("/v1/notes:batch-create", json={"notes": notes})
+    response = client.post("/v1/notes", json=notes)
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -60,7 +60,7 @@ def test_undo_and_redo_cover_batch_without_touching_earlier_notes(client, col):
 
 
 def test_malformed_request_adds_nothing(client, col):
-    response = client.post("/v1/notes:batch-create", json={"notes": [candidate("valid"), {}]})
+    response = client.post("/v1/notes", json=[candidate("valid"), {}])
     assert response.status_code == 422
     assert client.get("/v1/notes").json()["items"] == []
 
@@ -100,3 +100,47 @@ def test_duplicate_failure_does_not_search_for_existing_ids(client, col, monkeyp
     assert len(result["created"]) == 1
     assert result["failed"] == [{"index": 1, "code": "duplicate",
                                   "message": "Note duplicates an existing note"}]
+
+
+@pytest.mark.parametrize("as_array", [False, True])
+def test_one_note_has_the_same_envelope(client, as_array):
+    note = candidate("single")
+    result = create(client, [note] if as_array else note)
+    assert result["failed"] == []
+    assert len(result["created"]) == 1
+    assert result["created"][0]["index"] == 0
+    assert set(result["created"][0]) == {"index", "id"}
+
+
+def test_requested_card_ids_are_reused_for_events(client, col, monkeypatch, subscription, recorded_ops):
+    calls = []
+    original = col.card_ids_of_note
+    def card_ids(nid):
+        calls.append(nid)
+        return original(nid)
+    monkeypatch.setattr(col, "card_ids_of_note", card_ids)
+    response = client.post("/v1/notes?include=cards", json=[candidate("one"), candidate("two")])
+    assert response.status_code == 200, response.text
+    saved = response.json()["created"]
+    assert all(note["cards"] == original(note["id"]) for note in saved)
+    assert calls == [note["id"] for note in saved]
+    event = emit_last(recorded_ops, subscription)
+    assert event["cards.created"]["ids"] == [cid for note in saved for cid in note["cards"]]
+    assert calls == [note["id"] for note in saved]
+
+
+def test_unsupported_include_is_rejected_before_writes(client, col):
+    response = client.post("/v1/notes?include=unknown", json=candidate("one"))
+    assert response.status_code == 422
+    assert col.note_count() == 0
+
+
+@pytest.mark.parametrize("resource,model", [("notes", "NoteCreate"), ("media", "MediaUpload")])
+def test_openapi_documents_object_or_array_on_one_create_route(client, resource, model):
+    spec = client.get("/openapi.json").json()
+    operation = spec["paths"][f"/v1/{resource}"]["post"]
+    variants = operation["requestBody"]["content"]["application/json"]["schema"]["anyOf"]
+    ref = {"$ref": f"#/components/schemas/{model}"}
+    assert ref in variants
+    assert {"type": "array", "items": ref} in variants
+    assert "/v1/notes:batch-create" not in spec["paths"]

@@ -100,84 +100,100 @@ class TestReads:
 
 
 class TestCreate:
-    def test_create_with_field_map(self, client):
+    def test_create_with_field_map(self, client, col):
         resp = add(client)
-        assert resp.status_code == 201
-        note = resp.json()["result"]
-        assert [f["value"] for f in note["fields"]] == ["犬", "dog"]
-        assert note["cards"]
+        assert resp.status_code == 200
+        result = resp.json()
+        assert result["failed"] == []
+        saved = result["created"][0]
+        assert set(saved) == {"index", "id"}
+        assert list(col.get_note(saved["id"]).fields) == ["犬", "dog"]
+        assert col.card_ids_of_note(saved["id"])
 
-    def test_create_with_field_array(self, client):
+    def test_create_with_field_array(self, client, col):
         resp = client.post("/v1/notes", json={
             "modelName": "Basic", "deckName": "Default",
             "fields": [{"name": "Front", "value": "鳥"}, {"name": "Back", "value": "bird"}],
         })
-        assert resp.status_code == 201
-        assert [f["value"] for f in resp.json()["result"]["fields"]] == ["鳥", "bird"]
+        assert resp.status_code == 200
+        assert list(col.get_note(resp.json()["created"][0]["id"]).fields) == ["鳥", "bird"]
 
     def test_create_by_ids(self, client):
         mid = client.get("/v1/models", params={
             "where": "name==Basic", "select": "id", "shape": "scalar"}).json()["items"][0]
         resp = client.post("/v1/notes", json={
             "modelId": mid, "deckId": 1, "fields": {"Front": "鳥"}})
-        assert resp.status_code == 201, resp.text
+        assert resp.status_code == 200, resp.text
+        assert len(resp.json()["created"]) == 1
 
-    def test_unknown_field_is_400(self, client):
+    def test_unknown_field_is_rejected(self, client):
         resp = client.post("/v1/notes", json={
             "modelName": "Basic", "deckName": "Default", "fields": {"Nope": "x"}})
-        assert resp.status_code == 400
+        assert_rejected(resp)
 
-    def test_unknown_model_is_400(self, client):
-        assert add(client, model="Nope").status_code == 400
+    def test_unknown_model_is_rejected(self, client):
+        assert_rejected(add(client, model="Nope"))
 
     def test_unknown_deck_does_not_create_it(self, client):
-        assert add(client, deck="Nope").status_code == 400
+        assert_rejected(add(client, deck="Nope"))
         names = [d["name"] for d in client.get("/v1/decks").json()["items"]]
         assert "Nope" not in names
 
-    def test_empty_first_field_is_400(self, client):
-        assert add(client, front="").status_code == 400
+    def test_empty_first_field_is_rejected(self, client):
+        assert_rejected(add(client, front=""))
 
-    def test_cloze_without_marker_is_400(self, client):
-        assert add(client, front="no cloze here", model="Cloze").status_code == 400
+    def test_cloze_without_marker_is_rejected(self, client):
+        assert_rejected(add(client, front="no cloze here", model="Cloze"))
 
     def test_cloze_with_marker_is_created(self, client):
-        assert add(client, front="{{c1::犬}}", model="Cloze").status_code == 201
+        result = add(client, front="{{c1::犬}}", model="Cloze").json()
+        assert len(result["created"]) == 1
+        assert result["failed"] == []
 
-    def test_duplicate_is_409(self, client):
+    def test_duplicate_is_rejected(self, client):
         add(client)
-        resp = add(client)
-        assert resp.status_code == 409
-        assert "duplicat" in resp.json()["detail"].lower()
+        assert_rejected(add(client), code="duplicate")
 
     def test_duplicate_allowed_when_requested(self, client):
         add(client)
         resp = client.post("/v1/notes", json={
             "modelName": "Basic", "deckName": "Default",
             "fields": {"Front": "犬"}, "allowDuplicate": True})
-        assert resp.status_code == 201
+        assert resp.status_code == 200
+        assert len(resp.json()["created"]) == 1
+        assert resp.json()["failed"] == []
+
+
+def assert_rejected(response, code="invalid_note"):
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["created"] == []
+    assert len(result["failed"]) == 1
+    assert result["failed"][0]["index"] == 0
+    assert result["failed"][0]["code"] == code
+    assert result["failed"][0]["message"]
 
 
 class TestPatch:
     def test_patch_fields_is_partial(self, client):
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}", json={"fields": {"Back": "hound"}})
         values = [f["value"] for f in resp.json()["result"]["fields"]]
         assert values == ["犬", "hound"]  # Front untouched
 
     def test_patch_tags_replaces(self, client):
-        nid = add(client, tags=["a", "b"]).json()["result"]["id"]
+        nid = add(client, tags=["a", "b"]).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}", json={"tags": ["c"]})
         assert resp.json()["result"]["tags"] == ["c"]
 
     def test_add_and_remove_tags(self, client):
-        nid = add(client, tags=["a"]).json()["result"]["id"]
+        nid = add(client, tags=["a"]).json()["created"][0]["id"]
         client.patch(f"/v1/notes/{nid}", json={"addTags": ["b"]})
         resp = client.patch(f"/v1/notes/{nid}", json={"removeTags": ["a"]})
         assert resp.json()["result"]["tags"] == ["b"]
 
     def test_tags_with_add_tags_is_400(self, client):
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}", json={"tags": ["x"], "addTags": ["y"]})
         assert resp.status_code == 400
 
@@ -189,7 +205,7 @@ class TestChangeModel:
     """Retyping a note - the native home for AnkiConnect's updateNoteModel."""
 
     def test_change_model_by_name(self, client):
-        nid = add(client, tags=["keep"]).json()["result"]["id"]
+        nid = add(client, tags=["keep"]).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}", json={
             "modelName": "Cloze", "fields": {"Text": "{{c1::犬}}"}})
         assert resp.status_code == 200
@@ -202,7 +218,7 @@ class TestChangeModel:
     def test_change_model_by_id(self, client):
         cloze_id = client.get("/v1/models", params={
             "where": "name==Cloze", "select": "id", "shape": "scalar"}).json()["items"][0]
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         note = client.patch(f"/v1/notes/{nid}", json={
             "modelId": cloze_id, "fields": {"Text": "{{c1::猫}}"}}).json()["result"]
         assert note["model_id"] == cloze_id
@@ -210,7 +226,7 @@ class TestChangeModel:
     def test_change_model_without_fields_is_400(self, client):
         # The resize blanks every field, so a bare model change would erase
         # the note. Refuse rather than silently destroy content.
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}", json={"modelName": "Cloze"})
         assert resp.status_code == 400
         assert "erase" in resp.json()["detail"]
@@ -218,13 +234,13 @@ class TestChangeModel:
         assert note["fields"][0]["value"] == "犬"   # untouched
 
     def test_unknown_model_is_400(self, client):
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}",
                             json={"modelName": "Nope", "fields": {"Front": "x"}})
         assert resp.status_code == 400
 
     def test_fields_not_on_the_new_model_are_400(self, client):
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}",
                             json={"modelName": "Cloze", "fields": {"Front": "x"}})
         assert resp.status_code == 400
@@ -232,7 +248,7 @@ class TestChangeModel:
 
 class TestDelete:
     def test_delete_removes_note_and_cards(self, client, col):
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         assert client.delete(f"/v1/notes/{nid}").json()["success"] is True
         assert client.get("/v1/notes").json()["items"] == []
         assert col.card_ids_of_note(nid) == []
@@ -252,7 +268,7 @@ class TestCheck:
                        "reason": None, "duplicate_note_ids": []}
 
     def test_duplicate_reports_existing_id(self, client):
-        nid = add(client).json()["result"]["id"]
+        nid = add(client).json()["created"][0]["id"]
         (res,) = self.check(client, [{"modelName": "Basic", "deckName": "Default",
                                       "fields": {"Front": "犬"}}])
         assert res["can_add"] is False
@@ -308,7 +324,7 @@ class TestKeysetListing:
         assert id_queries and all("limit ?" in s for s in id_queries)
 
     def test_keyset_cursor_walks_every_note(self, client):
-        made = [add(client, f).json()["result"]["id"] for f in ("犬", "猫", "鳥")]
+        made = [add(client, f).json()["created"][0]["id"] for f in ("犬", "猫", "鳥")]
         seen, cursor = [], None
         while True:
             params = {"limit": 1}

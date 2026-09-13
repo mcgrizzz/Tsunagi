@@ -8,9 +8,9 @@ import pytest
 
 
 def add_note(client, front, deck="Default"):
-    return client.post("/v1/notes", json={
+    return client.post("/v1/notes?include=cards", json={
         "modelName": "Basic", "deckName": deck,
-        "fields": {"Front": front, "Back": "x"}}).json()["result"]
+        "fields": {"Front": front, "Back": "x"}}).json()["created"][0]
 
 
 @pytest.fixture()

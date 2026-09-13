@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 # ----------------- Response Schemas -----------------
+from .creation import CreationResult
 
 
 class NoteField(BaseModel):
@@ -115,24 +116,11 @@ class NoteCheckResponse(BaseModel):
     stats: dict
 
 
-class NoteBatchCreateRequest(BaseModel):
-    class Config:
-        extra = "forbid"
-
-    notes: List[NoteCreate]
-
-
 class NoteCreated(BaseModel):
-    index: int = Field(description="Zero-based position in the submitted notes array.")
+    index: int = Field(description="Zero-based position in the submitted array; 0 for one object.")
     id: int
+    cards: Optional[List[int]] = Field(default=None, description="Present when include=cards was requested.")
 
 
-class NoteCreateFailure(BaseModel):
-    index: int = Field(description="Zero-based position in the submitted notes array.")
-    code: str = Field(description="duplicate, invalid_note, or anki_error.")
-    message: str
-
-
-class NoteBatchCreateResponse(BaseModel):
-    created: List[NoteCreated]
-    failed: List[NoteCreateFailure]
+class NoteCreateResponse(CreationResult[NoteCreated]):
+    pass

@@ -1,23 +1,44 @@
-# Create notes in a batch
+# Create notes and upload media
 
 [← Documentation](README.md)
 
-Send multiple notes to **`POST /v1/notes:batch-create`**. Each note uses the same
-fields as the single-note `POST /v1/notes` endpoint. This example explicitly asks
-to reject duplicates with `allowDuplicate: false`:
+**Send one object or an array to the same endpoint.** Both endpoints return
+`created` and `failed` arrays, even for a single object.
+
+| Create… | Endpoint | Each successful result includes… |
+| --- | --- | --- |
+| Notes | `POST /v1/notes` | `index`, `id` |
+| Media files | `POST /v1/media` | `index`, `filename`, `requested_filename`, `renamed`, `size` |
+
+`index` is the zero-based input position, or `0` for a single object. Keep your
+submitted inputs to match failures back to them. Successful items aren't rolled
+back because another input is rejected.
+
+## Save notes
+
+For one note, send this object to **`POST /v1/notes`**:
 
 ```json
 {
-  "notes": [
-    {"modelName": "Basic", "deckName": "Default", "allowDuplicate": false, "fields": {"Front": "犬", "Back": "dog"}},
-    {"modelName": "Basic", "deckName": "Default", "allowDuplicate": false, "fields": {"Front": "犬", "Back": "dog"}},
-    {"modelName": "Basic", "deckName": "Default", "allowDuplicate": false, "fields": {"Front": "猫", "Back": "cat"}}
-  ]
+  "modelName": "Basic",
+  "deckName": "Default",
+  "fields": {"Front": "犬", "Back": "dog"},
+  "allowDuplicate": false
 }
 ```
 
-On an empty collection, the first and third notes are saved. The second is a
-duplicate of the first. HTTP **200** returns both successes and failures:
+For several, send an array of those objects:
+
+```json
+[
+  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}, "allowDuplicate": false},
+  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}, "allowDuplicate": false},
+  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "猫", "Back": "cat"}, "allowDuplicate": false}
+]
+```
+
+In a collection without these words, the first and third notes are saved. The
+second is a duplicate of the first. HTTP **200** returns:
 
 ```json
 {
@@ -26,65 +47,98 @@ duplicate of the first. HTTP **200** returns both successes and failures:
     {"index": 2, "id": 1789200000002}
   ],
   "failed": [
-    {
-      "index": 1,
-      "code": "duplicate",
-      "message": "Note duplicates an existing note"
-    }
+    {"index": 1, "code": "duplicate", "message": "Note duplicates an existing note"}
   ]
 }
 ```
 
-`index` is the zero-based position in your submitted `notes` array. It lets you
-match each result to its input even when a note in the middle fails. The server
-doesn't repeat note contents in the response. The successful count is
-`created.length`. Batch responses do not fetch card IDs or existing duplicate IDs.
+For a successful single-note request, `created` has one entry with `index: 0`,
+and `failed` is empty. The response doesn't repeat your note contents or search
+for existing duplicate IDs.
 
-| Result | What it contains |
-| --- | --- |
-| `created` | Successful note IDs, already known from the writes. |
-| `failed` | Rejected input positions, error codes and readable messages. |
+**Need the generated card IDs too?** Use **`POST /v1/notes?include=cards`**.
+Each successful entry then includes `cards: [1789200000001]`. This uses Anki's
+direct card-ID lookup and avoids a separate card search. Leave `include` out
+when you only need the note IDs.
 
-For example, keep the successful IDs and show the rejected inputs for correction:
+Notes are checked and saved in input order. `allowDuplicate` defaults to `false`;
+set it to `true` on an input to permit duplicates, including earlier notes in the
+same batch. One undo step removes all successful additions in the request,
+without undoing earlier work. A request that creates nothing leaves undo history
+unchanged.
+
+## Upload files, then use their stored names
+
+Send one upload object or an array to **`POST /v1/media`**. For example, this is
+an array containing one small text file:
+
+```json
+[
+  {"filename": "example.txt", "data": "aGVsbG8="}
+]
+```
+
+```json
+{
+  "created": [
+    {"index": 0, "filename": "example.txt", "requested_filename": "example.txt", "renamed": false, "size": 5}
+  ],
+  "failed": []
+}
+```
+
+Each upload accepts exactly one source: base64 `data`, an HTTP(S) `url`, or a
+local `path` when that option is enabled in Tsunagi settings. Base64 uploads need
+a `filename`; URL and path uploads can derive it from the source. The configured
+upload-size limit applies to each file.
+
+**Use the returned `filename`.** Anki can rename a file when the requested name
+already contains different bytes. Put the stored name in your note's
+`<img src="filename">` or `[sound:filename]` markup, then send the prepared notes
+to `/v1/notes`. This takes two requests for a batch: one for all uploads, one for
+all notes. Native note bodies don't accept AnkiConnect's attachment envelope.
+
+Media uploads aren't undoable. Undoing note creation doesn't remove uploaded
+files, and a rejected note can leave its media unused.
+
+## Handle failures
+
+HTTP **200** means the request was processed; inspect `failed` to see whether
+all inputs succeeded. The successful count is `created.length`.
 
 ```js
-const savedNoteIds = response.created.map(note => note.id);
 const rejected = response.failed.map(failure => ({
-    note: submittedNotes[failure.index],
+    input: submitted[failure.index],
     reason: failure.message,
 }));
 ```
 
-The failure codes are `duplicate`, `invalid_note` (such as a missing deck or empty
-first field), and `anki_error` (a rejection from Anki). A response with an empty
-`failed` array means every input was saved. An empty `notes` array adds nothing.
+| Endpoint | Failure codes |
+| --- | --- |
+| Notes | `duplicate`, `invalid_note` (such as a missing deck), `anki_error` |
+| Media | `invalid_media` (such as invalid base64 or a failed download), `source_error`, `storage_error` |
 
-## Behavior to know
+Correct the reported problem and retry only those inputs. A single object uses
+the same failure format. An empty array returns empty `created` and `failed` arrays.
 
-- **Valid notes stay saved when another is rejected.** Notes are processed in
-  input order. Duplicate checks include notes already saved by this batch;
-  `allowDuplicate: true` permits them for that input. Duplicate rejection is a
-  caller option, not a requirement of batch creation.
-- **One undo step covers the successful additions.** Undo removes those notes
-  and cards together. Earlier changes remain separate. A batch with no successful
-  additions leaves undo history unchanged.
-- **Invalid request structure returns 422 before any writes.** For example, a
-  note missing its required `fields` property makes the request malformed.
-  Per-note failures above apply to inputs that pass request validation.
-- **Events describe the successful additions.** The normal event size limits
-  still apply; see the [events guide](events.md).
-- **Media is uploaded separately.** Use `POST /v1/media`, then include its returned
-  filename in your field HTML or `[sound:filename]` markup. The batch doesn't
-  accept AnkiConnect's `audio` or `picture` attachment envelope, and note undo
-  does not remove previously uploaded media.
+Malformed request structure, such as a note missing `fields`, returns **422
+before any writes**. Authentication, an unavailable collection, or an unexpected
+server error are request-level errors instead. After a connection loss or
+request-level error, some writes may already have completed; reconcile the
+collection before retrying. Events are optional notifications, not a substitute
+for handling the request result.
 
-Resolve the reported problem before resubmitting a rejected input. Don't resend
-successful inputs as part of a retry. As with other write endpoints, an interrupted
-connection or an unexpected server error may leave the outcome uncertain.
+## How batching reduces repeated work
 
-Within a batch, Tsunagi resolves each distinct note type and deck once and reuses
-that setup in one collection operation. Each note still gets a fresh validation
-and an Anki write. There is no collection-data cache retained between requests.
+Note creation resolves each distinct note type and deck once within a collection
+operation. Each candidate still gets fresh validation against the live collection
+and its own Anki write. No collection data is cached between requests.
 
-Use the [interactive reference](playground.md) for the full input schema,
-authentication controls and a runnable request.
+Media uploads decode and download on the request thread, then dispatch bounded
+groups of files to Anki for storage. This avoids one collection dispatch per
+base64 upload. Pending decoded data is bounded internally; the JSON request
+itself still occupies memory, so choose a batch size that suits your payload.
+A profile switch stops the request before it can store files in another collection.
+
+Use the [interactive reference](playground.md) for the full schemas and runnable
+requests, and the [events guide](events.md) for change notifications.

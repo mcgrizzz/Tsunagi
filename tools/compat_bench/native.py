@@ -38,23 +38,27 @@ def run(workload, request):
             cursors.add(cursor)
             query["cursor"] = cursor
 
-    notes = []
+    notes, uploads, destinations = [], [], []
     for source in workload.notes:
         note = {key: source[key] for key in ("modelName", "deckName", "tags")}
         note["fields"] = dict(source["fields"])
         note["allowDuplicate"] = source["options"]["allowDuplicate"]
-        # Native notes do not accept the AnkiConnect attachment envelope.
-        # Store both files and use the returned names, including for an already
-        # present file. Include every upload and create request in the timing.
         for kind in ("audio", "picture"):
             for attachment in source.get(kind, []):
-                stored = request.native("POST", "/v1/media", {
-                    "filename": attachment["filename"], "data": attachment["data"],
-                })["filename"]
-                markup = f"[sound:{stored}]" if kind == "audio" else f'<img src="{stored}">'
-                note["fields"]["Back"] += markup
+                uploads.append({"filename": attachment["filename"], "data": attachment["data"]})
+                destinations.append((len(notes), kind))
         notes.append(note)
-    result = request.native("POST", "/v1/notes:batch-create", {"notes": notes})
+    # Include both public requests and the client's field assembly in the timing.
+    if uploads:
+        result = request.native("POST", "/v1/media", uploads)
+        assert not result["failed"], result["failed"]
+        assert [item["index"] for item in result["created"]] == list(range(len(uploads)))
+        for item in result["created"]:
+            note_index, kind = destinations[item["index"]]
+            stored = item["filename"]
+            markup = f"[sound:{stored}]" if kind == "audio" else f'<img src="{stored}">'
+            notes[note_index]["fields"]["Back"] += markup
+    result = request.native("POST", "/v1/notes", notes)
     assert not result["failed"], result["failed"]
     assert [note["index"] for note in result["created"]] == list(range(len(notes)))
     return [note["id"] for note in result["created"]]
