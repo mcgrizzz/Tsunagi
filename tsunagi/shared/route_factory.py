@@ -25,6 +25,7 @@ from .errors import (
     track_operation,
 )
 from .filtering import build_predicate, parse_where
+from .model_export import model_row_dict
 from .planning import SourceCaps, make_plan
 from .query_encoding import encode_query_page
 from .selecting import (
@@ -52,7 +53,7 @@ def _plain(x: Any) -> Any:
     # _prepare_response_content calls .dict(by_alias=True) on BaseModels
     # BEFORE response validation, so response_model_by_alias=False never
     # reaches rows typed as Any - Anki wire aliases would leak through.
-    return x.dict() if isinstance(x, BaseModel) else x
+    return model_row_dict(x) if isinstance(x, BaseModel) else x
 
 def _as_dict(x: Any, include: Optional[Union[set, dict]] = None) -> Mapping[str, Any]:
     # Use the schema's human-readable field names (fields, templates,
@@ -70,7 +71,7 @@ def _as_dict(x: Any, include: Optional[Union[set, dict]] = None) -> Mapping[str,
                 value = getattr(x, key, None)
                 if not isinstance(value, list) or not all(isinstance(v, (BaseModel, Mapping)) for v in value):
                     include[key] = True
-    return x.dict(include=include)
+    return model_row_dict(x, include=include)
 
 def _finish(
     page_rows: List[Row],
