@@ -75,13 +75,14 @@ router = create_resource_routes(
 def check(
     body: NoteCheckRequest = Body(..., description="Candidate notes"),
     include_duplicate_ids: bool = Query(default=True, description="Look up matching duplicate note IDs"),
-) -> NoteCheckResponse:
+) -> dict:
     start = time.perf_counter()
     results = check_notes(body.notes, include_duplicate_ids=include_duplicate_ids)
-    return NoteCheckResponse(
-        results=results,
-        stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
-    )
+    # Keep response validation in FastAPI instead of building these models twice.
+    return {
+        "results": results,
+        "stats": {"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
+    }
 
 
 @router.post(
