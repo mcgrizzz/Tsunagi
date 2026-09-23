@@ -5,40 +5,47 @@
 This page reports the current comparison of upstream AnkiConnect, Tsunagi's
 AnkiConnect compatibility API, and its native endpoints. It is updated in place.
 
-**These are measurements of request processing in disposable collections, not
+**The processing tables use disposable collections and do not measure
 end-to-end desktop latency.** Each implementation runs separately. The harness
 verifies the resulting data before accepting a sample.
 
+A separate [live connection benchmark](#live-connection-benchmark) runs against
+a full Anki testing session to measure concurrent requests and disconnects.
+
 ## Current results
 
-Anki **26.8.1**, Python **3.12.12**, Linux/WSL. Core measurements use runtime
-`d8bf965`. Media measurements use `e46b946`; those write paths are unchanged.
-Upstream is pinned to `de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e`.
-These medians use five repeated trials after a separately recorded first-use
-trial. Every trial starts from a restored collection. All fourteen workloads passed
-their equivalence checks. Times are in **milliseconds**; lower is faster.
+Measured **2026-09-21** on Anki/aqt **26.09.2**, Python **3.13.9**, Linux/WSL.
+All tables use the current working tree after `be6cb46`, including the pending
+compatibility and routing fixes. The run manifest records source hashes and
+confirms that the measured source stayed unchanged throughout the run. Upstream
+AnkiConnect is pinned to `de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e`.
+
+The core comparison uses five repeated trials after a separately recorded
+first-use trial. Every trial starts from a restored collection. All **14 core
+workloads** passed their equivalence checks. Times are in **milliseconds**;
+lower is faster.
 
 | Equivalent task | AnkiConnect | Tsunagi shim | Native Tsunagi |
 | --- | ---: | ---: | ---: |
-| 100 cards, full equivalent records | 15.5 | 18.5 | 19.9 |
-| 10,000 cards, full equivalent records | 703.3 | 1,103.1 | 1,280.3 |
-| 1,000 text notes | 1,538.3 | 1,693.6 | 1,504.5 |
-| 10 duplicates: status and note IDs | 4.5 | 4.0 | 1.7 |
-| 100 duplicates: status and note IDs | 36.3 | 29.7 | 9.7 |
-| 10 mixed candidates: status and note IDs | 3.1 | 3.3 | 1.9 |
-| 100 mixed candidates: status and note IDs | 19.3 | 16.7 | 7.1 |
-| 10 duplicates: status only | 1.2 | 1.3 | 1.5 |
-| 100 duplicates: status only | 5.5 | 4.6 | 6.9 |
-| 10 mixed candidates: status only | 1.1 | 1.1 | 1.7 |
-| 100 mixed candidates: status only | 4.6 | 4.3 | 5.5 |
-| 10 models with their field names | 2.1 | 2.0 | 1.3 |
-| 100 models with their field names | 7.8 | 3.8 | 6.8 |
-| Save one note and get its two card IDs | 6.3 | 7.0 | 6.2 |
+| 100 cards, full equivalent records | 15.0 | 18.9 | 19.8 |
+| 10,000 cards, full equivalent records | 714.5 | 1,090.0 | 1,299.2 |
+| 1,000 text notes | 1,533.1 | 1,574.8 | 1,564.2 |
+| 10 duplicates: status and note IDs | 4.4 | 4.6 | 1.9 |
+| 100 duplicates: status and note IDs | 35.6 | 33.2 | 10.8 |
+| 10 mixed candidates: status and note IDs | 3.2 | 3.3 | 1.7 |
+| 100 mixed candidates: status and note IDs | 19.8 | 17.3 | 7.7 |
+| 10 duplicates: status only | 1.3 | 1.3 | 1.8 |
+| 100 duplicates: status only | 6.1 | 4.9 | 6.6 |
+| 10 mixed candidates: status only | 1.2 | 1.4 | 1.8 |
+| 100 mixed candidates: status only | 5.4 | 3.8 | 5.9 |
+| 10 models with their field names | 2.1 | 1.8 | 1.5 |
+| 100 models with their field names | 9.0 | 4.1 | 7.2 |
+| Save one note and get its two card IDs | 7.4 | 7.5 | 7.1 |
 
-Native batch creation is roughly even with the other implementations for this
-text workload. It returns created note IDs and groups successful additions into
-one undo step. The duplicate workflows benefit from receiving
-status and IDs together. Full-card reads remain faster through upstream, and
+Creating 1,000 text notes is close across the three implementations. Native
+batch creation returns created note IDs and groups successful additions into
+one undo step. Native checks are faster when the client needs duplicate status
+and matching IDs together. Full-card reads remain faster through upstream;
 loading 100 models with fields is fastest through the shim in this fixture.
 
 The **status plus IDs** rows include each API's work to find matching notes.
@@ -46,36 +53,149 @@ The **status only** rows omit those searches on both sides: AnkiConnect and the
 shim use one `canAddNotesWithErrorDetail` action; native uses
 `POST /v1/notes:check?include_duplicate_ids=false`.
 
-For 100 duplicates, native takes 9.7 ms with IDs and 6.9 ms without them.
-Skipping IDs removes 100 duplicate searches, but native validation-only remains
-slower than the equivalent AnkiConnect and shim actions in this fixture. The
-default native check still returns IDs. See [note checks](creating_notes.md#check-without-saving)
-for the response and duplicate policy.
+For 100 duplicates, native takes 10.8 ms with IDs and 6.6 ms without them.
+Skipping IDs removes 100 duplicate searches, but the native status-only median
+is still higher than the equivalent AnkiConnect and shim medians in this fixture.
+The default native check still returns IDs. See
+[note checks](creating_notes.md#check-without-saving) for the response and policy.
 
-These are different tasks, not a single overall speed score. In particular,
-fewer HTTP requests do not guarantee less server processing: native responses
-include schema validation, field selection and their response envelope.
+These are different tasks, not a single overall speed score. Fewer HTTP requests
+do not guarantee less server processing: native responses include schema
+validation, field selection and their response envelope. The timings compare
+implementations in this environment; they do not isolate individual code changes.
 
 ### Media writes
 
 Each of 1,000 notes has a unique 16 KiB image and 16 KiB audio attachment. The
 existing-media case starts with those exact files already stored. Medians below
-use two repeated trials after first use; times are in **seconds**.
+use two repeated trials after first use; times are in **seconds**. These trials
+use disposable collections under `/tmp` on ext4.
 
 | Media state | AnkiConnect | Tsunagi shim | Native Tsunagi |
 | --- | ---: | ---: | ---: |
-| New files | 46.96 | 46.66 | 15.87 |
-| Existing identical files | 2.55 | 2.71 | 2.46 |
+| New files | 43.93 | 48.29 | 17.67 |
+| Existing identical files | 5.12 | 5.24 | 2.38 |
 
-Treat this disk-backed ranking cautiously. Native's new-file samples were 15.74
-and 15.99 seconds, while the shim's were 46.13 and 47.20 seconds. The storage
-control below changes the ranking, so this is not evidence of a general native
-advantage for media writes.
+New-file repeated samples: AnkiConnect 41.47–46.39 s; shim 47.17–49.41 s; native 17.47–17.86 s.
+Compare these with the [tmpfs control](#storage-sensitivity) before generalizing
+the ranking. Restoring collections does not reset filesystem caches or disk history.
 
 Native sends all 2,000 attachments in one `POST /v1/media` array, uses the
 returned filenames in fields, and submits one `POST /v1/notes` array:
 **two requests**. Upstream and the shim accept attachments in one `addNotes`
 request. All three still call Anki's media storage backend 2,000 times.
+
+## Live connection benchmark
+
+`tools/benchmark_connections.py` sends real HTTP requests to an already-running
+Anki testing profile. It includes the socket connection, Anki's normal event loop
+and operation scheduling, and receiving and validating the response. It only
+reads note IDs; it does not add, edit or delete collection data.
+
+The runner checks the profile name and server identity before testing. Each
+successful read must contain the same note IDs as the preflight search. Tests run
+one implementation at a time, with the other add-on disabled and Anki restarted
+when switching between AnkiConnect and Tsunagi.
+
+| Case | What it checks |
+| --- | --- |
+| 1, 16, 64 and 256 simultaneous reads | Whether each new connection receives a complete, correct response within five seconds |
+| 256 reads with a 30-second deadline | Whether a longer wait allows the burst to finish |
+| Clients disconnect during headers or after sending a request | Whether fresh requests still work afterward |
+| One incomplete request body held open | Whether an independent read can finish within one second while that connection remains open |
+
+Each case runs three times. Every attempt opens a new connection without retries.
+Reports distinguish HTTP errors, API errors, timeouts, refused/reset connections,
+connections closed without a response, and incomplete or incorrect responses.
+Latency percentiles cover successful attempts only; failure counts must be read
+alongside them. Client-initiated disconnects are counted separately from server
+failures, and sending a request before disconnecting does not prove it executed.
+
+Run the client on the same operating system as Anki for a loopback measurement:
+
+```sh
+python tools/benchmark_connections.py \
+  --url http://127.0.0.1:7777 --profile "YOUR TEST PROFILE" \
+  --implementation shim --output dist/benchmarks/live-connections-shim.json
+```
+
+Repeat with `--implementation native` in the same Tsunagi session. Then disable
+Tsunagi, enable AnkiConnect, restart Anki, and run with `--implementation upstream`
+and its port. Keep the profile, query, server settings and background workload
+unchanged. `--preflight-only` checks the setup without load testing. If needed,
+set `TSUNAGI_BENCH_API_KEY` in the client's environment; keys are not saved in
+reports. These measurements do not cover write cancellation, media uploads,
+connection pooling, or sustained traffic over a long period.
+
+### Current desktop results
+
+Measured on **2026-09-21**, using Windows loopback, full Anki **26.09.2**, and a
+testing profile with **4,547 notes**. Each read requested that collection's
+note IDs: `findNotes` through AnkiConnect/the shim, or `GET /v1/notes?select=id&search=` through
+the native API, without pagination. Tsunagi reported add-on version **0.2.0**;
+its 89 installed Python modules matched this workspace's current source, including
+the tested ID-query fix. All implementations ran sequentially, with only one
+add-on enabled at a time.
+
+**Both Tsunagi APIs completed every measured request; AnkiConnect refused many
+connections in the larger bursts.** At concurrency 256, each Tsunagi API
+completed 768 / 768 requests; AnkiConnect completed 145 / 768. All three runs
+finished, including the disconnect and stalled-upload tests.
+
+| Simultaneous reads | AnkiConnect: successful / attempted | Shim: successful / attempted | Native: successful / attempted |
+| --- | --- | --- | --- |
+| 1 | 3 / 3 | 3 / 3 | 3 / 3 |
+| 16 | 48 / 48 | 48 / 48 | 48 / 48 |
+| 64 | 124 / 192 | 192 / 192 | 192 / 192 |
+| 256 | 145 / 768 | 768 / 768 | 768 / 768 |
+
+Successful-response latency, **median / p95**, in milliseconds:
+
+| Simultaneous reads | AnkiConnect | Shim | Native |
+| --- | --- | --- | --- |
+| 1 | 32.6 / 33.5 | 3.8 / 3.9 | 10.8 / 10.8 |
+| 16 | 612.9 / 1,124.9 | 31.3 / 42.8 | 142.6 / 150.8 |
+| 64 | 1,186.8 / 2,187.2 | 107.6 / 122.9 | 556.6 / 669.6 |
+| 256 | 1,559.1 / 2,525.4 | 316.3 / 465.3 | 1,421.2 / 2,280.3 |
+
+Counts combine the trials at each level; latency uses their successful samples.
+Read latency alongside the completion counts: AnkiConnect's larger-burst
+percentiles describe only the requests whose connections succeeded. The shim
+remains faster than native for this simple lookup; native still performs query
+planning and projection. Native ID-only note queries now use the IDs already
+returned by Anki's search without loading every matching note. Queries needing
+other fields still load those records, and every request reads fresh data.
+
+AnkiConnect's failed burst attempts were **connection refusals before any HTTP
+response**, not JSON error replies or timeouts. With a 30-second deadline, it
+completed 154 / 768 requests and refused 614; allowing more time did not resolve
+the refusals. These counts describe this burst pattern on this Windows session,
+not a general maximum number of supported clients.
+
+Both Tsunagi APIs also completed all **768 / 768** reads in the separate
+long-deadline case. Across both deadline settings, each completed **1,779 / 1,779**
+measured reads, while AnkiConnect completed **474 / 1,779** and refused 1,305
+connections.
+
+For each Tsunagi API, all **384** deliberate disconnect attempts reached the
+client's send/abort step; the following recovery queries succeeded. Independent
+queries during the three stalled uploads completed in **3.8–4.4 ms** for the
+shim and **11.8–13.0 ms** for native, below their one-second deadline.
+AnkiConnect reached the send/abort step in 286 / 384 attempts; the other 98 were
+connection refusals. Its recovery queries succeeded, but each of the three
+independent queries during a stalled upload exceeded the one-second deadline.
+
+Raw reports: `dist/benchmarks/live-connections-upstream.json`,
+`live-connections-shim-rerun.json` and `live-connections-native-rerun.json`.
+`current-live-run-manifest.json` identifies these reports and their hashes.
+All three runs
+used the same client source and verified the same note IDs. The installed
+AnkiConnect web server and utility module matched the pinned reference used in
+the processing tests; its main module differed, so the live run is not labeled
+with that checkout's commit. `live-upstream-source.json` records the installed
+source hashes. The client-only tests also exercise silent closure,
+truncated replies, explicit HTTP/API errors and incorrect IDs; those synthetic
+outcomes are not findings about either Anki add-on.
 
 ## What each workload compares
 
@@ -160,6 +280,35 @@ JSON encoding cost. These optimizations keep that behavior intact; they do not
 bypass validation, retain collection results between requests, or share mutable
 Note instances between cards.
 
+### Filtered card projections
+
+For `GET /v1/cards?select=id,question&where=queue==-1`, the scan now reads only
+`id` and `queue` until it knows which rows match. It renders questions for the
+matching rows. The earlier explicit-selection path rendered every scanned card.
+Omitting `limit` returns all matches in both variants.
+
+| Cards scanned | Matches | Selection | Eager hydration | Deferred hydration |
+| --- | ---: | --- | ---: | ---: |
+| 100 | 1 | `id,question` | 7.16 ms | 1.18 ms |
+| 100 | 1 | `id,queue` | 0.88 ms | 0.88 ms |
+| 10,000 | 100 | `id,question` | 603.70 ms | 29.15 ms |
+| 10,000 | 100 | `id,queue` | 23.43 ms | 23.63 ms |
+
+Measured on 2026-09-21 with Anki 26.09.2 / Python 3.13.9 and the working-tree
+changes after `be6cb46`. The raw report records source hashes. Both variants run
+the same current code; the control disables only the resource's declaration
+of expensive field groups. It reproduces the previous eager behavior for these
+explicit selections, rather than comparing different full runtime versions.
+
+Medians use five repeated requests after a separately recorded first request.
+Requests run sequentially on the same disposable collection, reversing variant
+order each round. Results match exactly. Separate instrumented requests confirm
+that the 10,000-card question query renders 100 cards instead of 10,000; the
+cheap-column control renders none and remains a single-phase query. The
+measurement includes the headless HTTP client and JSON decoding, with fake Qt
+dispatch and no network socket. It is a native before/after comparison, not an
+AnkiConnect speed comparison.
+
 ### Membership filters
 
 When a query reaches Python filtering, `in [...]` and `not in [...]` prepare
@@ -174,16 +323,16 @@ module is swapped for the comparison; all other code is identical.
 
 | Notes scanned | Tags in the filter | Previous filter | Current filter |
 | --- | ---: | ---: | ---: |
-| 100 | 10 | 2.3 ms | 2.1 ms |
-| 100 | 1,000 | 6.7 ms | 5.2 ms |
-| 10,000 | 10 | 145.9 ms | 145.2 ms |
-| 10,000 | 1,000 | 261.6 ms | 183.5 ms |
+| 100 | 10 | 2.2 ms | 2.2 ms |
+| 100 | 1,000 | 6.1 ms | 5.6 ms |
+| 10,000 | 10 | 155.3 ms | 150.9 ms |
+| 10,000 | 1,000 | 259.1 ms | 177.4 ms |
 
-Measured at `d8bf965`, using the filter from `e3a59e8` as the control, on Python
-3.12.12 / Anki 26.8.1. Values are medians of seven repeated requests, with a
-separate first request. The largest case returns 5,000 matching IDs and builds
-one set instead of 10,000. An equality filter without a membership list measured
-147.2 ms versus 148.8 ms for 10,000 notes.
+Measured on 2026-09-21 with the current working tree after `be6cb46`, using
+the filter from `e3a59e8` as the control, on Python 3.13.9 / Anki 26.09.2.
+Values are medians of seven repeated requests, with a separate first request.
+The largest case returns 5,000 matching IDs and builds one set instead of
+10,000. An equality filter without a membership list measured 147.5 ms versus 150.2 ms for 10,000 notes.
 
 Workers run sequentially on copies of the same disposable collection. Each
 worker repeats reads on its open collection. Separate checks confirm GET/POST
@@ -197,15 +346,15 @@ profiles remain reproducible. A separate tool measures Tsunagi's production
 operation wrappers with real Qt signals, Anki's task manager, `QueryOp`,
 `CollectionOp`, and progress widgets.
 
-Anki/aqt 26.8.1, Python 3.12.12, PyQt6 bindings 6.11.0; medians of five repeated
+Anki/aqt 26.09.2, Python 3.13.9, PyQt6 bindings 6.11.0; medians of five repeated
 trials after first use:
 
 | Work arrangement | Total ms | Time outside the operation bodies, ms |
 | --- | ---: | ---: |
-| 100 individual query operations | 11.651 | 10.525 |
-| One query operation containing the same 100 reads | 0.283 | 0.122 |
-| 100 individual collection operations | 46.812 | 46.554 |
-| One collection operation containing 100 empty change results | 0.427 | 0.417 |
+| 100 individual query operations | 7.527 | 6.966 |
+| One query operation containing the same 100 reads | 0.215 | 0.074 |
+| 100 individual collection operations | 40.202 | 40.077 |
+| One collection operation containing 100 empty change results | 0.424 | 0.413 |
 
 The query body reads an empty collection's note count. Collection bodies return
 empty change flags. This isolates dispatch and wrapper costs; it does **not**
@@ -226,8 +375,8 @@ sensitivity check, not a suggested place to keep an Anki collection.
 
 | Media state on tmpfs | AnkiConnect, seconds | Shim, seconds | Native, seconds |
 | --- | ---: | ---: | ---: |
-| New files | 0.882 | 1.008 | 0.962 |
-| Existing identical files | 0.892 | 0.928 | 0.917 |
+| New files | 0.910 | 1.017 | 0.992 |
+| Existing identical files | 0.824 | 0.926 | 0.860 |
 
 With most physical storage cost removed, native media creation is close to the
 other implementations. Batching avoids thousands of separate HTTP requests and
@@ -243,7 +392,9 @@ files, but do not flush the operating system's caches or control disk history.
 
 ## Reproduce the measurements
 
-Use Python 3.12+, the test dependencies, Anki, and a built `lib/shared` directory.
+Use Python 3.13.9 and Anki/aqt 26.09.2 to match this snapshot, plus the test
+dependencies and a built `lib/shared` directory. The core harness requires
+Python 3.12 or newer.
 Pass a checkout of the pinned upstream revision. These commands use disposable
 collections and do not contact a running Anki instance.
 
@@ -267,6 +418,13 @@ Run these sequentially. To repeat the media storage check, add
 use `--write-sizes 40 --repeats 2`. Stop video transcoding and other heavy
 work during timing.
 
+For filtered projections (no AnkiConnect checkout needed):
+
+```sh
+python tools/benchmark_filtered_projection.py --sizes 100 10000 --repeats 5 \
+  --output dist/benchmarks/current-filtered-projection.json
+```
+
 For the native filter comparison (no AnkiConnect checkout needed):
 
 ```sh
@@ -286,6 +444,10 @@ python tools/benchmark_dispatch.py --count 100 --repeats 5 \
 ```
 
 ## Read the raw reports
+
+The reports in `dist/benchmarks/current-*.json` contain the current measurements.
+`current-run-manifest.json` records the commands, run times and source hashes
+across all six benchmark groups, and verifies that the source stayed unchanged.
 
 The main comparison reports record versions, the source commit, source hashes, execution order,
 first-use and repeated timings, response sizes, request/action counts, worker
