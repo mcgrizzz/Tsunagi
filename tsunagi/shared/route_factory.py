@@ -282,6 +282,10 @@ def _execute_query(
         wants = _wanted_fields(select, where)
 
         if plan.find_ids is not None:
+            if getattr(plan, "rows", None) is not None and not where and limit is None and cursor is None:
+                # The complete, unfiltered result: one read instead of
+                # collecting ids and then hydrating them in slices.
+                return _finish(plan.rows(wants), None, select, shape, start)
             # pred_wants: the fields the where predicate reads, plus the row
             # key - what phase one of a two-phase filtered scan hydrates.
             pred_wants = None

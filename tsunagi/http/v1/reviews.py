@@ -10,6 +10,7 @@ from ...adapters.anki.reviews import (
     get_reviews_of_cards,
     insert_reviews,
     page_review_ids,
+    search_review_rows,
 )
 from ...shared.errors import handle_mutation_errors
 from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
@@ -37,7 +38,7 @@ caps = SourceCaps(
     # 120k-review collection). A `search=` query still enumerates in full -
     # Anki search has no keyset form.
     search=SearchSpec(find_ids=find_review_ids, hydrate=get_reviews_by_ids,
-                      page_ids=page_review_ids),
+                      page_ids=page_review_ids, rows=search_review_rows),
     # No MutationCaps: the factory's CRUD shapes don't fit an append-only log.
     # The one write - raw row insertion for history imports, AnkiConnect's
     # insertReviews - is the hand-written POST below.
