@@ -49,6 +49,17 @@ def _fields_to_map(fields: Any) -> Dict[str, str]:
 def _note_info(col: Collection, note: Any, model_names: Dict[int, str],
                wants: Optional[Set[str]] = None,
                cards_by_nid: Optional[Dict[int, List[int]]] = None) -> NoteInfo:
+    return NoteInfo(**_note_row(col, note, model_names, wants, cards_by_nid))
+
+
+def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
+              wants: Optional[Set[str]] = None,
+              cards_by_nid: Optional[Dict[int, List[int]]] = None) -> Dict[str, Any]:
+    """
+    A note as NoteInfo's field names and types, without per-row validation:
+    the values come from Anki's own note. tests/test_note_rows.py checks the
+    rows against the schema on each CI runtime.
+    """
     fields = []
     if wants is None or "fields" in wants:
         names = list(note.keys())
@@ -62,17 +73,17 @@ def _note_info(col: Collection, note: Any, model_names: Dict[int, str],
             cards = cards_by_nid.get(int(note.id), [])
         else:
             cards = [int(c) for c in col.card_ids_of_note(note.id)]
-    return NoteInfo(
-        id=int(note.id),
-        guid=getattr(note, "guid", "") or "",
-        mid=int(note.mid),
-        model_name=model_names.get(int(note.mid), ""),
-        mod=int(getattr(note, "mod", 0) or 0),
-        usn=int(getattr(note, "usn", 0) or 0),
-        tags=list(note.tags),
-        fields=fields,
-        cards=cards,
-    )
+    return {
+        "id": int(note.id),
+        "guid": getattr(note, "guid", "") or "",
+        "model_id": int(note.mid),
+        "model_name": model_names.get(int(note.mid), ""),
+        "mod": int(getattr(note, "mod", 0) or 0),
+        "usn": int(getattr(note, "usn", 0) or 0),
+        "tags": list(note.tags),
+        "fields": fields,
+        "cards": cards,
+    }
 
 
 def _model_names(col: Collection) -> Dict[int, str]:
@@ -177,7 +188,7 @@ def find_note_ids(col: Collection, query: str) -> List[int]:
 
 @as_query_op
 def get_notes_by_ids(col: Collection, ids: Sequence[int],
-                     wants: Optional[Set[str]] = None) -> List[NoteInfo]:
+                     wants: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
     model_names = _model_names(col) if wants is None or "model_name" in wants else {}
     ints = [int(i) for i in ids]
     # One query for the whole page's card ids instead of a backend call per
@@ -191,7 +202,7 @@ def get_notes_by_ids(col: Collection, ids: Sequence[int],
                 f"select id, nid from cards where nid in ({in_list})"
                 " order by nid, ord"):
             cards_by_nid.setdefault(int(nid), []).append(int(cid))
-    out: List[NoteInfo] = []
+    out: List[Dict[str, Any]] = []
     for nid in ints:
         try:
             note = col.get_note(nid)
@@ -199,7 +210,7 @@ def get_notes_by_ids(col: Collection, ids: Sequence[int],
             if type(e).__name__ == "NotFoundError":
                 continue  # missing ids are skipped, like get_models_by_ids
             raise
-        out.append(_note_info(col, note, model_names, wants, cards_by_nid))
+        out.append(_note_row(col, note, model_names, wants, cards_by_nid))
     return out
 
 

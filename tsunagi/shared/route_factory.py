@@ -3,10 +3,11 @@ from __future__ import annotations
 import time
 import traceback
 from bisect import bisect_right
+from operator import itemgetter
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union, get_args
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ..shared.pagination import decode_cursor, encode_cursor, paginate_keyset
@@ -27,7 +28,7 @@ from .errors import (
 from .filtering import build_predicate, parse_where
 from .model_export import model_row_dict
 from .planning import SourceCaps, make_plan
-from .query_encoding import encode_query_page
+from .query_encoding import render_query_page
 from .selecting import (
     SelectScalar,
     maybe_flatten,
@@ -90,16 +91,25 @@ def _finish(
                                              next_cursor=next_cursor, stats=_stats(start))
     nodes = parse_select_csv(select)
     final_items: Optional[List[ModelRow]] = None
-    only = nodes[0] if len(nodes) == 1 else None
-    if (isinstance(only, SelectScalar) and len(only.path) == 1
-            and (shape or "auto").lower() in ("auto", "scalar")
-            and {type(r) for r in page_rows} <= {dict}):
+    shape_name = (shape or "auto").lower()
+    top_level = (all(isinstance(n, SelectScalar) and len(n.path) == 1 for n in nodes)
+                 and {type(r) for r in page_rows} <= {dict})
+    if top_level and len(nodes) == 1 and shape_name in ("auto", "scalar"):
         # One top-level field from plain rows, e.g. select=id: read it directly
         # instead of building a projected dict per row and flattening it back.
         # Exact scalar types only; anything else takes the general path.
-        values = [r.get(only.path[0]) for r in page_rows]
+        values = [r.get(nodes[0].path[0]) for r in page_rows]
         if {type(v) for v in values} <= _SCALAR_TYPESET:
             final_items = values
+    elif top_level and len(nodes) > 1 and shape_name in ("auto", "object"):
+        # Several top-level fields: copy them in one C-level pass per row. A row
+        # missing a field takes the general path, which fills it with None.
+        names = [n.as_name or n.path[0] for n in nodes]
+        get = itemgetter(*(n.path[0] for n in nodes))
+        try:
+            final_items = [dict(zip(names, get(r))) for r in page_rows]
+        except KeyError:
+            final_items = None
     if final_items is None:
         include = selection_include(nodes)
         projected = [project_scalars(_as_dict(r, include), nodes) for r in page_rows]
@@ -373,7 +383,7 @@ def create_resource_routes(
         # The shared query engine already validated this envelope. Preserve
         # custom response models through FastAPI's normal validation path.
         if response_model is Paginated[ModelRow] and type(page) is response_model:
-            return JSONResponse(encode_query_page(page))
+            return Response(render_query_page(page), media_type="application/json")
         return page
 
     # GET endpoint - query params in URL

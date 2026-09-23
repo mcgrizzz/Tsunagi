@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 
 from anki.collection import Collection
 
-from ...shared.schemas.reviews import ReviewInfo
 from ..ops import as_collection_op, as_query_op
 
 # Raw review rows are needed here: Anki's GetReviewLogs returns processed
@@ -20,12 +19,24 @@ from ..ops import as_collection_op, as_query_op
 # Column order is fixed once here so every query below builds the same row.
 COLUMNS = ("id", "cid", "usn", "ease", "ivl", "lastIvl", "factor", "time", "type")
 _SELECT = "select " + ", ".join(COLUMNS) + " from revlog"
+# ReviewInfo's field names for COLUMNS, in the same order.
+_NAMES = ("id", "card_id", "usn", "ease", "interval", "last_interval", "factor", "time_ms", "type")
 
 
-def _rows(col: Collection, where: str = "", *args: Any) -> List[ReviewInfo]:
-    sql = _SELECT + (f" where {where}" if where else "") + " order by id"
-    return [ReviewInfo.parse_obj(dict(zip(COLUMNS, r)))
-            for r in col.db.all(sql, *args)]
+def _row(values: Sequence[int], names: Sequence[str] = _NAMES) -> Dict[str, int]:
+    # Every revlog column is an integer read from Anki's own table, so rows are
+    # built with ReviewInfo's names instead of being validated one by one.
+    # tests/test_review_rows.py checks they match the schema on each CI runtime.
+    return dict(zip(names, values))
+
+
+def _rows(col: Collection, where: str = "", wants: Optional[Set[str]] = None) -> List[Dict[str, int]]:
+    # Read only the requested fields, plus id for paging; None means all of them.
+    pairs = [(c, n) for c, n in zip(COLUMNS, _NAMES) if wants is None or n == "id" or n in wants]
+    names = [n for _, n in pairs]
+    sql = ("select " + ", ".join(c for c, _ in pairs) + " from revlog"
+           + (f" where {where}" if where else "") + " order by id")
+    return [_row(r, names) for r in col.db.all(sql)]
 
 
 def _in_clause(values: Sequence[int]) -> str:
@@ -64,18 +75,18 @@ def page_review_ids(col: Collection, after_id: Optional[int], limit: int) -> Lis
 
 @as_query_op
 def get_reviews_by_ids(col: Collection, ids: Sequence[int],
-                       wants: Optional[Set[str]] = None) -> List[ReviewInfo]:
+                       wants: Optional[Set[str]] = None) -> List[Dict[str, int]]:
     if not ids:
         return []
-    return _rows(col, f"id in {_in_clause(ids)}")
+    return _rows(col, f"id in {_in_clause(ids)}", wants)
 
 
 @as_query_op
 def get_reviews_of_cards(col: Collection, card_ids: Sequence[int],
-                         wants: Optional[Set[str]] = None) -> List[ReviewInfo]:
+                         wants: Optional[Set[str]] = None) -> List[Dict[str, int]]:
     if not card_ids:
         return []
-    return _rows(col, f"cid in {_in_clause(card_ids)}")
+    return _rows(col, f"cid in {_in_clause(card_ids)}", wants)
 
 
 @as_query_op
