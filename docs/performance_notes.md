@@ -372,7 +372,9 @@ differ.
 `workloads-native-2026-09-23d.json` for the two review workloads after the
 one-pass read, and `workloads-upstream-2026-09-23b.json` with
 `workloads-lookup-{native,shim}-2026-09-23.json` for the two Yomitan lookups
-after duplicate scope options were added. Each workload records every trial's time, request count,
+after duplicate scope options were added, and `workloads-fixed-{upstream,shim,native}-2026-09-23.json` for the asbplayer
+cache and the two anki-mcp-server review workloads, rebuilt to match those
+clients' code exactly. Each workload records every trial's time, request count,
 response size and a fingerprint of the normalized answer, a sample answer, the
 runner's source hashes, the profile's note count before and after, and any
 leftover benchmark notes or media. Generated media names are replaced with
