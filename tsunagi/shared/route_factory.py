@@ -138,10 +138,8 @@ def _keyset_scan(
             rows.extend(plan.hydrate(page_ids[i:i + HYDRATE_CHUNK], wants))
         return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
 
-    # Two-phase: when the caller wants full rows, scan with only the fields
-    # the predicate reads, then re-fetch the survivors in full - expensive
-    # fields are built for the page, not for every row the filter rejects.
-    two_phase = wants is None and pred_wants is not None
+    # Build deferred fields for the surviving page, not every rejected row.
+    two_phase = pred_wants is not None
     scan_wants = pred_wants if two_phase else wants
 
     batch_size = HYDRATE_CHUNK if limit is None else max(min(limit, HYDRATE_CHUNK), 50)
@@ -203,7 +201,7 @@ def _paged_scan(
             rows.extend(plan.hydrate(page_ids[i:i + HYDRATE_CHUNK], wants))
         return rows, (encode_cursor({"last_key": page_ids[-1]}) if more and page_ids else None)
 
-    two_phase = wants is None and pred_wants is not None
+    two_phase = pred_wants is not None
     scan_wants = pred_wants if two_phase else wants
 
     batch_size = HYDRATE_CHUNK if limit is None else max(min(limit, HYDRATE_CHUNK), 50)
@@ -260,8 +258,13 @@ def _execute_query(
             # pred_wants: the fields the where predicate reads, plus the row
             # key - what phase one of a two-phase filtered scan hydrates.
             pred_wants = None
-            if where and wants is None:
-                pred_wants = {parse_where(w).tokens[0] for w in where} | {"id"}
+            if where:
+                required = {parse_where(w).tokens[0] for w in where} | {"id"}
+                if wants is None or any(
+                    group & wants and not group & required
+                    for group in caps.expensive_groups
+                ):
+                    pred_wants = required
             page_rows, next_cursor = _paged_scan(
                 plan, limit, cursor, wants, id_getter,
                 build_predicate(where) if where else None,
