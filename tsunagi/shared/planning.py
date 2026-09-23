@@ -75,6 +75,12 @@ class SearchSpec:
     # Opt in when the enumerated IDs are existing values of this public field.
     # An ID-only query can use them without loading the same records again.
     id_field: Optional[str] = None
+    # Optional one-pass read: (query, wants) -> every matching row, ascending
+    # by id and unique, exactly as enumerating then hydrating would return
+    # them. Used only for a complete, unfiltered result (no where, limit or
+    # cursor), where collecting ids first is wasted work. The empty query
+    # means the whole collection.
+    rows: Optional[Callable[[str, Optional[Set[str]]], List[Any]]] = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +136,8 @@ class Plan:
     # Scan tier only: keyset id enumeration, so a bare listing (or a
     # where-filtered one) never materializes the full id list.
     page_ids: Optional[PageIdsFn] = None
+    # Search-backed tiers: every row in one read (see SearchSpec.rows).
+    rows: Optional[Callable[[Optional[Set[str]]], List[Any]]] = None
 
 def _dedupe_indices(xs):
     seen = {}
@@ -222,6 +230,12 @@ def _search_hydrator(spec: SearchSpec) -> FetchValuesFn:
     return hydrate
 
 
+def _search_rows(spec: SearchSpec, query: str) -> Optional[Callable[[Optional[Set[str]]], List[Any]]]:
+    if spec.rows is None:
+        return None
+    return lambda wants: spec.rows(query, wants)
+
+
 def make_plan(
     select_text: Optional[str],
     where_params: Optional[List[str]],
@@ -235,7 +249,8 @@ def make_plan(
         if caps.search is None:
             raise ValueError("search is not supported for this resource")
         spec, q = caps.search, search
-        return Plan("search", find_ids=lambda: spec.find_ids(q), hydrate=_search_hydrator(spec))
+        return Plan("search", find_ids=lambda: spec.find_ids(q), hydrate=_search_hydrator(spec),
+                    rows=_search_rows(spec, q))
 
     # 1) INDEX FIRST — ex: User wants to grab models by id
     plan = _index_plan(caps, where_params)
@@ -262,6 +277,7 @@ def make_plan(
     if caps.search is not None:
         spec = caps.search
         return Plan("scan", find_ids=lambda: spec.find_ids(""),
-                    hydrate=_search_hydrator(spec), page_ids=spec.page_ids)
+                    hydrate=_search_hydrator(spec), page_ids=spec.page_ids,
+                    rows=_search_rows(spec, ""))
 
     raise ValueError("resource has no way to enumerate rows")

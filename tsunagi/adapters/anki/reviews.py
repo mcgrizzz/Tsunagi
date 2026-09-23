@@ -89,6 +89,17 @@ def get_reviews_of_cards(col: Collection, card_ids: Sequence[int],
     return _rows(col, f"cid in {_in_clause(card_ids)}", wants)
 
 
+def _find_cards(col: Collection, query: str) -> List[int]:
+    try:
+        return col.find_cards(query)
+    except Exception as e:
+        # A malformed search is a client error; without this every typo'd
+        # search string becomes a 500. Same guard as find_card_ids.
+        if type(e).__name__ in ("SearchError", "InvalidInput"):
+            raise ValueError(f"Invalid Anki search: {e}") from e
+        raise
+
+
 @as_query_op
 def find_review_ids(col: Collection, query: str) -> List[int]:
     """
@@ -104,18 +115,27 @@ def find_review_ids(col: Collection, query: str) -> List[int]:
     """
     if not query or not query.strip():
         return [int(i) for i in col.db.list("select id from revlog order by id")]
-    try:
-        card_ids = col.find_cards(query)
-    except Exception as e:
-        # A malformed search is a client error; without this every typo'd
-        # search string becomes a 500. Same guard as find_card_ids.
-        if type(e).__name__ in ("SearchError", "InvalidInput"):
-            raise ValueError(f"Invalid Anki search: {e}") from e
-        raise
+    card_ids = _find_cards(col, query)
     if not card_ids:
         return []
     return [int(i) for i in col.db.list(
         f"select id from revlog where cid in {_in_clause(card_ids)} order by id")]
+
+
+@as_query_op
+def search_review_rows(col: Collection, query: str,
+                       wants: Optional[Set[str]] = None) -> List[Dict[str, int]]:
+    """
+    Every review find_review_ids would return, read in one query: reviews of
+    the cards the search matches (all reviews for the empty query), ascending
+    by id. The planner uses this for a complete, unfiltered result.
+    """
+    if not query or not query.strip():
+        return _rows(col, "", wants)
+    card_ids = _find_cards(col, query)
+    if not card_ids:
+        return []
+    return _rows(col, f"cid in {_in_clause(card_ids)}", wants)
 
 
 # ====================
