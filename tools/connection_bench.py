@@ -38,9 +38,10 @@ class Endpoint:
         return cls(parts.hostname, parts.port or 80, parts.netloc)
 
 
-def wire_request(endpoint, path, payload=None, api_key=None):
+def wire_request(endpoint, path, payload=None, api_key=None, method=None):
     body = b"" if payload is None else json.dumps(payload).encode()
-    headers = [f"{'GET' if payload is None else 'POST'} {path} HTTP/1.1",
+    method = method or ("GET" if payload is None else "POST")
+    headers = [f"{method} {path} HTTP/1.1",
                f"Host: {endpoint.authority}", "Connection: close",
                "Content-Type: application/json", f"Content-Length: {len(body)}"]
     if api_key:

@@ -288,7 +288,7 @@ def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
     found = {}
     for i in range(0, len(ids), 250):
         for n in get_notes_by_ids(ids[i:i + 250]):
-            found[int(n.id)] = n
+            found[n["id"]] = n
     profile = profile_name()
     out: List[Dict[str, Any]] = []
     for nid in ids:
@@ -297,14 +297,14 @@ def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
             out.append({})  # missing note is {} - Yomitan relies on this
             continue
         out.append({
-            "noteId": info.id,
+            "noteId": info["id"],
             "profile": profile,
-            "tags": info.tags,
+            "tags": info["tags"],
             # Array -> AnkiConnect's map shape
-            "fields": {f.name: {"value": f.value, "order": f.ord} for f in info.fields},
-            "modelName": info.model_name,
-            "mod": info.mod,
-            "cards": (info.cards or []) * card_repetitions[nid],
+            "fields": {f["name"]: {"value": f["value"], "order": f["ord"]} for f in info["fields"]},
+            "modelName": info["model_name"],
+            "mod": info["mod"],
+            "cards": (info["cards"] or []) * card_repetitions[nid],
         })
     return out
 

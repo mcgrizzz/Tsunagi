@@ -36,7 +36,7 @@ ROWS = [
 
 
 @pytest.mark.parametrize("rows", ROWS)
-@pytest.mark.parametrize("select", ["id", "name", "tags", "flag", "score", "id:nid", "name,id"])
+@pytest.mark.parametrize("select", ["id", "name", "tags", "flag", "score", "id:nid", "name,id", "id:nid,name", "id,id", "score,flag,id"])
 @pytest.mark.parametrize("shape", [None, "auto", "object"])
 def test_matches_general_projection(rows, select, shape):
     page = _finish(rows, None, select, shape, time.perf_counter())

@@ -128,16 +128,16 @@ class TestPageHydratesAPage:
     """
 
     def _parses_during(self, client, monkeypatch, url):
-        from tsunagi.shared.schemas import reviews as schema
+        from tsunagi.adapters.anki import reviews as adapter
 
         count = {"n": 0}
-        original = schema.ReviewInfo.parse_obj
+        original = adapter._row
 
-        def counting(obj):
+        def counting(*args):
             count["n"] += 1
-            return original(obj)
+            return original(*args)
 
-        monkeypatch.setattr(schema.ReviewInfo, "parse_obj", counting)
+        monkeypatch.setattr(adapter, "_row", counting)
         client.get(url)
         return count["n"]
 

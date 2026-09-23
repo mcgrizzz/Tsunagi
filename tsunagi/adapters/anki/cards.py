@@ -93,6 +93,21 @@ def _memory_state(card: Any) -> Optional[Dict[str, float]]:
 
 def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
                wants: Optional[Set[str]] = None) -> CardInfo:
+    return CardInfo(**_card_row(col, card, deck_names, wants))
+
+
+def _optional(convert: Any, value: Any) -> Any:
+    return None if value is None else convert(value)
+
+
+def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
+              wants: Optional[Set[str]] = None) -> Dict[str, Any]:
+    """
+    A card as CardInfo's field names and types, without per-row validation:
+    the values come from Anki's own card, note and notetype. The conversions
+    below are the ones CardInfo applied. tests/test_card_rows.py checks the
+    rows against the schema on each CI runtime.
+    """
     want_note = wants is None or bool(NOTE_WANTS & wants)
     want_render = wants is None or bool(RENDER_WANTS & wants)
 
@@ -116,42 +131,43 @@ def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
     if wants is None or "retrievability" in wants:
         retrievability = _retrievability(col, int(card.id))
 
-    return CardInfo(
-        id=int(card.id),
-        nid=int(card.nid),
-        did=int(card.did),
-        odid=int(getattr(card, "odid", 0) or 0),
-        ord=int(card.ord),
-        mod=int(getattr(card, "mod", 0) or 0),
-        usn=int(getattr(card, "usn", 0) or 0),
-        type=int(card.type),
-        queue=int(card.queue),
-        due=int(card.due),
-        odue=int(getattr(card, "odue", 0) or 0),
-        ivl=int(card.ivl),
-        factor=int(card.factor),
-        reps=int(card.reps),
-        lapses=int(card.lapses),
-        left=int(card.left),
-        flags=int(getattr(card, "flags", 0) or 0),
-        original_position=getattr(card, "original_position", None),
-        custom_data=getattr(card, "custom_data", "") or "",
-        memory_state=_memory_state(card),
-        desired_retention=getattr(card, "desired_retention", None),
-        decay=getattr(card, "decay", None),
-        last_review_time=getattr(card, "last_review_time", None),
-        suspended=int(card.queue) == QUEUE_SUSPENDED,
-        buried=int(card.queue) in BURIED_QUEUES,
-        flag=int(getattr(card, "flags", 0) or 0) & 0b111,
-        deck_name=deck_names.get(int(card.did), ""),
-        model_name=model_name,
-        css=css,
-        fields=fields,
-        question=question,
-        answer=answer,
-        next_reviews=next_reviews,
-        retrievability=retrievability,
-    )
+    flags = int(getattr(card, "flags", 0) or 0)
+    return {
+        "id": int(card.id),
+        "note_id": int(card.nid),
+        "deck_id": int(card.did),
+        "original_deck_id": int(getattr(card, "odid", 0) or 0),
+        "ord": int(card.ord),
+        "mod": int(getattr(card, "mod", 0) or 0),
+        "usn": int(getattr(card, "usn", 0) or 0),
+        "type": int(card.type),
+        "queue": int(card.queue),
+        "due": int(card.due),
+        "original_due": int(getattr(card, "odue", 0) or 0),
+        "interval": int(card.ivl),
+        "factor": int(card.factor),
+        "reps": int(card.reps),
+        "lapses": int(card.lapses),
+        "left": int(card.left),
+        "flags": flags,
+        "original_position": _optional(int, getattr(card, "original_position", None)),
+        "custom_data": str(getattr(card, "custom_data", "") or ""),
+        "memory_state": _memory_state(card),
+        "desired_retention": _optional(float, getattr(card, "desired_retention", None)),
+        "decay": _optional(float, getattr(card, "decay", None)),
+        "last_review_time": _optional(int, getattr(card, "last_review_time", None)),
+        "suspended": int(card.queue) == QUEUE_SUSPENDED,
+        "buried": int(card.queue) in BURIED_QUEUES,
+        "flag": flags & 0b111,
+        "deck_name": deck_names.get(int(card.did), ""),
+        "model_name": model_name,
+        "css": css,
+        "fields": fields,
+        "question": question,
+        "answer": answer,
+        "next_reviews": next_reviews,
+        "retrievability": retrievability,
+    }
 
 
 # ====================
@@ -198,9 +214,9 @@ def get_cards_by_ids(col: Collection, ids: Sequence[int],
 
 
 def _get_cards_by_ids(col: Collection, ids: Sequence[int],
-                      wants: Optional[Set[str]] = None) -> List[CardInfo]:
+                      wants: Optional[Set[str]] = None, build: Any = _card_info) -> List[Any]:
     deck_names = _deck_names(col)
-    out: List[CardInfo] = []
+    out: List[Any] = []
     for cid in ids:
         try:
             card = col.get_card(int(cid))
@@ -208,7 +224,7 @@ def _get_cards_by_ids(col: Collection, ids: Sequence[int],
             if type(e).__name__ == "NotFoundError":
                 continue  # missing ids are skipped, like get_notes_by_ids
             raise
-        out.append(_card_info(col, card, deck_names, wants))
+        out.append(build(col, card, deck_names, wants))
     return out
 
 
@@ -222,7 +238,7 @@ def get_card_rows_by_ids(col: Collection, ids: Sequence[int],
     The compatibility adapter continues to return CardInfo objects.
     """
     if wants is None or not wants <= CARD_COLUMN_SQL.keys():
-        return _get_cards_by_ids(col, ids, wants)
+        return _get_cards_by_ids(col, ids, wants, _card_row)
     ordered_ids = [int(cid) for cid in ids]
     fields = ["id", *sorted(wants - {"id"})]
     columns = ", ".join(CARD_COLUMN_SQL[field] for field in fields)

@@ -36,6 +36,7 @@ class CustomRow(BaseModel):
 @pytest.mark.parametrize("value", [
     {"unicode": "食べる", "numbers": [0, -1, 1.5, 2**60], "bools": [True, False, None],
      "nested": [{"_sa_hidden": 3, "visible": []}], "_sa_root": 4},
+    {"text": '"_sa is text, not a key', "number": 2**60},
     {"enum": Name.FRONT, "integer_enum": Number.ONE},
     {1: "number key", None: "none key", Name.FRONT: "enum key"},
     {"dataclass": Value("Front"), "tuple": (1, 2), "set": {1, 2}},
@@ -44,7 +45,7 @@ class CustomRow(BaseModel):
 def test_encoded_values_match_framework_without_changing_page(value):
     page = Paginated[ModelRow](items=[value], next_cursor=None, stats={"duration_ms": 0})
     expected = JSONResponse(jsonable_encoder(page, by_alias=True)).body
-    assert JSONResponse(query_encoding.encode_query_page(page)).body == expected
+    assert query_encoding.render_query_page(page) == expected
     assert JSONResponse(jsonable_encoder(page, by_alias=True)).body == expected
 
 
@@ -56,7 +57,7 @@ def test_plain_page_does_not_use_framework_conversion(monkeypatch):
         pytest.fail("A plain JSON page should not be recursively converted again")
     monkeypatch.setattr(query_encoding, "jsonable_encoder", unexpected)
     monkeypatch.setattr(type(page), "dict", unexpected)
-    assert query_encoding.encode_query_page(page) == expected
+    assert query_encoding.render_query_page(page) == JSONResponse(expected).body
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
@@ -65,4 +66,4 @@ def test_nonfinite_numbers_still_fail_json_serialization(value):
     with pytest.raises(ValueError):
         JSONResponse(jsonable_encoder(page))
     with pytest.raises(ValueError):
-        JSONResponse(query_encoding.encode_query_page(page))
+        query_encoding.render_query_page(page)
