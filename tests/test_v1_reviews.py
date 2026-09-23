@@ -347,7 +347,10 @@ class TestNativePageMeasurements:
             assert sum(count for _, _, count in reads) <= 8, reads
             assert all("limit" in sql.lower() for sql, _, _ in reads), reads
             hydration_count = sum(count for _, count in hydrated) + len(backend_reads)
-            assert 0 < hydration_count <= 7, (hydrated, backend_reads)
+            if resource == "notes" and projection == "id":
+                assert hydration_count == 0, (hydrated, backend_reads)
+            else:
+                assert 0 < hydration_count <= 7, (hydrated, backend_reads)
             print(f"{resource} {method} select={projection} page={page + 1}: "
                   f"id_queries={len(reads)}, ids_read={sum(r[2] for r in reads)}, "
                   f"rows_hydrated={hydration_count}, "

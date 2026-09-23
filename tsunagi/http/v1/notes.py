@@ -39,7 +39,7 @@ caps = SourceCaps(
     # keyset-style instead of materializing every note id per page request.
     # A `search=` query still enumerates in full - Anki search has no keyset.
     search=SearchSpec(find_ids=find_note_ids, hydrate=get_notes_by_ids,
-                      page_ids=page_note_ids),
+                      page_ids=page_note_ids, id_field="id"),
     mutations=MutationCaps(
         patch=patch_note,
         delete=lambda nid: delete_notes([nid]) > 0,

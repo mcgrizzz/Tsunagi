@@ -72,6 +72,9 @@ class SearchSpec:
     # Optional keyset pushdown for the bare listing (the scan tier). A real
     # search query can't use it - Anki search ids only come as a full list.
     page_ids: Optional[PageIdsFn] = None
+    # Opt in when the enumerated IDs are existing values of this public field.
+    # An ID-only query can use them without loading the same records again.
+    id_field: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +115,9 @@ class SourceCaps:
     search: Optional[SearchSpec] = None                                      # optional: backend search
     mutations: Optional[MutationCaps] = None                                 # optional: mutation operations
     scan: Optional[ScanSpec] = None
+    # Fields built by the same costly hydration step. Defer a group only when
+    # the predicate does not already need that work (e.g. question and answer).
+    expensive_groups: tuple[FrozenSet[str], ...] = ()
 
 @dataclass
 class Plan:
@@ -207,6 +213,15 @@ def _columns_plan(caps: SourceCaps, select_text: Optional[str],
     return None
 
 
+def _search_hydrator(spec: SearchSpec) -> FetchValuesFn:
+    def hydrate(ids, wants=None):
+        if spec.id_field is not None and wants == {spec.id_field}:
+            return [{spec.id_field: int(value)} for value in ids]
+        return spec.hydrate(ids, wants)
+
+    return hydrate
+
+
 def make_plan(
     select_text: Optional[str],
     where_params: Optional[List[str]],
@@ -220,7 +235,7 @@ def make_plan(
         if caps.search is None:
             raise ValueError("search is not supported for this resource")
         spec, q = caps.search, search
-        return Plan("search", find_ids=lambda: spec.find_ids(q), hydrate=spec.hydrate)
+        return Plan("search", find_ids=lambda: spec.find_ids(q), hydrate=_search_hydrator(spec))
 
     # 1) INDEX FIRST — ex: User wants to grab models by id
     plan = _index_plan(caps, where_params)
@@ -247,6 +262,6 @@ def make_plan(
     if caps.search is not None:
         spec = caps.search
         return Plan("scan", find_ids=lambda: spec.find_ids(""),
-                    hydrate=spec.hydrate, page_ids=spec.page_ids)
+                    hydrate=_search_hydrator(spec), page_ids=spec.page_ids)
 
     raise ValueError("resource has no way to enumerate rows")
