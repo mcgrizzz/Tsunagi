@@ -31,6 +31,25 @@ Availability describes support and configuration. A request can still fail becau
 of invalid inputs, authentication, missing records, a busy collection, or the
 current GUI state. Discovery does not execute the operations it lists.
 
+FSRS support can differ between operations on the same Anki version. For
+example, 24.06 can simulate reviews, but lacks workload simulation and the
+optimal-retention request used by Tsunagi. Its simulator also requires review
+history; an available operation can still reject an empty collection.
+
+For parameter optimization, these are the verified checkpoints:
+
+| Anki | Supported options beyond `search` |
+| --- | --- |
+| 23.10 | None |
+| 24.06, 24.11 | `current_params`, `ignore_revlogs_before_ms` |
+| 25.02 | Those options plus `num_of_relearning_steps` |
+| 26.08.1, 26.09.2 | Those options plus `health_check` |
+
+Tsunagi checks the installed backend's arguments instead of guessing from the
+version number. An explicitly supplied unsupported option receives HTTP 501,
+even when its value is `false` or `0`. Leave unsupported options out. Anki's
+older `weights` names are translated internally; clients still use `params`.
+
 ## Response layout
 
 | Field | Contents |

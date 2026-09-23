@@ -18,10 +18,20 @@ jobs:
         # Oldest supported (Anki 23.10 bundles 3.9) and newest. The anki pin
         # rides along: the floor leg proves we call nothing newer than our
         # declared minimum, the current leg that we still work on what users
-        # actually run. anki >=25 requires Python 3.10+, so 3.9 must take 23.10.
+        # actually run. Intermediate wheels also exercise the FSRS signatures
+        # that differ from both endpoints of our supported range.
         include:
           - python-version: "3.9"
             anki-version: "==23.10"
+          - python-version: "3.9"
+            anki-version: "==24.6"
+            test-paths: tests/test_fsrs_version_contracts.py tests/test_v1_fsrs.py tests/test_v1_collection.py
+          - python-version: "3.9"
+            anki-version: "==24.11"
+            test-paths: tests/test_fsrs_version_contracts.py tests/test_v1_fsrs.py tests/test_v1_collection.py
+          - python-version: "3.9"
+            anki-version: "==25.2"
+            test-paths: tests/test_fsrs_version_contracts.py tests/test_v1_fsrs.py tests/test_v1_collection.py
           - python-version: "3.13"
             anki-version: ""
     steps:
@@ -50,7 +60,7 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: python -m pytest -q
+        run: python -m pytest -q ${{ matrix.test-paths }}
 
       - name: Build smoke (artifact exists, pure-Python, deps importable)
         run: |

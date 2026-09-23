@@ -10,12 +10,21 @@ Version splits are asserted in both directions via hasattr on the backend:
 the optimizer/evaluator changed spelling after 23.10, and the simulator group
 doesn't exist there at all.
 """
+from inspect import signature
+
 import pytest
 from anki._backend import RustBackend
 
 from tsunagi.adapters.jobs import jobs
 
-HAS_NEW_OPTIMIZER = hasattr(RustBackend, "compute_fsrs_params")
+COMPUTE = getattr(RustBackend, "compute_fsrs_params", getattr(RustBackend, "compute_fsrs_weights", None))
+EVALUATE = getattr(RustBackend, "evaluate_params_legacy",
+                   getattr(RustBackend, "evaluate_params", getattr(RustBackend, "evaluate_weights", None)))
+RETURNS_EMPTY_PARAMS = bool({"current_params", "current_weights"} & signature(COMPUTE).parameters.keys())
+HAS_HEALTH_CHECK = "health_check" in signature(COMPUTE).parameters
+HAS_EVALUATE_CUTOFF = "ignore_revlogs_before_ms" in signature(EVALUATE).parameters
+HAS_WORKLOAD = hasattr(RustBackend, "simulate_fsrs_workload")
+HAS_RETENTION = "message" in signature(RustBackend.compute_optimal_retention).parameters
 HAS_SIMULATOR = hasattr(RustBackend, "simulate_fsrs_review")
 
 
@@ -45,7 +54,7 @@ class TestComputeParamsJob:
         # Synchronous fakes: the job is terminal by the time submit returns.
         assert body["status"] in ("done", "failed")
 
-    @pytest.mark.skipif(HAS_NEW_OPTIMIZER, reason="23.10 optimizer only")
+    @pytest.mark.skipif(RETURNS_EMPTY_PARAMS, reason="23.10 optimizer only")
     def test_sparse_history_fails_the_job_with_ankis_message(self, client):
         job_id = submit_compute(client).json()["job_id"]
         body = poll(client, job_id).json()
@@ -53,7 +62,7 @@ class TestComputeParamsJob:
         assert "Insufficient review history" in body["error"]
         assert body["result"] is None
 
-    @pytest.mark.skipif(not HAS_NEW_OPTIMIZER, reason="newer optimizer only")
+    @pytest.mark.skipif(not RETURNS_EMPTY_PARAMS, reason="newer optimizer only")
     def test_sparse_history_reports_done_with_empty_params(self, client):
         # Deliberately NOT normalized to match 23.10's error - this is what
         # this Anki version actually did.
@@ -63,7 +72,7 @@ class TestComputeParamsJob:
         assert body["result"] == {
             "params": [], "fsrs_items": 0, "health_check_passed": None}
 
-    @pytest.mark.skipif(HAS_NEW_OPTIMIZER, reason="23.10 optimizer only")
+    @pytest.mark.skipif(HAS_HEALTH_CHECK, reason="health check is supported")
     def test_newer_options_are_501_before_submission(self, client):
         resp = submit_compute(client, {"health_check": True})
         assert resp.status_code == 501
@@ -71,7 +80,7 @@ class TestComputeParamsJob:
         # The refusal happened up front: no job was parked in the store.
         assert submit_compute(client).status_code == 202
 
-    @pytest.mark.skipif(not HAS_NEW_OPTIMIZER, reason="newer optimizer only")
+    @pytest.mark.skipif(not HAS_HEALTH_CHECK, reason="health check is unsupported")
     def test_newer_options_accepted_on_newer_anki(self, client):
         resp = submit_compute(client, {"health_check": True,
                                        "num_of_relearning_steps": 1})
@@ -92,7 +101,7 @@ class TestEvaluateParamsJob:
         assert body["status"] == "failed"
         assert "Insufficient review history" in body["error"]
 
-    @pytest.mark.skipif(HAS_NEW_OPTIMIZER, reason="23.10 evaluator only")
+    @pytest.mark.skipif(HAS_EVALUATE_CUTOFF, reason="cutoff is supported")
     def test_newer_option_is_501_on_2310(self, client):
         resp = client.post("/v1/fsrs:evaluate-params", json={
             "params": [], "ignore_revlogs_before_ms": 1})
@@ -172,16 +181,25 @@ class TestSimulator:
             "new_limit": 10, "review_limit": 200, "max_interval": 36500}
 
     def test_simulate_shapes(self, client):
-        body = client.post("/v1/fsrs:simulate", json=self.BODY).json()
+        response = client.post("/v1/fsrs:simulate", json=self.BODY)
+        body = response.json()
+        if "weights" in signature(RustBackend.simulate_fsrs_review).parameters:
+            # 24.06 requires review history even with a synthetic deck_size.
+            assert response.status_code == 400
+            assert "at least 400 reviews" in body["detail"]
+            return
+        assert response.status_code == 200
         assert len(body["daily_review_count"]) == 30
         assert len(body["daily_new_count"]) == 30
         assert body["daily_new_count"][0] == 10
 
+    @pytest.mark.skipif(not HAS_WORKLOAD, reason="workload is unsupported")
     def test_workload_is_keyed_by_retention_percent(self, client):
         body = client.post("/v1/fsrs:simulate-workload", json=self.BODY).json()
         assert body["cost"]
         assert all(50 <= int(k) <= 100 for k in body["cost"])
 
+    @pytest.mark.skipif(not HAS_RETENTION, reason="simulator retention is unsupported")
     def test_optimal_retention_is_a_probability(self, client):
         body = client.post("/v1/fsrs:optimal-retention",
                            json={**self.BODY, "days_to_simulate": 365}).json()
@@ -190,7 +208,9 @@ class TestSimulator:
     def test_unsimulatable_setup_is_ankis_400(self, client):
         resp = client.post("/v1/fsrs:simulate", json={"days_to_simulate": 10})
         assert resp.status_code == 400
-        assert "no cards to simulate" in resp.json()["detail"]
+        expected = ("at least 400 reviews" if "weights" in signature(RustBackend.simulate_fsrs_review).parameters
+                    else "no cards to simulate")
+        assert expected in resp.json()["detail"]
 
 
 @pytest.mark.skipif(HAS_SIMULATOR, reason="asserts the 23.10 refusal")
@@ -200,3 +220,13 @@ class TestSimulatorUnsupported:
             resp = client.post(f"/v1/fsrs:{verb}", json={"deck_size": 10})
             assert resp.status_code == 501, verb
             assert "Anki version" in resp.json()["detail"]
+
+
+@pytest.mark.parametrize("path,supported", [
+    ("simulate-workload", HAS_WORKLOAD),
+    ("optimal-retention", HAS_RETENTION),
+])
+def test_missing_simulator_operation_is_501(client, path, supported):
+    if supported:
+        pytest.skip("operation is supported")
+    assert client.post(f"/v1/fsrs:{path}", json={}).status_code == 501
