@@ -40,6 +40,13 @@ Set to `false` to stop Tsunagi from starting its server.
 Address the server binds to. Keep the default `127.0.0.1` (loopback only)
 unless you know exactly what exposing Anki on your network means.
 
+Requests must name a loopback address (`localhost`, a loopback IP, or `[::1]`)
+or this configured host in their `Host` header. Other hosts receive HTTP 403,
+even when their browser origin is allowed. Wildcard bind addresses such as
+`0.0.0.0` do not allow arbitrary hostnames or network addresses; use a specific
+bind address when connecting through that address. Forwarded-host headers do
+not override this check.
+
 ### `port` / `prefer_port`
 - `port: 0` (default): use `prefer_port` (7777). If it's busy, Tsunagi shows a
   warning and does not start (no random fallback port).
@@ -90,6 +97,10 @@ Uvicorn log level (`critical`, `error`, `warning`, `info`, `debug`).
 ### `op_timeout_seconds`
 How long a request may wait for Anki (busy with a dialog, sync, etc.) before
 returning HTTP 503 instead of hanging.
+
+A timeout stops the request from waiting; it does not cancel a queued or
+running operation. A write may still complete after the 503 response. Check
+the collection before retrying, since a retry can repeat the write.
 
 ### `media_max_bytes`
 Largest file accepted by a media upload (default 64 MiB). Applies to base64

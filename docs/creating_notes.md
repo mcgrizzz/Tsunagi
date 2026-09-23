@@ -148,6 +148,12 @@ request-level error, some writes may already have completed; reconcile the
 collection before retrying. Events are optional notifications, not a substitute
 for handling the request result.
 
+An operation-timeout **503 does not cancel the write**. Work already queued in
+Anki may run after the response, and a running operation may finish later.
+Retrying immediately can create another note or repeat a media write. Check
+what was saved before retrying; do not treat a timeout as a `failed` result for
+every submitted input.
+
 ## How batching reduces repeated work
 
 Note creation resolves each distinct note type and deck once within a collection
