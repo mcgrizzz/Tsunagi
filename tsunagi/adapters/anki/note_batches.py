@@ -38,7 +38,8 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
                 decks[deck_key] = _resolve_deck_id(col, req)
             # Validate immediately before adding: earlier successes in this
             # batch must participate in duplicate checks too.
-            note = _prepare_note(col, req, models[model_key], include_duplicate_ids=False)
+            note = _prepare_note(col, req, models[model_key], decks[deck_key],
+                                 include_duplicate_ids=False)
             step = col.add_note(note, decks[deck_key])
         except DuplicateNoteError:
             failed.append(CreationFailure(index=index, code="duplicate",

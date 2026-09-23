@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 # ----------------- Response Schemas -----------------
 from .creation import CreationResult
@@ -60,6 +60,22 @@ class NoteFieldValue(BaseModel):
 FieldsInput = Union[Dict[str, str], List[NoteFieldValue]]
 
 
+class DuplicateScopeOptions(BaseModel):
+    """AnkiConnect's duplicateScopeOptions, with the same names and defaults."""
+    class Config:
+        allow_population_by_field_name = True
+
+    deck_name: Optional[str] = Field(
+        alias="deckName", default=None,
+        description="Deck scope: check this deck instead of the note's own deck.")
+    check_children: StrictBool = Field(
+        alias="checkChildren", default=False,
+        description="Deck scope: also check the deck's subdecks.")
+    check_all_models: StrictBool = Field(
+        alias="checkAllModels", default=False,
+        description="Match notes of every note type, not just the candidate's.")
+
+
 class NoteCreate(BaseModel):
     class Config:
         allow_population_by_field_name = True
@@ -75,9 +91,15 @@ class NoteCreate(BaseModel):
     fields: FieldsInput
     tags: List[str] = Field(default_factory=list)
     allow_duplicate: bool = Field(alias="allowDuplicate", default=False)
-    duplicate_scope: Optional[Literal["collection"]] = Field(
+    duplicate_scope: Optional[Literal["collection", "deck"]] = Field(
         alias="duplicateScope", default=None,
-        description="Native duplicate checking supports collection scope only; omit or use collection.",
+        description="Where to look for duplicates: the whole collection (default) or one deck.",
+    )
+    duplicate_scope_options: Optional[DuplicateScopeOptions] = Field(
+        alias="duplicateScopeOptions", default=None,
+        description=("Deck and note-type options for the duplicate check. When deck scope or "
+                     "check_all_models is used, notes match on the first field's checksum, "
+                     "as in AnkiConnect."),
     )
 
 

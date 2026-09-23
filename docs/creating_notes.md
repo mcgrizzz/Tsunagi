@@ -63,9 +63,32 @@ when you only need the note IDs.
 
 Notes are checked and saved in input order. `allowDuplicate` defaults to `false`;
 set it to `true` on an input to permit duplicates, including earlier notes in the
-same batch. The Tsunagi API's check supports collection scope; omit `duplicateScope`
-or set it to `"collection"`. Other scopes return 422 instead of being silently
-interpreted as collection-wide checks.
+same batch.
+
+By default, a duplicate is a note of the **same note type** with the same first
+field, anywhere in the collection; this is Anki's own check. The same options
+AnkiConnect clients send change that:
+
+```json
+{
+  "modelName": "Kiku+",
+  "deckName": "Mining",
+  "fields": {"Expression": "犬"},
+  "duplicateScope": "deck",
+  "duplicateScopeOptions": {"deckName": "Mining", "checkChildren": true, "checkAllModels": true}
+}
+```
+
+- `duplicateScope`: `"collection"` (default) or `"deck"`, the note's own deck
+  unless `duplicateScopeOptions.deckName` names another.
+- `checkChildren`: with deck scope, also check subdecks.
+- `checkAllModels`: match notes of every note type, not only this one.
+
+With deck scope or `checkAllModels`, notes match on the first field's checksum,
+as in AnkiConnect, and `duplicate_note_ids` lists exactly those notes. Empty
+and missing-cloze checks are still Anki's. An unknown `deckName` is reported as
+an invalid input, and other `duplicateScope` values return 422, instead of
+either being silently ignored.
 
 One undo step removes all successful additions in the request,
 without undoing earlier work. A request that creates nothing leaves undo history

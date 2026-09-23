@@ -89,7 +89,7 @@ def test_malformed_request_does_not_reach_anki(client, monkeypatch, params, body
 
 
 @pytest.mark.parametrize("path", ["/v1/notes", "/v1/notes:check"])
-@pytest.mark.parametrize("scope", ["deck", "unknown"])
+@pytest.mark.parametrize("scope", ["unknown", "deck-root"])
 def test_unsupported_duplicate_scope_is_not_silently_treated_as_collection(client, col, path, scope):
     submitted = [candidate("valid"), candidate("scoped", duplicateScope=scope)]
     body = {"notes": submitted} if path.endswith(":check") else submitted
@@ -99,7 +99,7 @@ def test_unsupported_duplicate_scope_is_not_silently_treated_as_collection(clien
     assert col.note_count() == 0
 
 
-@pytest.mark.parametrize("scope", [None, "collection"])
+@pytest.mark.parametrize("scope", [None, "collection", "deck"])
 def test_supported_scope_values_remain_accepted(client, scope):
     note = candidate(duplicateScope=scope)
     assert client.post("/v1/notes:check", json={"notes": [note]}).json()["results"][0]["can_add"]

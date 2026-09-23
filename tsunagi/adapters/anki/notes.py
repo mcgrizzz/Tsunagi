@@ -6,7 +6,7 @@ they land in Anki's undo stack. Duplicate/empty detection lives here too
 (fields_check_impl) because both the native /v1 check endpoint and the
 AnkiConnect compat layer need exactly the same answer.
 """
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from anki.collection import Collection
 
@@ -141,6 +141,50 @@ def _duplicate_ids(col: Collection, note: Any) -> List[int]:
     return [int(i) for i in col.find_notes(query) if int(i) != int(note.id or 0)]
 
 
+def _duplicate_state(col: Collection, note: Any, req: NoteCreate,
+                     deck_id: int) -> Tuple[int, Optional[List[int]]]:
+    """
+    Anki's check, then the request's duplicate scope. Returns the state and,
+    for a scoped check, the matching note ids (None: use _duplicate_ids).
+
+    Collection scope for the same note type is Anki's own check. Deck scope or
+    check_all_models matches the first field's checksum like AnkiConnect, so a
+    client gets the notes AnkiConnect would report. Empty and cloze checks stay
+    Anki's.
+    """
+    from anki.utils import field_checksum
+
+    state = fields_check_impl(col, note)
+    opts = req.duplicate_scope_options
+    deck_scope = req.duplicate_scope == "deck"
+    all_models = bool(opts and opts.check_all_models)
+    if state not in (NORMAL, DUPLICATE) or not (deck_scope or all_models):
+        return state, None
+
+    dids: Optional[Set[int]] = None
+    if deck_scope:
+        did = deck_id
+        if opts and opts.deck_name is not None:
+            deck = col.decks.by_name(opts.deck_name)
+            if deck is None:
+                raise ValidationError(f"Unknown duplicate scope deck '{opts.deck_name}'")
+            did = int(deck["id"])
+        dids = {did}
+        if opts and opts.check_children:
+            dids.update(int(child_id) for _name, child_id in col.decks.children(did))
+
+    query = "select id from notes where csum = ?"
+    args: List[Any] = [field_checksum(note.fields[0] if note.fields else "")]
+    if not all_models:
+        query += " and mid = ?"
+        args.append(note.mid)
+    ids = [int(nid) for nid in col.db.list(query, *args)]
+    if dids is not None:
+        ids = [nid for nid in ids
+               if any(int(did) in dids for did in col.db.list("select did from cards where nid = ?", nid))]
+    return (DUPLICATE if ids else NORMAL), ids
+
+
 def fields_check_impl(col: Collection, note: Any) -> int:
     """
     Anki's own duplicate/empty/cloze check. A plain function taking `col` so
@@ -240,10 +284,10 @@ def check_notes(col: Collection, candidates: List[NoteCreate], *,
             _apply_fields(note, _fields_to_map(req.fields), nt["name"])
             note.tags = list(req.tags)
 
-            state = fields_check_impl(col, note)
+            state, scoped = _duplicate_state(col, note, req, deck_cache[deck_key])
             dupes = None
             if include_duplicate_ids:
-                dupes = _duplicate_ids(col, note) if state == DUPLICATE else []
+                dupes = [] if state != DUPLICATE else scoped if scoped is not None else _duplicate_ids(col, note)
             can_add = state == NORMAL or (state == DUPLICATE and req.allow_duplicate)
             results.append(dict(
                 index=index,
@@ -264,20 +308,21 @@ def check_notes(col: Collection, candidates: List[NoteCreate], *,
 # Mutations
 # ====================
 
-def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any], *,
+def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any], deck_id: int, *,
                   include_duplicate_ids: bool = True) -> Any:
     """Build and validate one native note against the current collection."""
     note = col.new_note(nt)
     _apply_fields(note, _fields_to_map(req.fields), nt["name"])
     note.tags = list(req.tags)
 
-    state = fields_check_impl(col, note)
+    state, scoped = _duplicate_state(col, note, req, deck_id)
     if state == EMPTY:
         raise ValidationError("first field is empty")
     if state == MISSING_CLOZE:
         raise ValidationError("cloze model requires at least one {{c1::...}} in a field")
     if state == DUPLICATE and not req.allow_duplicate:
-        raise DuplicateNoteError(_duplicate_ids(col, note) if include_duplicate_ids else [])
+        ids = [] if not include_duplicate_ids else scoped if scoped is not None else _duplicate_ids(col, note)
+        raise DuplicateNoteError(ids)
     return note
 
 
@@ -286,7 +331,7 @@ def create_note(col: Collection, data: Dict[str, Any]) -> NoteInfo:
     req = NoteCreate.parse_obj(data)
     nt = _resolve_notetype(col, req)
     deck_id = _resolve_deck_id(col, req)
-    note = _prepare_note(col, req, nt)
+    note = _prepare_note(col, req, nt, deck_id)
 
     changes = col.add_note(note, deck_id)
     # The backend normalizes tags/fields and updates metadata without changing
