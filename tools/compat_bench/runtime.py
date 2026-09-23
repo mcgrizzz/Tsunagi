@@ -59,7 +59,7 @@ def endpoint(implementation, checkout):
         from tsunagi.adapters.settings import settings
         from tsunagi.app import app
         settings.configure(dict(DEFAULTS), persist=None)
-        with TestClient(app) as client:
+        with TestClient(app, base_url="http://127.0.0.1") as client:
             yield lambda method, path, body, params: client.request(
                 method, path, content=body, params=params, headers={"Content-Type": "application/json"})
 

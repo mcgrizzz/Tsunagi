@@ -118,5 +118,5 @@ def client(col, reset_settings):
 
     from tsunagi.app import app
 
-    with TestClient(app) as c:
+    with TestClient(app, base_url="http://127.0.0.1") as c:
         yield c
