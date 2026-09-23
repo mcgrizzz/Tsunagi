@@ -11,7 +11,7 @@ from tsunagi.app import app
 
 
 def test_landing_page_and_reference():
-    with TestClient(app) as client:
+    with TestClient(app, base_url="http://127.0.0.1") as client:
         page = client.get('/')
         assert page.status_code == 200
         assert page.headers['content-type'].startswith('text/html')

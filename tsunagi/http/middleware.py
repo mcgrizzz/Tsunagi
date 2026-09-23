@@ -10,6 +10,8 @@ overhead and streaming quirks.
 from __future__ import annotations
 
 import secrets
+from ipaddress import ip_address
+from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
@@ -59,6 +61,42 @@ class ApiKeyAuthMiddleware:
         await resp(scope, receive, send)
 
 
+def _host_allowed(headers: Headers, bind_host: str) -> bool:
+    hosts = headers.getlist("host")
+    if len(hosts) != 1:
+        return False
+    authority = hosts[0]
+    if not authority or any(ord(char) <= 32 or ord(char) >= 127 for char in authority):
+        return False
+    try:
+        parsed = urlsplit("//" + authority)
+        # Reject userinfo, paths and malformed ports instead of extracting a
+        # trusted name from an invalid HTTP authority.
+        if (parsed.netloc != authority or parsed.username is not None
+                or parsed.hostname is None or authority.endswith(":")):
+            return False
+        _ = parsed.port
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    if hostname == "localhost":
+        return True
+    try:
+        address = ip_address(hostname)
+        if address.is_loopback:
+            return True
+        hostname = str(address)
+    except ValueError:
+        pass
+    configured = str(bind_host).strip("[]").lower()
+    try:
+        configured = str(ip_address(configured))
+    except ValueError:
+        pass
+    # Wildcard bind addresses are compared literally, never as allow-all rules.
+    return hostname == configured
+
+
 class DynamicCORSMiddleware:
     """
     CORS against the live cors_allowlist ("*" allowed). Unknown origins get a
@@ -77,6 +115,12 @@ class DynamicCORSMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = Headers(scope=scope)
+        # Host is a trust boundary even without Origin (same-origin GETs),
+        # and before the compatibility permission handshake or CORS allowlist.
+        if not _host_allowed(headers, self.settings.get("host", "127.0.0.1")):
+            return await PlainTextResponse("Disallowed Host header", status_code=403)(
+                scope, receive, send,
+            )
         origin = headers.get("origin")
         if origin is None:  # not a cross-origin browser request
             return await self.app(scope, receive, send)
