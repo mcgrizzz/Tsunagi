@@ -116,7 +116,9 @@ class Workload:
 
 class LookupDuplicates(Workload):
     name = "lookup_duplicates"
-    source = "Yomitan: duplicate check for a popup's entries (backend.js, anki-connect.js findNoteIds)"
+    source = ("Yomitan: duplicate check for a popup's entries (backend.js, anki-connect.js findNoteIds); "
+              "default settings: same note type")
+    options = {}
 
     def candidates(self, ctx):
         return ctx["existing_terms"] + [f"tsunagibench{i}語" for i in range(10)]
@@ -124,7 +126,9 @@ class LookupDuplicates(Workload):
     async def ankiconnect(self, c, ctx, trial):
         words = self.candidates(ctx)
         notes = [{"deckName": "Mining", "modelName": MODEL, "fields": {TERM_FIELD: w},
-                  "options": {"allowDuplicate": False, "duplicateScope": "collection"}} for w in words]
+                  "options": {"allowDuplicate": False, "duplicateScope": "collection",
+                              **({"duplicateScopeOptions": self.options} if self.options else {})}}
+                 for w in words]
         checks = await c.action("canAddNotesWithErrorDetail", notes=notes)
         dup = [w for w, r in zip(words, checks)
                if r.get("error") and "cannot create note because it is a duplicate" in r["error"]]
@@ -141,11 +145,19 @@ class LookupDuplicates(Workload):
 
     async def tsunagi(self, c, ctx, trial):
         words = self.candidates(ctx)
-        body = {"notes": [{"deckName": "Mining", "modelName": MODEL, "fields": {TERM_FIELD: w}}
+        body = {"notes": [{"deckName": "Mining", "modelName": MODEL, "fields": {TERM_FIELD: w},
+                           **({"duplicateScopeOptions": self.options} if self.options else {})}
                           for w in words]}
         results = (await c.rest("POST", "/v1/notes:check", body))["results"]
         return {w: {"duplicate": r["state"] == "duplicate",
                     "ids": sorted(r.get("duplicate_note_ids") or [])} for w, r in zip(words, results)}
+
+
+class LookupDuplicatesAllModels(LookupDuplicates):
+    name = "lookup_duplicates_all_models"
+    source = ("Yomitan: the same check with 'Check for duplicates across all models' on "
+              "(duplicateScopeOptions.checkAllModels)")
+    options = {"deckName": None, "checkChildren": False, "checkAllModels": True}
 
 
 class MineWithMedia(Workload):
@@ -338,7 +350,7 @@ class ReviewHistory(Workload):
                        r["time_ms"], r["type"]] for r in reviews)
 
 
-WORKLOADS = [LookupDuplicates(), MineWithMedia(), UpdateLastMined(), KnownWordsSnapshot(),
+WORKLOADS = [LookupDuplicates(), LookupDuplicatesAllModels(), MineWithMedia(), UpdateLastMined(), KnownWordsSnapshot(),
              MinedCardStatus(), ChangePoll(), NoteTypeFields(), ReviewHistory()]
 
 

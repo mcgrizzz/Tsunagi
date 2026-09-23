@@ -14,20 +14,90 @@ measurements, which run Anki's collection code without a window, the Qt
 main-thread handoff or an HTTP server, are developer profiling data. They are
 in [performance notes](performance_notes.md).
 
-Measured with Anki **26.09.2**: AnkiConnect on **2026-09-21**, the AnkiConnect
-Shim and the Tsunagi API on **2026-09-23**. The page is updated in place; it is
-a current snapshot, not a history.
+There are two benchmarks, both on Anki **26.09.2** with the same testing
+profile:
+
+- **[Real client workloads](#real-client-workloads):** nine goals taken from
+  real AnkiConnect clients, measured on **2026-09-23**.
+- **[Many clients at once](#many-clients-at-once):** a burst of simultaneous
+  note-ID lookups. AnkiConnect was measured on **2026-09-21**, the other two on
+  **2026-09-23**.
+
+The page is updated in place; it is a current snapshot, not a history.
 
 ## Summary
 
+- **For the client goals, the Tsunagi API is fastest on six of nine,** often
+  by a wide margin: one request where AnkiConnect clients need several, and
+  only the fields they use. It is within a millisecond on a seventh, and slower
+  on the two largest reads, mostly because its responses are larger.
+- **The AnkiConnect Shim is faster than AnkiConnect on seven of nine goals**
+  with the same requests, ties on one, and gives the same answers.
 - **Under load, both Tsunagi APIs answered every request.** AnkiConnect refused
   most connections once 64 or more requests arrived at the same moment.
-- **For a plain note-ID lookup, the AnkiConnect Shim is still faster than the
-  Tsunagi API,** about 2 times at every level. The gap was 3 to 5 times before
-  the 2026-09-23 fix to single-field queries. The Tsunagi API still does more
-  per request, and closing the rest of the gap is ongoing work.
-- **Only a note-ID lookup has been measured so far.** Other tasks, such as
-  reading cards, creating notes or uploading media, have no desktop results yet.
+
+## Real client workloads
+
+Each workload is one goal from a real AnkiConnect client's source code. For
+AnkiConnect and the AnkiConnect Shim it uses exactly the requests that client
+sends; for the Tsunagi API it uses the natural `/v1` requests for the same
+goal. Each run records a fingerprint of the answer, and the fingerprints of the
+three APIs were compared.
+
+Median of ten runs after a first run, in milliseconds, on the `[DEV] Yomine`
+testing profile: about 4,570 notes (mostly Kiku+ and Kaishi 1.5k mining cards),
+their review history, and about 38,700 media files. Lower is faster.
+
+| Client goal | AnkiConnect | AnkiConnect Shim | Tsunagi API |
+| --- | ---: | ---: | ---: |
+| **Yomitan:** check 20 dictionary entries for duplicates and list the matching notes | 154 (3 requests) | 86 (3) | **3.7** (1) |
+| **Yomitan,** same check with "Check for duplicates across all models" on | 165 (3) | 95 (3) | **4.2** (1) |
+| **Yomitan / asbplayer / Yomine:** add a mined note with an audio file and a picture | 90 (3) | 26 (3) | **23** (2) |
+| **asbplayer:** attach a screenshot to the most recently added note | 155 (5) | 29 (5) | **23** (3) |
+| **Yomine:** refresh known words: every note, plus each first card's latest interval | **1,106** (65 MB) | **1,107** (61 MB) | 1,569 (78 MB) |
+| **asbplayer:** first load of the mined-card status cache | 10,604 (312 requests, 326 MB) | 6,767 (312, 306 MB) | **205** (1, 0.4 MB) |
+| **asbplayer:** 10-second poll for edited or reviewed cards | 30 | **2.7** | 3.4 |
+| **Obsidian_to_Anki:** read every note type's field names | 3,564 (114 requests) | 157 (114) | **11** (1) |
+| **anki-mcp-server:** one deck's review history (about 150,000 reviews) | **675** (17 MB) | 709 (14 MB) | 797 (19 MB) |
+
+**How to read it:**
+
+- **Request counts come from the clients.** asbplayer fetches card details in
+  batches of 10, because full card records are large; Obsidian_to_Anki asks for
+  each note type's fields separately. The Tsunagi API does each goal in one
+  request that selects only the fields the client reads.
+- **AnkiConnect's small requests take about 30 ms each** even when the work is
+  tiny, as in the change poll. That per-request delay is why its many-request
+  goals are slow.
+- **The Tsunagi API loses on the two largest reads.** Its responses carry named
+  keys for every field and review, so they are about 10–30% larger to send and
+  parse.
+
+**Two known differences in answers:**
+
+- **Duplicate IDs with Yomitan's default settings.** By default Yomitan asks
+  whether a word duplicates a note of the *same* note type, then lists matching
+  notes with a search that covers *every* note type. The Tsunagi API's
+  `notes:check` lists only the notes that make it a duplicate. In this profile a
+  word saved as both Kiku+ and Kiku returned two IDs through AnkiConnect and the
+  AnkiConnect Shim, and one through the Tsunagi API; all three agree it is a
+  duplicate. With "Check for duplicates across all models" on, which the Tsunagi
+  API supports as `duplicateScopeOptions.checkAllModels`, all three return the
+  same two IDs.
+- **Another add-on edited new notes.** In this profile, something fills
+  Kiku+'s `SentenceFurigana` field shortly after a note is added. In 8 of 11
+  AnkiConnect trials the benchmark read the note back before that happened.
+  This is a timing effect of the profile's other add-ons, not of the APIs.
+
+**Test setup:** Windows, client and Anki on the same machine, one API at a time
+with the other add-on disabled and Anki restarted between AnkiConnect and
+Tsunagi. Each request uses a new connection, one after another. Notes and media
+added by a trial go into a dedicated `Tsunagi Benchmark` deck with a
+`tsunagi-benchmark` tag and a `tsunagi_bench_` filename prefix, and are deleted
+after each trial, outside the timed part. The run refuses to start if any
+already exist, and checks at the end that the note count is unchanged. Anki
+moves deleted media to its media trash; **Tools → Check Media → Empty Trash**
+clears it.
 
 ## Many clients at once
 
@@ -125,13 +195,31 @@ pooling, or sustained traffic over a long period.
 
 ## Planned
 
-Desktop workloads defined by **client goals**, in both directions, are planned.
-An example goal is "notes matching a search, with only the Front field, 50 at a
-time". Each goal would be written the natural way for each API, instead of
-measuring every API with AnkiConnect's action shapes. Until those exist, the
-note-ID lookup above is the only desktop comparison.
+More client goals from the same survey: Yomitan's duplicate details
+(`notesInfo` and `cardsInfo` per duplicate), Obsidian_to_Anki's bulk `multi`
+sync, asbplayer's scheduling searches, and metadata reads. Also goals shaped
+around what the Tsunagi API does, measured the closest way AnkiConnect allows.
 
-## Reproduce the benchmark
+## Reproduce the benchmarks
+
+### Real client workloads
+
+Start Anki with a testing profile that has a `Kiku+` note type with an
+`Expression` field, `Mining` and `Kaishi 1.5k` decks, and review history, then
+run on the same machine:
+
+```sh
+python tools/benchmark_workloads.py \
+  --url http://127.0.0.1:7777 --profile "YOUR TEST PROFILE" \
+  --implementation native --output dist/benchmarks/workloads-native.json
+```
+
+Repeat with `--implementation shim`, then with AnkiConnect enabled instead of
+Tsunagi and `--implementation upstream --url http://127.0.0.1:8765`.
+`--workloads` runs a subset, and `--repeats` sets the number of timed runs.
+The runner writes to the profile; use a testing profile.
+
+### Many clients at once
 
 Start Anki with a testing profile, then run the client on the same operating
 system as Anki:
@@ -152,6 +240,7 @@ environment; keys are not saved in reports.
 
 ## Raw reports
 
-Results are saved as JSON under `dist/benchmarks/live-connections-*.json`. What
-they record is described in
+Results are saved as JSON under `dist/benchmarks/`: `workloads-*.json` for the
+client workloads and `live-connections-*.json` for the burst test. What they
+record is described in
 [performance notes](performance_notes.md#live-connection-reports).
