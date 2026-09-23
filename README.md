@@ -42,7 +42,8 @@ The AnkiConnect Shim lets existing integrations connect to Tsunagi.
 [Import your connection settings](#move-from-ankiconnect) to keep the same address.
 AnkiConnect Shim requests use Tsunagi's internal routing and shared Anki adapters,
 so **existing tools may also see performance benefits**, depending on the requests
-and your collection. See the [compatibility notes](docs/ankiconnect_parity.md).
+and your collection ([measurements](docs/benchmarks.md#real-client-workloads)).
+See the [compatibility notes](docs/ankiconnect_parity.md).
 
 FSRS tools, queries and events are available through the Tsunagi API. An existing
 AnkiConnect client keeps its current workflow until it adopts those endpoints.

@@ -25,6 +25,10 @@ comparison**, and they cannot simply be added up to predict desktop latency.
 
 ## Harness comparison with AnkiConnect
 
+Measured 2026-09-21, before the 2026-09-23 changes to row building, encoding
+and search reads. The Tsunagi figures for reading cards and for note types are
+out of date; see [rows from Anki's database](#rows-from-ankis-database).
+
 Each API performs the same task on a fresh copy of a disposable collection, in
 the same process. Values are the **median of five runs** after a separate first
 run, in **milliseconds**; lower is faster. All 14 tasks were checked to produce
@@ -144,19 +148,17 @@ bytes and field references.
 What profiling the [harness comparison](#harness-comparison-with-ankiconnect)
 showed, and what the current optimizations keep intact.
 
-- **Query responses:** standard pages of JSON values use a small shared encoder
-  instead of another recursive Pydantic conversion plus a general-purpose
-  encoder pass over every value. Special values fall back to the original
-  whole-page conversion; custom response schemas keep normal validation.
-  Aliases, dates, custom model encoders and SQLAlchemy attribute exclusions keep
-  their behavior. Full-card schema validation still runs.
-- **Row export:** ordinary validated models use a shared exporter for full rows,
-  flat field selections and nested selections such as `fields[].name`. Custom
-  export methods, schema-level include/exclude rules, unusual values and other
-  selection masks use Pydantic's original export. Rows keep human-readable field
-  names and fresh containers. The 10,000-card read performs 30,001 validations:
-  10,000 card models, 20,000 note-field models and one page envelope. These are
-  separate objects, not three passes over each card.
+- **Query responses:** standard pages are rendered straight to bytes by
+  Python's C JSON encoder, with the settings Starlette's `JSONResponse` uses.
+  A page with a value the encoder can't handle, or with a `"_sa`-prefixed key
+  that FastAPI would drop, falls back to FastAPI's encoder for the whole page;
+  custom response schemas keep normal validation. The page envelope is built
+  without re-validating its items, which are typed `Any`.
+- **Rows from Anki's database:** reviews, notes and cards read through the
+  Tsunagi API are plain dicts with the schema's field names and types, built
+  without per-row validation (see
+  [below](#rows-from-ankis-database)). Rows that are still models, such as
+  write results, use a shared exporter that keeps human-readable names.
 - **Note checks:** the adapter uses the already-validated request models. It
   resolves each distinct note type and deck once per request and still checks
   every candidate against the current collection. Turning off duplicate IDs
@@ -169,10 +171,10 @@ showed, and what the current optimizations keep intact.
   but [reports only a validation state](https://github.com/ankitects/anki/blob/26.08.1/proto/anki/notes.proto#L106)
   to add-ons. Tsunagi therefore needs a second lookup to return matching IDs.
   Returning them from Anki's original check would avoid that repeated work.
-- **Selected fields:** row conversion includes only the requested source fields.
-  Common scalar and array selections use direct projection; unusual structures
-  keep the existing projection. Model validation still runs, including for
-  fields left out of the response.
+- **Selected fields:** one top-level field is read directly from each row;
+  several are copied in one C-level step per row. Nested and unusual selections
+  keep the general projection. Review reads select only the requested columns
+  in SQL.
 - **Note type loading:** field metadata still needs Anki's note type records. The
   100-note-type task makes 100 record loads and one names-list call, and 401
   model-validation calls. Skipping unused templates does not remove those.
@@ -191,9 +193,10 @@ showed, and what the current optimizations keep intact.
   Python profiling sees only at the backend-call boundary. Wall-clock differences
   cannot separate filesystem cost from SQL cost.
 
-None of these optimizations skip validation, keep collection results between
-requests, or share mutable note objects between cards. Full-card reads still
-spend substantial time on Pydantic conversion, validation and JSON encoding.
+None of these optimizations keep collection results between requests or share
+mutable note objects between cards. Client input is still validated. Rows read
+from Anki's own database are not validated per row; contract tests cover them
+instead.
 
 ## Filtered card projections
 
@@ -227,6 +230,61 @@ median time for a successful request in milliseconds:
 In the harness, one request for 4,547 IDs went from 7.1 ms to 2.7 ms against the
 Shim's 1.9 ms, and from about 122,000 to 9,000 function calls. The remaining gap
 is per-request routing and planning work that the Shim does not do.
+
+## Rows from Anki's database
+
+Decided 2026-09-23: rows read from Anki's own database are built with the
+schema's field names and types, without validating each row. The values come
+from Anki's tables and objects, so per-row validation could only fail on data
+Anki itself would not write, and it cost most of the request's time. The
+schemas still document the API and validate client input. Write results and
+the AnkiConnect Shim's `cardsInfo` still build validated models.
+
+`tests/test_review_rows.py`, `test_note_rows.py` and `test_card_rows.py` check
+the rows against the schemas on every CI runtime. They use values that differ in
+every position, so a field paired with the wrong source also fails; the card
+test turns FSRS on so memory state, retention and decay are checked. Each was
+confirmed to fail on deliberately broken builders.
+
+Responses were compared byte for byte before and after, on deterministic
+harness collections, across 25 review, 17 note and 17 card query shapes plus
+paging, POST queries and the AnkiConnect Shim's related actions. Cards were also
+compared on Python 3.9 / Anki 23.10.
+
+Harness timings, median of three requests:
+
+| Read | Before | After | AnkiConnect Shim |
+| --- | ---: | ---: | ---: |
+| 150,000 reviews, 8 fields | 2,025 ms | 497 ms | 410 ms |
+| 4,500 notes with 24 fields each | 973 ms | 328 ms | 355 ms |
+| 2,500 full card rows | 794 ms | 386 ms | 684 ms |
+
+The AnkiConnect Shim's `notesInfo` uses the same note rows, so it also got
+faster (809 ms before).
+
+## One-pass search reads
+
+A search normally collects matching IDs, then reads the rows in slices of 250,
+each a separate Anki operation. That keeps any one operation short and lets
+`where` filters and paging work on IDs. For a complete, unfiltered result (no
+`where`, `limit` or `cursor`), a resource can now read every matching row in one
+query instead (`SearchSpec.rows`). Reviews use it: find the matching cards, then
+read their reviews by card ID, as the AnkiConnect Shim does.
+`tests/test_search_rows.py` checks when each path is taken.
+
+Measured on the desktop (`[DEV] Yomine`), median of ten runs:
+
+| Workload | Before | After | AnkiConnect Shim |
+| --- | ---: | ---: | ---: |
+| One deck's review history (anki-mcp-server) | 1,002 ms | 797 ms | 709 ms |
+| Known-word snapshot (Yomine) | 2,066 ms | 1,569 ms | 1,107 ms |
+
+Before this, an experiment raised the slice size from 250 to 10,000 on the
+installed add-on. Review history improved only 11%, the known-word snapshot not
+at all, and mined-card status got slower, so the slice size is unchanged.
+Timing one review request showed the rest: Tsunagi's server work took 418 ms of
+a 659 ms request, and its response is about 30% larger (18.8 MB against
+14.5 MB) because each review carries named keys.
 
 ## Membership filters
 
@@ -306,6 +364,19 @@ AnkiConnect runs through its own HTTP handler without a listening socket, and
 Tsunagi through FastAPI's in-process test client. Both include request decoding,
 the work itself, response encoding and client decoding, but the transport layers
 differ.
+
+### Client workload reports
+
+`dist/benchmarks/workloads-upstream-2026-09-23.json`,
+`workloads-shim-2026-09-23c.json` and `workloads-native-2026-09-23c.json`, with
+`workloads-native-2026-09-23d.json` for the two review workloads after the
+one-pass read, and `workloads-upstream-2026-09-23b.json` with
+`workloads-lookup-{native,shim}-2026-09-23.json` for the two Yomitan lookups
+after duplicate scope options were added. Each workload records every trial's time, request count,
+response size and a fingerprint of the normalized answer, a sample answer, the
+runner's source hashes, the profile's note count before and after, and any
+leftover benchmark notes or media. Generated media names are replaced with
+placeholders before fingerprinting, so trials compare.
 
 ### Live connection reports
 
