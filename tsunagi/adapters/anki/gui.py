@@ -33,6 +33,16 @@ def _existing_dialog(name: str) -> Any:
     return (aqt.dialogs._dialogs.get(name) or [None, None])[1]
 
 
+def _add_dialog() -> Any:
+    """Resolve the supported draft window on the main thread."""
+    if _existing_dialog("NewAddCards") is not None:
+        raise ValidationError(
+            "Anki's experimental Add window is open. Tsunagi cannot edit its "
+            "draft yet. Finish or close that window before using API Add Cards actions."
+        )
+    return _existing_dialog("AddCards")
+
+
 # ====================
 # Browser
 # ====================
@@ -260,6 +270,7 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
     from .notes import _ac_apply_fields, _ac_write_media
 
     def _open_empty() -> int:
+        _add_dialog()
         dialog = _open_dialog("AddCards")
         dialog.activateWindow()
         return int(dialog.editor.note.id)
@@ -270,6 +281,7 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
     def _prepare_filled():
         from aqt import mw
 
+        _add_dialog()
         col = mw.col
         deck = col.decks.by_name(note["deckName"])
         if deck is None:
@@ -294,6 +306,7 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
         else:
             _ac_apply_fields(new_note, note.get("fields") or {})
         def check_collection():
+            _add_dialog()
             if _mw().col is not col:
                 raise ValidationError("collection changed while preparing media")
 
@@ -311,6 +324,15 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
                 new_note.tags = list(note["tags"])
 
             def show() -> None:
+                # A discard prompt can keep this callback pending while the
+                # user opens another editor or switches collections.
+                try:
+                    check_collection()
+                except ValidationError as exc:
+                    import logging
+
+                    logging.getLogger(__name__).warning("Add Cards request skipped: %s", exc)
+                    return
                 dialog = _open_dialog("AddCards")
                 if saved_mid:
                     deck["mid"] = saved_mid
@@ -337,7 +359,7 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
 def add_note_dialog_open() -> bool:
     """Check before preparing attachments for an existing Add Cards dialog."""
     def _check() -> bool:
-        dialog = _existing_dialog("AddCards")
+        dialog = _add_dialog()
         return dialog is not None and hasattr(dialog, "editor")
     return call_on_main(_check)
 
@@ -354,7 +376,7 @@ def set_add_note_data(note: Dict[str, Any], append: bool = False,
     def _prepare():
         from aqt import mw
 
-        dialog = _existing_dialog("AddCards")
+        dialog = _add_dialog()
         if dialog is None or not hasattr(dialog, "editor"):
             return None
 
@@ -392,7 +414,7 @@ def set_add_note_data(note: Dict[str, Any], append: bool = False,
             editor_note.tags = (sorted(set(editor_note.tags) | set(tags))
                                 if append else list(tags))
         def current():
-            return (mw.col is col and _existing_dialog("AddCards") is dialog
+            return (mw.col is col and _add_dialog() is dialog
                     and getattr(dialog, "editor", None) is not None
                     and dialog.editor.note is editor_note)
 
