@@ -50,7 +50,7 @@ windows, and the event stream. Same request, three audiences.
 
 6. **Response.** `SchedulingResult {affected, stats}`.
 
-## The AnkiConnect shim variant
+## The AnkiConnect Shim variant
 
 `POST / {"action": "suspend", "params": {...}}` reaches the SAME adapter:
 dispatcher (`http/compat/ankiconnect.py`) → registry → `ac_suspend`

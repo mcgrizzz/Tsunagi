@@ -1,6 +1,6 @@
 # AnkiConnect parity
 
-Tsunagi's compatibility shim at `POST /` implements AnkiConnect's protocol.
+The AnkiConnect Shim at `POST /` implements AnkiConnect's protocol.
 This file tracks every action AnkiConnect exposes and where Tsunagi stands.
 
 **Source of truth:** `git.sr.ht/~foosoft/anki-connect` at commit `de6e6e1b`
@@ -58,9 +58,9 @@ means there are no notes to lose.
 - **M6** — planned for the next milestone.
 - **out-of-scope** — deliberately not implemented; the reason is in the row.
 
-Known action-specific differences are listed below. The shim preserves raw
+Known action-specific differences are listed below. The AnkiConnect Shim preserves raw
 argument and error behavior where covered by the compatibility regressions;
-native API validation has its own contract. Local-file access is disabled by
+Tsunagi API validation has its own contract. Local-file access is disabled by
 default, and raw review inserts accept scalar values rather than SQL expressions.
 Action inventory and historical test results do not promise every untested input
 or GUI state matches upstream.
@@ -69,8 +69,8 @@ or GUI state matches upstream.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `answerCards` | implemented | Uses the native scheduler answer method. Missing keys and invalid ease preserve preceding answers; earlier invalid ease takes precedence over later missing keys. Responses, review rows and backend undo/redo are compared. |
-| `areDue` | implemented | Batched native reader with strict history enabled by the shim. Matches upstream's error for non-new/missing cards without review history. |
+| `answerCards` | implemented | Uses the Tsunagi API's scheduler answer method. Missing keys and invalid ease preserve preceding answers; earlier invalid ease takes precedence over later missing keys. Responses, review rows and backend undo/redo are compared. |
+| `areDue` | implemented | Batched Tsunagi API reader, with strict history enabled by the AnkiConnect Shim. Matches upstream's error for non-new/missing cards without review history. |
 | `areSuspended` | implemented |  |
 | `cardsInfo` | implemented |  |
 | `cardsModTime` | implemented |  |
@@ -78,12 +78,12 @@ or GUI state matches upstream.
 | `findCards` | implemented |  |
 | `forgetCards` | implemented |  |
 | `getEaseFactors` | implemented |  |
-| `getIntervals` | implemented | Batched. Missing last intervals raise the upstream error; complete=true still returns empty histories. Native fallback defaults remain unchanged. |
+| `getIntervals` | implemented | Batched. Missing last intervals raise the upstream error; complete=true still returns empty histories. The Tsunagi API's fallback defaults remain unchanged. |
 | `relearnCards` | implemented | Uses a raw UPDATE, wrapped in a CollectionOp. |
-| `setDueDate` | implemented | Uses the native scheduler mutation; exposes Anki's unprefixed invalid-input message. |
-| `setEaseFactors` | implemented | Uses the native factor writer. Short arrays keep earlier writes, skip missing cards and fail at the first present card without a factor. |
-| `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Native: POST /v1/cards:set-values. |
-| `suspend` | implemented | Supports suspend=false and reproduces upstream's list-removal iteration, including repeated-state return values and skipped missing-ID validation. State reads stay batched; writes use native methods. |
+| `setDueDate` | implemented | Uses the Tsunagi API's scheduler mutation; exposes Anki's unprefixed invalid-input message. |
+| `setEaseFactors` | implemented | Uses the Tsunagi API's factor writer. Short arrays keep earlier writes, skip missing cards and fail at the first present card without a factor. |
+| `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Tsunagi API: POST /v1/cards:set-values. |
+| `suspend` | implemented | Supports suspend=false and reproduces upstream's list-removal iteration, including repeated-state return values and skipped missing-ID validation. State reads stay batched; writes use the Tsunagi API's methods. |
 | `suspended` | implemented |  |
 | `unsuspend` | implemented | Returns null, matching canonical. |
 
@@ -99,7 +99,7 @@ or GUI state matches upstream.
 | `deckNamesAndIds` | implemented |  |
 | `deleteDecks` | implemented |  |
 | `getDeckConfig` | implemented |  |
-| `getDeckStats` | implemented | The shim creates missing decks before reading stats, including normalized blank/padded and nested names. Native stats reads create nothing. |
+| `getDeckStats` | implemented | The AnkiConnect Shim creates missing decks before reading stats, including normalized blank/padded and nested names. Tsunagi API stats reads create nothing. |
 | `getDecks` | implemented | Preserves order/duplicates and groups missing card IDs through Anki's default-deck fallback, matching upstream. |
 | `removeDeckConfigId` | implemented |  |
 | `saveDeckConfig` | implemented |  |
@@ -110,7 +110,7 @@ or GUI state matches upstream.
 | Action | Status | Notes |
 | --- | --- | --- |
 | `createModel` | implemented | Requires both template sides and preserves Anki validation errors. Standard/cloze creation and failure side effects have differential coverage. |
-| `findAndReplaceInModels` | implemented | Calls the native replacement method with explicit saving of unmatched targets, matching upstream's sync metadata side effects. Native default remains save-matches-only. |
+| `findAndReplaceInModels` | implemented | Calls the Tsunagi API's replacement method with explicit saving of unmatched targets, matching upstream's sync metadata side effects. The Tsunagi API's default remains save-matches-only. |
 | `findModelsById` | implemented |  |
 | `findModelsByName` | implemented |  |
 | `modelFieldAdd` | implemented |  |
@@ -118,7 +118,7 @@ or GUI state matches upstream.
 | `modelFieldFonts` | implemented |  |
 | `modelFieldNames` | implemented |  |
 | `modelFieldRemove` | implemented |  |
-| `modelFieldRename` | implemented | Uses the native field mutation, fixed to preserve rewritten template references and rendering. |
+| `modelFieldRename` | implemented | Uses the Tsunagi API's field mutation, fixed to preserve rewritten template references and rendering. |
 | `modelFieldReposition` | implemented |  |
 | `modelFieldSetDescription` | implemented |  |
 | `modelFieldSetFont` | implemented |  |
@@ -128,7 +128,7 @@ or GUI state matches upstream.
 | `modelNames` | implemented |  |
 | `modelNamesAndIds` | implemented |  |
 | `modelStyling` | implemented |  |
-| `modelTemplateAdd` | implemented | Existing-template updates match canonical's unsaved model-cache edit; new templates use the native creation method. Cache and persisted state are compared separately. |
+| `modelTemplateAdd` | implemented | Existing-template updates match canonical's unsaved model-cache edit; new templates use the Tsunagi API's creation method. Cache and persisted state are compared separately. |
 | `modelTemplateRemove` | implemented |  |
 | `modelTemplateRename` | implemented |  |
 | `modelTemplateReposition` | implemented |  |
@@ -187,10 +187,10 @@ and its existing media side effects.
 | `exportPackage` | implemented | Preserves AnkiConnect's legacy package format, media inclusion and `includeSched` behavior. Bypasses deprecated wrappers on newer Anki; retains the original exporter on older versions. |
 | `getActiveProfile` | implemented | Manual verification only (needs a live main window). |
 | `getProfiles` | implemented | Manual verification only (needs a live main window). |
-| `importPackage` | implemented | Preserves AnkiConnect's import behavior, including scheduling. On newer Anki, calls the backend directly with the wrapper's fixed options. Native imports separately follow saved Anki choices and accept explicit overrides. |
+| `importPackage` | implemented | Preserves AnkiConnect's import behavior, including scheduling. On newer Anki, calls the backend directly with the wrapper's fixed options. Tsunagi API imports separately follow saved Anki choices and accept explicit overrides. |
 | `loadProfile` | implemented | Manual verification only. The collection is unavailable mid-switch; requests get a 503. |
 | `multi` | implemented |  |
-| `reloadCollection` | implemented | Returns `null` with an open collection. This is a no-op on supported Anki versions: it leaves caches and undo history intact. The native reload endpoint is deprecated for the same reason. |
+| `reloadCollection` | implemented | Returns `null` with an open collection. This is a no-op on supported Anki versions: it leaves caches and undo history intact. The Tsunagi API's reload endpoint is deprecated for the same reason. |
 | `requestPermission` | implemented |  |
 | `sync` | implemented | Manual verification only. Deviation: canonical then calls `mw.onSync()`, which no longer exists. |
 | `version` | implemented |  |
@@ -203,12 +203,12 @@ and its existing media side effects.
 | `guiAddNoteSetData` | implemented | Uses the legacy Add editor. Returns an explicit unsupported-editor error if Anki’s experimental Add window is open, preserving that draft. |
 | `guiAnswerCard` | implemented | Manual verification only (needs a live main window). |
 | `guiBrowse` | implemented |  |
-| `guiCheckDatabase` | implemented | Native equivalent is `POST /v1/collection:check-database`. |
-| `guiCurrentCard` | implemented | Native `GET /v1/gui/current-card` reports null when no review is active; this raises, as canonical does. |
+| `guiCheckDatabase` | implemented | Tsunagi API equivalent: `POST /v1/collection:check-database`. |
+| `guiCurrentCard` | implemented | The Tsunagi API's `GET /v1/gui/current-card` reports null when no review is active; this raises, as canonical does. |
 | `guiDeckBrowser` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckOverview` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckReview` | implemented | Goes straight to the reviewer. Canonical routes through the overview first, which races the reviewer and can leave you on the deck page. |
-| `guiEditNote` | implemented | Opens a reusable standalone Anki editor with save-before-switch/close, history, Browser search and card preview. HTTP routing and Qt lifecycle are tested; a disposable Anki 26.08.1 app smoke check also passed editor open, preview and save/close. Complete visual equivalence remains unverified. The native edit-note route still opens the Browser. |
+| `guiEditNote` | implemented | Opens a reusable standalone Anki editor with save-before-switch/close, history, Browser search and card preview. HTTP routing and Qt lifecycle are tested; a disposable Anki 26.08.1 app smoke check also passed editor open, preview and save/close. Complete visual equivalence remains unverified. The Tsunagi API's edit-note route still opens the Browser. |
 | `guiExitAnki` | implemented | Manual verification only (needs a live main window). |
 | `guiImportFile` | implemented | Waits for Anki's initial GUI call, not confirmed import completion. Dispatch has an operation timeout; accepted dialog interaction does not. Client HTTP timeouts still apply. |
 | `guiPlayAudio` | implemented | Manual verification only (needs a live main window). |
@@ -225,10 +225,10 @@ and its existing media side effects.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `cardReviews` | implemented | Arrays in revlog column order. The shim creates a missing deck and returns no rows. Both `deck` and `startID` are required. The cutoff is bound unchanged through Anki’s database API; strings are values, never SQL expressions. Native reads create nothing. |
+| `cardReviews` | implemented | Arrays in revlog column order. The AnkiConnect Shim creates a missing deck and returns no rows. Both `deck` and `startID` are required. The cutoff is bound unchanged through Anki’s database API; strings are values, never SQL expressions. Tsunagi API reads create nothing. |
 | `getCollectionStatsHTML` | implemented | Anki's own stats report. |
-| `getLatestReviewID` | implemented | The shim creates a missing deck and returns 0; native reads create nothing. |
+| `getLatestReviewID` | implemented | The AnkiConnect Shim creates a missing deck and returns 0; Tsunagi API reads create nothing. |
 | `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. |
 | `getNumCardsReviewedToday` | implemented | Counted from the scheduler's day cutoff. |
 | `getReviewsOfCards` | implemented | Map of card id to reviews; every requested card gets an entry. |
-| `insertReviews` | implemented | Ordinary integer rows use the native writer; a scalar-only compatibility path preserves tested SQLite coercion/errors. Duplicate/malformed-row failures are atomic upstream too. SQL-expression values remain outside the scalar contract. Native: POST /v1/reviews. |
+| `insertReviews` | implemented | Ordinary integer rows use the Tsunagi API's writer; a scalar-only compatibility path preserves tested SQLite coercion/errors. Duplicate/malformed-row failures are atomic upstream too. SQL-expression values remain outside the scalar contract. Tsunagi API: POST /v1/reviews. |

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import traceback
 from bisect import bisect_right
-from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union, get_args
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
@@ -29,6 +29,7 @@ from .model_export import model_row_dict
 from .planning import SourceCaps, make_plan
 from .query_encoding import encode_query_page
 from .selecting import (
+    SelectScalar,
     maybe_flatten,
     parse_select_csv,
     project_scalars,
@@ -38,6 +39,7 @@ from .selecting import (
 
 Row = Union[Mapping[str, Any], Any]
 ModelRow = Union[Any, ProjectedObject, Scalar]
+_SCALAR_TYPESET = frozenset(get_args(Scalar))
 
 # Hydration runs inside a QueryOp with a wall-clock timeout, so a page is
 # fetched in bounded slices rather than one call: each slice gets its own
@@ -81,14 +83,29 @@ def _finish(
     start: float,
 ) -> Paginated[ModelRow]:
     """Project (if select) and wrap a page. Shared by all planner tiers."""
+    # Items are typed Union[Any, ...]: validating them returns the same objects,
+    # so construct() skips a per-item pass without changing the response.
     if not select:
-        return Paginated[ModelRow](items=[_plain(r) for r in page_rows],
-                                   next_cursor=next_cursor, stats=_stats(start))
+        return Paginated[ModelRow].construct(items=[_plain(r) for r in page_rows],
+                                             next_cursor=next_cursor, stats=_stats(start))
     nodes = parse_select_csv(select)
-    include = selection_include(nodes)
-    projected = [project_scalars(_as_dict(r, include), nodes) for r in page_rows]
-    final_items: List[ModelRow] = maybe_flatten(projected, nodes, shape or "auto")
-    return Paginated[ModelRow](items=final_items, next_cursor=next_cursor, stats=_stats(start))
+    final_items: Optional[List[ModelRow]] = None
+    only = nodes[0] if len(nodes) == 1 else None
+    if (isinstance(only, SelectScalar) and len(only.path) == 1
+            and (shape or "auto").lower() in ("auto", "scalar")
+            and {type(r) for r in page_rows} <= {dict}):
+        # One top-level field from plain rows, e.g. select=id: read it directly
+        # instead of building a projected dict per row and flattening it back.
+        # Exact scalar types only; anything else takes the general path.
+        values = [r.get(only.path[0]) for r in page_rows]
+        if {type(v) for v in values} <= _SCALAR_TYPESET:
+            final_items = values
+    if final_items is None:
+        include = selection_include(nodes)
+        projected = [project_scalars(_as_dict(r, include), nodes) for r in page_rows]
+        final_items = maybe_flatten(projected, nodes, shape or "auto")
+    return Paginated[ModelRow].construct(items=final_items, next_cursor=next_cursor,
+                                         stats=_stats(start))
 
 def _rehydrate(
     plan: Any,

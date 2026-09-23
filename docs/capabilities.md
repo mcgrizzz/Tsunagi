@@ -1,7 +1,7 @@
-# Native API discovery
+# Tsunagi API discovery
 
-`GET /v1/capabilities` is the native API's discovery endpoint. It reports all
-registered native operations, their current status, and settings or version
+`GET /v1/capabilities` is the Tsunagi API's discovery endpoint. It reports all
+registered Tsunagi API operations, their current status, and settings or version
 restrictions on individual options. AnkiConnect's action list remains at
 `GET /actions`.
 
@@ -54,8 +54,8 @@ older `weights` names are translated internally; clients still use `params`.
 
 | Field | Contents |
 | --- | --- |
-| `versions` | Native API identifier, Tsunagi release and running Anki version. |
-| `operations` | Native operations keyed by `METHOD /path`, using the path templates from OpenAPI. |
+| `versions` | Tsunagi API identifier, Tsunagi release and running Anki version. |
+| `operations` | Tsunagi API operations keyed by `METHOD /path`, using the path templates from OpenAPI. |
 | `operations.<key>.operation_id` | The operation's OpenAPI identifier. |
 | `operations.<key>.options` | Conditional request options with their own status, reason and setting. Other inputs follow the operation's schema. |
 | `features` | Collection features that are not individual HTTP operations, using the same status format. |
@@ -103,7 +103,7 @@ is open. Both endpoints carry the same `versions` identifiers:
 
 | Field | Meaning |
 | --- | --- |
-| `api` | Native API contract identifier, currently `v1`. |
+| `api` | Tsunagi API contract identifier, currently `v1`. |
 | `addon` | Tsunagi release version, also used by OpenAPI's `info.version`. |
 | `anki` | Running Anki version. |
 

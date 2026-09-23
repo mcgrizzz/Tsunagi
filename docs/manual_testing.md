@@ -31,8 +31,9 @@ checks exercise installation, real windows and client connections.
 - [ ] Test covered and minimized windows separately. Record whether the window
   restores, comes forward and accepts typing in the intended field. Windows may
   flash the taskbar button when foreground activation is refused.
-- [ ] Open the import picker, leave it open, then cancel. Native GUI import returns
-  after accepting the request to open the UI; it does not report a completed import.
+- [ ] Open the import picker, leave it open, then cancel. The Tsunagi API's GUI
+  import returns after accepting the request to open the UI; it does not report a
+  completed import.
 - [ ] Close and reopen Anki; confirm the server starts and the client reconnects.
 
 Run sync, profile switching or exit scenarios only when they are part of the test
@@ -61,7 +62,7 @@ The Browser and Edit Current windows do work with the experimental editor. An
 automated offscreen check covered opening the Browser on a note, searching,
 selecting cards, and switching notes with unsaved typing. It also covered API
 edits reloading an open Browser or Edit Current editor, and saving typing on
-close. Tsunagi's standalone compatibility editor still uses the legacy editor.
+close. The AnkiConnect Shim's standalone editor still uses the legacy editor.
 Two Anki issues remain, and both happen without Tsunagi. Anki's Edit Current
 window logs an error when it is closed programmatically, such as on profile
 switch. A Browser closed after it loads a note but before its editor page is

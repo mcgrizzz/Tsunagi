@@ -8,12 +8,17 @@ class _NeedsFrameworkEncoder(Exception):
     pass
 
 
+_PLAIN = frozenset((str, int, float, bool))
+
+
 def _json_values(value: Any) -> Any:
     kind = type(value)
-    if value is None or kind in (str, int, float, bool):
+    if value is None or kind in _PLAIN:
         return value
     if kind is list:
-        return [_json_values(item) for item in value]
+        # Plain items inline: an ID-only page is thousands of ints.
+        return [item if item is None or type(item) in _PLAIN else _json_values(item)
+                for item in value]
     if kind is dict:
         result = {}
         for key, item in value.items():

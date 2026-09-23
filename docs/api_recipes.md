@@ -9,17 +9,17 @@ it now. AnkiConnect can supply these answers, but some require a follow-up looku
 **Tsunagi returns the related answers together.** Here are three places where that
 shortens the client code, and what changes in the Anki work behind each request.
 
-| When Yomitan needs to… | Its current calls | With native Tsunagi |
+| When Yomitan needs to… | Its current calls | With the Tsunagi API |
 | --- | --- | --- |
 | Identify an existing duplicate | Check the note → search for its ID | **One check returns both** |
 | Save a note and suspend its cards | Save → find cards → suspend | **Save returns the card IDs** |
 | Show a note type's fields | Get model names → request fields | **Models arrive with their fields** |
 
-> These examples show how a native integration could work. Yomitan currently
-> uses AnkiConnect requests, which Tsunagi already supports through its compatibility API.
+> These examples show how a Tsunagi API integration could work. Yomitan currently
+> uses AnkiConnect requests, which Tsunagi already supports through the AnkiConnect Shim.
 
 The flows below are pseudocode. AnkiConnect actions are sent to `POST /`;
-Tsunagi's native paths are shown directly. `note` means the candidate in the
+Tsunagi API paths are shown directly. `note` means the candidate in the
 format expected by that API, including the user's duplicate-check settings.
 
 ## 1. Check a duplicate and get its ID in one request
@@ -138,7 +138,7 @@ between page requests.
 ## Try the endpoints
 
 Open the [interactive reference](http://127.0.0.1:7777/) with Anki running, using
-your configured port if different. Search for the native path above and use
+your configured port if different. Search for the Tsunagi API path above and use
 **Test Request**. Full request bodies and response schemas are available there. The
 [creation guide](creating_notes.md) shows single requests, batches and failures.
 Use a disposable profile when trying note creation or suspension.
@@ -163,13 +163,13 @@ the request. A new word needs only the initial check in either API.
 
 Suspension is optional. Saving alone is one request in either API. Media handling,
 optional sync, connection checks and additional note/card details are omitted.
-A native client must preserve the user's settings and map the request formats;
+A Tsunagi API client must preserve the user's settings and map the request formats;
 this is a comparison of selected flows, not a complete Yomitan port.
 
 The model example omits deck loading and shows a page of models. Follow
 `next_cursor` for additional pages. An AnkiConnect client can prefetch fields via
-`multi`, but still needs a field-name action per model. Native `select` trims the
-response; the model record itself is still loaded internally.
+`multi`, but still needs a field-name action per model. The Tsunagi API's `select` trims
+the response; the model record itself is still loaded internally.
 
 Implementation: [note checks](../tsunagi/adapters/anki/notes.py),
 [note creation](../tsunagi/adapters/anki/note_batches.py),
@@ -178,7 +178,7 @@ Implementation: [note checks](../tsunagi/adapters/anki/notes.py),
 
 A disposable-collection check confirmed one note-type resolution and one deck
 resolution for ten distinct duplicate candidates, plus ten duplicate-ID searches.
-A native save requesting `include=cards` makes one `card_ids_of_note` call, no `find_cards` calls and no
+A Tsunagi API save requesting `include=cards` makes one `card_ids_of_note` call, no `find_cards` calls and no
 `get_note` calls. These are adapter/API call counts, not SQL counts or measured
 speedups.
 

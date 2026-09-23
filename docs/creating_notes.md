@@ -63,7 +63,7 @@ when you only need the note IDs.
 
 Notes are checked and saved in input order. `allowDuplicate` defaults to `false`;
 set it to `true` on an input to permit duplicates, including earlier notes in the
-same batch. Native checking supports collection scope; omit `duplicateScope`
+same batch. The Tsunagi API's check supports collection scope; omit `duplicateScope`
 or set it to `"collection"`. Other scopes return 422 instead of being silently
 interpreted as collection-wide checks.
 
@@ -116,7 +116,7 @@ upload-size limit applies to each file.
 already contains different bytes. Put the stored name in your note's
 `<img src="filename">` or `[sound:filename]` markup, then send the prepared notes
 to `/v1/notes`. This takes two requests for a batch: one for all uploads, one for
-all notes. Native note bodies don't accept AnkiConnect's attachment envelope.
+all notes. Tsunagi API note bodies don't accept AnkiConnect's attachment envelope.
 
 Media uploads aren't undoable. Undoing note creation doesn't remove uploaded
 files, and a rejected note can leave its media unused.

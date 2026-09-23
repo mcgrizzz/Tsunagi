@@ -10,7 +10,7 @@
 
 Tsunagi (繋ぎ, “connection”) is an Anki desktop add-on for dictionary tools,
 flashcard mining apps and scripts. Use it with **existing AnkiConnect tools**, or
-build apps with a **native API** for collection queries, FSRS and change events.
+build apps with the **Tsunagi API** for collection queries, FSRS and change events.
 
 > [!NOTE]
 > Experimental. Supports **Anki desktop 23.10 and newer**; some features depend on
@@ -22,15 +22,15 @@ build apps with a **native API** for collection queries, FSRS and change events.
 
 ### More of modern Anki
 
-Tsunagi is a newer implementation built around modern Anki APIs. Its native API
+Tsunagi is a newer implementation built around modern Anki APIs. The Tsunagi API
 goes beyond AnkiConnect's actions, including **access to Anki's FSRS tools**.
 
 | Benefit | What you can do |
 | --- | --- |
-| **FSRS access** | Compute and evaluate FSRS parameters, and simulate study workload through the native API. |
+| **FSRS access** | Compute and evaluate FSRS parameters, and simulate study workload through the Tsunagi API. |
 | **Undo in Anki** | Undo supported changes, such as note edits and card suspension, through the API or **Edit → Undo** (**Ctrl+Z** / **⌘Z**). Tsunagi uses Anki's collection operations so its windows update too. |
 | **Live change events** | React when notes or cards are created, updated or deleted, with affected IDs where available. See the [event guide](docs/events.md) for coverage. |
-| **Standard HTTP tooling** | Connect through FastAPI and Uvicorn, with validated requests, native HTTP status codes and an OpenAPI schema. Try native requests in the interactive reference. |
+| **Standard HTTP tooling** | Connect through FastAPI and Uvicorn, with validated requests, native HTTP status codes and an OpenAPI schema. Try Tsunagi API requests in the interactive reference. |
 
 Feature availability depends on your Anki version and settings. The
 [discovery endpoint](docs/capabilities.md) reports what's available, disabled or
@@ -38,13 +38,13 @@ unsupported in one place.
 
 ### Keep using your tools
 
-The AnkiConnect compatibility API lets existing integrations connect to Tsunagi.
+The AnkiConnect Shim lets existing integrations connect to Tsunagi.
 [Import your connection settings](#move-from-ankiconnect) to keep the same address.
-Compatibility requests use Tsunagi's internal routing and shared Anki adapters,
+AnkiConnect Shim requests use Tsunagi's internal routing and shared Anki adapters,
 so **existing tools may also see performance benefits**, depending on the requests
 and your collection. See the [compatibility notes](docs/ankiconnect_parity.md).
 
-FSRS tools, queries and events are available through the native API. An existing
+FSRS tools, queries and events are available through the Tsunagi API. An existing
 AnkiConnect client keeps its current workflow until it adopts those endpoints.
 
 ### Get related data in one request
@@ -133,8 +133,8 @@ note content from examples.
 
 | I want to… | Start here |
 | --- | --- |
-| **Build something with Tsunagi** | [Yomitan walkthrough](docs/api_recipes.md): its AnkiConnect requests and their native equivalents. |
+| **Build something with Tsunagi** | [Yomitan walkthrough](docs/api_recipes.md): its AnkiConnect requests and their Tsunagi API equivalents. |
 | **Browse every operation** | Open the [interactive reference](http://127.0.0.1:7777/) while Anki is running. [How to use it](docs/playground.md). |
-| **Check feature availability** | [Native discovery](docs/capabilities.md): one report of available, disabled and unsupported operations. |
+| **Check feature availability** | [API discovery](docs/capabilities.md): one report of available, disabled and unsupported operations. |
 | **Use an AnkiConnect client** | [Compatibility notes](docs/ankiconnect_parity.md). |
 | **Work on the add-on** | [Development guide](docs/development.md): build, test, sync and package releases. |
