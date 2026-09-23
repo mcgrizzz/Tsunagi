@@ -107,9 +107,9 @@ differently. There is no separate `refresh` message.
 | Operation | Event |
 | --- | --- |
 | Create a note through either API or Anki's Add dialog | `notes.created` |
-| Update a note through the native API, or its fields through compatibility | `notes.updated` |
+| Update a note through the Tsunagi API, or its fields through the AnkiConnect Shim | `notes.updated` |
 | Delete notes through either API | `notes.deleted` |
-| Create a note through the native API | `cards.created` for its new cards too |
+| Create a note through the Tsunagi API | `cards.created` for its new cards too |
 | Suspend, unsuspend, bury or unbury cards | `cards.updated` |
 | Other operations without complete IDs, including undo | `notes.changed`, `cards.changed`, or another affected resource's `.changed` |
 

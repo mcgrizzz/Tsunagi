@@ -71,6 +71,6 @@ Two orthogonal refinements on the scan/index tiers:
   queue==-1`: two-phase filtered scan.
 - [post_cards_suspend.md](post_cards_suspend.md) — `POST /v1/cards:suspend`:
   a mutation's full life, including undo, the browser repaint, and the event
-  stream — plus the AnkiConnect shim variant of the same call.
+  stream — plus the AnkiConnect Shim variant of the same call.
 - [list_models.md](list_models.md) — the original per-method deep dive into
   the Python→rsbridge→Rust→SQL machinery (`service, method` numbers and all).

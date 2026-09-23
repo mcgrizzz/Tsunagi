@@ -12,7 +12,7 @@ the host and port of the page. Begin with a health check or a notes query with a
 small limit. Write operations change the current Anki collection.
 
 If an API key is configured, enter it in Scalar's **Authentication** control.
-Native endpoints accept either `X-API-Key` or a Bearer token. Credentials are not
+Tsunagi API endpoints accept either `X-API-Key` or a Bearer token. Credentials are not
 persisted across page reloads. The public health route does not require a key;
 AnkiConnect RPC at `POST /` uses the `key` field in its JSON body.
 

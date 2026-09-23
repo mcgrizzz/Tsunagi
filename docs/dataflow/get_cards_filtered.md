@@ -53,7 +53,7 @@ Resources declare groups of fields that share expensive work through
 states and retrievability separately. If a predicate already needs a group's
 work, selecting another field from that group does not add a second pass:
 filtering on `question` already requires the rendering used by `answer`.
-See the [filtered projection measurements](../benchmarks.md#filtered-card-projections).
+The [measured effect](#measured-effect) is below.
 
 ```mermaid
 sequenceDiagram
@@ -72,3 +72,28 @@ sequenceDiagram
   A->>R: full rows for the PAGE only
   U-->>U: envelope + cursor
 ```
+
+## Measured effect
+
+For `GET /v1/cards?select=id,question&where=queue==-1`, "Before" renders every
+scanned card; "Now" renders only the matching ones. Omitting `limit` returns
+all matches in both.
+
+| Cards scanned | Matches | Fields selected | Before (ms) | Now (ms) |
+| --- | ---: | --- | ---: | ---: |
+| 100 | 1 | `id,question` | 7.16 | 1.18 |
+| 100 | 1 | `id,queue` | 0.88 | 0.88 |
+| 10,000 | 100 | `id,question` | 603.70 | 29.15 |
+| 10,000 | 100 | `id,queue` | 23.43 | 23.63 |
+
+`id,queue` is the control: those fields are cheap, so it stays single-phase and
+nothing changes. At 10,000 cards the question query now renders 100 cards
+instead of 10,000, and results are identical.
+
+Measured on 2026-09-21 with Anki 26.09.2 and Python 3.13.9, in the headless
+test harness with no network socket or real Qt dispatch. Both columns run the
+same code; "Before" switches off only the resource's `expensive_groups`
+declaration, which reproduces the earlier eager behavior. Medians of five
+requests after a separate first request, alternating the order each round. This
+is a before/after comparison of the Tsunagi API, not an AnkiConnect comparison. To repeat
+it, see [performance notes](../performance_notes.md#reproduce-these-measurements).

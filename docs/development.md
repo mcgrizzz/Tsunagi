@@ -87,6 +87,9 @@ For opt-in bulk performance comparisons against upstream AnkiConnect, see the
 [benchmark guide](benchmarks.md). These use disposable collections and stay outside
 the routine test suite.
 
+Profiling findings and before/after measurements of individual optimizations are
+in [performance notes](performance_notes.md).
+
 ## Sync to a development installation
 
 Install a built package first. To copy source changes into a chosen development
@@ -156,7 +159,7 @@ checks remain separate from the CI matrix; run them [before tagging](#tests).
 
 ## Code organization
 
-- `tsunagi/http/` contains native routes, the AnkiConnect shim and HTTP middleware.
+- `tsunagi/http/` contains the Tsunagi API routes, the AnkiConnect Shim and HTTP middleware.
 - `tsunagi/adapters/` integrates with Anki, including settings and operation dispatch.
 - `tsunagi/shared/` contains schemas and shared query/error handling.
 - `tools/` contains packaging, development sync and targeted checks.
