@@ -184,13 +184,13 @@ and its existing media side effects.
 | Action | Status | Notes |
 | --- | --- | --- |
 | `apiReflect` | implemented | Exact scope omission, validation errors, requested order and duplicate-action behavior covered by `test_shim_coverage_gaps.py`. |
-| `exportPackage` | implemented | Uses Anki's current export API, feature-detected - the signature changed between 23.10 and now. |
+| `exportPackage` | implemented | Preserves AnkiConnect's legacy package format, media inclusion and `includeSched` behavior. Bypasses deprecated wrappers on newer Anki; retains the original exporter on older versions. |
 | `getActiveProfile` | implemented | Manual verification only (needs a live main window). |
 | `getProfiles` | implemented | Manual verification only (needs a live main window). |
-| `importPackage` | implemented | Package import follows saved Anki import choices. The native API also accepts explicit choices. |
+| `importPackage` | implemented | Preserves AnkiConnect's import behavior, including scheduling. On newer Anki, calls the backend directly with the wrapper's fixed options. Native imports separately follow saved Anki choices and accept explicit overrides. |
 | `loadProfile` | implemented | Manual verification only. The collection is unavailable mid-switch; requests get a 503. |
 | `multi` | implemented |  |
-| `reloadCollection` | implemented | Collection reload dispatch is covered by the retained tests. |
+| `reloadCollection` | implemented | Returns `null` with an open collection. This is a no-op on supported Anki versions: it leaves caches and undo history intact. The native reload endpoint is deprecated for the same reason. |
 | `requestPermission` | implemented |  |
 | `sync` | implemented | Manual verification only. Deviation: canonical then calls `mw.onSync()`, which no longer exists. |
 | `version` | implemented |  |
@@ -199,8 +199,8 @@ and its existing media side effects.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `guiAddCards` | implemented | Manual verification only (needs a live main window). |
-| `guiAddNoteSetData` | implemented | Manual verification only (needs a live main window). |
+| `guiAddCards` | implemented | Uses the legacy Add editor. Returns an explicit unsupported-editor error if Anki’s experimental Add window is open, preserving that draft. |
+| `guiAddNoteSetData` | implemented | Uses the legacy Add editor. Returns an explicit unsupported-editor error if Anki’s experimental Add window is open, preserving that draft. |
 | `guiAnswerCard` | implemented | Manual verification only (needs a live main window). |
 | `guiBrowse` | implemented |  |
 | `guiCheckDatabase` | implemented | Native equivalent is `POST /v1/collection:check-database`. |

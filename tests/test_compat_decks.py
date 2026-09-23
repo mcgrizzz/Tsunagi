@@ -113,6 +113,39 @@ class TestDeckConfig:
         assert rpc(seeded, "setDeckConfigId",
                    {"decks": ["Nope"], "configId": 1})["result"] is False
 
+    def test_set_config_validates_all_names_before_saving(self, seeded):
+        new_id = rpc(seeded, "cloneDeckConfigId", {"name": "Cram"})["result"]
+        assert rpc(seeded, "setDeckConfigId", {
+            "decks": ["JP", "Nope"], "configId": new_id,
+        }) == {"result": False, "error": None}
+        assert rpc(seeded, "getDeckConfig", {"deck": "JP"})["result"]["id"] == 1
+
+    @pytest.mark.parametrize("failed_save", [1, 2])
+    def test_set_config_keeps_saved_prefix_on_failure(self, seeded, col, monkeypatch, failed_save):
+        from tsunagi.adapters.anki.compat import set_deck_config_legacy
+
+        new_id = rpc(seeded, "cloneDeckConfigId", {"name": "Cram"})["result"]
+        save = col.decks.save
+        calls = []
+
+        def fail_save(deck):
+            calls.append(deck["name"])
+            if len(calls) == failed_save:
+                raise RuntimeError("save failed")
+            save(deck)
+
+        # Future Anki may remove this proxy entirely.
+        monkeypatch.delattr(col.decks, "decks")
+        monkeypatch.setattr(col.decks, "save", fail_save)
+        out = set_deck_config_legacy.__wrapped__(col, ["JP", "Default"], str(new_id))
+        if failed_save == 1:
+            assert out is False
+        else:
+            assert out.value is False and out.changes.deck
+        assert calls == ["JP", "Default"][:failed_save]
+        assert col.decks.by_name("JP")["conf"] == (new_id if failed_save == 2 else 1)
+        assert col.decks.by_name("Default")["conf"] == 1
+
     def test_remove_config_id(self, seeded):
         new_id = rpc(seeded, "cloneDeckConfigId", {"name": "Cram"})["result"]
         rpc(seeded, "setDeckConfigId", {"decks": ["JP"], "configId": new_id})

@@ -253,8 +253,14 @@ def import_(body: ImportRequest = Body(...)) -> Union[ImportResult, JSONResponse
 @router.post(
     "/v1/collection:reload",
     response_model=CollectionActionResult,
-    summary="Reload the collection",
-    description="Drops Anki's cached state so the next read sees what is on disk.",
+    summary="Reload the collection (deprecated no-op)",
+    description=(
+        "This endpoint performs no reload. It remains available for existing clients "
+        "and returns success when a collection is open. After a completed collection "
+        "operation, query the data directly; no reload step is required. "
+        "This request does not clear caches or reopen the collection."
+    ),
+    deprecated=True,
     tags=["Collection"],
     operation_id="reloadCollection",
 )

@@ -118,8 +118,11 @@ def collection_meta(col: Any) -> Dict[str, Any]:
 
 @as_query_op
 def reload_collection(col: Any) -> bool:
-    """Drop cached state so the next read sees what is on disk."""
-    col.reset()
+    """Retain the legacy no-op while still requiring an open collection.
+
+    Collection.reset() is already a no-op in our oldest supported Anki. Do not
+    replace it with cache clearing or reopening: that would discard live state.
+    """
     return True
 
 
@@ -134,37 +137,39 @@ def check_database() -> bool:
 @as_query_op
 def export_package(col: Any, deck_name: str, path: str,
                    with_scheduling: bool = False, with_media: bool = True) -> bool:
-    """
-    Export one deck to an .apkg.
-
-    Anki's export_anki_package() signature CHANGED across the versions we
-    support - 23.10 takes with_scheduling/with_media/legacy_support directly,
-    newer builds take an ExportAnkiPackageOptions protobuf - so pick by
-    signature. Canonical sidesteps this by using the deprecated
-    AnkiPackageExporter, which we would rather not depend on.
-    """
-    from anki.collection import DeckIdLimit
-
+    """Export one deck in Anki's current package format."""
     deck = col.decks.by_name(deck_name)
     if deck is None:
         raise ResourceNotFoundError("Deck", deck_name)
 
-    limit = DeckIdLimit(int(deck["id"]))
+    _export_package(col, int(deck["id"]), path,
+                    with_scheduling=with_scheduling, with_media=with_media)
+    return True
+
+
+def _export_package(col: Any, deck_id: int, path: str, *,
+                    with_scheduling: bool, with_media: bool,
+                    legacy: bool = False,
+                    with_deck_configs: Optional[bool] = None) -> None:
+    """Handle Anki's export signature changes for native and compatibility calls."""
+    from anki.collection import DeckIdLimit
+
+    limit = DeckIdLimit(deck_id)
     params = inspect.signature(col.export_anki_package).parameters
     if "options" in params:
         from anki.import_export_pb2 import ExportAnkiPackageOptions
 
+        options = ExportAnkiPackageOptions(
+            with_scheduling=with_scheduling, with_media=with_media, legacy=legacy)
+        if with_deck_configs is not None:
+            options.with_deck_configs = with_deck_configs
         col.export_anki_package(
-            out_path=path, limit=limit,
-            options=ExportAnkiPackageOptions(
-                with_scheduling=with_scheduling, with_media=with_media,
-                legacy=False),
+            out_path=path, limit=limit, options=options,
         )
     else:
         col.export_anki_package(
             out_path=path, limit=limit, with_scheduling=with_scheduling,
-            with_media=with_media, legacy_support=False)
-    return True
+            with_media=with_media, legacy_support=legacy)
 
 
 _IMPORT_UPDATE_CONDITIONS = {"if_newer": 0, "always": 1, "never": 2}

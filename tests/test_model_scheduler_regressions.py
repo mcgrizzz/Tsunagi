@@ -98,6 +98,37 @@ def test_replacement_saves_unmatched_only_when_requested(col, client, model_name
         assert model["usn"] == expected
 
 
+def test_model_replacement_retains_order_and_saved_prefix(col, client, monkeypatch):
+    from tsunagi.adapters.anki.compat import replace_in_models_raw
+
+    entries = list(col.models.all_names_and_ids())
+    assert len(entries) > 1
+    original_css = {entry.id: col.models.get(entry.id)["css"] for entry in entries}
+    save = col.models.update_dict
+    calls = []
+
+    def fail_second_save(model):
+        calls.append(model["id"])
+        if len(calls) == 2:
+            raise RuntimeError("save failed")
+        return save(model)
+
+    def forbidden_alias():
+        raise AssertionError("deprecated model-name alias used")
+
+    # Mask both the old method and its camel-case alias without resolving them.
+    monkeypatch.setitem(col.models.__dict__, "allNames", forbidden_alias)
+    monkeypatch.setitem(col.models.__dict__, "all_names", forbidden_alias)
+    monkeypatch.setattr(col.models, "update_dict", fail_second_save)
+    out = replace_in_models_raw.__wrapped__(col, None, "", "replacement", False, False, True)
+    assert out.value == (None, "save failed")
+    assert out.changes.notetype
+    assert calls == [entry.id for entry in entries[:2]]
+    col.models._clear_cache()
+    assert col.models.get(entries[0].id)["css"] == original_css[entries[0].id].replace("", "replacement")
+    assert col.models.get(entries[1].id)["css"] == original_css[entries[1].id]
+
+
 @pytest.mark.parametrize("malformed,error", [
     ({"ease": 4}, "'cardId'"),
     ({"cardId": 9999999999999}, "'ease'"),
