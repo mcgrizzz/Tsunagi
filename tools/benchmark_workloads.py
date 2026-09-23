@@ -279,32 +279,87 @@ class KnownWordsSnapshot(Workload):
                 for n in notes}
 
 
-class MinedCardStatus(Workload):
-    name = "mined_card_status"
-    source = ("asbplayer: first load of the mined-card status cache (subtitle-annotations.ts); "
-              "cardsInfo in sequential batches of 10, as asbplayer does")
-    query = "deck:Mining"
+class MinedWordsCache(Workload):
+    name = "mined_words_cache"
+    source = ("asbplayer: first build of the mined-words cache (dictionary-db-anki.ts): notes, card "
+              "details in batches, suspension and status searches; word field Expression, sentence "
+              "field Sentence, deck Mining, mature cutoff 21")
+    query = '("deck:Mining") ("Expression:_*" OR "Sentence:_*")'
+    mature = 21
+
+    async def statuses(self, find, card_ids):
+        # asbplayer's _processAnkiCardStatuses: the first matching search wins, and
+        # it stops once every card has a status. prop:s needs FSRS; else prop:ivl.
+        q, grad, remaining, status = self.query, -(-self.mature // 2), set(card_ids), {}
+
+        def assign(ids, label):
+            for cid in ids:
+                if cid in remaining:
+                    status[cid] = label
+                    remaining.discard(cid)
+
+        assign(await find(f"is:new ({q})"), "unknown")
+        if remaining:
+            assign(await find(f"is:learn ({q})"), "learning")
+        if remaining:
+            props = ["prop:s", "prop:ivl"][0 if await find(f"prop:s>=0 ({q})") else 1:]
+            for prop in props:
+                for label, cond in (("graduated", f"{prop}<{grad}"),
+                                    ("young", f"{prop}>={grad} {prop}<{self.mature}"),
+                                    ("mature", f"{prop}>={self.mature}")):
+                    assign(await find(f"-is:new -is:learn {cond} ({q})"), label)
+                    if not remaining:
+                        return status
+        return status
+
+    @staticmethod
+    def result(notes, cards, suspended, status):
+        out = {}
+        for note in notes:
+            fields = {k: v.strip() for k, v in note["fields"].items() if v.strip()}
+            modified = max([note["mod"]] + [cards[cid]["mod"] for cid in note["cards"]])
+            for cid in note["cards"]:
+                out[str(cid)] = {"note": note["id"], "fields": fields, "modified": modified,
+                                 "suspended": bool(suspended[cid]), "deck": cards[cid]["deck"],
+                                 "model": cards[cid]["model"], "due": cards[cid]["due"],
+                                 "status": status.get(cid)}
+        return out
 
     async def ankiconnect(self, c, ctx, trial):
-        ids = await c.action("findCards", query=self.query)
-        await c.action("cardsModTime", cards=ids)   # every card is new to an empty cache
-        cards = []
-        for i in range(0, len(ids), 10):
-            cards += await c.action("cardsInfo", cards=ids[i:i + 10])
-        suspended = await c.action("areSuspended", cards=ids)
-        return {str(card["cardId"]): {"note": card["note"], "deck": card["deckName"],
-                                      "model": card["modelName"], "due": card["due"],
-                                      "interval": card["interval"], "mod": card["mod"],
-                                      "suspended": bool(s)}
-                for card, s in zip(cards, suspended)}
+        note_ids = await c.action("findNotes", query=self.query)
+        infos = []
+        for i in range(0, len(note_ids), 100):
+            infos += await c.action("notesInfo", notes=note_ids[i:i + 100])
+        card_ids = [cid for n in infos for cid in n["cards"]]
+        mods = {m["cardId"]: m["mod"] for m in await c.action("cardsModTime", cards=card_ids)}
+        cards = {}
+        for i in range(0, len(card_ids), 10):   # every card is new to an empty cache
+            for info in await c.action("cardsInfo", cards=card_ids[i:i + 10]):
+                cards[info["cardId"]] = {"deck": info["deckName"], "model": info["modelName"],
+                                         "due": info["due"], "mod": mods[info["cardId"]]}
+        suspended = dict(zip(card_ids, await c.action("areSuspended", cards=card_ids)))
+
+        async def find(query):
+            return await c.action("findCards", query=query)
+        notes = [{"id": n["noteId"], "mod": n["mod"], "cards": n["cards"],
+                  "fields": {k: v["value"] for k, v in n["fields"].items()}} for n in infos]
+        return self.result(notes, cards, suspended, await self.statuses(find, card_ids))
 
     async def tsunagi(self, c, ctx, trial):
-        cards = (await c.rest("GET", "/v1/cards", search=self.query,
-                              select="id,note_id,deck_name,model_name,due,interval,mod,suspended"))["items"]
-        return {str(card["id"]): {"note": card["note_id"], "deck": card["deck_name"],
-                                  "model": card["model_name"], "due": card["due"],
-                                  "interval": card["interval"], "mod": card["mod"],
-                                  "suspended": card["suspended"]} for card in cards}
+        notes = (await c.rest("GET", "/v1/notes", search=self.query, select="id,mod,cards,fields"))["items"]
+        card_ids = [cid for n in notes for cid in n["cards"]]
+        rows = (await c.rest("POST", "/v1/cards/query", {
+            "search": "cid:" + ",".join(map(str, card_ids)),
+            "select": "id,deck_name,model_name,due,mod,suspended"}))["items"]
+        cards = {r["id"]: {"deck": r["deck_name"], "model": r["model_name"], "due": r["due"],
+                           "mod": r["mod"]} for r in rows}
+
+        async def find(query):
+            return (await c.rest("GET", "/v1/cards", search=query, select="id"))["items"]
+        notes = [{"id": n["id"], "mod": n["mod"], "cards": n["cards"],
+                  "fields": {f["name"]: f["value"] for f in n["fields"]}} for n in notes]
+        return self.result(notes, cards, {r["id"]: r["suspended"] for r in rows},
+                           await self.statuses(find, card_ids))
 
 
 class ChangePoll(Workload):
@@ -332,26 +387,48 @@ class NoteTypeFields(Workload):
         return {m["name"]: m["fields"] for m in models}
 
 
+REVIEW_FIELDS = "id,card_id,ease,interval,last_interval,factor,time_ms,type"
+
+
+def review_rows(rows):
+    """Tsunagi review rows as sorted [card, id, ease, ivl, last ivl, factor, time, type]."""
+    return sorted([r["card_id"], r["id"], r["ease"], r["interval"], r["last_interval"], r["factor"],
+                   r["time_ms"], r["type"]] for r in rows)
+
+
 class ReviewHistory(Workload):
     name = "review_history"
-    source = "anki-mcp-server: review statistics for a deck (review-stats.tool.ts)"
-    query = '"deck:Kaishi 1.5k"'
+    source = ("anki-mcp-server: review statistics for one deck (review-stats.tool.ts), "
+              "one cardReviews request; the deck's own cards, not its subdecks")
+    deck = "Kaishi 1.5k"
 
     async def ankiconnect(self, c, ctx, trial):
-        cards = await c.action("findCards", query=self.query)
+        rows = await c.action("cardReviews", deck=self.deck, startID=0)
+        # cardReviews tuples: id, card, usn, ease, ivl, last ivl, factor, time, type.
+        return sorted([r[1], r[0], r[3], r[4], r[5], r[6], r[7], r[8]] for r in rows)
+
+    async def tsunagi(self, c, ctx, trial):
+        search = f'"deck:{self.deck}" -"deck:{self.deck}::*"'
+        return review_rows((await c.rest("GET", "/v1/reviews", search=search, select=REVIEW_FIELDS))["items"])
+
+
+class ReviewHistoryAll(Workload):
+    name = "review_history_all"
+    source = ("anki-mcp-server: review statistics for all decks (review-stats.tool.ts "
+              "fetchCollectionReviews): every card, then one getReviewsOfCards")
+
+    async def ankiconnect(self, c, ctx, trial):
+        cards = await c.action("findCards", query="deck:*")
         by_card = await c.action("getReviewsOfCards", cards=cards)
         return sorted([int(cid), r["id"], r["ease"], r["ivl"], r["lastIvl"], r["factor"], r["time"], r["type"]]
                       for cid, reviews in by_card.items() for r in reviews)
 
     async def tsunagi(self, c, ctx, trial):
-        reviews = (await c.rest("GET", "/v1/reviews", search=self.query,
-                                select="id,card_id,ease,interval,last_interval,factor,time_ms,type"))["items"]
-        return sorted([r["card_id"], r["id"], r["ease"], r["interval"], r["last_interval"], r["factor"],
-                       r["time_ms"], r["type"]] for r in reviews)
+        return review_rows((await c.rest("GET", "/v1/reviews", search="deck:*", select=REVIEW_FIELDS))["items"])
 
 
 WORKLOADS = [LookupDuplicates(), LookupDuplicatesAllModels(), MineWithMedia(), UpdateLastMined(), KnownWordsSnapshot(),
-             MinedCardStatus(), ChangePoll(), NoteTypeFields(), ReviewHistory()]
+             MinedWordsCache(), ChangePoll(), NoteTypeFields(), ReviewHistory(), ReviewHistoryAll()]
 
 
 async def delete_created(c, ctx):
