@@ -1,5 +1,7 @@
 """Collection operations whose observable quirks belong only to AnkiConnect."""
 
+import importlib
+
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 
@@ -454,7 +456,7 @@ def replace_in_models_raw(col, name, find, replacement, front=True, back=True, c
     try:
         models = col.models
         if not name:
-            names = models.allNames()
+            names = [model.name for model in models.all_names_and_ids()]
         else:
             if models.by_name(name) is None:
                 raise ValueError(f"model was not found: {name}")
@@ -605,19 +607,41 @@ def notes_of_cards_raw(col, cards):
         raise ValueError(str(exc)) from exc
 
 
+def _legacy_package_class(module_name, class_name):
+    """Find the old implementation without resolving a deprecated module alias.
+
+    Before Anki 26.09 these are real implementations with different package
+    rules. Newer Anki exposes the names via __getattr__ as deprecated wrappers
+    around the backend API; those wrappers are safe to bypass.
+    """
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        if exc.name != module_name:
+            raise
+        return None
+    return vars(module).get(class_name)
+
+
 @as_query_op
 def export_package_legacy(col, deck_name, path, include_sched=False):
-    """Use AnkiConnect's exporter, including its version-specific package rules."""
+    """Keep AnkiConnect's package rules without using deprecated wrappers."""
     try:
         deck = col.decks.by_name(deck_name)
         if deck is None:
             return False
-        from anki.exporting import AnkiPackageExporter
+        exporter_class = _legacy_package_class("anki.exporting", "AnkiPackageExporter")
+        if exporter_class is not None:
+            exporter = exporter_class(col)
+            exporter.did = deck["id"]
+            exporter.includeSched = include_sched
+            exporter.exportInto(path)
+        else:
+            from .collection import _export_package
 
-        exporter = AnkiPackageExporter(col)
-        exporter.did = deck["id"]
-        exporter.includeSched = include_sched
-        exporter.exportInto(path)
+            _export_package(col, int(deck["id"]), path,
+                            with_scheduling=include_sched, with_media=True,
+                            legacy=True, with_deck_configs=include_sched)
         return True
     except Exception as exc:
         raise ValueError(str(exc)) from exc
@@ -625,14 +649,28 @@ def export_package_legacy(col, deck_name, path, include_sched=False):
 
 @as_collection_op
 def import_package_legacy(col, path):
-    """Use the supported legacy importer and refresh views after it completes."""
+    """Keep AnkiConnect's import policy and publish the available change flags."""
     from anki.collection import OpChanges
 
     try:
-        from anki.importing import AnkiPackageImporter
+        importer_class = _legacy_package_class("anki.importing", "AnkiPackageImporter")
+        if importer_class is None:
+            from anki.import_export_pb2 import (
+                ImportAnkiPackageOptions,
+                ImportAnkiPackageRequest,
+            )
 
-        AnkiPackageImporter(col, path).run()
-        # The legacy API discards backend change metadata. Import may alter
+            # Match Anki's replacement wrapper exactly. Native imports instead
+            # start with the user's saved choices and accept explicit overrides.
+            result = col.import_anki_package(ImportAnkiPackageRequest(
+                package_path=path,
+                options=ImportAnkiPackageOptions(
+                    merge_notetypes=True, with_scheduling=True, with_deck_configs=True),
+            ))
+            return ValueWithChanges(True, result.changes)
+
+        importer_class(col, path).run()
+        # The old importer doesn't return change metadata. Import may alter
         # notes, models, scheduling, decks and presets, so refresh those views.
         return ValueWithChanges(True, OpChanges(
             card=True, note=True, notetype=True, deck=True, deck_config=True,
@@ -693,7 +731,7 @@ def set_deck_config_legacy(col, decks, config_id):
     for name in decks:
         try:
             did = str(col.decks.id(name))
-            deck = col.decks.decks[did]
+            deck = col.decks.get(int(did))
             deck["conf"] = config_id
             col.decks.save(deck)
             changed = True

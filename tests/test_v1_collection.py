@@ -80,6 +80,25 @@ class TestReload:
     def test_reload_succeeds(self, client):
         assert client.post("/v1/collection:reload").json()["success"] is True
 
+    def test_reload_preserves_live_state_without_deprecated_reset(self, client, col, monkeypatch):
+        add_note(client, "keep undo", deck="Default")
+        undo = col.undo_status()
+        model = col.models.by_name("Basic")
+        model["css"] = "unsaved editor state"
+        monkeypatch.delattr(type(col), "reset")
+
+        assert client.post("/v1/collection:reload").json()["success"] is True
+        assert rpc(client, "reloadCollection") == {"result": None, "error": None}
+        assert col.models.get(model["id"]) is model
+        assert model["css"] == "unsaved editor state"
+        assert col.undo_status() == undo
+
+    def test_reference_marks_reload_as_a_deprecated_noop(self, client):
+        schema = client.get("/openapi.json").json()
+        operation = schema["paths"]["/v1/collection:reload"]["post"]
+        assert operation["deprecated"] is True
+        assert "no reload" in operation["description"]
+
 
 class TestCompatAliases:
     def test_export_and_import(self, client, col, tmp_path):
@@ -164,21 +183,35 @@ class TestCapabilities:
         assert client.get("/v1/collection").json()["fsrs"] is True
 
     def test_actual_backend_support_and_legacy_options(self, client):
-        from anki.buildinfo import version
+        from inspect import signature
 
-        legacy = version.startswith("23.10")
+        from anki._backend import RustBackend
+
+        compute_method = getattr(RustBackend, "compute_fsrs_params",
+                                 getattr(RustBackend, "compute_fsrs_weights", None))
+        evaluate_method = getattr(RustBackend, "evaluate_params_legacy",
+                                  getattr(RustBackend, "evaluate_params",
+                                          getattr(RustBackend, "evaluate_weights", None)))
+        compute_args = signature(compute_method).parameters
+        evaluate_args = signature(evaluate_method).parameters
         operations = client.get("/v1/capabilities").json()["operations"]
         compute = operations["POST /v1/fsrs:compute-params"]
         evaluate = operations["POST /v1/fsrs:evaluate-params"]
         assert compute["status"] == evaluate["status"] == "available"
-        assert set(compute["options"]) == (
-            {"current_params", "ignore_revlogs_before_ms", "num_of_relearning_steps", "health_check"}
-            if legacy else set()
-        )
-        assert set(evaluate["options"]) == ({"ignore_revlogs_before_ms"} if legacy else set())
+        expected = {"ignore_revlogs_before_ms", "num_of_relearning_steps", "health_check"} - compute_args.keys()
+        if "current_params" not in compute_args and "current_weights" not in compute_args:
+            expected.add("current_params")
+        assert set(compute["options"]) == expected
+        assert set(evaluate["options"]) == (
+            set() if "ignore_revlogs_before_ms" in evaluate_args else {"ignore_revlogs_before_ms"})
         assert all(option["status"] == "unsupported" for option in compute["options"].values())
-        for name in ("simulate", "simulate-workload", "optimal-retention"):
-            assert operations[f"POST /v1/fsrs:{name}"]["status"] == ("unsupported" if legacy else "available")
+        expected_availability = {
+            "simulate": hasattr(RustBackend, "simulate_fsrs_review"),
+            "simulate-workload": hasattr(RustBackend, "simulate_fsrs_workload"),
+            "optimal-retention": "message" in signature(RustBackend.compute_optimal_retention).parameters,
+        }
+        for name, available in expected_availability.items():
+            assert operations[f"POST /v1/fsrs:{name}"]["status"] == ("available" if available else "unsupported")
 
     def test_health_still_works_without_collection(self, client, monkeypatch):
         import aqt
@@ -194,7 +227,7 @@ class TestCapabilities:
 
         from tsunagi.adapters.anki.fsrs import capabilities
 
-        def forbidden(*args, **kwargs):
+        def forbidden(message):
             raise AssertionError("Discovery invoked a backend computation")
 
         assert capabilities(SimpleNamespace())["supported"] is False
