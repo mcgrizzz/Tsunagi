@@ -24,6 +24,12 @@ testpaths = ["tests"]
 # The repo root is itself the addon package (__init__.py imports aqt);
 # importlib mode stops pytest from importing it as a parent package.
 addopts = "--import-mode=importlib"
+# Deprecations raised in Tsunagi, Anki or aqt code fail the test; the test
+# client's own libraries have unrelated deprecations.
+filterwarnings = [
+    'error::DeprecationWarning:(tsunagi|anki|aqt)(\.|$)',
+    'error::PendingDeprecationWarning:(tsunagi|anki|aqt)(\.|$)',
+]
 
 [tool.ruff]
 target-version = "py310"

@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -37,6 +38,38 @@ except ImportError as exc:  # pragma: no cover - environment guard
 import anki.lang  # noqa: E402
 
 anki.lang.set_lang("en_US")
+
+# Anki prints many deprecation notices instead of raising warnings. Record each
+# with the test that triggered it; TSUNAGI_STRICT_ANKI_NOTICES=1 (the Anki
+# watch) fails the run when any appear.
+import anki._legacy  # noqa: E402
+
+_ANKI_NOTICES = []
+_print_notice = anki._legacy.print_deprecation_warning
+
+
+def _record_notice(msg, frame=1):
+    _ANKI_NOTICES.append((os.environ.get("PYTEST_CURRENT_TEST", ""), msg))
+    return _print_notice(msg, frame + 1)
+
+
+# Modules such as anki.decks import the function by name, so rebind it there too.
+for _module in [anki._legacy, *sys.modules.values()]:
+    if getattr(_module, "print_deprecation_warning", None) is _print_notice:
+        _module.print_deprecation_warning = _record_notice
+
+
+def pytest_terminal_summary(terminalreporter):
+    if _ANKI_NOTICES:
+        terminalreporter.section("Anki deprecation notices")
+        for test, msg in _ANKI_NOTICES:
+            terminalreporter.line(f"{test}: {msg}")
+
+
+def pytest_sessionfinish(session):
+    if _ANKI_NOTICES and os.environ.get("TSUNAGI_STRICT_ANKI_NOTICES") == "1":
+        session.exitstatus = 1
+
 
 # Install fake aqt modules BEFORE any test module imports tsunagi's
 # Anki-facing code (conftest execution precedes test-module collection).
