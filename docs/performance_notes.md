@@ -282,9 +282,10 @@ Measured on the desktop (`[DEV] Yomine`), median of ten runs:
 Before this, an experiment raised the slice size from 250 to 10,000 on the
 installed add-on. Review history improved only 11%, the known-word snapshot not
 at all, and mined-card status got slower, so the slice size is unchanged.
-Timing one review request showed the rest: Tsunagi's server work took 418 ms of
-a 659 ms request, and its response is about 30% larger (18.8 MB against
-14.5 MB) because each review carries named keys.
+Timing one review request with slices of 10,000: Tsunagi's route took 418 ms of
+a 659 ms request, and its response was 18.8 MB against the AnkiConnect Shim's
+14.5 MB for `getReviewsOfCards`, because each review repeats its field names.
+The split between server work, transfer and parsing is not yet measured (R20).
 
 ## Membership filters
 
