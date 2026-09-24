@@ -13,7 +13,6 @@ from anki.collection import Collection
 
 from ...shared.errors import (
     ResourceNotFoundError,
-    UnsupportedAnkiVersionError,
     ValidationError,
 )
 from ...shared.schemas.cards import (
@@ -66,8 +65,7 @@ def _next_reviews(col: Collection, card_id: int) -> Optional[List[str]]:
 
 
 def _retrievability(col: Collection, card_id: int) -> Optional[float]:
-    # card_stats_data exists on 23.10 through current, but the field is only
-    # populated once FSRS has scored the card - use the protobuf presence bit,
+    # The field is only populated once FSRS has scored the card - use the protobuf presence bit,
     # since 0.0 is a legitimate value for a long-lapsed card.
     try:
         data = col.card_stats_data(card_id)
@@ -552,15 +550,9 @@ def set_memory_states(col: Collection, entries: Sequence[Dict[str, Any]]) -> Lis
     False. Writes go through col.update_card, so this is a normal undoable
     CollectionOp - not a raw-DB write.
     """
-    from anki import cards_pb2
     from anki.cards import FSRSMemoryState
 
     writable = ("memory_state", "desired_retention", "decay")
-    # Refuse decay wholesale before any write: on a build whose card proto has
-    # no decay column the assignment would be silently dropped on save.
-    if (any("decay" in e for e in entries)
-            and "decay" not in cards_pb2.Card.DESCRIPTOR.fields_by_name):
-        raise UnsupportedAnkiVersionError("per-card decay")
 
     out: List[bool] = []
     changes: Any = None

@@ -51,17 +51,13 @@ def test_gate_change_is_visible_without_restarting(client, reset_settings):
     assert report(client)["operations"]["POST /v1/cards:set-memory-state"]["status"] == "available"
 
 
-def test_version_options_match_existing_anki_guards(client, reset_settings):
-    from anki import cards_pb2
-
-    from tsunagi.adapters.anki.decks import _retention_supported
-
+def test_version_options_are_available_on_supported_anki(client, reset_settings):
     reset_settings.update(gates={"cards_set_memory_state": True})
     operations = report(client)["operations"]
     decay = operations["POST /v1/cards:set-memory-state"]["options"]["cards[].decay"]
-    assert decay["status"] == ("available" if "decay" in cards_pb2.Card.DESCRIPTOR.fields_by_name else "unsupported")
+    assert decay["status"] == "available"
     retention = operations["PATCH /v1/decks/{id}"]["options"]["desired_retention"]
-    assert retention["status"] == ("available" if _retention_supported() else "unsupported")
+    assert retention["status"] == "available"
 
 
 def test_discovery_does_not_expose_keys_or_change_collection(client, col, reset_settings):

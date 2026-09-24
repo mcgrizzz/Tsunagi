@@ -15,23 +15,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported (Anki 23.10 bundles 3.9) and newest. The anki pin
-        # rides along: the floor leg proves we call nothing newer than our
-        # declared minimum, the current leg that we still work on what users
-        # actually run. Intermediate wheels also exercise the FSRS signatures
-        # that differ from both endpoints of our supported range.
+        # Tsunagi supports the current Anki release and the one before it.
+        # The floor leg pins the oldest supported Anki on the Python it
+        # requires, proving we call nothing newer; the current leg runs the
+        # newest release on the Python that Anki's launcher ships.
         include:
-          - python-version: "3.9"
-            anki-version: "==23.10"
-          - python-version: "3.9"
-            anki-version: "==24.6"
-            test-paths: tests/test_fsrs_version_contracts.py tests/test_v1_fsrs.py tests/test_v1_collection.py
-          - python-version: "3.9"
-            anki-version: "==24.11"
-            test-paths: tests/test_fsrs_version_contracts.py tests/test_v1_fsrs.py tests/test_v1_collection.py
-          - python-version: "3.9"
-            anki-version: "==25.2"
-            test-paths: tests/test_fsrs_version_contracts.py tests/test_v1_fsrs.py tests/test_v1_collection.py
+          - python-version: "3.10"
+            anki-version: "==26.8.1"
           - python-version: "3.13"
             anki-version: ""
     steps:
@@ -60,7 +50,7 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: python -m pytest -q ${{ matrix.test-paths }}
+        run: python -m pytest -q
 
       - name: Build smoke (artifact exists, pure-Python, deps importable)
         run: |

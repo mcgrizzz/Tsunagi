@@ -20,8 +20,8 @@ class CardInfo(BaseModel):
     A card row with human-readable names (Anki wire names as aliases).
 
     Everything here is a plain column read - no backend call - including the
-    FSRS state. FSRS shipped in 23.10 (our floor) and has been the default
-    scheduler since 24.11, so it is part of a card, not an extra.
+    FSRS state. FSRS is Anki's default scheduler, so it is part of a card,
+    not an extra.
     """
     class Config:
         extra = "ignore"
@@ -141,7 +141,7 @@ class MemoryStateEntry(BaseModel):
     id: int
     memory_state: Optional[FsrsMemoryState] = None
     desired_retention: Optional[float] = None
-    decay: Optional[float] = None  # per-card decay postdates 23.10 -> 501 there
+    decay: Optional[float] = None
 
 
 class SetMemoryStateRequest(BaseModel):

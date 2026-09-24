@@ -31,24 +31,11 @@ Availability describes support and configuration. A request can still fail becau
 of invalid inputs, authentication, missing records, a busy collection, or the
 current GUI state. Discovery does not execute the operations it lists.
 
-FSRS support can differ between operations on the same Anki version. For
-example, 24.06 can simulate reviews, but lacks workload simulation and the
-optimal-retention request used by Tsunagi. Its simulator also requires review
-history; an available operation can still reject an empty collection.
-
-For parameter optimization, these are the verified checkpoints:
-
-| Anki | Supported options beyond `search` |
-| --- | --- |
-| 23.10 | None |
-| 24.06, 24.11 | `current_params`, `ignore_revlogs_before_ms` |
-| 25.02 | Those options plus `num_of_relearning_steps` |
-| 26.08.1, 26.09.2 | Those options plus `health_check` |
-
-Tsunagi checks the installed backend's arguments instead of guessing from the
-version number. An explicitly supplied unsupported option receives HTTP 501,
-even when its value is `false` or `0`. Leave unsupported options out. Anki's
-older `weights` names are translated internally; clients still use `params`.
+Every supported Anki version provides all FSRS operations and options, so they
+report as available. Tsunagi still checks that each backend method exists: if a
+future Anki removed one, that operation would report unsupported and requests
+to it would receive HTTP 501 instead of failing. An available operation can
+still reject its input, for example a simulation with no cards.
 
 ## Response layout
 
@@ -78,10 +65,6 @@ FSRS computations can run while FSRS scheduling is disabled. Their entries stay
 available in that case. The scheduling feature itself reports disabled. Clients
 can read each entry directly without combining separate support and enabled flags.
 
-Anki 23.10 supports parameter optimization and evaluation, but not Tsunagi's
-simulator operations. Its optimizer cannot accept `current_params`,
-`ignore_revlogs_before_ms`, `num_of_relearning_steps` or `health_check`; its evaluator
-cannot accept `ignore_revlogs_before_ms`. Those options appear as unsupported.
 Clients should use the returned statuses instead of maintaining a version table.
 
 Package-import option restrictions and per-deck desired-retention write support

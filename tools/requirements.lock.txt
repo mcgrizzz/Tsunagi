@@ -1,5 +1,5 @@
 # Fully-pinned runtime dependencies (direct + transitive), resolved for the
-# minimum supported interpreter (Python 3.9, bundled with Anki 23.10).
+# minimum supported interpreter (Python 3.10, required by Anki 26.08).
 # Every entry MUST be available as a pure-Python (none-any) wheel; the build
 # fails loudly otherwise. Regenerate deliberately - this is the lockfile.
 

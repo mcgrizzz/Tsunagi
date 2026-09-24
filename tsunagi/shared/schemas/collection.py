@@ -81,7 +81,7 @@ class CollectionMeta(BaseModel):
     Collection-level facts a client can't read from any row: whether FSRS is
     enabled (one collection-wide switch - NOT per deck or per preset, even
     though Anki's deck-options screen hosts the toggle), and the Anki version
-    for feature detection (e.g. per-deck desired_retention needs 26.08+).
+    for feature detection.
     """
     fsrs: bool
     anki_version: str

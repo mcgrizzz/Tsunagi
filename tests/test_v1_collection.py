@@ -34,8 +34,7 @@ def seed(client):
 class TestExportImportRoundTrip:
     """
     The real test of both endpoints: export a deck, destroy it, import it back
-    and check the notes returned. Also covers the version split - Anki changed
-    export_anki_package's signature between 23.10 and current.
+    and check the notes returned.
     """
 
     def test_round_trip_restores_the_notes(self, client, col, tmp_path):
@@ -182,36 +181,13 @@ class TestCapabilities:
         assert disabled["operations"] == enabled["operations"]
         assert client.get("/v1/collection").json()["fsrs"] is True
 
-    def test_actual_backend_support_and_legacy_options(self, client):
-        from inspect import signature
-
-        from anki._backend import RustBackend
-
-        compute_method = getattr(RustBackend, "compute_fsrs_params",
-                                 getattr(RustBackend, "compute_fsrs_weights", None))
-        evaluate_method = getattr(RustBackend, "evaluate_params_legacy",
-                                  getattr(RustBackend, "evaluate_params",
-                                          getattr(RustBackend, "evaluate_weights", None)))
-        compute_args = signature(compute_method).parameters
-        evaluate_args = signature(evaluate_method).parameters
+    def test_every_fsrs_operation_and_option_is_available(self, client):
         operations = client.get("/v1/capabilities").json()["operations"]
-        compute = operations["POST /v1/fsrs:compute-params"]
-        evaluate = operations["POST /v1/fsrs:evaluate-params"]
-        assert compute["status"] == evaluate["status"] == "available"
-        expected = {"ignore_revlogs_before_ms", "num_of_relearning_steps", "health_check"} - compute_args.keys()
-        if "current_params" not in compute_args and "current_weights" not in compute_args:
-            expected.add("current_params")
-        assert set(compute["options"]) == expected
-        assert set(evaluate["options"]) == (
-            set() if "ignore_revlogs_before_ms" in evaluate_args else {"ignore_revlogs_before_ms"})
-        assert all(option["status"] == "unsupported" for option in compute["options"].values())
-        expected_availability = {
-            "simulate": hasattr(RustBackend, "simulate_fsrs_review"),
-            "simulate-workload": hasattr(RustBackend, "simulate_fsrs_workload"),
-            "optimal-retention": "message" in signature(RustBackend.compute_optimal_retention).parameters,
-        }
-        for name, available in expected_availability.items():
-            assert operations[f"POST /v1/fsrs:{name}"]["status"] == ("available" if available else "unsupported")
+        for name in ("compute-params", "evaluate-params", "simulate", "simulate-workload",
+                     "optimal-retention"):
+            operation = operations[f"POST /v1/fsrs:{name}"]
+            assert operation["status"] == "available", name
+            assert all(option["status"] != "unsupported" for option in operation.get("options", {}).values())
 
     def test_health_still_works_without_collection(self, client, monkeypatch):
         import aqt
@@ -232,12 +208,11 @@ class TestCapabilities:
 
         assert capabilities(SimpleNamespace())["supported"] is False
         backend = SimpleNamespace(compute_optimal_retention=forbidden)
-        assert capabilities(backend)["operations"]["optimal_retention"]["available"] is False
-        backend.simulate_fsrs_review = forbidden
         result = capabilities(backend)
         assert result["supported"] is True
         assert result["operations"]["optimal_retention"]["available"] is True
         assert result["operations"]["simulate_workload"]["available"] is False
+        assert result["operations"]["compute_params"] == {"available": False, "unsupported_options": []}
 
 
 class TestImportChoices:

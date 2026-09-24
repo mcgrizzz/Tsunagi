@@ -87,7 +87,7 @@ app = FastAPI(
         },
         {
             "name": "FSRS",
-            "description": "FSRS parameter optimization, evaluation and simulation. Optimize/evaluate run as async jobs (submit, then poll /v1/jobs/{id}); the simulator answers synchronously and needs a newer Anki than 23.10."
+            "description": "FSRS parameter optimization, evaluation and simulation. Optimize/evaluate run as async jobs (submit, then poll /v1/jobs/{id}); the simulator answers synchronously."
         },
         {
             "name": "Events",

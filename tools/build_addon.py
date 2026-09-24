@@ -42,9 +42,9 @@ LOCKFILE = TOOLS / "requirements.lock.txt"
 CACHE = ROOT / ".wheelhouse"
 CACHE_PURE = CACHE / "pure"
 
-# Minimum supported interpreter (Anki 23.10 bundles Python 3.9). Wheels are
-# resolved against this version so newer-only wheels can't slip in.
-MIN_PYTHON = "3.9"
+# Minimum supported interpreter: what the oldest supported Anki (26.08) requires.
+# Wheels are resolved against this version so newer-only wheels can't slip in.
+MIN_PYTHON = "3.10"
 
 # --- CLI ----------------------------------------------------------------------
 

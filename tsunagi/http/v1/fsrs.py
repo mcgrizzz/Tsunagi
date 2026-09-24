@@ -113,10 +113,8 @@ def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
 @_verb("compute-params", "Optimize FSRS parameters",
        "Starts optimizing FSRS parameters from the review history matching "
        "`search` (empty = whole collection) and returns a job id to poll. "
-       "Result: `{params, fsrs_items, health_check_passed}`. Options beyond "
-       "`search` need a newer Anki than 23.10 (501 there). With too little "
-       "history, 23.10 fails the job with Anki's message while newer Anki "
-       "reports done with empty params - surfaced as-is, not normalized.",
+       "Result: `{params, fsrs_items, health_check_passed}`. With too little "
+       "history the job finishes with empty params and `fsrs_items` 0.",
        response_model=JobSubmitted, status_code=202)
 def compute_params(body: Optional[ComputeParamsRequest] = Body(None)) -> JobSubmitted:
     start = time.perf_counter()
@@ -193,14 +191,13 @@ def abort_job(job_id: str) -> JobInfo:
 
 
 # ====================
-# Simulator (26.08+; 501 on older Anki)
+# Simulator
 # ====================
 
 _SIM_NOTE = ("Fields pass through to Anki's simulator verbatim; give real "
              "limits (deck_size, new_limit, review_limit, days_to_simulate) "
              "or Anki refuses with 'no cards to simulate'. Empty `params` "
-             "means Anki's built-in FSRS defaults. Needs a newer Anki than "
-             "23.10 (501 there).")
+             "means Anki's built-in FSRS defaults.")
 
 
 @_verb("simulate", "Simulate a review workload",

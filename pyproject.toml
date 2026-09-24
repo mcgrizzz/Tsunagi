@@ -2,7 +2,7 @@
 name = "tsunagi"
 version = "0.2.0"
 description = "HTTP API for Anki with advanced querying and pagination"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 # Runtime deps are vendored by tools/build_addon.py (tools/requirements.lock.txt
 # is the single source of truth); tests run against the vendored lib/shared.
@@ -11,13 +11,12 @@ requires-python = ">=3.9"
 # file - the shipped addon runs inside Anki and imports the host's copy. Tests
 # drive a real headless Collection instead of a hand-written fake, which is
 # what makes the suite trustworthy; see the M5c notes in the plan.
-# The floor pin proves we call nothing newer than our declared minimum; newer
-# Pythons take the current release, since anki >=25 requires 3.10+.
+# Supported Anki: the current release and the one before it (26.08+ today).
+# CI pins the oldest; this installs the newest.
 [project.optional-dependencies]
 dev = [
     "pytest", "ruff", "httpx<0.28",  # starlette 0.36 TestClient breaks on httpx 0.28
-    "anki==23.10; python_version < '3.10'",
-    "anki; python_version >= '3.10'",
+    "anki>=26.8",
 ]
 
 [tool.pytest.ini_options]
@@ -27,14 +26,17 @@ testpaths = ["tests"]
 addopts = "--import-mode=importlib"
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py310"
 extend-exclude = ["lib", ".wheelhouse", "dist"]
 
 [tool.ruff.lint]
 # Lean ruleset: real defects (F, B, E4/E9 syntax+imports) + import order (I).
 # Style rules (E1/E5/E7) are deliberately excluded to avoid mass reformatting.
 select = ["E4", "E9", "F", "B", "I"]
-ignore = ["E401"]  # existing compact style uses `import a, b`
+ignore = [
+    "E401",  # existing compact style uses `import a, b`
+    "B905",  # zip(strict=) only exists from Python 3.10; existing zips pair equal-length sequences
+]
 
 [tool.ruff.lint.flake8-bugbear]
 # fastapi's Query/Body/Path in defaults is the framework idiom, not a bug

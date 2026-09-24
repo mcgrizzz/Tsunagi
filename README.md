@@ -13,8 +13,9 @@ flashcard mining apps and scripts. Use it with **existing AnkiConnect tools**, o
 build apps with the **Tsunagi API** for collection queries, FSRS and change events.
 
 > [!NOTE]
-> Experimental. Supports **Anki desktop 23.10 and newer**; some features depend on
-> your Anki version and settings.
+> Experimental. Supports **the current Anki desktop release and the one before
+> it** (26.08 and newer today); some features depend on your settings. Older Anki
+> keeps the last Tsunagi version that supported it.
 
 ## Why use Tsunagi?
 
