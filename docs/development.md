@@ -26,7 +26,11 @@ python tools/build_addon.py
 On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Tsunagi
 supports the current Anki release and the one before it; to test the oldest, use
 Python 3.10 and install `anki==26.8.1` in place of `anki`. The repository’s
-[CI configuration](../.github/workflows/ci.yml) records its version matrix.
+[CI configuration](../.github/workflows/ci.yml) records its version matrix. CI also
+runs the [Qt checks](../.github/workflows/qt.yml) on the newest Anki. The
+[Anki watch](../.github/workflows/anki-watch.yml) runs daily: when PyPI has an Anki
+release, beta or RC it hasn't tested, it runs the suite and Qt checks against it and
+records the result as an `anki-watch` issue (closed if everything passed).
 
 The build vendors dependencies from [tools/requirements.lock.txt](../tools/requirements.lock.txt)
 into `lib/shared`, then packages the add-on into `dist`. It rebuilds `lib/` and
@@ -65,7 +69,10 @@ include the optional Qt and browser checks. Tests for behavior specific to anoth
 Anki version will still skip.
 
 `tools/check_browser_startup.py`, `tools/check_add_cards.py` and other targeted
-Qt checks can also run with the Qt interpreter. The shared Qt smoke harness creates
+Qt checks can also run with the Qt interpreter. `tools/qt_checks.sh` runs the Qt
+tests and every targeted check, as CI does, with the `python` on your `PATH`.
+Set `TSUNAGI_STRICT_ANKI_NOTICES=1` to fail the suite on any deprecation notice
+Anki prints; notices are always listed at the end of the run. The shared Qt smoke harness creates
 a temporary profile. Use disposable profiles for development and GUI experiments.
 Offscreen checks do not establish Windows foreground-window behavior. Finish with
 the [manual release checks](manual_testing.md) for the desktop and real clients.
@@ -142,7 +149,7 @@ git push origin v0.1.0
 ```
 
 The workflow checks all three version declarations, runs the existing CI matrix
-on the oldest supported Anki and current Anki, then builds the package. A tag-triggered run also
+on the oldest supported Anki and current Anki plus the Qt checks, then builds the package. A tag-triggered run also
 checks that the tag matches the declared version. After validation, a manual run
 creates the version tag at the exact commit it tested, if the tag doesn't exist. It
 creates a **draft GitHub release** with generated release notes, the `.ankiaddon`
@@ -154,8 +161,8 @@ To retry the same release, rerun its workflow or manually run **Release** agains
 an existing draft; published releases are left intact. An existing tag must point
 to the tested commit: running from a newer `main` commit requires a new version,
 not reusing the old tag. The workflow uses GitHub's
-built-in token, so no additional release secret is needed. Optional Qt/browser
-checks remain separate from the CI matrix; run them [before tagging](#tests).
+built-in token, so no additional release secret is needed. The optional browser
+check remains separate from CI; run it [before tagging](#tests).
 
 ## Code organization
 

@@ -1,0 +1,129 @@
+name: Anki watch
+
+# Tests each new Anki release, beta or RC once. A daily check asks PyPI for the
+# newest stable and pre-release aqt versions and stops unless one has no
+# anki-watch issue yet. An untested version gets the full suite (strict about
+# Anki's deprecation notices) and the Qt checks, and its result is recorded as
+# an issue: closed when everything passed, left open when something failed.
+# The issues are the tested-versions record. One version is tested per run; a
+# second new version is picked up the next day.
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Test this Anki version even if it was tested before, e.g. 26.9.3
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anki-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: read
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Pick an untested Anki version
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FORCED: ${{ inputs.version }}
+        run: |
+          python -m pip install -q packaging
+          python - <<'PY'
+          import json, os, subprocess, urllib.request
+          from packaging.version import Version
+
+          forced = os.environ.get("FORCED", "").strip()
+          if forced:
+              pick = forced
+          else:
+              with urllib.request.urlopen("https://pypi.org/pypi/aqt/json") as r:
+                  releases = json.load(r)["releases"]
+              published = sorted(Version(v) for v, files in releases.items()
+                                 if files and not all(f["yanked"] for f in files))
+              stable = [v for v in published if not v.is_prerelease]
+              candidates = [stable[-1]] + ([published[-1]] if published[-1] != stable[-1] else [])
+              titles = set(json.loads(subprocess.check_output(
+                  ["gh", "issue", "list", "--label", "anki-watch", "--state", "all",
+                   "--limit", "500", "--json", "title", "--jq", "[.[].title]"])))
+              untested = [str(v) for v in candidates if f"Anki watch: {v}" not in titles]
+              print("candidates:", [str(v) for v in candidates], "untested:", untested)
+              pick = untested[0] if untested else ""
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"version={pick}\n")
+          PY
+
+  suite:
+    needs: check
+    if: needs.check.outputs.version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Anki ${{ needs.check.outputs.version }}
+        run: python -m pip install pytest "httpx<0.28" "anki==${{ needs.check.outputs.version }}"
+
+      - name: Build addon (vendors lib/shared)
+        run: python tools/build_addon.py
+
+      - name: Tests (strict about Anki deprecation notices)
+        env:
+          TSUNAGI_STRICT_ANKI_NOTICES: "1"
+        run: python -m pytest -q
+
+  qt:
+    needs: check
+    if: needs.check.outputs.version != ''
+    uses: ./.github/workflows/qt.yml
+    with:
+      anki-version: "==${{ needs.check.outputs.version }}"
+
+  report:
+    needs: [check, suite, qt]
+    if: always() && needs.check.outputs.version != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Record the result as an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.check.outputs.version }}
+          SUITE: ${{ needs.suite.result }}
+          QT: ${{ needs.qt.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create anki-watch --color 5319e7 \
+            --description "Anki watch: one issue per tested Anki version" 2>/dev/null || true
+          if [ "$SUITE" = success ] && [ "$QT" = success ]; then verdict=passed; else verdict=failed; fi
+          body="Anki $VERSION $verdict.
+
+          - Suite, strict about Anki deprecation notices: $SUITE
+          - Qt checks: $QT
+
+          Run: $RUN_URL"
+          url=$(gh issue create --label anki-watch --title "Anki watch: $VERSION" --body "$body")
+          if [ "$verdict" = passed ]; then gh issue close "$url" --reason completed; fi

@@ -66,3 +66,6 @@ jobs:
           assert pydantic.VERSION == "1.10.22", pydantic.VERSION
           print("smoke OK:", zips[-1].name, len(names), "files")
           EOF
+
+  qt:
+    uses: ./.github/workflows/qt.yml
