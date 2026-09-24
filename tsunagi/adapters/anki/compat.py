@@ -489,12 +489,8 @@ def reschedule_cards_raw(col, cards, action, days=None):
     """Let each upstream scheduling path interpret its raw inputs directly."""
     try:
         if action == "forget":
-            from anki.scheduler_pb2 import ScheduleCardsAsNewRequest
-
-            changes = col._backend.schedule_cards_as_new(ScheduleCardsAsNewRequest(
-                card_ids=cards, log=True, restore_position=True,
-                reset_counts=False, context=None,
-            ))
+            changes = col.sched.schedule_cards_as_new(
+                cards, restore_position=True, reset_counts=False)
         elif action == "relearn":
             from anki.utils import ids2str
 
