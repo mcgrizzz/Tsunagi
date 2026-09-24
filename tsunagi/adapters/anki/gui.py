@@ -181,7 +181,7 @@ def selected_notes() -> List[int]:
         browser = _existing_dialog("Browser")
         if browser is None:
             return []
-        return [int(n) for n in browser.selectedNotes()]
+        return [int(n) for n in browser.selected_notes()]
     return call_on_main(_read)
 
 
@@ -509,9 +509,8 @@ def answer_card(ease: int) -> bool:
             return False
         if mw.reviewer.state != "answer":
             return False
-        # answerButtons is the legacy spelling, but it is the only one that
-        # exists on 23.10 through current.
-        if ease <= 0 or ease > mw.col.sched.answerButtons(mw.reviewer.card):
+        # The v3 scheduler always offers four answer buttons.
+        if ease <= 0 or ease > 4:
             return False
         mw.reviewer._answerCard(ease)
         return True

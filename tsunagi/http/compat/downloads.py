@@ -5,9 +5,9 @@ from .errors import MEDIA_DOWNLOAD_FAILED
 
 
 def download_media(url: str) -> bytes:
-    from anki.sync import AnkiRequestsClient
+    from anki.httpclient import HttpClient
 
-    client = AnkiRequestsClient()
+    client = HttpClient()
     client.timeout = float(settings.get("media_fetch_timeout_seconds", 30))
     limit = int(settings.get("media_max_bytes", 67108864))
     try:
