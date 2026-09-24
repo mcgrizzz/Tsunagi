@@ -29,8 +29,8 @@ The page is updated in place; it is a current snapshot, not a history.
 
 - **For the client goals, the Tsunagi API is fastest on six of ten,** often
   by a wide margin: fewer requests, and only the fields the client uses. It is
-  within a millisecond on a seventh, and slower on the three largest reads,
-  mostly because its responses are larger.
+  within a millisecond on a seventh, and slower on three large reads (known
+  words and both review histories).
 - **The AnkiConnect Shim is faster than AnkiConnect on eight of ten goals**
   with the same requests, ties on one, and gives the same answers.
 - **Under load, both Tsunagi APIs answered every request.** AnkiConnect refused
@@ -74,11 +74,13 @@ says otherwise.
 - **AnkiConnect's small requests take about 30 ms each** even when the work is
   tiny, as in the change poll. That per-request delay is why its many-request
   goals are slow.
-- **The Tsunagi API loses on the three largest reads.** Its responses carry
-  named keys for every field and review, so they are larger to send and parse.
-  For one deck's reviews, anki-mcp-server uses AnkiConnect's `cardReviews`,
-  which returns compact rows from one database query; the Tsunagi API's
-  response is about twice as large.
+- **The Tsunagi API is slower on three reads:** Yomine's known words and both
+  review histories. Its responses are larger for these, because each row
+  repeats its field names: for one deck's reviews, about 19 MB against
+  `cardReviews`' 9 MB of plain arrays. How much of the time difference that
+  explains has not been measured; the AnkiConnect Shim sends the smallest
+  review response and is still slower than AnkiConnect there, so server work
+  differs as well.
 - **Simplifications:** asbplayer's update searches only the benchmark deck
   instead of the whole collection, to keep the test profile safe, and skips an
   optional Browser refresh. Yomine asks for intervals only for its mapped note
