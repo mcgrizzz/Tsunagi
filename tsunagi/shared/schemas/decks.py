@@ -40,11 +40,10 @@ class DeckInfo(BaseModel):
     review_limit: Optional[int] = Field(alias="reviewLimit", default=None)
     new_limit: Optional[int] = Field(alias="newLimit", default=None)
 
-    # Per-deck FSRS desired retention override (needs a newer Anki than
-    # 23.10). Read from the deck protobuf, not the schema11 dict - the dict
-    # carries it as a truncated integer percent - so it costs a backend call
-    # per deck and is only fetched when selected. Null when unset, on filtered
-    # decks, or on an Anki without the field.
+    # Per-deck FSRS desired retention override. Read from the deck protobuf,
+    # not the schema11 dict - the dict carries it as a truncated integer
+    # percent - so it costs a backend call per deck and is only fetched when
+    # selected. Null when unset or on filtered decks.
     desired_retention: Optional[float] = None
 
     # Due counts. Not stored on the deck - they come from the scheduler's due
@@ -83,5 +82,5 @@ class DeckPatch(BaseModel):
     collapsed: Optional[bool] = None
     browser_collapsed: Optional[bool] = Field(alias="browserCollapsed", default=None)
     config_id: Optional[int] = Field(alias="conf", default=None)
-    # 26.08+: per-deck FSRS retention override; explicit null clears it.
+    # Per-deck FSRS retention override; explicit null clears it.
     desired_retention: Optional[float] = Field(alias="desiredRetention", default=None)

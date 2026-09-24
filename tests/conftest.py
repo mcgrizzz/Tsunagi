@@ -25,8 +25,8 @@ try:
 except ImportError as exc:  # pragma: no cover - environment guard
     raise RuntimeError(
         "the anki library is missing - tests run against a real collection.\n"
-        "  install it with: python -m pip install 'anki==23.10'\n"
-        "(23.10 is our declared floor; CI also runs the latest release)"
+        "  install it with: python -m pip install 'anki==26.8.1'\n"
+        "(26.08 is our declared floor; CI also runs the latest release)"
     ) from exc
 
 # aqt calls this during startup; pylib on its own leaves anki.lang.current_i18n

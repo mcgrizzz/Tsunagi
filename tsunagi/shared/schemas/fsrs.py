@@ -1,9 +1,6 @@
 """
 Schemas for the native FSRS surface. Native-only: AnkiConnect exposes no FSRS,
 so there are no wire-name aliases to carry.
-
-"params" is the one normalized name - Anki 23.10 says "weights", newer says
-"params", and the adapter translates so clients never see the split.
 """
 from __future__ import annotations
 
@@ -42,7 +39,6 @@ class JobSubmitted(BaseModel):
 
 
 class ComputeParamsRequest(BaseModel):
-    """Options beyond `search` postdate 23.10 -> 501 there if explicitly sent."""
     search: str = ""
     current_params: Optional[List[float]] = None
     ignore_revlogs_before_ms: Optional[int] = None
@@ -53,7 +49,7 @@ class ComputeParamsRequest(BaseModel):
 class EvaluateParamsRequest(BaseModel):
     params: List[float]
     search: str = ""
-    ignore_revlogs_before_ms: Optional[int] = None  # 26.08 only -> 501 on 23.10
+    ignore_revlogs_before_ms: Optional[int] = None
 
 
 class SimulateRequest(BaseModel):

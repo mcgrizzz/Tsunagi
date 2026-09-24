@@ -1,11 +1,9 @@
-from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 from anki.collection import Collection
 
 from ...shared.errors import (
     ResourceNotFoundError,
-    UnsupportedAnkiVersionError,
     ValidationError,
 )
 from ...shared.helpers import (
@@ -48,24 +46,11 @@ def _deck_stats(col: Collection) -> Dict[int, Dict[str, int]]:
     return out
 
 
-@lru_cache(maxsize=1)
-def _retention_supported() -> bool:
-    # Per-deck desired retention postdates 23.10; fixed for the process
-    # lifetime, so probe the proto descriptor once instead of per deck row.
-    try:
-        from anki import decks_pb2
-        return "desired_retention" in decks_pb2.Deck.Normal.DESCRIPTOR.fields_by_name
-    except Exception:
-        return False
-
-
 def _read_desired_retention(col: Collection, deck_id: int) -> Optional[float]:
     """
     From the deck protobuf, not the schema11 dict: the dict carries the value
     as int(fraction*100), so 0.85 reads back as 85 and 0.837 as 83.
     """
-    if not _retention_supported():
-        return None
     try:
         deck = col._backend.get_deck(int(deck_id))
         if deck.WhichOneof("kind") == "normal" and deck.normal.HasField("desired_retention"):
@@ -76,8 +61,6 @@ def _read_desired_retention(col: Collection, deck_id: int) -> Optional[float]:
 
 
 def _write_desired_retention(col: Collection, deck_id: int, value: Optional[Any]) -> Any:
-    if not _retention_supported():
-        raise UnsupportedAnkiVersionError("per-deck desired retention")
     deck = col._backend.get_deck(int(deck_id))
     if deck.WhichOneof("kind") != "normal":
         raise ValidationError("desired_retention applies to normal decks, not filtered ones")

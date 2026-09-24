@@ -23,10 +23,10 @@ python -m pip install pytest ruff "httpx<0.28" anki
 python tools/build_addon.py
 ```
 
-On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. On Python
-3.9, install `anki==23.10` in place of `anki`; newer Anki packages need a newer
-Python. The repository’s [CI configuration](../.github/workflows/ci.yml) records its
-version matrix.
+On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Tsunagi
+supports the current Anki release and the one before it; to test the oldest, use
+Python 3.10 and install `anki==26.8.1` in place of `anki`. The repository’s
+[CI configuration](../.github/workflows/ci.yml) records its version matrix.
 
 The build vendors dependencies from [tools/requirements.lock.txt](../tools/requirements.lock.txt)
 into `lib/shared`, then packages the add-on into `dist`. It rebuilds `lib/` and
@@ -142,7 +142,7 @@ git push origin v0.1.0
 ```
 
 The workflow checks all three version declarations, runs the existing CI matrix
-on Anki 23.10 and current Anki, then builds the package. A tag-triggered run also
+on the oldest supported Anki and current Anki, then builds the package. A tag-triggered run also
 checks that the tag matches the declared version. After validation, a manual run
 creates the version tag at the exact commit it tested, if the tag doesn't exist. It
 creates a **draft GitHub release** with generated release notes, the `.ankiaddon`

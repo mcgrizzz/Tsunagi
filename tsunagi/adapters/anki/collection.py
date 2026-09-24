@@ -5,7 +5,6 @@ Application actions go through `call_on_main`; collection reads and imports use
 QueryOp/CollectionOp. Every aqt import is function-local, so the module stays
 importable with no Qt present.
 """
-import inspect
 from typing import Any, Dict, List, Optional
 
 from ...shared.errors import ResourceNotFoundError, ValidationError
@@ -151,25 +150,15 @@ def _export_package(col: Any, deck_id: int, path: str, *,
                     with_scheduling: bool, with_media: bool,
                     legacy: bool = False,
                     with_deck_configs: Optional[bool] = None) -> None:
-    """Handle Anki's export signature changes for native and compatibility calls."""
+    """One package export for native and compatibility calls."""
     from anki.collection import DeckIdLimit
+    from anki.import_export_pb2 import ExportAnkiPackageOptions
 
-    limit = DeckIdLimit(deck_id)
-    params = inspect.signature(col.export_anki_package).parameters
-    if "options" in params:
-        from anki.import_export_pb2 import ExportAnkiPackageOptions
-
-        options = ExportAnkiPackageOptions(
-            with_scheduling=with_scheduling, with_media=with_media, legacy=legacy)
-        if with_deck_configs is not None:
-            options.with_deck_configs = with_deck_configs
-        col.export_anki_package(
-            out_path=path, limit=limit, options=options,
-        )
-    else:
-        col.export_anki_package(
-            out_path=path, limit=limit, with_scheduling=with_scheduling,
-            with_media=with_media, legacy_support=legacy)
+    options = ExportAnkiPackageOptions(
+        with_scheduling=with_scheduling, with_media=with_media, legacy=legacy)
+    if with_deck_configs is not None:
+        options.with_deck_configs = with_deck_configs
+    col.export_anki_package(out_path=path, limit=DeckIdLimit(deck_id), options=options)
 
 
 _IMPORT_UPDATE_CONDITIONS = {"if_newer": 0, "always": 1, "never": 2}
@@ -249,9 +238,6 @@ def submit_import_package(path, *, on_started, on_success, on_failure, **options
 @as_query_op
 def collection_capabilities(col: Any) -> Dict[str, Any]:
     """Read native support and collection settings without running mutations or jobs."""
-    from anki import cards_pb2
-
-    from .decks import _retention_supported
     from .fsrs import capabilities
 
     import_available = hasattr(col._backend, "get_import_anki_package_presets")
@@ -259,8 +245,9 @@ def collection_capabilities(col: Any) -> Dict[str, Any]:
                       if import_available else list(_IMPORT_OPTIONS))
     return {
         "fsrs": {**capabilities(col._backend), "enabled": bool(col.get_config("fsrs", default=False))},
-        "card_decay": "decay" in cards_pb2.Card.DESCRIPTOR.fields_by_name,
-        "deck_desired_retention": _retention_supported(),
+        # Present on every supported Anki; kept in the report for clients.
+        "card_decay": True,
+        "deck_desired_retention": True,
         "import_available": import_available,
         "unsupported_import_options": import_options,
     }
