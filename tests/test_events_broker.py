@@ -11,6 +11,7 @@ from tsunagi.adapters.events import (
     MAX_QUEUED,
     ApiOp,
     EventBroker,
+    affected_resources,
     broker,
     dispatch_op,
     publish_review,
@@ -359,3 +360,24 @@ class TestEventDetailsCoverage:
         assert recorded_ops[-1].initiator.details == {"card_ids": [c1, c2]}
         # And the merged proto reports real flags for the event stream.
         assert recorded_ops[-1].result.changes.card is True
+
+
+def test_api_targets_are_hints_and_unknown_flags_request_full_refresh():
+    token = broker.subscribe(resources={"notes"})
+    dispatch_op(OpChanges(note=True), ApiOp({"note_ids": [42, 42, 99]}))
+    event = broker.drain(token)[0]
+    assert event["type"] == "notes.changed"
+    assert event["ids"] is None
+    assert "targets" not in event
+    assert affected_resources(["note", "future_flag"]) == ["collection"]
+    assert affected_resources(["browser_table"]) == ["collection"]
+
+
+def test_flags_name_only_the_resources_whose_rows_changed():
+    assert {flag: affected_resources([flag]) for flag in (
+        "note", "note_text", "card", "deck", "notetype", "tag", "config",
+        "deck_config", "study_queues")} == {
+        "note": ["notes"], "note_text": ["notes"], "card": ["cards"],
+        "deck": ["decks"], "notetype": ["models"], "tag": ["tags"],
+        "config": ["config"], "deck_config": ["decks"],
+        "study_queues": ["reviews", "scheduler"]}

@@ -20,8 +20,6 @@ from collections import deque
 from typing import Any, Deque, Dict, FrozenSet, List, Optional
 from uuid import uuid4
 
-from .event_results import freeze_changes
-
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 
 
@@ -30,7 +28,8 @@ CHANGE_RESOURCES = frozenset({
 })
 DATA_EVENT_TYPES = (frozenset(f"{resource}.changed" for resource in CHANGE_RESOURCES)
                     | frozenset(f"{resource}.{kind}" for resource in ("notes", "cards")
-                                for kind in ("created", "updated", "deleted")))
+                                for kind in ("created", "updated", "deleted"))
+                    | {"reviews.created"})
 EVENT_TYPES = DATA_EVENT_TYPES | {"change", "review", "sync"}
 
 
@@ -105,11 +104,14 @@ class EventBroker:
         self._draining = True
         self._session_id: Optional[str] = None
         self._collection: Any = None
+        # ChangeScan for Anki-side changes; set by the app once a session starts.
+        self.scanner: Any = None
 
     def start_session(self, collection: Any) -> str:
         """Start a server/collection lifetime; old tokens stay closed forever."""
         with self._lock:
             self._subscribers.clear()
+            self.scanner = None
             self._session_id = uuid4().hex
             self._collection = collection
             self._seq = 0
@@ -121,6 +123,9 @@ class EventBroker:
         with self._lock:
             if self._draining or self._session_id is None:
                 return None
+            if not self._subscribers and self.scanner is not None:
+                # Nobody saw earlier changes; the new client loads on `ready`.
+                self.scanner.since = int(time.time())
             token = self._next_token
             self._next_token += 1
             self._subscribers[token] = _Subscriber(
@@ -200,6 +205,7 @@ class EventBroker:
             self._draining = True
             self._subscribers.clear()
             self._collection = None
+            self.scanner = None
 
     def is_draining(self, token: Optional[int] = None) -> bool:
         with self._lock:
@@ -262,60 +268,46 @@ def is_ui_text_update(changes: Any, handler: Any) -> bool:
 
 def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None:
     """
-    Route an operation_did_execute fire to the right event:
-    - every flag true + no handler is Anki's synthesized "everything may have
-      changed" (legacy mw.reset(), fired after sync) -> `reset`
+    Route an operation_did_execute fire:
     - no flags true -> dropped (indistinguishable from a no-op; Tsunagi ops
       whose backend call returns no OpChanges land here)
-    - otherwise -> `change`, with origin "api" for Tsunagi's own mutations.
+    - every flag true + no handler is Anki's synthesized "everything may have
+      changed" (legacy mw.reset(), fired after sync) -> `reset`
+    - Tsunagi's own writes -> `change` now, origin "api", with recorded IDs
+    - anything else -> the change scanner's next burst. Without a scanner
+      (headless), `change` now, and editor typing is dropped.
     `label` comes from Anki's undo status. Only use it when a handler
     identifies the operation: after an untagged undo it names the next
     undoable action, not the change that just completed.
     """
-    if is_ui_text_update(changes, handler):
-        return
     flags = _changed_flags(changes)
     if not flags:
         return
+    scanner = broker.scanner
     total = sum(1 for f in changes.DESCRIPTOR.fields if f.name != "kind")
     if handler is None and len(flags) == total:
         broker.publish("reset")
+        if scanner is not None:
+            scanner.rebase()
         return
-    if isinstance(handler, ApiOp):
-        origin: Optional[str] = "api"
-    elif handler is None:
-        origin = None
-    else:
-        origin = "ui"
+    api = isinstance(handler, ApiOp)
+    if scanner is not None and not api:
+        scanner.mark(flags, typing=is_ui_text_update(changes, handler))
+        return
+    if is_ui_text_update(changes, handler):
+        return
+    origin = "api" if api else None if handler is None else "ui"
     anki: dict = {"changes": flags}
     if label and handler is not None:
         anki["label"] = label
-    record_changes = handler.changes if isinstance(handler, ApiOp) else {}
+    record_changes = handler.changes if api else {}
+    if scanner is not None and record_changes:
+        scanner.reported(record_changes)
     broker.publish("change",
                    **({"changes": record_changes} if record_changes else {}),
-                   collection=handler.collection if isinstance(handler, ApiOp) else None,
+                   collection=handler.collection if api else None,
                    origin=origin, affected=affected_resources(flags),
                    anki=anki)
-
-
-def publish_note_added(note_ids: List[int], changes: Any = None) -> None:
-    """A confirmed Add-dialog save whose hook/response supplies the new note IDs.
-
-    This supplements general operation notifications; it never suppresses
-    them, since they may cover additional side effects.
-    """
-    ids = list(dict.fromkeys(int(nid) for nid in note_ids if int(nid) > 0))
-    if not ids or not broker.has_subscribers():
-        return
-    flags = _changed_flags(changes) if changes is not None else []
-    if changes is not None and not getattr(changes, "note", False):
-        return
-    affected = affected_resources(flags) if flags else []
-    if "collection" not in affected:
-        affected = sorted(set(affected) | {"notes", "cards"})
-    broker.publish("change", origin="ui",
-                   changes=freeze_changes({"notes": {"created": ids}}),
-                   affected=affected, anki={"changes": flags})
 
 
 def publish_review(card_id: int, ease: int) -> None:

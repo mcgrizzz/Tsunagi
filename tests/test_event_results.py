@@ -245,16 +245,6 @@ def test_known_results_and_unknown_related_resources_are_distinct(subscription):
     assert len({e["seq"] for e in events.values()}) == 3
 
 
-def test_add_dialog_reports_created_ids(subscription):
-    from tsunagi.adapters.events import publish_note_added
-
-    publish_note_added([10, 20])
-    events = {e["type"]: e for e in broker.drain(subscription)}
-    assert events["notes.created"]["ids"] == [10, 20]
-    assert "notes.changed" not in events
-    assert events["cards.changed"]["ids"] is None
-
-
 @pytest.mark.parametrize("types", [None, "change", "notes.created", "notes.created,notes.changed"])
 def test_http_delivers_named_events_with_only_ids(client, col, subscription,
                                                           recorded_ops, monkeypatch, types):

@@ -74,11 +74,6 @@ else:
         except Exception:
             print("[tsunagi] boot failed:\n" + traceback.format_exc())
         try:
-            from .tsunagi.adapters.ui_events import install
-            install()
-        except Exception:
-            print("[tsunagi] add-note event setup failed:\n" + traceback.format_exc())
-        try:
             _start_dev_watch()
         except Exception:
             print("[tsunagi] dev watch failed:\n" + traceback.format_exc())
@@ -89,11 +84,6 @@ else:
             print("[tsunagi] ankiconnect import offer failed:\n" + traceback.format_exc())
 
     def _on_profile_close() -> None:
-        try:
-            from .tsunagi.adapters.ui_events import uninstall
-            uninstall()
-        except Exception:
-            pass
         try:
             from .tsunagi.app import stop_server
             stop_server()
@@ -112,16 +102,15 @@ else:
     # dispatch pointed at the live module across reload_addon()'s purge.
     def _on_op_executed(changes, handler=None) -> None:
         try:
-            from .tsunagi.adapters.events import broker, dispatch_op, is_ui_text_update
-            # Skip typing before fetching undo labels or preparing event data.
-            if not broker.has_subscribers() or is_ui_text_update(changes, handler):
+            from .tsunagi.adapters.events import ApiOp, broker, dispatch_op
+            if not broker.has_subscribers():
                 return
-            # OpChanges carries flags but no identity; the undo label ("Update
-            # Note", "Answer Card", ...) names the op that just completed and
-            # is current by the time this hook fires.
+            # OpChanges carries flags but no identity; for Tsunagi's own writes
+            # the undo label ("Suspend", "Update Note", ...) names the op that
+            # just completed. Anki-side changes go to the change scanner.
             label = None
             try:
-                if mw.col is not None:
+                if isinstance(handler, ApiOp) and mw.col is not None:
                     label = mw.col.undo_status().undo or None
             except Exception:
                 label = None
@@ -133,13 +122,6 @@ else:
         try:
             from .tsunagi.adapters.events import publish_review
             publish_review(card.id, ease)
-        except Exception:
-            pass
-
-    def _on_note_added(note) -> None:
-        try:
-            from .tsunagi.adapters.events import publish_note_added
-            publish_note_added([note.id])
         except Exception:
             pass
 
@@ -162,7 +144,6 @@ else:
     for _hook_name, _callback in (
         ("operation_did_execute", _on_op_executed),
         ("reviewer_did_answer_card", _on_card_answered),
-        ("add_cards_did_add_note", _on_note_added),
         ("sync_will_start", _on_sync_start),
         ("sync_did_finish", _on_sync_finish),
     ):
@@ -281,9 +262,6 @@ def reload_addon() -> str:
         return ("previous server thread is still alive, so the port is likely "
                 "still held - restart Anki instead of reloading")
 
-    from .tsunagi.adapters.ui_events import uninstall
-    uninstall()
-
     pkg = __name__ + ".tsunagi"
     purged = [n for n in list(sys.modules) if n == pkg or n.startswith(pkg + ".")]
     for name in purged:
@@ -292,8 +270,6 @@ def reload_addon() -> str:
     try:
         from .tsunagi.app import start_server
         start_server(mw)
-        from .tsunagi.adapters.ui_events import install
-        install()
     except Exception:
         return "reload failed:\n" + traceback.format_exc()
 

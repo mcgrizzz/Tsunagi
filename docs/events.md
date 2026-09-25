@@ -6,9 +6,10 @@
 happened: **`notes.created`**, **`notes.updated`**, **`notes.deleted`**, and so on.
 Messages contain IDs. Your app decides whether it needs to fetch any contents.
 
-Text-only note edits made inside Anki, including typing, are not announced.
-API edits, new notes added in Anki, reviews, undo, sync and other collection
-actions can still produce messages.
+Changes made through the API are announced immediately. Changes made inside
+Anki (the Browser, the editor, the Add dialog, the reviewer) are announced
+about half a second after they stop; while you type, one message follows a
+two-second pause.
 
 ## See the messages
 
@@ -106,14 +107,14 @@ differently. There is no separate `refresh` message.
 
 | Operation | Event |
 | --- | --- |
-| Create a note through either API or Anki's Add dialog | `notes.created` |
 | Update a note through the Tsunagi API, or its fields through the AnkiConnect Shim | `notes.updated` |
 | Delete notes through either API | `notes.deleted` |
-| Create a note through either API | `cards.created` for its new cards too |
+| Create a note through either API | `notes.created`, and `cards.created` for its new cards |
 | Add or remove tags on given notes through either API | `notes.updated` |
 | Answer cards through either API | `cards.updated` for the cards answered |
 | Suspend, unsuspend, bury, unbury, forget, flag, move to a deck, set due date, set values or reposition cards through the Tsunagi API | `cards.updated` |
-| Other operations without complete IDs, including undo | `notes.changed`, `cards.changed`, or another affected resource's `.changed` |
+| Changes made inside Anki | `notes.*` and `cards.*` with IDs, and `reviews.created` with review log IDs |
+| Undo, and rows Anki restores without a new modification time | `notes.changed`, `cards.changed`, or another affected resource's `.changed` |
 
 Lists contain at most 1,000 IDs per resource. Larger sets produce `.changed`
 with `ids: null` instead. Repositioning with `shift_existing` also moves other
@@ -126,17 +127,16 @@ Each message means that resource's own data changed. An operation can produce
 messages about several resources; other resources currently use `.changed`
 notifications, such as `decks.changed`.
 
-General and detailed Add-dialog notifications can overlap. Media/import coverage
-is incomplete, and other add-ons can bypass Anki's notification hooks.
+Media/import coverage is incomplete. Changes other add-ons make without Anki's
+notification hooks are reported with the next change Anki does announce.
 
 </details>
 
 <details>
 <summary>Keeping displayed notes correct</summary>
 
-**While editing in Anki:** text-only note edits are excluded, with no later
-finished-typing message. Anki still saves normally. Changes that also generate
-cards or affect tags can still produce messages. API edits and undo are reported.
+**While editing in Anki:** edits are reported once typing pauses for two
+seconds, as `notes.updated` for the edited note.
 
 **While loading:** if a change arrives during a request, schedule another load
 afterward. An older response must not overwrite newer data. Ignore unfinished

@@ -81,7 +81,7 @@ def test_http_typing_does_not_consume_event_limit(client, stream, monkeypatch):
     def subscribe(**kwargs):
         token = original(**kwargs)
         events.dispatch_op(OpChanges(note=True, note_text=True), object())
-        events.publish_note_added([42])
+        broker.publish("change", changes={"notes": {"created": [42]}}, affected=["notes"])
         return token
 
     monkeypatch.setattr(broker, "subscribe", subscribe)

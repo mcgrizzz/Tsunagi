@@ -331,6 +331,13 @@ def start_server(mw) -> None:
         if mw.col is None:
             raise RuntimeError("No collection is open")
         session_id = broker.start_session(mw.col)
+        from aqt.qt import QTimer
+
+        from .adapters.change_scan import ChangeScan
+        scan_timer = QTimer(mw)
+        scan_timer.setSingleShot(True)
+        broker.scanner = ChangeScan(mw.col, lambda s: scan_timer.start(int(s * 1000)))
+        scan_timer.timeout.connect(broker.scanner.flush)
 
         import uvicorn
         server = uvicorn.Server(uvicorn.Config(

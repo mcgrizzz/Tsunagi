@@ -37,11 +37,11 @@ Connect with `?resources=notes` for note events:
 - `notes.created`: notes were added; `ids` contains their IDs.
 - `notes.updated`: a note update completed; `ids` identifies the affected notes.
 - `notes.deleted`: a deletion completed; these `ids` are now absent.
-- `notes.changed`: note data or note query results may have changed, but the
-  affected IDs or kind of change aren't known. `ids` is null.
+- `notes.changed`: note data changed, but the affected IDs or kind of change
+  aren't known. `ids` is null.
 
-Cards use the same names with the cards prefix. Other resources currently report
-changed notifications. No full notes, card contents or media are sent. Fetch any
+Cards use the same names with the cards prefix. Reviews report reviews.created
+with review log IDs. Other resources currently report changed notifications. No full notes, card contents or media are sent. Fetch any
 contents your app needs through the normal API, with select to choose fields.
 A resource with complete ID details does not also emit changed for that operation.
 Related resources can produce separate events: deleting a note can produce
@@ -54,12 +54,11 @@ creation also provides generated card IDs. Note deletion provides IDs now absent
 a batch may include IDs already absent. Individual suspend/unsuspend/bury/unbury
 operations report cards.updated with their processed IDs; a batch can include
 cards already in the requested state. Empty/no-op operations produce no event.
-Add-dialog saves report notes.created. Other operations use resource.changed
-when details aren't known. ID lists above 1,000 per resource also use changed.
-
-Text-only note edits inside Anki, including typing, are excluded. No delayed
-finished-typing notification is sent. API edits, undo and UI changes affecting
-other data are still reported. Anki's actual saves are unaffected.
+Changes made inside Anki (Browser, editor, Add dialog, reviewer) are reported
+with IDs about 0.5 s after they stop, or after a 2 s pause in typing, including
+reviews.created for new review log rows. Undo and other operations whose rows
+can't be identified use resource.changed. ID lists above 1,000 per resource
+also use changed.
 
 ### Filters
 
