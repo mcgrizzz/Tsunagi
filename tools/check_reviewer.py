@@ -29,7 +29,10 @@ def check_reviewer(app, screenshot):
 
     def text(web):
         result = []
-        web.page().runJavaScript("document.body.innerText", result.append)
+        # A page still loading has no body yet; a script that throws never
+        # calls back, so read it defensively.
+        web.page().runJavaScript("document.body ? document.body.innerText : ''",
+                                 result.append)
         wait(lambda: bool(result))
         return result[0] or ""
 
