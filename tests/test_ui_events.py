@@ -157,7 +157,7 @@ def test_added_note_not_draft_and_no_extra_queries(stream):
 
 
 def test_api_targets_are_hints_and_unknown_flags_request_full_refresh(stream):
-    dispatch_op(OpChanges(card=True), ApiOp({"card_ids": [42, 42, 99]}))
+    dispatch_op(OpChanges(note=True), ApiOp({"note_ids": [42, 42, 99]}))
     event = broker.drain(stream)[0]
     assert event["type"] == "notes.changed"
     assert event["ids"] is None
@@ -166,6 +166,11 @@ def test_api_targets_are_hints_and_unknown_flags_request_full_refresh(stream):
     assert affected_resources(["browser_table"]) == ["collection"]
 
 
-def test_refresh_covers_search_membership_without_review_row_changes():
-    for flag in ("note", "note_text", "tag", "deck", "notetype"):
-        assert {"notes", "cards", "reviews"} <= set(affected_resources([flag]))
+def test_flags_name_only_the_resources_whose_rows_changed():
+    assert {flag: affected_resources([flag]) for flag in (
+        "note", "note_text", "card", "deck", "notetype", "tag", "config",
+        "deck_config", "study_queues")} == {
+        "note": ["notes"], "note_text": ["notes"], "card": ["cards"],
+        "deck": ["decks"], "notetype": ["models"], "tag": ["tags"],
+        "config": ["config"], "deck_config": ["decks"],
+        "study_queues": ["reviews", "scheduler"]}

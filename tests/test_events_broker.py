@@ -194,7 +194,7 @@ class TestDispatchOp:
                     label="Update Deck")
         events = broker.drain(token)
         assert {e["type"] for e in events} == {
-            "cards.changed", "notes.changed", "reviews.changed", "decks.changed", "scheduler.changed"}
+            "cards.changed", "reviews.changed", "scheduler.changed"}
         assert events[0]["origin"] is None
         assert sorted(events[0]["anki"]["changes"]) == ["card", "study_queues"]
         assert "label" not in events[0]["anki"]

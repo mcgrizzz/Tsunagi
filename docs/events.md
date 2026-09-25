@@ -38,7 +38,7 @@ data: {"type":"notes.deleted","ids":[123]}
 | `notes.created` | New notes were added. `ids` identifies them. |
 | `notes.updated` | A note update completed. `ids` identifies the affected notes. |
 | `notes.deleted` | A deletion completed. These `ids` are now absent. |
-| `notes.changed` | Note data or note search results may have changed, but the affected IDs or kind of change aren't known. `ids` is `null`. |
+| `notes.changed` | Note data changed, but the affected IDs or kind of change aren't known. `ids` is `null`. |
 
 Cards use the same names: `cards.created`, `cards.updated`, `cards.deleted`,
 `cards.changed`.
@@ -65,7 +65,7 @@ for note deletions won't queue reviews or card updates.
 
 Use `resources=notes` when maintaining a note list. An exact type filter such as
 `types=notes.deleted` excludes `notes.changed`, so it won't cover a deletion
-whose details Anki didn't report, or a change in which notes match a search.
+whose details Anki didn't report.
 
 ## React in your app
 
@@ -122,10 +122,9 @@ Deletion batches can include IDs already absent; card-update batches can include
 cards already in the requested state. An operation that changes nothing sends
 no event.
 
-An operation can produce messages about several resources. Other resources
-currently use `.changed` notifications, such as `decks.changed`. A broad change
-can also affect related searches: renaming a deck can change the results of a
-note query that uses that deck's name.
+Each message means that resource's own data changed. An operation can produce
+messages about several resources; other resources currently use `.changed`
+notifications, such as `decks.changed`.
 
 General and detailed Add-dialog notifications can overlap. Media/import coverage
 is incomplete, and other add-ons can bypass Anki's notification hooks.
@@ -144,9 +143,12 @@ afterward. An older response must not overwrite newer data. Ignore unfinished
 requests from a closed connection. The example leaves this coordination to your
 app's helper functions.
 
-**While showing search results:** if your list shows `tag:verb` and a note loses
-that tag, fetching the new contents isn't enough—you must also remove it from
-that list. Repeat the search if your app can't determine whether it still
+**While showing search results:** a search can change without its own resource
+changing. `deck:Japanese` results change when that deck is renamed, and `is:due`
+results change when cards are answered. Also listen to each resource your search
+names, for example `resources=notes,decks`, and repeat the search when one
+changes. If your list shows `tag:verb` and a note loses that tag, fetching the
+new contents isn't enough—you must also remove it from that list. Repeat the search if your app can't determine whether it still
 matches. Sorting, counts and page boundaries can change too.
 
 **After a disconnect:** missed messages aren't replayed. A new connection sends

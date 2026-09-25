@@ -213,18 +213,19 @@ class EventBroker:
 # Module singleton, mirroring adapters.jobs.jobs.
 broker = EventBroker()
 
+# Each Anki change flag names the resources whose own rows it changes. Clients
+# showing a search also listen to every resource the search names.
 _AFFECTED_RESOURCES = {
-    # Notes, cards and reviews all accept Anki search, so a note/deck/tag
-    # change can alter a review query without changing a single revlog row.
-    "note": {"notes", "cards", "reviews", "tags", "models"},
-    "note_text": {"notes", "cards", "reviews"},
-    "card": {"cards", "notes", "reviews", "decks", "scheduler"},
-    "deck": {"decks", "cards", "notes", "reviews", "scheduler"},
-    "notetype": {"models", "notes", "cards", "reviews"},
-    "tag": {"tags", "notes", "cards", "reviews"},
-    "config": {"config", "cards", "notes", "reviews", "scheduler"},
-    "deck_config": {"decks", "config", "cards", "notes", "reviews", "scheduler"},
-    "study_queues": {"cards", "notes", "reviews", "scheduler"},
+    "note": {"notes"},
+    "note_text": {"notes"},
+    "card": {"cards"},
+    "deck": {"decks"},
+    "notetype": {"models"},
+    "tag": {"tags"},
+    "config": {"config"},
+    "deck_config": {"decks"},
+    # Scheduling changes can add review log rows (answers, due-date changes).
+    "study_queues": {"scheduler", "reviews"},
 }
 _UI_FLAGS = {"mtime", "browser_table", "browser_sidebar"}
 
@@ -311,7 +312,7 @@ def publish_note_added(note_ids: List[int], changes: Any = None) -> None:
         return
     affected = affected_resources(flags) if flags else []
     if "collection" not in affected:
-        affected = sorted(set(affected) | {"notes", "cards", "tags", "models"})
+        affected = sorted(set(affected) | {"notes", "cards"})
     broker.publish("change", origin="ui",
                    changes=freeze_changes({"notes": {"created": ids}}),
                    affected=affected, anki={"changes": flags})
