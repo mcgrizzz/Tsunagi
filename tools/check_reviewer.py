@@ -27,14 +27,30 @@ def check_reviewer(app, screenshot):
     def wait(predicate):
         until(app, predicate)
 
+    seen = {}
+
     def text(web):
         result = []
         # A page still loading has no body yet; a script that throws never
         # calls back, so read it defensively.
         web.page().runJavaScript("document.body ? document.body.innerText : ''",
                                  result.append)
-        wait(lambda: bool(result))
-        return result[0] or ""
+        try:
+            wait(lambda: bool(result))
+        except AssertionError:
+            seen["callback"] = "no JavaScript callback"
+            raise
+        seen["text"] = result[0] or ""
+        return seen["text"]
+
+    def wait_for_page(web, wanted):
+        try:
+            wait(lambda: wanted in text(web))
+        except AssertionError:
+            print(f"page never showed {wanted!r}: mw.state={aqt.mw.state!r} "
+                  f"reviewer.state={aqt.mw.reviewer.state!r} url={web.url().toString()!r} "
+                  f"{seen.get('callback', '')} last text={seen.get('text')!r}", flush=True)
+            raise
 
     def scheduling():
         card = col.get_card(cid)
@@ -56,7 +72,7 @@ def check_reviewer(app, screenshot):
     assert gui.ac_guiDeckReview(gui.DeckParams(name="Default")) is True
     reviewer = aqt.mw.reviewer
     wait(lambda: reviewer.card is not None and reviewer.state == "question")
-    wait(lambda: "Tsunagi reviewer question" in text(reviewer.web))
+    wait_for_page(reviewer.web, "Tsunagi reviewer question")
     assert gui.ac_guiReviewActive() is True
     current = gui.ac_guiCurrentCard()
     assert current["cardId"] == cid
@@ -93,7 +109,7 @@ def check_reviewer(app, screenshot):
         )
     )
     assert gui.ac_guiShowAnswer() is True
-    wait(lambda: "Tsunagi reviewer answer" in text(reviewer.web))
+    wait_for_page(reviewer.web, "Tsunagi reviewer answer")
     labels = [html.unescape(label) for label in gui.ac_guiCurrentCard()["nextReviews"]]
     wait(lambda: all(label in text(reviewer.bottom.web) for label in labels))
     print(
@@ -125,7 +141,7 @@ def check_reviewer(app, screenshot):
             and reviewer.state == "question"
         )
     )
-    wait(lambda: "Tsunagi reviewer question" in text(reviewer.web))
+    wait_for_page(reviewer.web, "Tsunagi reviewer question")
     assert gui.ac_guiCurrentCard()["cardId"] == cid
     print("PASS real undo restores scheduling, review log and question", flush=True)
 
