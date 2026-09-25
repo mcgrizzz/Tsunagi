@@ -26,7 +26,7 @@ MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 CHANGE_RESOURCES = frozenset({
     "notes", "cards", "models", "decks", "tags", "reviews", "scheduler", "config",
 })
-DATA_EVENT_TYPES = (frozenset(f"{resource}.changed" for resource in CHANGE_RESOURCES)
+DATA_EVENT_TYPES = (frozenset(f"{resource}.stale" for resource in CHANGE_RESOURCES)
                     | frozenset(f"{resource}.{kind}" for resource in ("notes", "cards")
                                 for kind in ("created", "updated", "deleted"))
                     | {"reviews.created"})
@@ -47,7 +47,7 @@ def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
                 if ids:
                     events.append({**metadata, "type": f"{resource}.{kind}", "ids": ids})
         else:
-            events.append({**metadata, "type": f"{resource}.changed", "ids": None,
+            events.append({**metadata, "type": f"{resource}.stale",
                            "reason": "collection" if broad else "details_unavailable"})
     return events
 

@@ -39,15 +39,15 @@ data: {"type":"notes.deleted","ids":[123]}
 | `notes.created` | New notes were added. `ids` identifies them. |
 | `notes.updated` | A note update completed. `ids` identifies the affected notes. |
 | `notes.deleted` | A deletion completed. These `ids` are now absent. |
-| `notes.changed` | Note data changed, but the affected IDs or kind of change aren't known. `ids` is `null`. |
+| `notes.stale` | Notes changed, but which ones isn't known. It has no `ids`: reload the notes you show. |
 
 Cards use the same names: `cards.created`, `cards.updated`, `cards.deleted`,
-`cards.changed`.
+`cards.stale`.
 
 **Known IDs and an unknown change are alternatives for the same resource.**
-Deleting note 123 can produce `notes.deleted` and `cards.changed`, because its
+Deleting note 123 can produce `notes.deleted` and `cards.stale`, because its
 deleted card IDs aren't included. That operation won't also produce
-`notes.changed`.
+`notes.stale`.
 
 ## Choose what to receive
 
@@ -65,7 +65,7 @@ Filters apply before messages enter your connection's queue. A client listening
 for note deletions won't queue reviews or card updates.
 
 Use `resources=notes` when maintaining a note list. An exact type filter such as
-`types=notes.deleted` excludes `notes.changed`, so it won't cover a deletion
+`types=notes.deleted` excludes `notes.stale`, so it won't cover a deletion
 whose details Anki didn't report.
 
 ## React in your app
@@ -87,7 +87,7 @@ events.addEventListener("notes.deleted", ({data}) => {
     drawNotes();
 });
 
-events.addEventListener("notes.changed", () => reloadNoteList());
+events.addEventListener("notes.stale", () => reloadNoteList());
 events.addEventListener("ready", () => reloadNoteList());
 events.addEventListener("gap", () => reloadNoteList());
 ```
@@ -114,18 +114,18 @@ differently. There is no separate `refresh` message.
 | Answer cards through either API | `cards.updated` for the cards answered |
 | Suspend, unsuspend, bury, unbury, forget, flag, move to a deck, set due date, set values or reposition cards through the Tsunagi API | `cards.updated` |
 | Changes made inside Anki | `notes.*` and `cards.*` with IDs, and `reviews.created` with review log IDs |
-| Undo, and rows Anki restores without a new modification time | `notes.changed`, `cards.changed`, or another affected resource's `.changed` |
+| Undo, and rows Anki restores without a new modification time | `notes.stale`, `cards.stale`, or another affected resource's `.stale` |
 
-Lists contain at most 1,000 IDs per resource. Larger sets produce `.changed`
-with `ids: null` instead. Repositioning with `shift_existing` also moves other
-cards, so it produces `cards.changed`. No extra note or card contents are read to build events.
+Lists contain at most 1,000 IDs per resource. Larger sets produce `.stale`
+instead. Repositioning with `shift_existing` also moves other
+cards, so it produces `cards.stale`. No extra note or card contents are read to build events.
 Deletion batches can include IDs already absent; card-update batches can include
 cards already in the requested state. An operation that changes nothing sends
 no event.
 
 Each message means that resource's own data changed. An operation can produce
-messages about several resources; other resources currently use `.changed`
-notifications, such as `decks.changed`.
+messages about several resources; other resources currently use `.stale`
+notifications, such as `decks.stale`.
 
 Media/import coverage is incomplete. Changes other add-ons make without Anki's
 notification hooks are reported with the next change Anki does announce.

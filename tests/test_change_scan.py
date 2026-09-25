@@ -26,7 +26,7 @@ def scan(col):
 
     def flush():
         broker.scanner.flush()
-        return {e["type"]: e["ids"] for e in broker.drain(token)}
+        return {e["type"]: e.get("ids") for e in broker.drain(token)}
 
     yield col, kept, doomed, delays, flush
     broker.begin_drain()
@@ -52,7 +52,7 @@ def test_one_burst_itemizes_edits_adds_reviews_and_deletions(scan, answer_cards)
     assert events["cards.updated"] == kept.card_ids()
     assert events["cards.deleted"] == doomed_cards
     assert len(events["reviews.created"]) == 1
-    assert "notes.changed" not in events and "cards.changed" not in events
+    assert "notes.stale" not in events and "cards.stale" not in events
     assert flush() == {}  # the burst was consumed
 
 
@@ -71,13 +71,13 @@ def test_rows_the_api_reported_are_not_repeated(scan):
     assert events["notes.deleted"] == [doomed.id]  # the API op did not announce it
 
 
-def test_undo_restoring_old_rows_falls_back_to_changed(scan):
+def test_undo_restoring_old_rows_falls_back_to_stale(scan):
     col, kept, _, _, flush = scan
     kept["Back"] = "undo me"
     dispatch_op(col.update_note(kept), object())
     assert flush()["notes.updated"] == [kept.id]
     dispatch_op(col.undo().changes, None)
-    assert flush()["notes.changed"] is None
+    assert flush()["notes.stale"] is None
 
 
 def test_late_timer_after_the_session_ends_publishes_nothing(scan):

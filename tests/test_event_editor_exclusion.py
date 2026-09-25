@@ -24,7 +24,7 @@ def test_typing_burst_is_discarded_without_filling_queue(stream):
     assert broker.drain(token) == []
     assert broker.ready(broker.subscribe())["after_seq"] == 0
     events.dispatch_op(OpChanges(note=True, tag=True), object())
-    assert [item["type"] for item in broker.drain(token)] == ["notes.changed"]
+    assert [item["type"] for item in broker.drain(token)] == ["notes.stale"]
 
 
 @pytest.mark.parametrize("handler", [None, events.ApiOp()])

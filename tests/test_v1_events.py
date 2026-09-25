@@ -70,7 +70,7 @@ class TestStream:
                      ("reset", {}))
         resp = client.get("/v1/events?max_events=3&timeout=5")
         frames = parse_frames(resp.text)
-        assert [f[0] for f in frames] == ["ready", "sync", "sync", "cards.changed", "close"]
+        assert [f[0] for f in frames] == ["ready", "sync", "sync", "cards.stale", "close"]
         assert [f[1].get("phase") for f in frames[1:3]] == ["started", "finished"]
 
     def test_drain_closes_an_open_stream(self, client):

@@ -51,7 +51,7 @@ def test_create_reuses_persisted_result_without_subscriber_reads(col, subscripti
     event = emit_last(recorded_ops, subscription)
     assert event["notes.created"]["ids"] == [saved.id]
     assert event["cards.created"]["ids"] == saved.cards
-    assert not any(name.endswith(".changed") for name in event)
+    assert not any(name.endswith(".stale") for name in event)
     # Result objects may be changed by a caller after success. Queued events cannot.
     saved_id = saved.id
     saved.id = 123
@@ -74,7 +74,7 @@ def test_patch_returns_saved_fields_and_tags(col, subscription, recorded_ops):
     assert snapshot["tags"] == actual.tags
     assert snapshot["mod"] == actual.mod
     assert snapshot["usn"] == actual.usn
-    assert not any(name.endswith(".changed") for name in event)
+    assert not any(name.endswith(".stale") for name in event)
 
 
 def test_delete_ids_mean_absent_including_already_missing(col, subscription, recorded_ops):
@@ -82,7 +82,7 @@ def test_delete_ids_mean_absent_including_already_missing(col, subscription, rec
     notes.delete_notes([saved.id, 123, saved.id])
     event = emit_last(recorded_ops, subscription)
     assert event["notes.deleted"]["ids"] == [saved.id, 123]
-    assert event["cards.changed"]["ids"] is None  # removed card IDs are not known here
+    assert "ids" not in event["cards.stale"]  # removed card IDs are not known here
     notes.delete_notes([saved.id])
     op = recorded_ops[-1]
     dispatch_op(op.result.changes, op.initiator)
@@ -102,7 +102,7 @@ def test_scheduler_reports_updated_ids_without_rendering(col, subscription, reco
     verb(saved.cards)
     event = emit_last(recorded_ops, subscription, ("cards",))
     assert event["cards.updated"]["ids"] == saved.cards
-    assert not any(name.endswith(".changed") for name in event)
+    assert not any(name.endswith(".stale") for name in event)
 
 
 def test_compat_save_and_update_emit_ids(col, subscription, recorded_ops):
@@ -112,7 +112,7 @@ def test_compat_save_and_update_emit_ids(col, subscription, recorded_ops):
     event = emit_last(recorded_ops, subscription)
     assert event["notes.created"]["ids"] == [nid]
     assert event["cards.created"]["ids"] == col.card_ids_of_note(nid)
-    assert not any(name.endswith(".changed") for name in event)
+    assert not any(name.endswith(".stale") for name in event)
     notes.ac_update_note_fields(nid, {"Front": "updated"}, [])
     event = emit_last(recorded_ops, subscription, ("notes",))
     assert event["notes.updated"]["ids"] == [nid]
@@ -132,7 +132,7 @@ def test_card_verbs_report_requested_ids(col, subscription, recorded_ops, verb):
     verb(ids)
     event = emit_last(recorded_ops, subscription, ("cards",))
     assert event["cards.updated"]["ids"] == ids
-    assert "cards.changed" not in event
+    assert "cards.stale" not in event
 
 
 def test_reposition_shifting_other_cards_stays_general(col, subscription, recorded_ops):
@@ -140,7 +140,7 @@ def test_reposition_shifting_other_cards_stays_general(col, subscription, record
     moved = new_note("second").cards
     cards.reposition_cards(moved, starting_from=0, shift_existing=True)
     event = emit_last(recorded_ops, subscription, ("cards",))
-    assert set(event) == {"cards.changed"}
+    assert set(event) == {"cards.stale"}
 
 
 def test_answers_report_answered_cards_only(col, subscription, recorded_ops):
@@ -166,7 +166,7 @@ def test_tag_writes_report_note_ids(col, subscription, recorded_ops, write, tagg
     write(nids)
     event = emit_last(recorded_ops, subscription, ("notes",))
     assert event["notes.updated"]["ids"] == nids
-    assert "notes.changed" not in event
+    assert "notes.stale" not in event
 
 
 def test_failed_write_has_no_event(col, subscription, recorded_ops):
@@ -183,8 +183,8 @@ def test_event_failure_does_not_fail_successful_operation(col, subscription, rec
     assert ops.collection_op_call(lambda col: ops.ValueWithChanges(
         42, OpChanges(note=True), event_changes=broken)) == 42
     event = emit_last(recorded_ops, subscription, ("notes",))
-    assert set(event) == {"notes.changed"}
-    assert event["notes.changed"]["ids"] is None
+    assert set(event) == {"notes.stale"}
+    assert "ids" not in event["notes.stale"]
 
 
 def test_no_listeners_skips_event_factory(col, recorded_ops):
@@ -228,8 +228,8 @@ def test_large_id_sets_do_not_leak_through_target_hints(subscription):
     initiator = ApiOp({"note_ids": ids})
     initiator.changes = freeze_changes({"notes": {"updated": ids}})
     dispatch_op(OpChanges(note=True), initiator)
-    event = next(e for e in broker.drain(subscription) if e["type"] == "notes.changed")
-    assert event["ids"] is None
+    event = next(e for e in broker.drain(subscription) if e["type"] == "notes.stale")
+    assert "ids" not in event
     assert "targets" not in event
 
 
@@ -238,14 +238,14 @@ def test_known_results_and_unknown_related_resources_are_distinct(subscription):
                    changes={"notes": {"updated": [1]}, "cards": {"created": [2]}},
                    targets={"notes": [999], "models": [3]})
     events = {e["type"]: e for e in broker.drain(subscription)}
-    assert set(events) == {"notes.updated", "cards.created", "models.changed"}
+    assert set(events) == {"notes.updated", "cards.created", "models.stale"}
     assert events["notes.updated"]["ids"] == [1]
-    assert events["models.changed"]["ids"] is None
+    assert "ids" not in events["models.stale"]
     assert all("targets" not in e for e in events.values())
     assert len({e["seq"] for e in events.values()}) == 3
 
 
-@pytest.mark.parametrize("types", [None, "change", "notes.created", "notes.created,notes.changed"])
+@pytest.mark.parametrize("types", [None, "change", "notes.created", "notes.created,notes.stale"])
 def test_http_delivers_named_events_with_only_ids(client, col, subscription,
                                                           recorded_ops, monkeypatch, types):
     original = broker.subscribe

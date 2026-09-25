@@ -37,15 +37,15 @@ Connect with `?resources=notes` for note events:
 - `notes.created`: notes were added; `ids` contains their IDs.
 - `notes.updated`: a note update completed; `ids` identifies the affected notes.
 - `notes.deleted`: a deletion completed; these `ids` are now absent.
-- `notes.changed`: note data changed, but the affected IDs or kind of change
-  aren't known. `ids` is null.
+- `notes.stale`: notes changed, but which ones isn't known. It has no `ids`;
+  reload the notes you show.
 
 Cards use the same names with the cards prefix. Reviews report reviews.created
-with review log IDs. Other resources currently report changed notifications. No full notes, card contents or media are sent. Fetch any
-contents your app needs through the normal API, with select to choose fields.
-A resource with complete ID details does not also emit changed for that operation.
+with review log IDs. Other resources currently report stale notifications.
+No full notes, card contents or media are sent. Fetch any contents your app needs through the normal API, with select to choose fields.
+A resource with complete ID details does not also emit stale for that operation.
 Related resources can produce separate events: deleting a note can produce
-notes.deleted and cards.changed. Each notification has its own sequence number.
+notes.deleted and cards.stale. Each notification has its own sequence number.
 
 ### Coverage
 
@@ -57,7 +57,7 @@ cards already in the requested state. Empty/no-op operations produce no event.
 Changes made inside Anki (Browser, editor, Add dialog, reviewer) are reported
 with IDs about 0.5 s after they stop, or after a 2 s pause in typing, including
 reviews.created for new review log rows. Undo and other operations whose rows
-can't be identified use resource.changed. ID lists above 1,000 per resource
+can't be identified use resource.stale. ID lists above 1,000 per resource
 also use changed.
 
 ### Filters
@@ -66,7 +66,7 @@ also use changed.
   scheduler, config. Selects events about those resources, including related
   query changes (such as a deck rename affecting a note search).
 - types: exact names such as notes.created, notes.updated, notes.deleted,
-  notes.changed, cards.updated, review, sync. The group change selects all data
+  notes.stale, cards.updated, review, sync. The group change selects all data
   event types. Omit both filters for all activity. Resources alone selects data
   events; types alone can select just one event, such as notes.deleted.
 - Combined filters intersect for data events. Review/sync can be selected alongside
@@ -74,7 +74,7 @@ also use changed.
   or unknown filter values. Filtering happens before the subscriber queue.
 
 review contains card_id and ease (1 Again, 2 Hard, 3 Good, 4 Easy). sync contains
-phase started/finished. Exact type filters omit other events, including changed;
+phase started/finished. Exact type filters omit other events, including stale;
 use resources alone if you need all notifications affecting a displayed list.
 
 ### Connection events
@@ -87,7 +87,7 @@ list. A new connection gets a new ready even when it uses the same session.
 gap means queued notifications were lost (reason lagged, discarded count).
 Data clients can reload their displayed queries; answer counters should mark
 delivery incomplete. There is no separate refresh instruction or acknowledgement.
-Broad Anki resets report resource.changed with reason collection. Other unknown
+Broad Anki resets report resource.stale with reason collection. Other unknown
 changes use reason details_unavailable. No whole-collection download is required.
 
 ### Ordering and connections
@@ -163,7 +163,7 @@ def stream_events(
                           "Checked by the auth middleware."),
     types: Annotated[Optional[str], Query(
         description="Comma-separated event names, such as notes.updated, notes.deleted, "
-                    "notes.changed, review, sync; change selects all data events. "
+                    "notes.stale, review, sync; change selects all data events. "
                     "Defaults to change when resources is supplied, otherwise all.",
     )] = None,
     resources: Annotated[Optional[str], Query(

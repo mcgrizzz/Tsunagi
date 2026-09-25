@@ -80,7 +80,7 @@ def test_old_collection_completion_cannot_publish_ids_in_new_profile():
     broker.start_session(old_collection)
     token = broker.subscribe()
     dispatch_op(OpChanges(note=True), old_op)
-    assert broker.drain(token)[0]["ids"] is None
+    assert "ids" not in broker.drain(token)[0]
 
 
 def test_payload_cannot_override_session_or_sequence():

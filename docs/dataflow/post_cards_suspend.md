@@ -42,8 +42,8 @@ windows, and the event stream. Same request, three audiences.
        `cards.updated {type:"cards.updated", ids:[...], origin:"api", ...}`.
        The completed result supplies these IDs through `ApiOp.changes`;
        argument hints alone are never treated as confirmed changes. Related
-       resources get separate notifications, such as `notes.changed` with
-       `ids:null`. Exact type/resource filters apply before queueing; every
+       resources get separate notifications without IDs, such as
+       `scheduler.stale`. Exact type/resource filters apply before queueing; every
        emitted notification has its own sequence number.
    - `_success(result)` unwraps `.value` → Event.set → the request thread
      resumes with the affected count.

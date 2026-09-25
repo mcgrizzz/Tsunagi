@@ -6,7 +6,7 @@ writes know their own IDs; everything else (the Browser, the editor, the Add
 dialog, the reviewer, other add-ons) is collected into a burst. When the burst
 goes quiet, one scan finds the rows: notes and cards by `mod`, review log rows
 by ID, deletions from `graves`. A resource Anki flagged but the scan could not
-itemize, such as rows an undo restored with their old `mod`, stays `.changed`.
+itemize, such as rows an undo restored with their old `mod`, stays `.stale`.
 """
 from __future__ import annotations
 

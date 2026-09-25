@@ -38,8 +38,8 @@ def test_notes_client_receives_queued_changes_after_ready(event_broker):
             assert "\nid:" not in frame
 
             name, change, _ = await next_event(stream)
-            assert name == "notes.changed"
-            assert change["ids"] is None
+            assert name == "notes.stale"
+            assert "ids" not in change
             assert change["reason"] == "details_unavailable"
             assert "targets" not in change
             assert change["seq"] > initial["after_seq"]
@@ -52,9 +52,9 @@ def test_notes_client_receives_queued_changes_after_ready(event_broker):
             event_broker.publish("change", affected=["config"])
             event_broker.publish("reset")
             name, broad, _ = await next_event(stream)
-            assert name == "notes.changed"
+            assert name == "notes.stale"
             assert broad["reason"] == "collection"
-            assert broad["ids"] is None
+            assert "ids" not in broad
         finally:
             await stream.aclose()
         assert not event_broker.has_subscribers()
@@ -93,10 +93,10 @@ def test_resources_filter_each_named_change(event_broker):
         try:
             assert (await next_event(stream))[1]["resources"] == ["models", "notes"]
             event_broker.publish("change", affected=["notes", "cards"])
-            assert (await next_event(stream))[0] == "notes.changed"
+            assert (await next_event(stream))[0] == "notes.stale"
             event_broker.publish("change", targets={})  # unknown affected views
-            assert (await next_event(stream))[0] == "models.changed"
-            assert (await next_event(stream))[0] == "notes.changed"
+            assert (await next_event(stream))[0] == "models.stale"
+            assert (await next_event(stream))[0] == "notes.stale"
         finally:
             await stream.aclose()
 

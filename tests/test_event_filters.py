@@ -52,7 +52,7 @@ def test_independent_interests_share_event_ids_and_allow_sequence_gaps(event_bro
 def test_broad_unknown_and_related_changes_reach_note_clients(event_broker, payload):
     notes = subscribe(event_broker, types={"change"}, resources={"notes"})
     event_broker.publish("change", **payload)
-    assert [event["type"] for event in event_broker.drain(notes)] == ["notes.changed"]
+    assert [event["type"] for event in event_broker.drain(notes)] == ["notes.stale"]
 
 
 def test_resource_interests_filter_changes_and_types_select_other_notifications(event_broker):
@@ -79,8 +79,8 @@ def test_unrelated_traffic_cannot_overflow_filtered_queue(event_broker):
 
     kept = event_broker.drain(filtered)
     assert len(kept) == 1
-    assert kept[0]["type"] == "notes.changed"
-    assert kept[0]["ids"] is None
+    assert kept[0]["type"] == "notes.stale"
+    assert "ids" not in kept[0]
     assert event_broker.drain(unfiltered)[0]["reason"] == "lagged"
 
 
@@ -148,8 +148,8 @@ def test_http_filters_parse_lists_and_count_only_delivered_events(client, event_
     })
     assert response.status_code == 200
     frames = parse_frames(response.text)
-    assert [name for name, _ in frames] == ["ready", "notes.changed", "cards.changed", "sync",
-                                          "cards.changed", "close"]
+    assert [name for name, _ in frames] == ["ready", "notes.stale", "cards.stale", "sync",
+                                          "cards.stale", "close"]
     assert [event["seq"] for _, event in frames[1:-1]] == [3, 4, 5, 6]
     assert frames[-1][1] == {"reason": "max_events"}
     assert not event_broker.has_subscribers()

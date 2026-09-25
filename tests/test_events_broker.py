@@ -141,7 +141,7 @@ class TestDispatchOp:
         token = broker.subscribe()
         dispatch_op(all_true_changes(), None)
         events = broker.drain(token)
-        assert {e["type"] for e in events} == {f"{r}.changed" for r in CHANGE_RESOURCES}
+        assert {e["type"] for e in events} == {f"{r}.stale" for r in CHANGE_RESOURCES}
         assert all(e["reason"] == "collection" for e in events)
         assert "changes" not in events[0]
 
@@ -150,13 +150,13 @@ class TestDispatchOp:
         # happens to touch everything keeps its identity.
         token = broker.subscribe()
         dispatch_op(all_true_changes(), object())
-        assert {e["type"] for e in broker.drain(token)} == {f"{r}.changed" for r in CHANGE_RESOURCES}
+        assert {e["type"] for e in broker.drain(token)} == {f"{r}.stale" for r in CHANGE_RESOURCES}
 
     def test_api_origin(self):
         token = broker.subscribe()
         dispatch_op(op_changes(card=True, study_queues=True), ApiOp())
         event = broker.drain(token)[0]
-        assert event["type"] == "cards.changed"
+        assert event["type"] == "cards.stale"
         assert event["origin"] == "api"
         assert sorted(event["anki"]["changes"]) == ["card", "study_queues"]
 
@@ -165,7 +165,7 @@ class TestDispatchOp:
         dispatch_op(op_changes(note=True), ApiOp({"note_ids": [42, 43]}))
         event = broker.drain(token)[0]
         assert event["origin"] == "api"
-        assert event["ids"] is None
+        assert "ids" not in event
         assert "targets" not in event  # inputs are not confirmed changes
 
     def test_api_details_cannot_clobber_core_keys(self):
@@ -195,7 +195,7 @@ class TestDispatchOp:
                     label="Update Deck")
         events = broker.drain(token)
         assert {e["type"] for e in events} == {
-            "cards.changed", "reviews.changed", "scheduler.changed"}
+            "cards.stale", "reviews.stale", "scheduler.stale"}
         assert events[0]["origin"] is None
         assert sorted(events[0]["anki"]["changes"]) == ["card", "study_queues"]
         assert "label" not in events[0]["anki"]
@@ -207,7 +207,7 @@ class TestDispatchOp:
         event = broker.drain(token)[0]
         assert event["anki"]["label"] == "Suspend"
         assert event["origin"] == "api"
-        assert event["ids"] is None
+        assert "ids" not in event
 
     def test_label_is_carried_when_known(self):
         token = broker.subscribe()
@@ -366,8 +366,8 @@ def test_api_targets_are_hints_and_unknown_flags_request_full_refresh():
     token = broker.subscribe(resources={"notes"})
     dispatch_op(OpChanges(note=True), ApiOp({"note_ids": [42, 42, 99]}))
     event = broker.drain(token)[0]
-    assert event["type"] == "notes.changed"
-    assert event["ids"] is None
+    assert event["type"] == "notes.stale"
+    assert "ids" not in event
     assert "targets" not in event
     assert affected_resources(["note", "future_flag"]) == ["collection"]
     assert affected_resources(["browser_table"]) == ["collection"]
