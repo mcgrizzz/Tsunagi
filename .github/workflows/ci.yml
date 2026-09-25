@@ -95,13 +95,6 @@ jobs:
             # starlette StaticFiles on Windows (CVE-2026-48818), HTTPEndpoint methods
             # (CVE-2026-48817): neither is used.
             PYSEC-2026-2281 PYSEC-2026-2280
-            # click.edit() (CVE-2026-7246): only uvicorn's CLI uses click; never called.
-            PYSEC-2026-2132
-            # anyio TLS client and process pools (CVE-2026-63374, CVE-2026-64847): the
-            # server uses neither.
-            CVE-2026-63374 CVE-2026-64847
-            # idna.encode() (CVE-2026-45409): only anyio's client connect path calls it.
-            PYSEC-2026-215
           )
           args=()
           for id in "${ignore[@]}"; do args+=(--ignore-vuln "$id"); done
