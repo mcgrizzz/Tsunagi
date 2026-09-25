@@ -1,5 +1,7 @@
 """Named data events, subscription boundaries and delivery gaps."""
 import asyncio
+import threading
+import time
 
 import pytest
 from test_event_filters import event_broker as event_broker
@@ -171,3 +173,26 @@ def test_resource_filter_cannot_silently_do_nothing(client, event_broker, types)
     assert response.status_code == 422
     assert response.json()["detail"] == "types must match at least one selected data resource"
     assert not event_broker.has_subscribers()
+
+
+def test_publish_from_another_thread_wakes_the_stream(event_broker):
+    """Hooks publish on Anki's main thread; the stream must not wait to poll."""
+    async def consume():
+        stream = await open_stream(resources="notes")
+        try:
+            assert (await next_event(stream))[0] == "ready"
+            published = []
+
+            def publish():
+                published.append(time.monotonic())
+                event_broker.publish("change", affected=["notes"])
+
+            threading.Timer(0.05, publish).start()
+            name, _, _ = await next_event(stream)
+            return name, time.monotonic() - published[0]
+        finally:
+            await stream.aclose()
+
+    name, latency = asyncio.run(consume())
+    assert name == "notes.stale"
+    assert latency < 0.05  # the old 250 ms poll averaged far more

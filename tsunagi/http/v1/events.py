@@ -3,9 +3,9 @@ The event stream: GET /v1/events as Server-Sent Events.
 
 Hand-rolled SSE over StreamingResponse - no new dependencies, and unlike a
 websocket it goes through the auth/CORS middleware like any other request.
-The generator polls the broker's thread-safe queue with a short sleep, so no
-event-loop capture is needed (it behaves identically under uvicorn's loop
-and the TestClient's).
+The generator waits on an asyncio.Event that the broker sets, through
+call_soon_threadsafe, whenever it queues an event for this stream or shuts
+down. A 1 s ceiling on the wait also notices API key rotation.
 
 Events are published from Qt-main-thread hook callbacks registered in the
 addon root __init__.py; see adapters/events.py for the broker and the
@@ -27,7 +27,7 @@ from ...shared.errors import CollectionUnavailableError
 
 router = APIRouter()
 
-POLL_SECONDS = 0.25
+CHECK_SECONDS = 1.0  # longest wait before rechecking close reasons
 HEARTBEAT_SECONDS = 15.0
 _DESCRIPTION = """\
 Streams named collection events as Server-Sent Events (`text/event-stream`).
@@ -190,7 +190,17 @@ def stream_events(
     key_at_connect: str = settings.get("api_key", "")
 
     async def gen() -> AsyncIterator[str]:
-        token = broker.subscribe(types=selected_types, resources=selected_resources)
+        loop = asyncio.get_running_loop()
+        woken = asyncio.Event()
+
+        def wake() -> None:
+            try:
+                loop.call_soon_threadsafe(woken.set)
+            except RuntimeError:  # loop already closed
+                pass
+
+        token = broker.subscribe(types=selected_types, resources=selected_resources,
+                                 wake=wake)
         if token is None:
             yield _close_frame("shutdown")
             return
@@ -217,6 +227,7 @@ def stream_events(
                 if reason:
                     yield _close_frame(reason)
                     return
+                woken.clear()
                 for event in broker.drain(token):
                     # A yield can suspend across shutdown, profile switch or
                     # key rotation. Never continue emitting a drained batch.
@@ -238,10 +249,13 @@ def stream_events(
                 if now - last_beat >= HEARTBEAT_SECONDS:
                     yield ": ping\n\n"
                     last_beat = now
-                delay = POLL_SECONDS
+                delay = min(CHECK_SECONDS, HEARTBEAT_SECONDS - (now - last_beat))
                 if timeout is not None:
                     delay = min(delay, max(0.0, timeout - (now - start)))
-                await asyncio.sleep(delay)
+                try:
+                    await asyncio.wait_for(woken.wait(), delay)
+                except asyncio.TimeoutError:
+                    pass
         finally:
             broker.unsubscribe(token)
 

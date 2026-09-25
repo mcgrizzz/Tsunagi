@@ -17,7 +17,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
-from typing import Any, Deque, Dict, FrozenSet, List, Optional
+from typing import Any, Callable, Deque, Dict, FrozenSet, List, Optional
 from uuid import uuid4
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
@@ -72,11 +72,13 @@ class ApiOp:
 
 
 class _Subscriber:
-    __slots__ = ("queue", "dropped", "ready", "types", "resources")
+    __slots__ = ("queue", "dropped", "ready", "types", "resources", "wake")
 
     def __init__(self, session_id: str, after_seq: int, *,
                  types: Optional[FrozenSet[str]],
-                 resources: Optional[FrozenSet[str]]) -> None:
+                 resources: Optional[FrozenSet[str]],
+                 wake: Callable[[], None]) -> None:
+        self.wake = wake  # tells the stream to drain; must not block
         self.types = types
         self.resources = resources
         self.queue: Deque[Dict[str, Any]] = deque(maxlen=MAX_QUEUED)
@@ -119,7 +121,8 @@ class EventBroker:
             return self._session_id
 
     def subscribe(self, *, types: Optional[FrozenSet[str]] = None,
-                  resources: Optional[FrozenSet[str]] = None) -> Optional[int]:
+                  resources: Optional[FrozenSet[str]] = None,
+                  wake: Callable[[], None] = lambda: None) -> Optional[int]:
         with self._lock:
             if self._draining or self._session_id is None:
                 return None
@@ -129,7 +132,7 @@ class EventBroker:
             token = self._next_token
             self._next_token += 1
             self._subscribers[token] = _Subscriber(
-                self._session_id, self._seq, types=types, resources=resources)
+                self._session_id, self._seq, types=types, resources=resources, wake=wake)
             return token
 
     def ready(self, token: int) -> Optional[Dict[str, Any]]:
@@ -177,6 +180,7 @@ class EventBroker:
             if len(sub.queue) == sub.queue.maxlen:
                 sub.dropped += 1
             sub.queue.append(event)
+            sub.wake()
 
     def drain(self, token: int) -> List[Dict[str, Any]]:
         """Pending events, or a gap replacing the incomplete subscriber backlog."""
@@ -203,6 +207,8 @@ class EventBroker:
             if session_id is not None and session_id != self._session_id:
                 return
             self._draining = True
+            for sub in self._subscribers.values():
+                sub.wake()
             self._subscribers.clear()
             self._collection = None
             self.scanner = None
