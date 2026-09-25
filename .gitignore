@@ -8,3 +8,10 @@
 /lib
 /__pycache__
 *.pyc
+
+# Local planning and agent notes, not published for now
+/AGENTS.md
+/CLAUDE.md
+/Tsunagi.code-workspace
+/docs/backlog.md
+/docs/post_request_system_plan.md

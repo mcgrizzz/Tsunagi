@@ -47,6 +47,11 @@ ruff check .
 python -m pytest -q
 ```
 
+`tests/snapshots/openapi.json` records the published API schema, so any contract
+change shows up as a diff in review. After an intended change, regenerate it with
+`TSUNAGI_UPDATE_OPENAPI=1 python -m pytest -q tests/test_openapi_snapshot.py` and
+commit the result.
+
 Backend tests use temporary Anki collections. Optional Qt checks need a separate
 interpreter with `aqt` and its Qt dependencies. For example, point the settings
 check at that interpreter:
