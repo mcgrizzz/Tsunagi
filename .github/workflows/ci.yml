@@ -25,14 +25,14 @@ jobs:
           - python-version: "3.13"
             anki-version: ""
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Cache wheelhouse
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .wheelhouse
           key: wheelhouse-${{ hashFiles('tools/requirements.lock.txt') }}
@@ -69,3 +69,40 @@ jobs:
 
   qt:
     uses: ./.github/workflows/qt.yml
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Audit vendored dependencies
+        # Each ignored advisory is unreachable in Tsunagi today; recheck it when
+        # the named feature starts being used. Any other advisory fails CI.
+        run: |
+          python -m pip install -q pip-audit
+          ignore=(
+            # starlette form parsing (CVE-2024-47874, CVE-2025-54121, CVE-2026-54283):
+            # Tsunagi parses no forms and python-multipart is not vendored. Backlog 7.5.
+            PYSEC-2026-1943 PYSEC-2026-1941 PYSEC-2026-249
+            # starlette request.url rebuilt from Host/path (CVE-2026-48710, CVE-2026-54282):
+            # auth and routing read scope["path"]; the Host header is validated first.
+            PYSEC-2026-161 PYSEC-2026-248
+            # starlette StaticFiles on Windows (CVE-2026-48818), HTTPEndpoint methods
+            # (CVE-2026-48817): neither is used.
+            PYSEC-2026-2281 PYSEC-2026-2280
+            # click.edit() (CVE-2026-7246): only uvicorn's CLI uses click; never called.
+            PYSEC-2026-2132
+            # anyio TLS client and process pools (CVE-2026-63374, CVE-2026-64847): the
+            # server uses neither.
+            CVE-2026-63374 CVE-2026-64847
+            # idna.encode() (CVE-2026-45409): only anyio's client connect path calls it.
+            PYSEC-2026-215
+          )
+          args=()
+          for id in "${ignore[@]}"; do args+=(--ignore-vuln "$id"); done
+          pip-audit -r tools/requirements.lock.txt --disable-pip --no-deps "${args[@]}"
