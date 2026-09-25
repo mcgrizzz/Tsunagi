@@ -69,6 +69,9 @@ def check_reviewer(app, screenshot):
     assert gui.ac_guiReviewActive() is False
     assert gui.ac_guiAnswerCard(gui.EaseParams(ease=3)) is False
     assert gui.ac_guiStartCardTimer() is False
+    # The deck browser renders from a background op and writes the shared page
+    # whenever it finishes; on a slow machine that lands on top of the reviewer.
+    wait_for_page(aqt.mw.web, "Studied")
     assert gui.ac_guiDeckReview(gui.DeckParams(name="Default")) is True
     reviewer = aqt.mw.reviewer
     wait(lambda: reviewer.card is not None and reviewer.state == "question")
