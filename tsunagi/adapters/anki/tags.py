@@ -26,14 +26,18 @@ def all_tags(col: Collection) -> List[str]:
 @as_collection_op
 def add_tags(col: Collection, note_ids: Sequence[int], tags: str) -> int:
     """Add space-separated tags to notes (one undoable op)."""
-    res = col.tags.bulk_add([int(i) for i in note_ids], tags)
-    return ValueWithChanges(_count(res), res)
+    ids = [int(i) for i in note_ids]
+    res = col.tags.bulk_add(ids, tags)
+    return ValueWithChanges(_count(res), res,
+                            event_changes=lambda: {"notes": {"updated": ids}})
 
 
 @as_collection_op
 def remove_tags(col: Collection, note_ids: Sequence[int], tags: str) -> int:
-    res = col.tags.bulk_remove([int(i) for i in note_ids], tags)
-    return ValueWithChanges(_count(res), res)
+    ids = [int(i) for i in note_ids]
+    res = col.tags.bulk_remove(ids, tags)
+    return ValueWithChanges(_count(res), res,
+                            event_changes=lambda: {"notes": {"updated": ids}})
 
 
 @as_collection_op

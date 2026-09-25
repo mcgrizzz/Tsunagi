@@ -109,12 +109,15 @@ differently. There is no separate `refresh` message.
 | Create a note through either API or Anki's Add dialog | `notes.created` |
 | Update a note through the Tsunagi API, or its fields through the AnkiConnect Shim | `notes.updated` |
 | Delete notes through either API | `notes.deleted` |
-| Create a note through the Tsunagi API | `cards.created` for its new cards too |
-| Suspend, unsuspend, bury or unbury cards | `cards.updated` |
+| Create a note through either API | `cards.created` for its new cards too |
+| Add or remove tags on given notes through either API | `notes.updated` |
+| Answer cards through either API | `cards.updated` for the cards answered |
+| Suspend, unsuspend, bury, unbury, forget, flag, move to a deck, set due date, set values or reposition cards through the Tsunagi API | `cards.updated` |
 | Other operations without complete IDs, including undo | `notes.changed`, `cards.changed`, or another affected resource's `.changed` |
 
 Lists contain at most 1,000 IDs per resource. Larger sets produce `.changed`
-with `ids: null` instead. No extra note or card contents are read to build events.
+with `ids: null` instead. Repositioning with `shift_existing` also moves other
+cards, so it produces `cards.changed`. No extra note or card contents are read to build events.
 Deletion batches can include IDs already absent; card-update batches can include
 cards already in the requested state. An operation that changes nothing sends
 no event.

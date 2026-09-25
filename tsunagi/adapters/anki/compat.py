@@ -232,7 +232,8 @@ def bulk_note_tags(col, notes, tags, add=True):
     try:
         operation = col.tags.bulk_add if add else col.tags.bulk_remove
         changes = operation(notes, tags)
-        return ValueWithChanges(None, changes)
+        return ValueWithChanges(None, changes,
+                                event_changes=lambda: {"notes": {"updated": list(notes)}})
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 
@@ -554,6 +555,7 @@ def answer_cards_raw(col, answers):
 
     changes = OpChanges()
     saved = False
+    answered = []
     result = []
     try:
         for answer in answers:
@@ -566,13 +568,16 @@ def answer_cards_raw(col, answers):
                 if change is not None:
                     changes.MergeFrom(change.changes if hasattr(change, "changes") else change)
                 saved = True
+                answered.append(int(card.id))
                 result.append(True)
             except NotFoundError:
                 result.append(False)
         value = (result, None)
     except Exception as exc:
         value = (None, str(exc))
-    return ValueWithChanges(value, changes) if saved else value
+    return (ValueWithChanges(value, changes,
+                             event_changes=lambda: {"cards": {"updated": answered}})
+            if saved else value)
 
 
 @as_query_op

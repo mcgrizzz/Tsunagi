@@ -688,8 +688,9 @@ def ac_add_note(col: Collection, spec, media: Sequence[Dict[str, Any]] = ()) -> 
         res = col.add_note(note, int(deck["id"]))
         if int(getattr(res, "count", 1) or 0) < 1:
             raise ValueError(EMPTY_QUESTION)
-        return ValueWithChanges(int(note.id), res,
-                                event_changes=lambda: {"notes": {"created": [int(note.id)]}})
+        return ValueWithChanges(int(note.id), res, event_changes=lambda: {
+            "notes": {"created": [int(note.id)]},
+            "cards": {"created": col.card_ids_of_note(note.id)}})
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 

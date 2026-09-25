@@ -434,7 +434,8 @@ def _forget(col: Collection, card_ids: Sequence[int], *,
 def forget_cards(col: Collection, card_ids: Sequence[int], *,
                  restore_position: bool = False, reset_counts: bool = False) -> int:
     return ValueWithChanges(*_forget(
-        col, card_ids, restore_position=restore_position, reset_counts=reset_counts))
+        col, card_ids, restore_position=restore_position, reset_counts=reset_counts),
+                            event_changes=lambda: {"cards": {"updated": list(card_ids)}})
 
 
 def _set_due_date(col: Collection, card_ids: Sequence[int], days: str,
@@ -452,7 +453,8 @@ def _set_due_date(col: Collection, card_ids: Sequence[int], days: str,
 @as_collection_op(event_details=_ids_details)
 def set_due_date(col: Collection, card_ids: Sequence[int], days: str,
                  config_key: Optional[str] = None) -> int:
-    return ValueWithChanges(*_set_due_date(col, card_ids, days, config_key))
+    return ValueWithChanges(*_set_due_date(col, card_ids, days, config_key),
+                            event_changes=lambda: {"cards": {"updated": list(card_ids)}})
 
 
 def _resolve_change_deck(col: Collection, deck_id: Optional[int],
@@ -480,7 +482,8 @@ def _change_deck(col: Collection, card_ids: Sequence[int],
 @as_collection_op(event_details=_ids_details)
 def change_deck(col: Collection, card_ids: Sequence[int],
                 deck_id: Optional[int] = None, deck_name: Optional[str] = None) -> int:
-    return ValueWithChanges(*_change_deck(col, card_ids, deck_id, deck_name))
+    return ValueWithChanges(*_change_deck(col, card_ids, deck_id, deck_name),
+                            event_changes=lambda: {"cards": {"updated": list(card_ids)}})
 
 
 def _reposition(col: Collection, card_ids: Sequence[int], *,
@@ -496,9 +499,13 @@ def _reposition(col: Collection, card_ids: Sequence[int], *,
 def reposition_cards(col: Collection, card_ids: Sequence[int], *,
                      starting_from: int = 0, step_size: int = 1,
                      randomize: bool = False, shift_existing: bool = False) -> int:
+    # Shifting also moves cards outside the request; report those as a
+    # general card change rather than an incomplete ID list.
     return ValueWithChanges(*_reposition(
         col, card_ids, starting_from=starting_from, step_size=step_size,
-        randomize=randomize, shift_existing=shift_existing))
+        randomize=randomize, shift_existing=shift_existing),
+                            event_changes=None if shift_existing
+                            else lambda: {"cards": {"updated": list(card_ids)}})
 
 
 def _set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> Any:
@@ -510,7 +517,8 @@ def _set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> Any:
 
 @as_collection_op(event_details=_ids_details)
 def set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> int:
-    return ValueWithChanges(*_set_flag(col, card_ids, flag))
+    return ValueWithChanges(*_set_flag(col, card_ids, flag),
+                            event_changes=lambda: {"cards": {"updated": list(card_ids)}})
 
 
 def _set_ease(col: Collection, entries: Sequence[Dict[str, int]]) -> Any:
@@ -610,6 +618,7 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
     state from the card itself, and answering a suspended card unsuspends it.
     """
     out: List[bool] = []
+    answered: List[int] = []
     changes: Any = None
     for entry in answers:
         try:
@@ -624,7 +633,10 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
         card.start_timer()
         changes = col.sched.answerCard(card, int(entry["ease"]))
         out.append(True)
-    return ValueWithChanges(out, changes) if changes is not None else out
+        answered.append(int(card.id))
+    return (ValueWithChanges(out, changes,
+                             event_changes=lambda: {"cards": {"updated": answered}})
+            if changes is not None else out)
 
 
 @as_collection_op(event_details=lambda card_id, values: {
@@ -640,7 +652,8 @@ def set_card_values(col: Collection, card_id: int, values: Dict[str, Any]) -> An
     for key, value in values.items():
         setattr(card, key, value)
     changes = col.update_card(card, skip_undo_entry=True)
-    return ValueWithChanges(True, changes)
+    return ValueWithChanges(True, changes,
+                            event_changes=lambda: {"cards": {"updated": [int(card.id)]}})
 
 
 # Columns canonical's setSpecificValueOfCard refuses without warning_check:

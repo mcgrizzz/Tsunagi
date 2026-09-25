@@ -4,7 +4,7 @@ from anki.collection import OpChanges
 from test_events_broker import recorded_ops as recorded_ops
 
 from tsunagi.adapters import ops
-from tsunagi.adapters.anki import cards, notes
+from tsunagi.adapters.anki import cards, compat, notes, tags
 from tsunagi.adapters.event_results import (
     MAX_RESULT_IDS,
     freeze_changes,
@@ -28,9 +28,9 @@ def emit_last(recorded_ops, subscription, resources=("notes", "cards")):
     return {e["type"]: e for e in emitted if e["type"].split(".")[0] in resources}
 
 
-def new_note():
+def new_note(front="word"):
     return notes.create_note({"modelName": "Basic", "deckName": "Default",
-                              "fields": {"Front": "word", "Back": "meaning"}})
+                              "fields": {"Front": front, "Back": "meaning"}})
 
 
 def test_create_reuses_persisted_result_without_subscriber_reads(col, subscription, recorded_ops, monkeypatch):
@@ -109,11 +109,64 @@ def test_compat_save_and_update_emit_ids(col, subscription, recorded_ops):
     spec = {"modelName": "Basic", "deckName": "Default",
             "fields": {"Front": "compat", "Back": "meaning"}}
     nid = notes.ac_add_note(spec)
-    event = emit_last(recorded_ops, subscription, ("notes",))
+    event = emit_last(recorded_ops, subscription)
     assert event["notes.created"]["ids"] == [nid]
+    assert event["cards.created"]["ids"] == col.card_ids_of_note(nid)
+    assert not any(name.endswith(".changed") for name in event)
     notes.ac_update_note_fields(nid, {"Front": "updated"}, [])
     event = emit_last(recorded_ops, subscription, ("notes",))
     assert event["notes.updated"]["ids"] == [nid]
+
+
+@pytest.mark.parametrize("verb", [
+    lambda ids: cards.forget_cards(ids),
+    lambda ids: cards.set_due_date(ids, "1"),
+    lambda ids: cards.change_deck(ids, deck_name="Other"),
+    lambda ids: cards.reposition_cards(ids, starting_from=5),
+    lambda ids: cards.set_flag(ids, 3),
+    lambda ids: cards.set_card_values(ids[0], {"flags": 2}),
+], ids=["forget", "set_due_date", "change_deck", "reposition", "set_flag", "set_values"])
+def test_card_verbs_report_requested_ids(col, subscription, recorded_ops, verb):
+    ids = new_note().cards
+    col.decks.id("Other")
+    verb(ids)
+    event = emit_last(recorded_ops, subscription, ("cards",))
+    assert event["cards.updated"]["ids"] == ids
+    assert "cards.changed" not in event
+
+
+def test_reposition_shifting_other_cards_stays_general(col, subscription, recorded_ops):
+    new_note("first")
+    moved = new_note("second").cards
+    cards.reposition_cards(moved, starting_from=0, shift_existing=True)
+    event = emit_last(recorded_ops, subscription, ("cards",))
+    assert set(event) == {"cards.changed"}
+
+
+def test_answers_report_answered_cards_only(col, subscription, recorded_ops):
+    card_id = new_note().cards[0]
+    cards.answer_cards([{"card_id": card_id, "ease": 3}, {"card_id": 123, "ease": 3}])
+    event = emit_last(recorded_ops, subscription, ("cards",))
+    assert event["cards.updated"]["ids"] == [card_id]
+    compat.answer_cards_raw([{"cardId": card_id, "ease": 3}, {"cardId": 123, "ease": 3}])
+    event = emit_last(recorded_ops, subscription, ("cards",))
+    assert event["cards.updated"]["ids"] == [card_id]
+
+
+@pytest.mark.parametrize("write, tagged", [
+    (lambda nids: tags.add_tags(nids, "verb"), False),
+    (lambda nids: tags.remove_tags(nids, "verb"), True),
+    (lambda nids: compat.bulk_note_tags(nids, "verb", add=True), False),
+    (lambda nids: compat.bulk_note_tags(nids, "verb", add=False), True),
+], ids=["add", "remove", "compat_add", "compat_remove"])
+def test_tag_writes_report_note_ids(col, subscription, recorded_ops, write, tagged):
+    nids = [new_note("one").id, new_note("two").id]
+    if tagged:
+        tags.add_tags(nids, "verb")
+    write(nids)
+    event = emit_last(recorded_ops, subscription, ("notes",))
+    assert event["notes.updated"]["ids"] == nids
+    assert "notes.changed" not in event
 
 
 def test_failed_write_has_no_event(col, subscription, recorded_ops):
