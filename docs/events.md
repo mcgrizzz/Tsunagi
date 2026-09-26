@@ -60,6 +60,7 @@ deleted card IDs aren't included. That operation won't also produce
 | Note creations and updates | `?types=notes.created,notes.updated` |
 | Card answers, in Anki's reviewer or through either API, with the card's new interval, due, queue and FSRS memory state | `?types=review` |
 | Sync starting or finishing | `?types=sync` |
+| Due counts for a deck list: new, learning and review cards per deck, sent when they move (answers, suspends, deck changes, syncs, day rollover) | `?types=decks.counts` |
 
 Review messages are off by default: turn on **Send review events** in
 Tsunagi's settings (`events_reviews`). Change messages can be turned off with

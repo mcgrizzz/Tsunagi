@@ -7,12 +7,15 @@ dialog, the reviewer, other add-ons) is collected into a burst. When the burst
 goes quiet, one scan finds the rows: notes and cards by `mod`, review log rows
 by ID, deletions from `graves`. A resource Anki flagged but the scan could not
 itemize, such as rows an undo restored with their old `mod`, stays `.stale`.
+
+The same quiet point sends `decks.counts` for decks whose due counts moved,
+after answers, suspends, deck changes, syncs and day rollover.
 """
 from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable, Dict, Iterable, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, Optional, Set, Tuple
 
 from .event_results import freeze_changes
 from .events import affected_resources, broker, event_allowed
@@ -30,6 +33,9 @@ class ChangeScan:
         self.flags: Set[str] = set()
         # (resource, id) -> newest mod already reported
         self.seen: Dict[Tuple[str, int], int] = {}
+        self.counts_due = False
+        # deck_id -> counts last compared, so only moved decks are sent
+        self.counts = self._counts() or {}
         self.rebase()
 
     def rebase(self) -> None:
@@ -41,11 +47,16 @@ class ChangeScan:
         return {(int(oid), int(kind)) for oid, kind in
                 self.col.db.all("select oid, type from graves")}
 
-    def mark(self, flags: Iterable[str], *, typing: bool = False) -> None:
+    def mark(self, flags: Iterable[str], *, typing: bool = False, counts: bool = False) -> None:
         if not (event_allowed("notes.stale") or event_allowed("reviews.stale")):
             return  # nothing a scan finds could be sent
         self.flags.update(flags)
+        self.counts_due |= counts
         self.restart_timer(TYPING_DELAY if typing else OP_DELAY)
+
+    def mark_counts(self) -> None:
+        self.counts_due = True
+        self.restart_timer(OP_DELAY)
 
     def reported(self, changes: Dict[str, Dict[str, list]]) -> None:
         """Rows an API write already announced; scans skip them unless changed again."""
@@ -87,12 +98,35 @@ class ChangeScan:
     def flush(self) -> None:
         """Publish one burst. Called by the timer on the main thread."""
         flags, self.flags = sorted(self.flags), set()
-        if broker.scanner is not self or not flags:
+        counts_due, self.counts_due = self.counts_due, False
+        if broker.scanner is not self:
             return
+        if flags:
+            try:
+                found = freeze_changes(self.scan())
+            except Exception:
+                found = {}  # collection closing: fall back to the flags alone
+                logging.getLogger(__name__).debug("Change scan failed", exc_info=True)
+            broker.publish("change", changes=found, origin="ui",
+                           affected=affected_resources(flags), anki={"changes": flags})
+        if counts_due and broker.wants("decks.counts"):
+            self.publish_counts()
+
+    def _counts(self) -> Optional[Dict[int, Dict[str, int]]]:
+        from .anki.decks import _deck_stats
         try:
-            found = freeze_changes(self.scan())
+            return _deck_stats(self.col)
         except Exception:
-            found = {}  # collection closing: fall back to the flags alone
-            logging.getLogger(__name__).debug("Change scan failed", exc_info=True)
-        broker.publish("change", changes=found, origin="ui",
-                       affected=affected_resources(flags), anki={"changes": flags})
+            logging.getLogger(__name__).debug("Deck counts failed", exc_info=True)
+            return None
+
+    def publish_counts(self) -> None:
+        """Decks whose counts differ from the last comparison."""
+        counts = self._counts()
+        if counts is None:
+            return
+        changed = [{"id": did, **row} for did, row in counts.items()
+                   if did and self.counts.get(did) != row]  # 0 is the tree's root
+        self.counts = counts
+        if changed:
+            broker.publish("decks.counts", decks=changed)

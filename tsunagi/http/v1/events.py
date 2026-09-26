@@ -47,7 +47,9 @@ Connect with `?resources=notes` for note events:
   reload the notes you show.
 
 Cards use the same names with the cards prefix. Reviews report reviews.created
-with review log IDs. Other resources currently report stale notifications.
+with review log IDs. decks.counts lists the decks whose due counts moved
+(answers, suspends, deck changes, syncs, day rollover), each as {id, new_count,
+learn_count, review_count, total_in_deck} like /v1/decks rows. Other resources currently report stale notifications.
 No full notes, card contents or media are sent. Fetch any contents your app needs through the normal API, with select to choose fields.
 A resource with complete ID details does not also emit stale for that operation.
 Related resources can produce separate events: deleting a note can produce
@@ -62,7 +64,7 @@ operations report cards.updated with their processed IDs; a batch can include
 cards already in the requested state. Empty/no-op operations produce no event.
 Changes made inside Anki (Browser, editor, Add dialog, reviewer) are reported
 with IDs about 0.5 s after they stop, or after a 2 s pause in typing, including
-reviews.created for new review log rows. Undo and other operations whose rows
+reviews.created for new review log rows, and one decks.counts per burst. Undo and other operations whose rows
 can't be identified use resource.stale. ID lists above 1,000 per resource
 also use changed.
 

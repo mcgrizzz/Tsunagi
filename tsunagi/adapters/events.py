@@ -31,7 +31,7 @@ CHANGE_RESOURCES = frozenset({
 DATA_EVENT_TYPES = (frozenset(f"{resource}.stale" for resource in CHANGE_RESOURCES)
                     | frozenset(f"{resource}.{kind}" for resource in ("notes", "cards")
                                 for kind in ("created", "updated", "deleted"))
-                    | {"reviews.created"})
+                    | {"reviews.created", "decks.counts"})
 EVENT_TYPES = DATA_EVENT_TYPES | {"change", "review", "sync"}
 
 
@@ -153,6 +153,12 @@ class EventBroker:
         with self._lock:
             return bool(self._subscribers)
 
+    def wants(self, type: str) -> bool:
+        """Skip computing an event nobody would receive."""
+        with self._lock:
+            subs = list(self._subscribers.values())
+        return event_allowed(type) and any(sub.accepts(type) for sub in subs)
+
     def has_change_subscribers(self) -> bool:
         """Avoid preparing changed IDs for review/sync-only listeners."""
         with self._lock:
@@ -255,6 +261,8 @@ _AFFECTED_RESOURCES = {
     "study_queues": {"scheduler", "reviews"},
 }
 _UI_FLAGS = {"mtime", "browser_table", "browser_sidebar"}
+# Flags after which a deck's due counts may differ.
+_COUNT_FLAGS = {"card", "deck", "deck_config", "study_queues"}
 
 
 def affected_resources(flags: List[str]) -> List[str]:
@@ -297,6 +305,8 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     - Tsunagi's own writes -> `change` now, origin "api", with recorded IDs
     - anything else -> the change scanner's next burst. Without a scanner
       (headless), `change` now, and editor typing is dropped.
+    - ops that can move due counts, from either side, also queue
+      `decks.counts` for the scanner's next quiet point.
     `label` comes from Anki's undo status. Only use it when a handler
     identifies the operation: after an untagged undo it names the next
     undoable action, not the change that just completed.
@@ -310,11 +320,15 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
         broker.publish("reset")
         if scanner is not None:
             scanner.rebase()
+            scanner.mark_counts()
         return
     api = isinstance(handler, ApiOp)
+    counts = bool(_COUNT_FLAGS.intersection(flags))
     if scanner is not None and not api:
-        scanner.mark(flags, typing=is_ui_text_update(changes, handler))
+        scanner.mark(flags, typing=is_ui_text_update(changes, handler), counts=counts)
         return
+    if scanner is not None and counts:
+        scanner.mark_counts()
     if is_ui_text_update(changes, handler):
         return
     origin = "api" if api else None if handler is None else "ui"

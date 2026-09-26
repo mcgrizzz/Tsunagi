@@ -88,3 +88,51 @@ def test_late_timer_after_the_session_ends_publishes_nothing(scan):
     broker.begin_drain()
     scanner.flush()
     assert broker.scanner is None
+
+
+def _counts_events(token):
+    return [e for e in broker.drain(token) if e["type"] == "decks.counts"]
+
+
+def test_an_answer_sends_one_counts_event_and_a_flag_change_none(scan, answer_cards):
+    col, kept, _, _, _ = scan
+    token = broker.subscribe(types=frozenset({"decks.counts"}))
+    before = broker.scanner.counts[1]
+    assert answer_cards(1) == 1
+    dispatch_op(OpChanges(card=True, study_queues=True), object())
+    dispatch_op(OpChanges(card=True, study_queues=True), object())  # same burst
+    broker.scanner.flush()
+    [event] = _counts_events(token)
+    [deck] = event["decks"]
+    assert deck["id"] == 1 and deck["new_count"] == before["new_count"] - 1
+    assert deck["learn_count"] == before["learn_count"] + 1
+
+    col.set_user_flag_for_cards(1, kept.card_ids())  # counts do not move
+    dispatch_op(OpChanges(card=True), object())
+    broker.scanner.flush()
+    assert _counts_events(token) == []
+
+
+def test_api_ops_and_rollover_queue_counts(scan):
+    col, kept, _, delays, _ = scan
+    token = broker.subscribe(types=frozenset({"decks.counts"}))
+    col.sched.suspend_cards(kept.card_ids())
+    dispatch_op(OpChanges(card=True, study_queues=True), ApiOp(collection=col))
+    assert delays == [OP_DELAY]
+    broker.scanner.flush()
+    [event] = _counts_events(token)
+    assert event["decks"][0]["new_count"] == 1
+    broker.scanner.mark_counts()  # day_did_change; nothing moved
+    broker.scanner.flush()
+    assert _counts_events(token) == []
+
+
+def test_counts_are_not_computed_without_a_listener(scan, monkeypatch):
+    col, kept, _, _, _ = scan
+    scanner = broker.scanner
+    broker.start_session(col)  # drop the fixture's catch-all stream
+    broker.scanner = scanner
+    broker.subscribe(types=frozenset({"sync"}))
+    monkeypatch.setattr(broker.scanner, "_counts", lambda: pytest.fail("computed"))
+    dispatch_op(OpChanges(card=True, study_queues=True), object())
+    broker.scanner.flush()

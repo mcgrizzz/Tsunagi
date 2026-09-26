@@ -84,7 +84,7 @@ GATE_INFO: Dict[str, Tuple[str, str]] = {
     "events_changes": (
         "Changes to your collection",
         "Notes, cards, decks, note types, tags and settings being added, "
-        "edited or deleted.",
+        "edited or deleted, and decks' due counts changing.",
     ),
     "events_reviews": (
         "Your review activity",

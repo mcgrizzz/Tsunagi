@@ -132,7 +132,8 @@ automatically, and the old flat key is ignored.)
   a tool that needs it.
 - `events_changes` (default `true`) — the event stream (`GET /v1/events`)
   sends messages when notes, cards, decks, note types, tags or settings
-  change. When `false`, those messages are never sent.
+  change, and when a deck's due counts move. When `false`, those messages are
+  never sent.
 - `events_reviews` (default `false`) — the event stream sends a message each
   time you answer a card, and when review log rows are added. Turn it on for
   tools that react to your studying live. Review history stays readable

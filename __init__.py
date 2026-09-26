@@ -143,6 +143,14 @@ else:
         except Exception:
             pass
 
+    def _on_day_change() -> None:
+        try:
+            from .tsunagi.adapters.events import broker
+            if broker.scanner is not None:
+                broker.scanner.mark_counts()
+        except Exception:
+            pass
+
     # hasattr-guarded: hook availability on older Anki isn't verifiable from
     # here, and a missing hook should cost a feature, not the boot.
     for _hook_name, _callback in (
@@ -150,6 +158,7 @@ else:
         ("reviewer_did_answer_card", _on_card_answered),
         ("sync_will_start", _on_sync_start),
         ("sync_did_finish", _on_sync_finish),
+        ("day_did_change", _on_day_change),
     ):
         if hasattr(gui_hooks, _hook_name):
             getattr(gui_hooks, _hook_name).append(_callback)
