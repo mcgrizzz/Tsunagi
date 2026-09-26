@@ -202,9 +202,8 @@ def ease(body: SetEaseRequest = Body(...)) -> SchedulingResult:
        "`gates.cards_set_memory_state` config gate.")
 def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResult:
     if not settings.gate_enabled("cards_set_memory_state"):
-        raise ValidationError(
-            "cards:set-memory-state is disabled; enable gates.cards_set_memory_state in the config"
-        )
+        raise ValidationError("cards:set-memory-state is disabled; "
+                              + settings.gate_off_reason("cards_set_memory_state"))
     start = time.perf_counter()
     results: List[bool] = set_memory_states(
         [e.dict(exclude_unset=True) for e in body.cards])

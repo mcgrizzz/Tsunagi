@@ -20,10 +20,13 @@ A disabled capability has these fields:
 ```json
 {
   "status": "disabled",
-  "reason": "Available but disabled in settings",
+  "reason": "enable gates.cards_set_memory_state in Tsunagi's settings",
   "setting": "gates.cards_set_memory_state"
 }
 ```
+
+A gate that is switched on but needs an API key, because Tsunagi accepts
+connections from other devices, says so in its `reason` instead.
 
 Available entries have a null `reason`. A `setting` can still be present when
 its switch is enabled. Entries without a controlling setting use null.

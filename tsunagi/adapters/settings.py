@@ -9,11 +9,17 @@ stays importable without aqt (tests construct their own Settings).
 from __future__ import annotations
 
 import threading
+from ipaddress import ip_address
 from typing import Any, Callable, Dict, Optional
 
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 
 PersistFn = Callable[[Dict[str, Any]], None]
+
+# Gates that read local files or overwrite scheduling data stay off while the
+# server listens beyond this computer with no api_key, so another device on
+# the network can never use them unauthenticated.
+KEY_REQUIRED_GATES = frozenset({"media_allow_local_path", "cards_set_memory_state"})
 
 # Browser-extension origin schemes covered by the "http://localhost" entry
 EXTENSION_ORIGINS = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
@@ -53,10 +59,34 @@ class Settings:
 
     def gate_enabled(self, name: str) -> bool:
         """True if the opt-in gate `name` (a key under "gates") is enabled."""
+        if name in KEY_REQUIRED_GATES and self._needs_key():
+            return False
+        return self._gate_switched_on(name)
+
+    def _needs_key(self) -> bool:
+        """No api_key while bound to a non-loopback address."""
+        if self.get("api_key"):
+            return False
+        host = str(self.get("host") or "127.0.0.1").strip("[]")
+        if host == "localhost":
+            return False
+        try:
+            return not ip_address(host).is_loopback
+        except ValueError:
+            return True  # a hostname: assume other devices can reach it
+
+    def _gate_switched_on(self, name: str) -> bool:
         gates = self.get("gates") or {}
         # Anki keeps a saved "gates" dict whole, so gates added later fall back
         # to their defaults.
         return bool(gates.get(name, DEFAULTS["gates"].get(name, False)))
+
+    def gate_off_reason(self, name: str) -> str:
+        """What the user must change for a disabled gate to take effect."""
+        if self._gate_switched_on(name):
+            return (f"gates.{name} needs an API key while Tsunagi accepts connections "
+                    "from other devices; set one in Tsunagi's settings")
+        return f"enable gates.{name} in Tsunagi's settings"
 
     def add_cors_origin(self, origin: str) -> None:
         allowlist = list(self.get("cors_allowlist", []))

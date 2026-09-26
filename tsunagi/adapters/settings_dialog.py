@@ -74,12 +74,14 @@ GATE_INFO: Dict[str, Tuple[str, str]] = {
     "media_allow_local_path": (
         "Allow local file paths in media actions",
         "Lets API clients read files from this computer by path. "
-        "Leave off unless a tool you trust needs it.",
+        "Leave off unless a tool you trust needs it. Needs an API key when "
+        "other devices can connect.",
     ),
     "cards_set_memory_state": (
         "Allow rewriting FSRS memory state",
         "Lets API clients overwrite cards' FSRS memory state and desired "
-        "retention. Leave off unless a tool you trust needs it.",
+        "retention. Leave off unless a tool you trust needs it. Needs an API "
+        "key when other devices can connect.",
     ),
     "events_changes": (
         "Changes to your collection",

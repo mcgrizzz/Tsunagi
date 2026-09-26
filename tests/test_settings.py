@@ -75,6 +75,28 @@ def fake_mw(writes):
     )
 
 
+class TestKeyRequiredGates:
+    """Risky gates need an API key only when other devices can connect."""
+
+    def _settings(self, host, api_key=""):
+        return Settings({**DEFAULTS, "host": host, "api_key": api_key,
+                         "gates": {**DEFAULTS["gates"], "media_allow_local_path": True}})
+
+    def test_loopback_needs_no_key(self):
+        for host in ("127.0.0.1", "localhost", "::1", "[::1]"):
+            assert self._settings(host).gate_enabled("media_allow_local_path"), host
+
+    def test_network_bind_without_key_keeps_gate_off(self):
+        for host in ("0.0.0.0", "192.168.1.20", "anki-box.local"):
+            s = self._settings(host)
+            assert not s.gate_enabled("media_allow_local_path"), host
+            assert "needs an API key" in s.gate_off_reason("media_allow_local_path")
+        assert self._settings("0.0.0.0", api_key="k").gate_enabled("media_allow_local_path")
+
+    def test_other_gates_are_unaffected(self):
+        assert self._settings("0.0.0.0").gate_enabled("events_changes")
+
+
 class TestApplyConfig:
     def test_write_true_always_writes_and_configures(self, reset_settings):
         writes = []

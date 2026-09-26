@@ -100,9 +100,8 @@ def _resolve_upload(body: MediaUpload) -> tuple:
         name = body.filename
     elif body.path is not None:
         if not settings.gate_enabled("media_allow_local_path"):
-            raise ValidationError(
-                "local 'path' uploads are disabled; enable gates.media_allow_local_path in the config"
-            )
+            raise ValidationError("local 'path' uploads are disabled; "
+                                  + settings.gate_off_reason("media_allow_local_path"))
         if not os.path.isfile(body.path):
             raise ValidationError(f"no such file: {body.path}")
         if os.path.getsize(body.path) > limit:

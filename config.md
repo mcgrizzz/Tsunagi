@@ -118,6 +118,11 @@ this editor toggles them without restarting Anki. (Older configs had
 `media_allow_local_path` as a top-level key; it was moved in here
 automatically, and the old flat key is ignored.)
 
+`media_allow_local_path` and `cards_set_memory_state` also need a non-empty
+`api_key` when `host` is not a loopback address (for example `0.0.0.0`):
+without one they stay off even when set to `true`, so no other device on
+your network can use them unauthenticated.
+
 - `media_allow_local_path` — when `true`, media uploads may name a file **on
   this computer** for the server to read (`{"path": "C:/pictures/dog.png"}`),
   which is how AnkiConnect's `storeMediaFile` behaves. With it on, anything

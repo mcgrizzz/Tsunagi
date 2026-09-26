@@ -5,12 +5,18 @@ from ..adapters.settings import settings
 from ..shared.schemas.capabilities import CapabilityState, OperationCapability
 
 
-def state(*, supported=True, enabled=True, setting=None):
+def state(*, supported=True, enabled=True, setting=None,
+          reason="Available but disabled in settings"):
     if not supported:
         return CapabilityState(status="unsupported", reason="Unsupported by this Anki version", setting=setting)
     if not enabled:
-        return CapabilityState(status="disabled", reason="Available but disabled in settings", setting=setting)
+        return CapabilityState(status="disabled", reason=reason, setting=setting)
     return CapabilityState(setting=setting)
+
+
+def gate_state(name, **kwargs):
+    return state(enabled=settings.gate_enabled(name), setting=f"gates.{name}",
+                 reason=settings.gate_off_reason(name), **kwargs)
 
 
 def native_features(support):
@@ -21,7 +27,6 @@ def native_features(support):
 
 def native_operations(routes, support):
     operations = {}
-    gates = dict(settings.get("gates") or {})
     for route in routes:
         if not isinstance(route, APIRoute) or not route.path.startswith("/v1/") or not route.include_in_schema:
             continue
@@ -36,14 +41,11 @@ def native_operations(routes, support):
                     status = state(supported=feature["available"])
                     options = {name: state(supported=False) for name in feature.get("unsupported_options", [])}
             if key == "POST /v1/cards:set-memory-state":
-                status = state(enabled=bool(gates.get("cards_set_memory_state")),
-                               setting="gates.cards_set_memory_state")
-                options["cards[].decay"] = state(supported=support["card_decay"],
-                                                 enabled=bool(gates.get("cards_set_memory_state")),
-                                                 setting="gates.cards_set_memory_state")
+                status = gate_state("cards_set_memory_state")
+                options["cards[].decay"] = gate_state("cards_set_memory_state",
+                                                      supported=support["card_decay"])
             if key == "POST /v1/media":
-                options["path"] = state(enabled=bool(gates.get("media_allow_local_path")),
-                                        setting="gates.media_allow_local_path")
+                options["path"] = gate_state("media_allow_local_path")
             if method in {"POST", "PATCH"} and route.path in {"/v1/decks", "/v1/decks/{id}"}:
                 options["desired_retention"] = state(supported=support["deck_desired_retention"])
             if key in {"POST /v1/collection:import", "GET /v1/collection/import-options"}:

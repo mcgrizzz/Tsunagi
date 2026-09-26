@@ -359,6 +359,15 @@ class TestSetMemoryState:
         assert "gates.cards_set_memory_state" in resp.json()["detail"]
         assert self._row(seeded, cid)["memory_state"] is None
 
+    def test_network_bind_without_key_keeps_the_gate_off(self, seeded, reset_settings):
+        reset_settings.update(host="0.0.0.0", gates={"cards_set_memory_state": True})
+        cid = ids(seeded)[0]
+        resp = self._write(seeded, {
+            "id": cid, "memory_state": {"stability": 9.0, "difficulty": 3.0}})
+        assert resp.status_code == 400
+        assert "needs an API key" in resp.json()["detail"]
+        assert self._row(seeded, cid)["memory_state"] is None
+
     def test_write_round_trip(self, seeded, reset_settings):
         self._enable(reset_settings)
         cid = ids(seeded)[0]

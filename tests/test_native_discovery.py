@@ -37,7 +37,7 @@ def test_settings_apply_to_the_operation_or_its_option(client, reset_settings, e
     if memory["options"]["cards[].decay"]["status"] != "unsupported":
         assert memory["options"]["cards[].decay"]["status"] == memory["status"]
     if not enabled:
-        assert "disabled in settings" in memory["reason"]
+        assert "enable gates.cards_set_memory_state" in memory["reason"]
         response = client.post("/v1/media", json={"filename": "probe", "path": "/missing"})
         assert response.status_code == 200
         assert response.json()["created"] == []

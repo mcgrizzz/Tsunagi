@@ -128,7 +128,8 @@ def _resolve_media(
                     data = base64.b64decode(encoded)
                 elif path:
                     if not settings.gate_enabled("media_allow_local_path"):
-                        raise ValueError("local 'path' uploads are disabled (gates.media_allow_local_path)")
+                        raise ValueError("local 'path' uploads are disabled; "
+                                         + settings.gate_off_reason("media_allow_local_path"))
                     with open(path, "rb") as fh:
                         data = fh.read()
                 elif url:
