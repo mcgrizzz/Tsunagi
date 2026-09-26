@@ -12,6 +12,7 @@ For installation and connection setup, start with the [project README](../README
 - [API discovery](capabilities.md): available operations and settings restrictions.
 - [AnkiConnect compatibility](ankiconnect_parity.md): action coverage and differences.
 - [Configuration](../config.md): connection, access and advanced settings.
+- [Security model](security.md): who can reach the API, what stops them, and known gaps.
 
 ## Work on Tsunagi
 
