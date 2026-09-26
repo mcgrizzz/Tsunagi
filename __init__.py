@@ -121,7 +121,7 @@ else:
     def _on_card_answered(reviewer, card, ease) -> None:
         try:
             from .tsunagi.adapters.events import publish_review
-            publish_review(card.id, ease)
+            publish_review(card, ease)
         except Exception:
             pass
 

@@ -73,7 +73,10 @@ also use changed.
   them. A combination with no matching data type returns HTTP 422, as do empty
   or unknown filter values. Filtering happens before the subscriber queue.
 
-review contains card_id and ease (1 Again, 2 Hard, 3 Good, 4 Easy). sync contains
+review is sent for answers in Anki's reviewer (origin ui) and through either API
+(origin api). It contains card_id, ease (1 Again, 2 Hard, 3 Good, 4 Easy) and
+the card's new interval, due, queue and memory_state, named as in card rows.
+sync contains
 phase started/finished. Exact type filters omit other events, including stale;
 use resources alone if you need all notifications affecting a displayed list.
 

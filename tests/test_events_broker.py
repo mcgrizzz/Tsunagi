@@ -3,6 +3,8 @@ Unit tests for the event broker and the OpChanges dispatch rules. The broker
 is pure stdlib; dispatch_op is exercised with real anki OpChanges protos
 (the genuine anki package is a test dependency).
 """
+from types import SimpleNamespace
+
 import pytest
 from anki.collection import OpChanges
 
@@ -263,11 +265,12 @@ class TestApiInitiatorTagging:
 class TestPublishHelpers:
     def test_review(self):
         token = broker.subscribe()
-        publish_review(1690000000000, 3)
+        card = SimpleNamespace(id=1690000000000, ivl=4, due=120, queue=2, memory_state=None)
+        publish_review(card, 3)
         event = broker.drain(token)[0]
-        assert event["type"] == "review"
-        assert event["card_id"] == 1690000000000
-        assert event["ease"] == 3
+        assert event["type"] == "review" and event["origin"] == "ui"
+        assert (event["card_id"], event["ease"], event["interval"], event["due"],
+                event["queue"], event["memory_state"]) == (1690000000000, 3, 4, 120, 2, None)
 
     def test_sync(self):
         token = broker.subscribe()

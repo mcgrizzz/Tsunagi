@@ -25,6 +25,7 @@ from ...shared.schemas.cards import (
     SetEaseRequest,
     SetFlagRequest,
 )
+from ..events import publish_review
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 QUEUE_SUSPENDED = -1
@@ -634,6 +635,7 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
         changes = col.sched.answerCard(card, int(entry["ease"]))
         out.append(True)
         answered.append(int(card.id))
+        publish_review(card, int(entry["ease"]), origin="api", collection=col)
     return (ValueWithChanges(out, changes,
                              event_changes=lambda: {"cards": {"updated": answered}})
             if changes is not None else out)

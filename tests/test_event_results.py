@@ -153,6 +153,22 @@ def test_answers_report_answered_cards_only(col, subscription, recorded_ops):
     assert event["cards.updated"]["ids"] == [card_id]
 
 
+def test_api_answers_emit_review_with_the_new_card_state(col, subscription, recorded_ops):
+    col.set_config("fsrs", True)
+    first, second = new_note("one").cards[0], new_note("two").cards[0]
+    token = broker.subscribe(types={"review"})
+    cards.answer_cards([{"card_id": first, "ease": 3}])
+    compat.answer_cards_raw([{"cardId": second, "ease": 1}])
+    events = broker.drain(token)
+    assert [(e["card_id"], e["ease"], e["origin"]) for e in events] == [
+        (first, 3, "api"), (second, 1, "api")]
+    for event in events:
+        card = col.get_card(event["card_id"])
+        assert (event["interval"], event["due"], event["queue"]) == (card.ivl, card.due, card.queue)
+        assert event["memory_state"] == {"stability": card.memory_state.stability,
+                                         "difficulty": card.memory_state.difficulty}
+
+
 @pytest.mark.parametrize("write, tagged", [
     (lambda nids: tags.add_tags(nids, "verb"), False),
     (lambda nids: tags.remove_tags(nids, "verb"), True),

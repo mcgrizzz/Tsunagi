@@ -316,8 +316,15 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
                    anki=anki)
 
 
-def publish_review(card_id: int, ease: int) -> None:
-    broker.publish("review", card_id=card_id, ease=ease)
+def publish_review(card: Any, ease: int, *, origin: str = "ui", collection: Any = None) -> None:
+    """An answered card. Anki reloads the card after answering, so its new
+    state costs no extra read; fields match /v1/cards rows."""
+    state = getattr(card, "memory_state", None)
+    broker.publish("review", collection=collection, origin=origin,
+                   card_id=int(card.id), ease=int(ease), interval=int(card.ivl),
+                   due=int(card.due), queue=int(card.queue),
+                   memory_state=None if state is None else {
+                       "stability": state.stability, "difficulty": state.difficulty})
 
 
 def publish_sync(phase: str) -> None:

@@ -58,7 +58,7 @@ deleted card IDs aren't included. That operation won't also produce
 | Both | `?resources=notes,cards` |
 | Only confirmed note deletions | `?types=notes.deleted` |
 | Note creations and updates | `?types=notes.created,notes.updated` |
-| Reviewer answers | `?types=review` |
+| Card answers, in Anki's reviewer or through either API, with the card's new interval, due, queue and FSRS memory state | `?types=review` |
 | Sync starting or finishing | `?types=sync` |
 
 Filters apply before messages enter your connection's queue. A client listening

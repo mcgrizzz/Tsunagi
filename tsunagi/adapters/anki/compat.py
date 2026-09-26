@@ -2,6 +2,7 @@
 
 import importlib
 
+from ..events import publish_review
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 
@@ -569,6 +570,7 @@ def answer_cards_raw(col, answers):
                     changes.MergeFrom(change.changes if hasattr(change, "changes") else change)
                 saved = True
                 answered.append(int(card.id))
+                publish_review(card, ease, origin="api", collection=col)
                 result.append(True)
             except NotFoundError:
                 result.append(False)
