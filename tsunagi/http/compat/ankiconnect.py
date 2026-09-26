@@ -89,6 +89,10 @@ def _request_permission(
         allowed = origin is None or settings.is_origin_allowed(origin)
     if allowed:
         return granted
+    blocked = getattr(settings, "is_blocked_anki_page", None)
+    if blocked is not None and blocked(origin):
+        # A card script must not be able to prompt; the gate is the only way in.
+        return {"permission": "denied"}
     if origin in settings.get("ankiconnect_ignore_origins", []):
         return {"permission": "denied"}
     ask = ask or _default_ask

@@ -191,7 +191,7 @@ and its existing media side effects.
 | `loadProfile` | implemented | Manual verification only. The collection is unavailable mid-switch; requests get a 503. |
 | `multi` | implemented |  |
 | `reloadCollection` | implemented | Returns `null` with an open collection. This is a no-op on supported Anki versions: it leaves caches and undo history intact. The Tsunagi API's reload endpoint is deprecated for the same reason. |
-| `requestPermission` | implemented |  |
+| `requestPermission` | implemented | Deviation: Anki's own pages (card templates, add-on pages) are denied without a dialog and cannot use either API unless `gates.anki_page_scripts` is on. |
 | `sync` | implemented | Manual verification only. Deviation: canonical then calls `mw.onSync()`, which no longer exists. |
 | `version` | implemented |  |
 

@@ -324,6 +324,7 @@ def start_server(mw) -> None:
         ops.OP_TIMEOUT = float(cfg.get("op_timeout_seconds", 15))
 
         settings.configure(cfg, persist=make_persist(mw))
+        settings.anki_page_origin = f"http://127.0.0.1:{mw.mediaServer.getPort()}"
 
         def _on_config_updated(new_cfg: dict) -> None:
             # Anki calls this (main thread) when the user saves the raw JSON

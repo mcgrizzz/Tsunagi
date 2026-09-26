@@ -30,6 +30,15 @@ class Settings:
         self._lock = threading.Lock()
         self._config = dict(config)
         self._persist = persist
+        # Origin of Anki's own web pages (reviewer, editor, add-on pages), set
+        # at server start. Card templates run JavaScript there, so a shared
+        # deck could otherwise use the API while it is reviewed.
+        self.anki_page_origin: Optional[str] = None
+
+    def is_blocked_anki_page(self, origin: Any) -> bool:
+        """Anki's own page origin while gates.anki_page_scripts is off."""
+        return (origin is not None and origin == self.anki_page_origin
+                and not self.gate_enabled("anki_page_scripts"))
 
     def configure(self, config: Dict[str, Any], persist: Optional[PersistFn]) -> None:
         """
@@ -100,10 +109,15 @@ class Settings:
         Mirrors AnkiConnect's allowOrigin: "*" allows everything, exact
         matches win, and the "http://localhost" entry additionally allows
         127.0.0.1 origins and browser extensions (this is why Yomitan works
-        against a stock AnkiConnect install with no setup).
+        against a stock AnkiConnect install with no setup). One deviation:
+        Anki's own page origin also needs gates.anki_page_scripts.
         """
         allowlist = self.get("cors_allowlist", [])
-        if "*" in allowlist or origin in allowlist:
+        if origin in allowlist:
+            return True
+        if self.is_blocked_anki_page(origin):
+            return False  # not even "*" or the 127.0.0.1 rule
+        if "*" in allowlist:
             return True
         if "http://localhost" in allowlist:
             return (

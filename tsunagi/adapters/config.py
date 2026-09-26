@@ -26,6 +26,7 @@ DEFAULTS = {
         "cards_set_memory_state": False,      # writing FSRS memory state
         "events_changes": True,               # data change events
         "events_reviews": False,              # answers and review log events
+        "anki_page_scripts": False,           # card templates and add-on pages
     },
     "ankiconnect_import_offered": False,
     "ankiconnect_imported_at": None,

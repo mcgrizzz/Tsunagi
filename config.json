@@ -13,7 +13,8 @@
         "media_allow_local_path": false,
         "cards_set_memory_state": false,
         "events_changes": true,
-        "events_reviews": false
+        "events_reviews": false,
+        "anki_page_scripts": false
     },
     "ankiconnect_import_offered": false,
     "ankiconnect_imported_at": null,

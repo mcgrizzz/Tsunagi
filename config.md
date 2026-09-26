@@ -135,6 +135,12 @@ your network can use them unauthenticated.
   which is how FSRS helper add-ons reschedule — but a buggy or malicious
   client could quietly wreck your scheduling, so it stays off unless you use
   a tool that needs it.
+- `anki_page_scripts` — when `true`, JavaScript running inside Anki's own
+  pages (card templates in the reviewer and previewer, and other add-ons' web
+  pages) may use the API like any other local page. Off by default because a
+  shared deck's template could otherwise read and change your collection while
+  you review it. These pages cannot ask for access with `requestPermission`;
+  this switch is the only way to allow them.
 - `events_changes` (default `true`) — the event stream (`GET /v1/events`)
   sends messages when notes, cards, decks, note types, tags or settings
   change, and when a deck's due counts move. When `false`, those messages are

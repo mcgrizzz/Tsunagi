@@ -83,6 +83,13 @@ GATE_INFO: Dict[str, Tuple[str, str]] = {
         "retention. Leave off unless a tool you trust needs it. Needs an API "
         "key when other devices can connect.",
     ),
+    "anki_page_scripts": (
+        "Allow card templates and add-on pages",
+        "Lets JavaScript in your cards and in other add-ons' pages inside Anki "
+        "use the API. Leave off unless you use card templates or add-ons "
+        "built for it: a shared deck could otherwise read and change your "
+        "collection while you review.",
+    ),
     "events_changes": (
         "Changes to your collection",
         "Notes, cards, decks, note types, tags and settings being added, "
