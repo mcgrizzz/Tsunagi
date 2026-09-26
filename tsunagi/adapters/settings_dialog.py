@@ -82,15 +82,14 @@ GATE_INFO: Dict[str, Tuple[str, str]] = {
         "retention. Leave off unless a tool you trust needs it.",
     ),
     "events_changes": (
-        "Send change events",
-        "Lets clients listening on the event stream learn when notes, cards, "
-        "decks, note types, tags and settings change.",
+        "Changes to your collection",
+        "Notes, cards, decks, note types, tags and settings being added, "
+        "edited or deleted.",
     ),
     "events_reviews": (
-        "Send review events",
-        "Lets clients listening on the event stream learn each time you answer "
-        "a card, with its new interval. Review history stays readable through "
-        "the API either way.",
+        "Your review activity",
+        "Each card you answer, with its new interval. Off by default; review "
+        "history stays readable through the API either way.",
     ),
 }
 _UNKNOWN_GATE_TOOLTIP = "Opt-in switch - see the add-on documentation."
@@ -120,7 +119,8 @@ def form_values_from_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
             values[f.key] = "\n".join(raw or [])
         else:  # "text" | "choice"
             values[f.key] = str(raw)
-    values["gates"] = {k: bool(v) for k, v in (cfg.get("gates") or {}).items()}
+    values["gates"] = {k: bool(v) for k, v in
+                       {**DEFAULTS["gates"], **(cfg.get("gates") or {})}.items()}
     return values
 
 
@@ -326,7 +326,7 @@ def open_settings(mw: Any) -> None:
     tabs.setObjectName("settingsTabs")
     layout.addWidget(tabs)
     pages = {}
-    for title in ("Connection", "Access", "Advanced"):
+    for title in ("Connection", "Access", "Events", "Advanced"):
         page = QWidget()
         page_layout = QVBoxLayout(page)
         scroll = QScrollArea()
@@ -441,16 +441,24 @@ def open_settings(mw: Any) -> None:
         elif f.key == "cors_allowlist":
             form.addRow(guidance("One origin per line, including http:// or https://. Use * to allow all origins."))
 
-    gates_box = QGroupBox("Optional permissions")
-    gates_layout = QVBoxLayout(gates_box)
+    pages["Events"].addWidget(guidance(
+        "Apps connected to Tsunagi can listen for activity in Anki through the "
+        "event stream (/v1/events). Choose what they may receive; anything "
+        "turned off is never sent."))
+    boxes = {"Access": QGroupBox("Optional permissions"),
+             "Events": QGroupBox("Apps may receive")}
     for key, label, tooltip, enabled in gate_rows(cfg):
+        box = boxes["Events" if key.startswith("events_") else "Access"]
+        box_layout = box.layout() or QVBoxLayout(box)
         w = QCheckBox(label)
         w.setToolTip(tooltip)
         w.setChecked(enabled)
-        gates_layout.addWidget(w)
-        gates_layout.addWidget(guidance(tooltip))
+        box_layout.addWidget(w)
+        box_layout.addWidget(guidance(tooltip))
         gate_widgets[key] = w
-    pages["Access"].addWidget(gates_box)
+    for title, box in boxes.items():
+        pages[title].addWidget(box)
+    pages["Events"].addStretch(1)
 
     def populate(values: Dict[str, Any]) -> None:
         for key, (setter, _getter) in field_widgets.items():

@@ -105,7 +105,7 @@ def check_scenario(app, scenario):
                           if isinstance(w, QDialog) and w.windowTitle() == "Tsunagi Settings")
             try:
                 tabs = window.findChild(QTabWidget, "settingsTabs")
-                assert [tabs.tabText(i) for i in range(tabs.count())] == ["Connection", "Access", "Advanced"]
+                assert [tabs.tabText(i) for i in range(tabs.count())] == ["Connection", "Access", "Events", "Advanced"]
                 version = window.findChild(QLabel, "addonVersion")
                 assert version.text() == f"Tsunagi {ADDON_VERSION}"
                 for index in range(tabs.count()):
@@ -138,7 +138,7 @@ def check_scenario(app, scenario):
                 if scenario == "save" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
                     target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
                     window.resize(640, 580)
-                    for index, name in enumerate(("connection", "access", "advanced")):
+                    for index, name in enumerate(("connection", "access", "events", "advanced")):
                         tabs.setCurrentIndex(index)
                         app.processEvents()
                         window.grab().save(str(target.with_stem(target.stem + "-" + name)))

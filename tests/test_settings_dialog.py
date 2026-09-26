@@ -126,6 +126,13 @@ class TestCors:
 
 
 class TestGates:
+    def test_gates_missing_from_a_saved_config_show_their_defaults(self):
+        cfg = {**DEFAULTS, "gates": {"media_allow_local_path": True}}  # saved before new gates
+        values = form_values_from_config(cfg)
+        assert values["gates"]["events_changes"] is True
+        assert values["gates"]["events_reviews"] is False
+        assert {key for key, *_ in gate_rows(cfg)} == set(DEFAULTS["gates"])
+
     def test_unknown_gate_renders_and_round_trips(self):
         cfg = dict(DEFAULTS)
         cfg["gates"] = {**DEFAULTS["gates"], "future_gate": True}
