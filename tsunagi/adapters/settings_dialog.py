@@ -39,13 +39,13 @@ class Field(NamedTuple):
 FIELDS: Tuple[Field, ...] = (
     Field("enabled", "Connection", "bool", "Enable Tsunagi server", restart=True,
           tooltip="When off, the API server does not start with Anki."),
-    Field("host", "Connection", "text", "Host", restart=True,
-          tooltip="Bind address. 127.0.0.1 keeps the API local-only."),
     Field("port", "Connection", "int", "Port", restart=True, minimum=0, maximum=65535,
           tooltip="Fixed port to listen on. 0 uses the preferred port below."),
     Field("prefer_port", "Connection", "int", "Preferred port", restart=True,
           minimum=1, maximum=65535,
           tooltip="Used when Port is 0. Startup fails loudly if it is busy."),
+    Field("host", "Access", "text", "Host", restart=True,
+          tooltip="Bind address. 127.0.0.1 keeps the API local-only."),
     Field("api_key", "Access", "text", "API key",
           tooltip="Clients must send this key when set. Applies immediately."),
     Field("cors_allowlist", "Access", "cors_list", "Allowed website origins",
@@ -442,7 +442,8 @@ def open_settings(mw: Any) -> None:
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password))
             key_layout.addWidget(reveal)
             form.addRow(f.label, row)
-            form.addRow(guidance("Leave empty to allow requests without an API key."))
+            form.addRow(guidance("Leave empty to allow requests without an API key "
+                                 "(only while Host is 127.0.0.1)."))
         elif f.kind == "bool":
             widget.setText(f.label)
             form.addRow(widget)

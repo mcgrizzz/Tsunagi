@@ -118,8 +118,9 @@ Open **Tools → Tsunagi Settings** to change:
 
 | Tab | Settings |
 | --- | --- |
-| **Connection** | Server, address, port and AnkiConnect import. |
-| **Access** | API key, allowed websites and optional permissions. |
+| **Connection** | Server on/off, port and AnkiConnect import. |
+| **Access** | Who can connect (host), API key, allowed websites and optional permissions. |
+| **Events** | What apps listening to the event stream may receive. |
 | **Advanced** | Media limits, timeouts and logging. |
 
 If a tool can't connect, check that Anki is open and both use the same port and
