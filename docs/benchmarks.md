@@ -199,7 +199,7 @@ test only checks that the server keeps working.
   `GET /v1/notes?select=id&search=` through the Tsunagi API. No pagination.
 - **Isolation:** one add-on enabled at a time, with Anki restarted when switching
   between AnkiConnect and Tsunagi. Tsunagi reported version **0.2.0**, running
-  the working tree after `64e6824` with the single-field query fix.
+  the working tree after `c717ceb` with the single-field query fix.
 - **No retries.** Every attempt opens a new connection. The client only reads;
   it does not change collection data.
 

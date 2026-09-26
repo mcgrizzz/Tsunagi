@@ -304,7 +304,7 @@ a supplied list. Only the shared filter module differs between the two columns.
 | 10,000 | 10 | 155.3 | 150.9 |
 | 10,000 | 1,000 | 259.1 | 177.4 |
 
-- "Before" is the filter from `e3a59e8`. Medians of seven requests after a
+- "Before" is the filter from `4e238b2`. Medians of seven requests after a
   separate first request.
 - The largest case returns 5,000 matching IDs and builds one set instead of
   10,000. An equality filter on 10,000 notes, as a control, measured 147.5 ms
@@ -446,7 +446,7 @@ The other measurements need no AnkiConnect checkout:
 python tools/benchmark_filtered_projection.py --sizes 100 10000 --repeats 5 \
   --output dist/benchmarks/current-filtered-projection.json
 
-python tools/benchmark_filtering.py --baseline-ref e3a59e8 \
+python tools/benchmark_filtering.py --baseline-ref 4e238b2 \
   --rows 100 10000 --allowed 0 10 1000 --repeats 7 \
   --output dist/benchmarks/current-filtering.json
 

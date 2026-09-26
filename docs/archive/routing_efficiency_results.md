@@ -151,7 +151,7 @@ and hydrated exactly seven rows. The 12 parameterized regression cases pass
 on Anki 26.08.1 and 23.10. The relevant route-factory, cards, notes, reviews
 and download/bootstrap suites passed on both backends: 245 tests each.
 
-A read-only Windows check on the installed `0163143` build returned seven IDs on
+A read-only Windows check on the installed `3bfcc03` build returned seven IDs on
 each of the first two pages, with no overlap. These are single observations,
 not benchmark distributions:
 

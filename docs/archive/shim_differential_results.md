@@ -122,7 +122,7 @@ with 65 distinct action handlers observed. Full suite: **1083 passed, 8 skipped,
 one expected failure** on Python 3.12.12 / Anki 23.10. D11 remains the sole expected
 failure (default local-path policy). Ruff and whitespace checks pass.
 
-Commit `06f9566` adds 31 differential cases: 13 model-creation cases, seven literal
+Commit `0f24a37` adds 31 differential cases: 13 model-creation cases, seven literal
 replacement cases, eight answer sequences and three backend undo/redo cases. Eight
 additional regressions run without an upstream checkout.
 
@@ -165,7 +165,7 @@ covering 66 distinct action handlers. Full suite: **1147 passed, 8 skipped, one
 expected failure** on Python 3.12.12 / Anki 23.10. D11 remains the sole expected
 failure. Changed-file Ruff and whitespace checks pass.
 
-Commit `c3af5ce` adds 54 comparisons and ten standalone regressions:
+Commit `c4bc681` adds 54 comparisons and ten standalone regressions:
 
 - D22: suspension now reproduces upstream's removal from the list being iterated.
   Multiple already-matching cards can return true; a missing ID skipped by that
@@ -349,7 +349,7 @@ bytes and JSON Content-Type. They do not establish equality of all CORS/transpor
 headers, JSON whitespace, preflights, fragmented socket requests or concurrency.
 The original upstream wrapper runs without a listening socket.
 
-After the user confirmed the reload of `9d50a0b`, all **26 read-only live checks**
+After the user confirmed the reload of `061942f`, all **26 read-only live checks**
 in `/tmp/tsunagi-http-bodies-live.py` passed: discovery, exact parser diagnostics,
 allowed/denied/empty origins, invalid permission requests and the native root
 documentation redirect. No fixtures, permission dialogs or setting changes were
@@ -536,7 +536,7 @@ Collection access, edit notifications, logging and addon configuration are suppl
 by the harness. API settings use upstream defaults. No action implementation is
 rewritten or copied into a hand-maintained mock.
 
-[test_upstream_differential.py](https://github.com/mcgrizzz/Tsunagi/blob/eea649e/tests/test_upstream_differential.py) compares the
+[test_upstream_differential.py](https://github.com/mcgrizzz/Tsunagi/blob/3c8e2dd/tests/test_upstream_differential.py) compares the
 RPC dispatchers' JSON-compatible output, including list order, duplicate IDs,
 response keys and exact errors. It also checks persisted tag/queue changes and
 media file contents/deletion. Native Anki collection methods use the real Rust

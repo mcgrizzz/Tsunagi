@@ -26,7 +26,7 @@ Action inventory is not proof of complete behavioral parity.
 The [coverage plan](archive/shim_behavioral_coverage.md) and
 [execution matrix](archive/shim_coverage_matrix.md) record the historical audit work.
 The broad upstream comparisons and their shared fixtures are archived in Git at
-`eea649e` (the `tests/test_upstream_*.py` files and `tests/upstream_support.py`).
+`3c8e2dd` (the `tests/test_upstream_*.py` files and `tests/upstream_support.py`).
 References to those tests in audit documents refer to that revision. Focused
 Tsunagi regressions and action-inventory checks remain in the maintained suite.
 Windows manual checks confirmed Browser/Add Cards restoration and field focus.

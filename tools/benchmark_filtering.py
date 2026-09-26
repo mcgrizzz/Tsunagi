@@ -103,7 +103,7 @@ def run_worker(config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline-ref", default="e3a59e8")
+    parser.add_argument("--baseline-ref", default="4e238b2")
     parser.add_argument("--rows", type=int, nargs="+", default=[100, 10000])
     parser.add_argument("--allowed", type=int, nargs="+", default=[0, 10, 1000],
                         help="membership-list sizes; 0 adds an equality control")

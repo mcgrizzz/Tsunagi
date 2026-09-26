@@ -85,7 +85,7 @@ the [manual release checks](manual_testing.md) for the desktop and real clients.
 <details>
 <summary>Archived AnkiConnect parity checks</summary>
 
-The broad AnkiConnect comparison suite is archived in Git at `eea649e`:
+The broad AnkiConnect comparison suite is archived in Git at `3c8e2dd`:
 `tests/test_upstream_differential.py`, `tests/test_upstream_decks.py`,
 `tests/test_upstream_permissions.py` and `tests/upstream_support.py`. It established
 compatibility against pinned upstream code; routine tests retain focused Tsunagi
