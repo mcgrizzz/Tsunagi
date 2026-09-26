@@ -16,6 +16,8 @@ from urllib.parse import urlsplit
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
+from ..adapters.settings import is_loopback_host
+
 # Paths reachable without an API key:
 # - "/"        : GET redirects to docs; POST is the AnkiConnect RPC, which
 #                checks the AnkiConnect-style top-level "key" body field in
@@ -84,6 +86,11 @@ def _host_allowed(headers: Headers, bind_host: str) -> bool:
     try:
         address = ip_address(hostname)
         if address.is_loopback:
+            return True
+        # Rebinding needs a domain name, so a plain IP is safe to accept once
+        # other devices may connect (which requires an API key). A phone then
+        # reaches a 0.0.0.0 bind at this computer's LAN address.
+        if not is_loopback_host(bind_host):
             return True
         hostname = str(address)
     except ValueError:

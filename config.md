@@ -40,12 +40,22 @@ Set to `false` to stop Tsunagi from starting its server.
 Address the server binds to. Keep the default `127.0.0.1` (loopback only)
 unless you know exactly what exposing Anki on your network means.
 
-Requests must name a loopback address (`localhost`, a loopback IP, or `[::1]`)
-or this configured host in their `Host` header. Other hosts receive HTTP 403,
-even when their browser origin is allowed. Wildcard bind addresses such as
-`0.0.0.0` do not allow arbitrary hostnames or network addresses; use a specific
-bind address when connecting through that address. Forwarded-host headers do
-not override this check.
+Any address other than loopback (for example `0.0.0.0` to use Tsunagi from
+your phone) lets other devices on your network connect, so it **requires an
+API key**: the settings dialog will not save it without one, and Tsunagi does
+not start if the config has one without the other.
+
+Requests must name a loopback address (`localhost`, a loopback IP, or `[::1]`),
+the configured host, or, when bound beyond loopback, any plain IP address such
+as this computer's LAN address in their `Host` header. Other names receive
+HTTP 403, even when their browser origin is allowed; this blocks DNS
+rebinding, which always uses a domain name. Forwarded-host headers do not
+override this check.
+
+If another device still cannot connect, the operating system's firewall is the
+usual cause. On Windows, Anki is typically allowed on networks marked
+**Private** and blocked on **Public** ones: mark your home network as Private
+(Settings → Network & internet → your network → Network profile type).
 
 ### `port` / `prefer_port`
 - `port: 0` (default): use `prefer_port` (7777). If it's busy, Tsunagi shows a

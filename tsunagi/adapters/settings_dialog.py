@@ -14,7 +14,7 @@ from typing import Any, Dict, List, NamedTuple, Tuple
 
 from ..shared.version import ADDON_VERSION
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
-from .settings import apply_config
+from .settings import apply_config, is_loopback_host
 
 MIB = 1024 * 1024
 
@@ -172,6 +172,9 @@ def validate_values(values: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     if not str(values.get("host", "")).strip():
         errors.append("Host must not be empty.")
+    elif not is_loopback_host(values["host"]) and not str(values.get("api_key") or "").strip():
+        errors.append("Set an API key before letting other devices connect "
+                      "(any Host other than 127.0.0.1).")
     for f in FIELDS:
         if f.kind in ("int", "mib") and f.maximum > 0:
             v = values.get(f.key)
@@ -446,7 +449,9 @@ def open_settings(mw: Any) -> None:
         else:
             form.addRow(f.label, widget)
         if f.key == "host":
-            form.addRow(guidance("127.0.0.1 accepts connections from this computer only."))
+            form.addRow(guidance("127.0.0.1 accepts connections from this computer only. "
+                                 "Any other address lets other devices connect and "
+                                 "needs an API key."))
         elif f.key == "cors_allowlist":
             form.addRow(guidance("One origin per line, including http:// or https://. Use * to allow all origins."))
 

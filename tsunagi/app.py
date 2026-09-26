@@ -13,7 +13,7 @@ from starlette.responses import HTMLResponse, JSONResponse
 
 from .adapters.anki import collection as anki_collection
 from .adapters.config import ADDON_PACKAGE, choose_port, load_config
-from .adapters.settings import apply_config, make_persist, settings
+from .adapters.settings import apply_config, is_loopback_host, make_persist, settings
 from .http.compat import (
     actions as _compat_actions,  # noqa: F401  (side-effect import: registers action handlers)
 )
@@ -340,6 +340,10 @@ def start_server(mw) -> None:
         mw.addonManager.setConfigUpdatedAction(ADDON_PACKAGE, _on_config_updated)
 
         host = cfg["host"]
+        if not is_loopback_host(host) and not cfg.get("api_key"):
+            raise RuntimeError(
+                f"host {host} lets other devices connect, which needs an API key; "
+                "set one in Tsunagi's settings or set host back to 127.0.0.1")
         port = choose_port(cfg)
 
         from .adapters.events import broker

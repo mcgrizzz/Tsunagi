@@ -24,7 +24,7 @@ marked **verified** (checked against the code or with real requests) or
 | Web page served from `127.0.0.1` on any port | Full | Same allowlist rule: `http://127.0.0.1:<any port>` is trusted. Includes local dev servers and other apps' web UIs. |
 | Anki's own pages (reviewer, previewer, add-on pages) | None unless `gates.anki_page_scripts` is on | Card templates run JavaScript there. See below. |
 | Web page on another site | None, except `requestPermission` | Rejected before anything runs. |
-| Another device on the network | Only if `host` is not loopback | Default `host` is `127.0.0.1`. See gap 1. |
+| Another device on the network | Only with the API key | Default `host` is `127.0.0.1`. Any other `host` requires a key, or Tsunagi does not start. |
 
 ## What stops a hostile web page (verified)
 
@@ -47,14 +47,17 @@ action ran; a note count before and after confirmed nothing was created.
 How it works:
 
 1. **Host check** (`DynamicCORSMiddleware`): the `Host` header must be
-   a loopback name or the configured bind address, before anything else. This
-   defeats DNS rebinding, where an attacker's domain resolves to `127.0.0.1`.
+   a loopback name, the configured bind address, or (when bound beyond
+   loopback) a plain IP address, before anything else. This defeats DNS
+   rebinding, where an attacker's domain resolves to `127.0.0.1`. It does not
+   identify the caller: a program on another device can write any `Host`, so
+   network access is protected by the required API key, not by this check.
 2. **Origin check:** `/v1/*` rejects unknown origins in the middleware, so the
    request never reaches a route. The AnkiConnect root `/` lets every origin
    through the middleware (so `requestPermission` works, as in AnkiConnect) and
    rejects in the endpoint before parsing the action further. Only a
    well-formed `requestPermission` passes.
-3. **API key** (optional, empty by default): `X-Api-Key` or `Authorization:
+3. **API key** (empty by default; required when `host` is not loopback): `X-Api-Key` or `Authorization:
    Bearer` on `/v1/*`, the `key` field on `/`, checked per `multi` child. Browser
    `EventSource` may pass it as `?api_key=` on `/v1/events` only.
 4. **Gates:** off-by-default switches for risky features. File-path media and
@@ -97,27 +100,21 @@ card scripts never see. Tsunagi trusts all local origins with no token.
 
 Ranked by how likely they are to matter.
 
-1. **Network bind without a key opens everything except two gates.** With `host`
-   set to `0.0.0.0` or a LAN address and no key, any device on the network can
-   read and write the collection and drive the UI. Only file paths and
-   memory-state writes are held back. Nothing warns the user. Possible
-   fix: refuse to start, or warn in the dialog, when `host` is not loopback and
-   the key is empty.
-2. **Media URL downloads reach the local network.** A `url` upload has Anki fetch
+1. **Media URL downloads reach the local network.** A `url` upload has Anki fetch
    any `http(s)` address, including routers, other local services and cloud
    metadata endpoints, and store the response as media the caller can read
    back. Allowed clients can do this today.
    Possible fix: a gate or refusing private and loopback addresses, weighed
    against Yomitan-style local audio servers that rely on `http://localhost`
    URLs.
-3. **Every local page and every extension is trusted.** Any page served from
+2. **Every local page and every extension is trusted.** Any page served from
    `127.0.0.1` on any port, and any installed browser extension, has full
    access by default. This is the AnkiConnect-compatible default that makes
    Yomitan work. Per-application keys with their own permissions are the
    planned way to narrow it.
-4. **`requestPermission` is a social-engineering prompt.** Any site can open the
+3. **`requestPermission` is a social-engineering prompt.** Any site can open the
    dialog. Its protection is the user reading the origin before approving.
-5. **Key in the URL.** `?api_key=` on `/v1/events` can end up in browser history
+4. **Key in the URL.** `?api_key=` on `/v1/events` can end up in browser history
    or proxy logs. Headers are preferred wherever the client can set them.
 
 Accepted by design: programs running as the same user have full access (a key
@@ -152,7 +149,7 @@ issue history:
 
 Differences in Tsunagi: it checks `Host` (defeating rebinding), answers
 disallowed preflights with 403 rather than 200, and gates file paths. It keeps
-AnkiConnect's origin rule except for Anki's own pages, so gap 3 applies to
+AnkiConnect's origin rule except for Anki's own pages, so gap 2 applies to
 both.
 
 Browsers are adding their own layer: Chrome's Local Network Access asks the
@@ -160,5 +157,5 @@ user before a public website may reach loopback or LAN addresses (prompt since
 Chrome 142, split into `local-network` and `loopback-network` permissions in
 145, per [Chrome's blog](https://developer.chrome.com/blog/local-network-access)
 and release notes). It targets public websites; local pages, extensions and
-Anki's card pages are not public websites, so it is no help for gap 3
+Anki's card pages are not public websites, so it is no help for gap 2
 (not tested per browser). Firefox and Safari were not checked.

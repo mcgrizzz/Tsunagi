@@ -170,6 +170,13 @@ class TestValidation:
         values["host"] = "   "
         assert any("Host" in e for e in validate_values(values))
 
+    def test_network_host_needs_an_api_key(self):
+        values = form_values_from_config(DEFAULTS)
+        values["host"] = "0.0.0.0"
+        assert any("API key" in e for e in validate_values(values))
+        values["api_key"] = "secret"
+        assert validate_values(values) == []
+
     def test_out_of_range_int_is_an_error(self):
         values = form_values_from_config(DEFAULTS)
         values["prefer_port"] = 0

@@ -68,9 +68,20 @@ def test_configured_host_is_exact_and_reads_live_settings(host_app, configured, 
     settings.update(host=configured)
     assert client.get("/v1/probe", headers={"Host": host}).status_code == 200
     assert calls == [True]
+    # A network bind accepts plain IPs (a phone uses this computer's LAN
+    # address); names still have to match, since rebinding needs a name.
+    expected = 403 if configured == "anki.example" else 200
     for wildcard in ("0.0.0.0", "::", "*"):
         settings.update(host=wildcard)
-        assert client.get("/v1/probe", headers={"Host": host}).status_code == 403
+        assert client.get("/v1/probe", headers={"Host": host}).status_code == expected
+
+
+@pytest.mark.parametrize("host", ["evil.example:7777", "192.0.2.10.evil.example:7777"])
+def test_network_bind_still_rejects_rebinding_names(host_app, host):
+    client, settings, calls = host_app
+    settings.update(host="0.0.0.0")
+    assert client.get("/v1/probe", headers={"Host": host}).status_code == 403
+    assert not calls
 
 
 @pytest.mark.parametrize("hosts", [[], [b"localhost", b"evil.example"],

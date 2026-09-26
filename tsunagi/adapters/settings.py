@@ -21,6 +21,17 @@ PersistFn = Callable[[Dict[str, Any]], None]
 # the network can never use them unauthenticated.
 KEY_REQUIRED_GATES = frozenset({"media_allow_local_path", "cards_set_memory_state"})
 
+def is_loopback_host(host: Any) -> bool:
+    """True for a bind address only this computer can reach."""
+    host = str(host or "127.0.0.1").strip("[]")
+    if host == "localhost":
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False  # a hostname: assume other devices can reach it
+
+
 # Browser-extension origin schemes covered by the "http://localhost" entry
 EXTENSION_ORIGINS = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
 
@@ -74,15 +85,7 @@ class Settings:
 
     def _needs_key(self) -> bool:
         """No api_key while bound to a non-loopback address."""
-        if self.get("api_key"):
-            return False
-        host = str(self.get("host") or "127.0.0.1").strip("[]")
-        if host == "localhost":
-            return False
-        try:
-            return not ip_address(host).is_loopback
-        except ValueError:
-            return True  # a hostname: assume other devices can reach it
+        return not self.get("api_key") and not is_loopback_host(self.get("host"))
 
     def _gate_switched_on(self, name: str) -> bool:
         gates = self.get("gates") or {}
