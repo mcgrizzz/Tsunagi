@@ -110,8 +110,8 @@ uploads, URL downloads, and local files alike.
 Timeout for downloading media from a URL (default 30).
 
 ### `gates`
-Opt-in switches for capabilities that are **off by default** because most
-setups don't want them exposed. Gates are read on every request, so saving
+Switches for capabilities you may not want exposed. Most are **off by
+default**. Gates are read on every request, so saving
 this editor toggles them without restarting Anki. (Older configs had
 `media_allow_local_path` as a top-level key; it was moved in here
 automatically, and the old flat key is ignored.)
@@ -128,6 +128,13 @@ automatically, and the old flat key is ignored.)
   which is how FSRS helper add-ons reschedule — but a buggy or malicious
   client could quietly wreck your scheduling, so it stays off unless you use
   a tool that needs it.
+- `events_changes` (default `true`) — the event stream (`GET /v1/events`)
+  sends messages when notes, cards, decks, note types, tags or settings
+  change. When `false`, those messages are never sent.
+- `events_reviews` (default `false`) — the event stream sends a message each
+  time you answer a card, and when review log rows are added. Turn it on for
+  tools that react to your studying live. Review history stays readable
+  through the API either way.
 
 ### `dev_watch_seconds`
 **For working on Tsunagi itself.** When greater than zero, Anki polls the

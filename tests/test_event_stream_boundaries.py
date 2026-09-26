@@ -10,6 +10,8 @@ from test_v1_events import parse_frames
 from tsunagi.adapters.events import MAX_QUEUED
 from tsunagi.http.v1.events import stream_events
 
+pytestmark = pytest.mark.usefixtures("review_events")
+
 
 async def open_stream(**params):
     options = {"timeout": None, "max_events": None, **params}

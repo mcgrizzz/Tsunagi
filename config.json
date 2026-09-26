@@ -11,7 +11,9 @@
     "media_fetch_timeout_seconds": 30,
     "gates": {
         "media_allow_local_path": false,
-        "cards_set_memory_state": false
+        "cards_set_memory_state": false,
+        "events_changes": true,
+        "events_reviews": false
     },
     "ankiconnect_import_offered": false,
     "ankiconnect_imported_at": null,

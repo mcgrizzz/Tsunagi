@@ -145,6 +145,13 @@ def reset_settings():
 
 
 @pytest.fixture()
+def review_events(reset_settings):
+    """Stream tests also use review events, which users receive only after opting in."""
+    reset_settings.update(gates={**reset_settings.get("gates"), "events_reviews": True})
+    return reset_settings
+
+
+@pytest.fixture()
 def client(col, reset_settings):
     """TestClient over the real full app (auth off, no Origin header sent)."""
     from fastapi.testclient import TestClient

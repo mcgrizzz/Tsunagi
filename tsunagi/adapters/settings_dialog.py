@@ -81,6 +81,17 @@ GATE_INFO: Dict[str, Tuple[str, str]] = {
         "Lets API clients overwrite cards' FSRS memory state and desired "
         "retention. Leave off unless a tool you trust needs it.",
     ),
+    "events_changes": (
+        "Send change events",
+        "Lets clients listening on the event stream learn when notes, cards, "
+        "decks, note types, tags and settings change.",
+    ),
+    "events_reviews": (
+        "Send review events",
+        "Lets clients listening on the event stream learn each time you answer "
+        "a card, with its new interval. Review history stays readable through "
+        "the API either way.",
+    ),
 }
 _UNKNOWN_GATE_TOOLTIP = "Opt-in switch - see the add-on documentation."
 
@@ -163,7 +174,7 @@ def validate_values(values: Dict[str, Any]) -> List[str]:
 def gate_rows(cfg: Dict[str, Any]) -> List[Tuple[str, str, str, bool]]:
     """(key, label, tooltip, enabled) per gate - unknown gates included."""
     rows = []
-    for key, value in sorted((cfg.get("gates") or {}).items()):
+    for key, value in sorted({**DEFAULTS["gates"], **(cfg.get("gates") or {})}.items()):
         label, tooltip = GATE_INFO.get(key, (key, _UNKNOWN_GATE_TOOLTIP))
         rows.append((key, label, tooltip, bool(value)))
     return rows

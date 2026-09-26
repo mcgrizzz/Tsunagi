@@ -15,7 +15,7 @@ import time
 from typing import Any, Callable, Dict, Iterable, Set, Tuple
 
 from .event_results import freeze_changes
-from .events import affected_resources, broker
+from .events import affected_resources, broker, event_allowed
 
 OP_DELAY = 0.5      # seconds of quiet before scanning after an operation
 TYPING_DELAY = 2.0  # editor saves arrive while typing; wait for a pause
@@ -42,6 +42,8 @@ class ChangeScan:
                 self.col.db.all("select oid, type from graves")}
 
     def mark(self, flags: Iterable[str], *, typing: bool = False) -> None:
+        if not (event_allowed("notes.stale") or event_allowed("reviews.stale")):
+            return  # nothing a scan finds could be sent
         self.flags.update(flags)
         self.restart_timer(TYPING_DELAY if typing else OP_DELAY)
 

@@ -61,6 +61,11 @@ deleted card IDs aren't included. That operation won't also produce
 | Card answers, in Anki's reviewer or through either API, with the card's new interval, due, queue and FSRS memory state | `?types=review` |
 | Sync starting or finishing | `?types=sync` |
 
+Review messages are off by default: turn on **Send review events** in
+Tsunagi's settings (`events_reviews`). Change messages can be turned off with
+**Send change events** (`events_changes`). A disabled kind is never sent; the
+`ready` message lists the resources you can receive.
+
 Filters apply before messages enter your connection's queue. A client listening
 for note deletions won't queue reviews or card updates.
 

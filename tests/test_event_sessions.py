@@ -9,6 +9,8 @@ from anki.collection import OpChanges
 from tsunagi.adapters.events import MAX_QUEUED, ApiOp, EventBroker, broker, dispatch_op
 from tsunagi.http.v1.events import stream_events
 
+pytestmark = pytest.mark.usefixtures("review_events")
+
 
 @pytest.fixture(autouse=True)
 def clean_broker():

@@ -14,6 +14,8 @@ import pytest
 
 from tsunagi.adapters.events import broker
 
+pytestmark = pytest.mark.usefixtures("review_events")
+
 
 @pytest.fixture(autouse=True)
 def clean_broker():

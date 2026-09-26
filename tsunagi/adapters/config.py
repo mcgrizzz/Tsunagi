@@ -24,6 +24,8 @@ DEFAULTS = {
     "gates": {
         "media_allow_local_path": False,      # server-side file reads
         "cards_set_memory_state": False,      # writing FSRS memory state
+        "events_changes": True,               # data change events
+        "events_reviews": False,              # answers and review log events
     },
     "ankiconnect_import_offered": False,
     "ankiconnect_imported_at": None,

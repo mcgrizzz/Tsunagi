@@ -20,6 +20,8 @@ from tsunagi.adapters.events import (
     publish_sync,
 )
 
+pytestmark = pytest.mark.usefixtures("review_events")
+
 
 @pytest.fixture()
 def store():
@@ -384,3 +386,17 @@ def test_flags_name_only_the_resources_whose_rows_changed():
         "deck": ["decks"], "notetype": ["models"], "tag": ["tags"],
         "config": ["config"], "deck_config": ["decks"],
         "study_queues": ["reviews", "scheduler"]}
+
+
+@pytest.mark.parametrize("gates, sent", [
+    ({}, ["notes.stale", "sync"]),
+    ({"events_reviews": True}, ["notes.stale", "review", "sync"]),
+    ({"events_changes": False}, ["sync"]),
+])
+def test_gates_decide_which_events_are_sent(reset_settings, gates, sent):
+    reset_settings.update(gates=gates)  # an older saved config: missing gates use defaults
+    token = broker.subscribe()
+    broker.publish("change", affected=["notes"])
+    broker.publish("review", card_id=1, ease=3)
+    broker.publish("sync", phase="started")
+    assert [e["type"] for e in broker.drain(token)] == sent

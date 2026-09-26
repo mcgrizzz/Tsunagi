@@ -54,7 +54,9 @@ class Settings:
     def gate_enabled(self, name: str) -> bool:
         """True if the opt-in gate `name` (a key under "gates") is enabled."""
         gates = self.get("gates") or {}
-        return bool(gates.get(name, False))
+        # Anki keeps a saved "gates" dict whole, so gates added later fall back
+        # to their defaults.
+        return bool(gates.get(name, DEFAULTS["gates"].get(name, False)))
 
     def add_cors_origin(self, origin: str) -> None:
         allowlist = list(self.get("cors_allowlist", []))

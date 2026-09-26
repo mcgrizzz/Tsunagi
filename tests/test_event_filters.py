@@ -7,6 +7,8 @@ from test_v1_events import parse_frames
 from tsunagi.adapters.events import MAX_QUEUED, EventBroker
 from tsunagi.http.v1 import events as http_events
 
+pytestmark = pytest.mark.usefixtures("review_events")
+
 
 @pytest.fixture
 def event_broker(monkeypatch):

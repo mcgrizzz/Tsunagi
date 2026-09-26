@@ -12,6 +12,8 @@ from tsunagi.adapters.event_results import (
 from tsunagi.adapters.events import broker, dispatch_op
 from tsunagi.shared.errors import ResourceNotFoundError
 
+pytestmark = pytest.mark.usefixtures("review_events")
+
 
 @pytest.fixture
 def subscription(col):

@@ -7,6 +7,8 @@ from anki.collection import OpChanges
 from tsunagi.adapters.change_scan import OP_DELAY, TYPING_DELAY, ChangeScan
 from tsunagi.adapters.events import ApiOp, broker, dispatch_op
 
+pytestmark = pytest.mark.usefixtures("review_events")
+
 
 def add(col, front):
     note = col.new_note(col.models.by_name("Basic"))

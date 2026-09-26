@@ -21,7 +21,13 @@ from typing import Annotated, Any, AsyncIterator, Dict, FrozenSet, Optional
 from fastapi import APIRouter, HTTPException, Query
 from starlette.responses import StreamingResponse
 
-from ...adapters.events import CHANGE_RESOURCES, DATA_EVENT_TYPES, EVENT_TYPES, broker
+from ...adapters.events import (
+    CHANGE_RESOURCES,
+    DATA_EVENT_TYPES,
+    EVENT_TYPES,
+    broker,
+    event_allowed,
+)
 from ...adapters.settings import settings
 from ...shared.errors import CollectionUnavailableError
 
@@ -188,6 +194,8 @@ def stream_events(
         if not data_resources:
             raise HTTPException(status_code=422,
                                 detail="types must match at least one selected data resource")
+    # Listed in `ready`: what this stream can actually receive under the gates.
+    data_resources = frozenset(r for r in data_resources if event_allowed(f"{r}.stale"))
     if broker.is_draining():
         raise CollectionUnavailableError("No active event session")
     key_at_connect: str = settings.get("api_key", "")

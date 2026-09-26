@@ -20,6 +20,8 @@ from collections import deque
 from typing import Any, Callable, Deque, Dict, FrozenSet, List, Optional
 from uuid import uuid4
 
+from .settings import settings
+
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 
 
@@ -171,6 +173,8 @@ class EventBroker:
                 self._enqueue_locked(type, payload)
 
     def _enqueue_locked(self, type: str, payload: dict) -> None:
+        if not event_allowed(type):
+            return
         self._seq += 1
         event = {**payload, "type": type, "seq": self._seq,
                  "session_id": self._session_id, "ts": int(time.time() * 1000)}
@@ -220,6 +224,13 @@ class EventBroker:
     def reset(self) -> None:
         """Test helper: start an isolated, unbound session with no subscribers."""
         self.start_session(None)
+
+
+def event_allowed(type: str) -> bool:
+    """The user's gates decide which kinds of event are sent at all."""
+    if type == "review" or type.startswith("reviews."):
+        return settings.gate_enabled("events_reviews")
+    return type not in DATA_EVENT_TYPES or settings.gate_enabled("events_changes")
 
 
 # Module singleton, mirroring adapters.jobs.jobs.
