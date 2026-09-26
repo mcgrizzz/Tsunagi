@@ -95,8 +95,10 @@ allowlist grant. Changes apply immediately.
 Uvicorn log level (`critical`, `error`, `warning`, `info`, `debug`).
 
 ### `op_timeout_seconds`
-How long a request may wait for Anki (busy with a dialog, sync, etc.) before
-returning HTTP 503 instead of hanging.
+How long a request may wait for Anki (busy, syncing, etc.) before returning
+HTTP 503 instead of hanging. Every 503 body has a `reason`: `busy`, `syncing`
+or `closed` (no collection open). `GET /v1/health` reports the same value as
+`collection.state`, or `ready`.
 
 A timeout stops the request from waiting; it does not cancel a queued or
 running operation. A write may still complete after the 503 response. Check

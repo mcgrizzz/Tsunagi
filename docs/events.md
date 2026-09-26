@@ -160,6 +160,11 @@ matches. Sorting, counts and page boundaries can change too.
 `ready`; load the relevant data again. A `gap` while connected means that
 connection fell behind and lost queued messages.
 
+**Profile switches:** the server stops while no profile is open. The stream
+ends with `close` reason `profile_closed`, and connections are refused until a
+profile opens again. Retry with a backoff. The next `ready` carries a new
+`session_id` for the new collection.
+
 </details>
 
 For API keys, combined filters, review ratings, connection-close reasons and all

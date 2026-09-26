@@ -143,6 +143,20 @@ def test_shutdown_between_response_and_subscription_closes_without_ready():
     asyncio.run(run())
 
 
+def test_profile_close_reason_survives_the_server_thread_exiting():
+    session = broker.start_session(object())
+
+    async def run():
+        gen = stream_events(timeout=5, max_events=None).body_iterator
+        await gen.__anext__()  # retry/comment
+        assert "event: ready\n" in await gen.__anext__()
+        broker.begin_drain(reason="profile_closed")
+        broker.begin_drain(session)  # the uvicorn thread's own late drain
+        final = await gen.__anext__()
+        assert json.loads(final.split("data: ")[1])["reason"] == "profile_closed"
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("failure", [RuntimeError, SystemExit])
 def test_server_exit_closes_its_session_even_when_binding_fails(failure):
     from tsunagi.app import _serve

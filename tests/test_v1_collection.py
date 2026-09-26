@@ -196,7 +196,34 @@ class TestCapabilities:
         response = client.get("/v1/health")
         assert response.status_code == 200
         assert response.json()["versions"]["anki"]
-        assert client.get("/v1/capabilities").status_code == 503
+        assert response.json()["collection"]["state"] == "closed"
+        unavailable = client.get("/v1/capabilities")
+        assert unavailable.status_code == 503
+        assert unavailable.json()["reason"] == "closed"
+
+    def test_health_reports_ready_collection(self, client):
+        assert client.get("/v1/health").json()["collection"] == {
+            "profile": "User 1", "state": "ready"}
+
+    def test_sync_shows_in_health_and_503_reason(self, client, monkeypatch):
+        import aqt
+
+        from tsunagi.adapters.anki import collection
+
+        monkeypatch.setattr(collection, "syncing", True)
+        assert client.get("/v1/health").json()["collection"]["state"] == "syncing"
+        monkeypatch.setattr(aqt.mw, "col", None)  # a full sync closes the collection
+        assert client.get("/v1/capabilities").json()["reason"] == "syncing"
+
+    def test_health_reports_busy_when_probe_times_out(self, client, monkeypatch):
+        from tsunagi.adapters.anki import collection
+        from tsunagi.shared.errors import AnkiBusyError
+
+        def timed_out(*args, **kwargs):
+            raise AnkiBusyError()
+
+        monkeypatch.setattr(collection, "query_op_call", timed_out)
+        assert client.get("/v1/health").json()["collection"]["state"] == "busy"
 
     def test_partial_backend_is_inspected_without_running_operations(self):
         from types import SimpleNamespace

@@ -113,8 +113,8 @@ disconnecting.
 
 Delivery is best-effort and live-only: Last-Event-ID does not replay events.
 Reload relevant data after reconnecting. Restarts/profile switches create a new
-session and close old streams. close reports shutdown, auth (API key changed),
-timeout or max_events. Ready and gap do not count toward max_events. Heartbeat
+session and close old streams. close reports profile_closed (reconnect once
+a profile is open again), shutdown, auth (API key changed), timeout or max_events. Ready and gap do not count toward max_events. Heartbeat
 comments keep idle connections alive. No active session returns HTTP 503.
 Browser EventSource can use api_key when it cannot set an authentication header.
 
@@ -213,12 +213,12 @@ def stream_events(
         token = broker.subscribe(types=selected_types, resources=selected_resources,
                                  wake=wake)
         if token is None:
-            yield _close_frame("shutdown")
+            yield _close_frame(broker.close_reason)
             return
 
         def close_reason() -> Optional[str]:
             if broker.is_draining(token):
-                return "shutdown"
+                return broker.close_reason
             if settings.get("api_key", "") != key_at_connect:
                 return "auth"
             return None
@@ -228,7 +228,7 @@ def stream_events(
             ready = broker.ready(token)
             reason = close_reason()
             if reason or ready is None:
-                yield _close_frame(reason or "shutdown")
+                yield _close_frame(reason or broker.close_reason)
                 return
             yield _sse_frame({**ready, "resources": sorted(data_resources)})
             sent = 0

@@ -51,6 +51,8 @@ class DuplicateNoteError(Exception):
 
 class AnkiBusyError(Exception):
     """Raised when a cross-thread operation times out (Anki busy/blocked)"""
+    reason = "busy"
+
     def __init__(self, message: str = "Anki is busy; operation timed out"):
         self.status_code = 503
         super().__init__(message)
@@ -58,6 +60,8 @@ class AnkiBusyError(Exception):
 
 class CollectionUnavailableError(Exception):
     """Raised when the collection is not open (profile closed/switching)"""
+    reason = "closed"
+
     def __init__(self, message: str = "Collection is not available"):
         self.status_code = 503
         super().__init__(message)
@@ -80,15 +84,16 @@ class JobConflictError(Exception):
         super().__init__(message)
 
 
-def register_exception_handlers(app: Any) -> None:
+def register_exception_handlers(app: Any, syncing: Callable[[], bool] = lambda: False) -> None:
     """
-    Map availability errors raised outside handle_mutation_errors (e.g. from
-    query fetchers) to 503 responses, matching HTTPException's body shape.
+    Map availability errors to 503 responses: HTTPException's body shape plus
+    a `reason` (busy, closed or syncing) a client can show the user.
     """
     from fastapi.responses import JSONResponse
 
     def _unavailable(request: Any, exc: Exception) -> JSONResponse:
-        return JSONResponse(status_code=503, content={"detail": str(exc)})
+        reason = "syncing" if syncing() else getattr(exc, "reason", "busy")
+        return JSONResponse(status_code=503, content={"detail": str(exc), "reason": reason})
 
     app.add_exception_handler(AnkiBusyError, _unavailable)
     app.add_exception_handler(CollectionUnavailableError, _unavailable)
@@ -163,8 +168,7 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
     """
     def to_http_exception(exc: Exception) -> HTTPException:
         if isinstance(exc, (ResourceNotFoundError, SubresourceNotFoundError, ValidationError,
-                            DuplicateNoteError, AnkiBusyError, CollectionUnavailableError,
-                            UnsupportedAnkiVersionError, JobConflictError)):
+                            DuplicateNoteError, UnsupportedAnkiVersionError, JobConflictError)):
             return HTTPException(status_code=exc.status_code, detail=str(exc))
         if type(exc).__name__ in ANKI_CLIENT_ERRORS:
             # Anki's own message explains the problem far better than we could
@@ -187,6 +191,8 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
         def wrapper(*args: Any, **kwargs: Any) -> T:
             try:
                 return func(*args, **kwargs)
+            except (AnkiBusyError, CollectionUnavailableError):
+                raise  # register_exception_handlers adds the 503 reason
             except Exception as e:
                 raise to_http_exception(e) from e
         return wrapper

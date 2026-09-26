@@ -82,7 +82,11 @@ Supply your configured API key. Discovery requires an open collection and return
 or changing settings. It does not return API keys or the website allowlist.
 
 `GET /v1/health` stays a small, public liveness check, including when no collection
-is open. Both endpoints carry the same `versions` identifiers:
+is open. Its `collection` object gives the open `profile` and a `state`: `ready`,
+`syncing`, `closed` (no collection, e.g. during a full sync) or `busy` (Anki
+did not answer a trivial read within a second). A 503 body carries the same
+value as `reason`, so a client can say "Anki is syncing" rather than "request
+failed". Both endpoints carry the same `versions` identifiers:
 
 | Field | Meaning |
 | --- | --- |

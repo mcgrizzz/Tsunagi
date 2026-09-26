@@ -411,6 +411,7 @@ class TestAvailabilityErrors:
         resp = client.get("/v1/things")
         assert resp.status_code == 503
         assert "timed out" in resp.json()["detail"]
+        assert resp.json()["reason"] == "busy"
 
     def test_unavailable_read_is_503(self):
         client = self._client(SourceCaps(fetch_all=self._raise(CollectionUnavailableError())))
@@ -423,6 +424,7 @@ class TestAvailabilityErrors:
         )
         resp = self._client(caps).post("/v1/things", json={"name": "x"})
         assert resp.status_code == 503
+        assert resp.json()["reason"] == "closed"
 
     def test_busy_mutation_is_503(self):
         caps = SourceCaps(

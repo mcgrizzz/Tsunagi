@@ -7,10 +7,46 @@ importable with no Qt present.
 """
 from typing import Any, Dict, List, Optional
 
-from ...shared.errors import ResourceNotFoundError, ValidationError
-from ..ops import ValueWithChanges, as_collection_op, as_query_op, call_on_main
+from ...shared.errors import (
+    AnkiBusyError,
+    CollectionUnavailableError,
+    ResourceNotFoundError,
+    ValidationError,
+)
+from ..ops import (
+    ValueWithChanges,
+    as_collection_op,
+    as_query_op,
+    call_on_main,
+    query_op_call,
+)
 
 SYNC_AUTH_MISSING = "sync: auth not configured"
+
+# Set by the sync_will_start/sync_did_finish hooks in the add-on root.
+syncing = False
+
+
+def collection_state(probe_timeout: float = 1.0) -> str:
+    """
+    ready, syncing, closed or busy. Reads the flags off the main thread, then
+    probes with a trivial query, which waits on both the main thread and the
+    backend's collection lock. A modal dialog blocks neither (checked live on
+    26.09 with the Import file picker open).
+    """
+    from aqt import mw
+    if syncing:
+        return "syncing"
+    col = mw.col
+    if col is None or col.db is None:  # a full sync closes the db
+        return "closed"
+    try:
+        query_op_call(lambda c: c.db.scalar("select 1"), timeout=probe_timeout)
+    except AnkiBusyError:
+        return "busy"
+    except CollectionUnavailableError:
+        return "closed"
+    return "ready"
 
 
 def list_profiles() -> List[str]:

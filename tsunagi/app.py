@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, JSONResponse
 
+from .adapters.anki import collection as anki_collection
 from .adapters.config import ADDON_PACKAGE, choose_port, load_config
 from .adapters.settings import apply_config, make_persist, settings
 from .http.compat import (
@@ -138,7 +139,8 @@ app.include_router(collection_router)
 app.include_router(gui_router)
 app.include_router(media_router)
 app.include_router(events_router)
-register_exception_handlers(app)  # AnkiBusyError / CollectionUnavailableError -> 503
+# AnkiBusyError / CollectionUnavailableError -> 503 with a reason
+register_exception_handlers(app, syncing=lambda: anki_collection.syncing)
 
 # Auth inner, CORS outermost (added last runs first) so auth 401s still carry
 # CORS headers for allowed origins and disallowed origins never reach auth.
@@ -254,12 +256,21 @@ def list_ankiconnect_actions() -> dict:
     """
     return get_available_actions()
 
+class CollectionHealth(BaseModel):
+    profile: Optional[str] = Field(description="Open profile name")
+    state: str = Field(description=(
+        "ready; syncing; closed (no collection, e.g. during a full sync); "
+        "busy (Anki did not answer a trivial read within a second). "
+        "A 503 body carries the same value as reason"))
+
+
 class Health(BaseModel):
     ok: bool = Field(description="Whether the server is running")
     server: str = Field(description="Server name")
     version: str = Field(description="Legacy release version; use versions for explicit identifiers")
     versions: Versions
     port: int = Field(description="Port number the server is listening on")
+    collection: CollectionHealth
 
 @dataclass
 class _ServerState:
@@ -280,13 +291,16 @@ _SERVER_STATE = _ServerState()
     operation_id="checkHealth"
 )
 def health() -> Health:
-    """Get API health status including version and port."""
+    """Get API health status including version, port and collection state."""
+    from aqt import mw
     return Health(
         ok=True,
         server="tsunagi",
         version=ADDON_VERSION,
         versions=runtime_versions(),
-        port=_SERVER_STATE.port or 0
+        port=_SERVER_STATE.port or 0,
+        collection=CollectionHealth(profile=mw.pm.name,
+                                    state=anki_collection.collection_state()),
     )
 
 def _serve(server: Any, session_id: str) -> None:
@@ -384,9 +398,10 @@ def server_url() -> Optional[str]:
     return f"http://{st.host}:{st.port}" if st.started else None
 
 
-def stop_server() -> bool:
+def stop_server(reason: str = "shutdown") -> bool:
     """
     Signal uvicorn to exit and wait briefly; called on profile close.
+    `reason` is what open event streams are told in their close event.
 
     Returns False if the thread outlived the wait, which means the port may
     still be held - the dev reload needs to know that before rebinding.
@@ -401,7 +416,7 @@ def stop_server() -> bool:
         # in-flight for its whole life. Generators poll this flag and exit
         # within ~0.5s, well inside the join below.
         from .adapters.events import broker
-        broker.begin_drain()
+        broker.begin_drain(reason=reason)
         if st.server is not None:
             st.server.should_exit = True
         if st.thread is not None:

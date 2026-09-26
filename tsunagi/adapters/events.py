@@ -106,6 +106,8 @@ class EventBroker:
         self._subscribers: Dict[int, _Subscriber] = {}
         self._next_token = 1
         self._draining = True
+        # Why the last session ended, for its streams' close event.
+        self.close_reason = "shutdown"
         self._session_id: Optional[str] = None
         self._collection: Any = None
         # ChangeScan for Anki-side changes; set by the app once a session starts.
@@ -205,11 +207,13 @@ class EventBroker:
                          "discarded": discarded}]
             return events
 
-    def begin_drain(self, session_id: Optional[str] = None) -> None:
+    def begin_drain(self, session_id: Optional[str] = None, reason: str = "shutdown") -> None:
         """Close streams, unless this is a late shutdown from an older server."""
         with self._lock:
             if session_id is not None and session_id != self._session_id:
                 return
+            if not self._draining:
+                self.close_reason = reason
             self._draining = True
             for sub in self._subscribers.values():
                 sub.wake()

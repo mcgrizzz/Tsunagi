@@ -86,7 +86,7 @@ else:
     def _on_profile_close() -> None:
         try:
             from .tsunagi.app import stop_server
-            stop_server()
+            stop_server("profile_closed")
         except Exception:
             print("[tsunagi] shutdown failed:\n" + traceback.format_exc())
 
@@ -127,6 +127,8 @@ else:
 
     def _on_sync_start() -> None:
         try:
+            from .tsunagi.adapters.anki import collection
+            collection.syncing = True
             from .tsunagi.adapters.events import publish_sync
             publish_sync("started")
         except Exception:
@@ -134,6 +136,8 @@ else:
 
     def _on_sync_finish() -> None:
         try:
+            from .tsunagi.adapters.anki import collection
+            collection.syncing = False
             from .tsunagi.adapters.events import publish_sync
             publish_sync("finished")
         except Exception:
