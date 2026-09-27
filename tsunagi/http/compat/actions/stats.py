@@ -40,22 +40,22 @@ class CollectionStatsParams(BaseModel):
     wholeCollection: bool = True
 
 
-@registry.register("getNumCardsReviewedToday")
+@registry.register("getNumCardsReviewedToday", permission="read:reviews")
 def ac_getNumCardsReviewedToday(params: Optional[Dict[str, Any]] = None) -> int:
     return reviews_today()
 
 
-@registry.register("getNumCardsReviewedByDay")
+@registry.register("getNumCardsReviewedByDay", permission="read:reviews")
 def ac_getNumCardsReviewedByDay(params: Optional[Dict[str, Any]] = None) -> List[List[Any]]:
     return reviews_by_day()
 
 
-@registry.register("getCollectionStatsHTML", params=CollectionStatsParams)
+@registry.register("getCollectionStatsHTML", params=CollectionStatsParams, permission="read:collection")
 def ac_getCollectionStatsHTML(p: CollectionStatsParams) -> str:
     return collection_stats_html(p.wholeCollection)
 
 
-@registry.register("cardReviews", params=CardReviewsParams)
+@registry.register("cardReviews", params=CardReviewsParams, permission="read:reviews")
 def ac_cardReviews(p: CardReviewsParams) -> List[List[Any]]:
     from ....adapters.anki.compat import resolve_deck_names
 
@@ -65,14 +65,14 @@ def ac_cardReviews(p: CardReviewsParams) -> List[List[Any]]:
         raise ValueError(str(exc)) from exc
 
 
-@registry.register("getLatestReviewID", params=DeckParams)
+@registry.register("getLatestReviewID", params=DeckParams, permission="read:reviews")
 def ac_getLatestReviewID(p: DeckParams) -> int:
     from ....adapters.anki.compat import resolve_deck_names
 
     return latest_review_id(resolve_deck_names([p.deck])[0])
 
 
-@registry.register("getReviewsOfCards", params=GetReviewsOfCardsParams)
+@registry.register("getReviewsOfCards", params=GetReviewsOfCardsParams, permission="read:reviews")
 def ac_getReviewsOfCards(p: GetReviewsOfCardsParams) -> Dict[int, List[Dict[str, Any]]]:
     from ....adapters.anki.compat import reviews_for_raw_ids
 
@@ -88,7 +88,7 @@ class InsertReviewsParams(BaseModel):
     reviews: Any
 
 
-@registry.register("insertReviews", params=InsertReviewsParams)
+@registry.register("insertReviews", params=InsertReviewsParams, permission="write:reviews")
 def ac_insertReviews(p: InsertReviewsParams) -> None:
     """Use the native integer writer; preserve legacy scalar values and errors."""
     from ....adapters.anki.compat import insert_scalar_reviews

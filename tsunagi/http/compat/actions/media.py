@@ -47,7 +47,7 @@ class PatternParams(BaseModel):
     pattern: str = "*"
 
 
-@registry.register("storeMediaFile", params=StoreMediaFileParams)
+@registry.register("storeMediaFile", params=StoreMediaFileParams, permission="write:media")
 def ac_storeMediaFile(p: StoreMediaFileParams) -> Optional[str]:
     try:
         if not (p.data or p.path or p.url):
@@ -81,7 +81,7 @@ def ac_storeMediaFile(p: StoreMediaFileParams) -> Optional[str]:
         raise ValueError(str(exc)) from exc
 
 
-@registry.register("retrieveMediaFile", params=FilenameParams)
+@registry.register("retrieveMediaFile", params=FilenameParams, permission="read:media")
 def ac_retrieveMediaFile(p: FilenameParams) -> Any:
     # AnkiConnect normalizes rather than rejecting, and answers `false`
     # (not null) when the file is absent.
@@ -97,19 +97,19 @@ def ac_retrieveMediaFile(p: FilenameParams) -> Any:
         return base64.b64encode(fh.read()).decode("ascii")
 
 
-@registry.register("getMediaFilesNames", params=PatternParams)
+@registry.register("getMediaFilesNames", params=PatternParams, permission="read:media")
 def ac_getMediaFilesNames(p: PatternParams) -> List[str]:
     import fnmatch
     return sorted(name for name, _size, _mtime in list_media()
                   if fnmatch.fnmatch(name, p.pattern))
 
 
-@registry.register("deleteMediaFile", params=FilenameParams)
+@registry.register("deleteMediaFile", params=FilenameParams, permission="write:media")
 def ac_deleteMediaFile(p: FilenameParams) -> None:
     delete_media_file(p.filename)
     return None
 
 
-@registry.register("getMediaDirPath")
+@registry.register("getMediaDirPath", permission="read:media")
 def ac_getMediaDirPath(params: Any) -> str:
     return media_dir_path()

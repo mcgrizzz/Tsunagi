@@ -35,7 +35,7 @@ def source():
     app = FastAPI()
     app.include_router(create_resource_routes(
         "/things", caps=caps, response_model=Paginated[ModelRow],
-        resource_name="thing", resource_plural="things", tag="Things",
+        resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
     ))
     with TestClient(app) as client:
         yield client, rows, calls

@@ -65,14 +65,14 @@ def _object_ids(values):
     return ids
 
 
-@registry.register("getEaseFactors", params=CardsParams)
+@registry.register("getEaseFactors", params=CardsParams, permission="read:cards")
 def ac_getEaseFactors(p: CardsParams) -> List[Optional[int]]:
     from ....adapters.anki.compat import read_ease_factors_raw
 
     return read_ease_factors_raw(p.cards)
 
 
-@registry.register("setEaseFactors", params=SetEaseFactorsParams)
+@registry.register("setEaseFactors", params=SetEaseFactorsParams, permission="write:cards")
 def ac_setEaseFactors(p: SetEaseFactorsParams) -> List[bool]:
     from ....adapters.anki.compat import set_raw_ease_factors
 
@@ -82,27 +82,27 @@ def ac_setEaseFactors(p: SetEaseFactorsParams) -> List[bool]:
     return result
 
 
-@registry.register("suspend", params=SuspendParams)
+@registry.register("suspend", params=SuspendParams, permission="write:cards")
 def ac_suspend(p: SuspendParams) -> bool:
     from ....adapters.anki.compat import suspend_cards_raw
 
     return suspend_cards_raw(p.cards, p.suspend)
 
 
-@registry.register("unsuspend", params=CardsInfoParams)
+@registry.register("unsuspend", params=CardsInfoParams, permission="write:cards")
 def ac_unsuspend(p: CardsInfoParams) -> None:
     # Upstream discards suspend's return value.
     ac_suspend(SuspendParams(cards=p.cards, suspend=False))
 
 
-@registry.register("suspended", params=CardParams)
+@registry.register("suspended", params=CardParams, permission="read:cards")
 def ac_suspended(p: CardParams) -> bool:
     from ....adapters.anki.compat import read_suspended_raw
 
     return read_suspended_raw([p.card])[0]
 
 
-@registry.register("areSuspended", params=CardsInfoParams)
+@registry.register("areSuspended", params=CardsInfoParams, permission="read:cards")
 def ac_areSuspended(p: CardsInfoParams) -> List[Optional[bool]]:
     from ....adapters.anki.compat import read_suspended_raw
 
@@ -112,7 +112,7 @@ def ac_areSuspended(p: CardsInfoParams) -> List[Optional[bool]]:
     return read_suspended_raw(ids, missing_ok=True)
 
 
-@registry.register("areDue", params=DueParams)
+@registry.register("areDue", params=DueParams, permission="read:cards")
 def ac_areDue(p: DueParams) -> List[bool]:
     try:
         ids = raw_id_list(p.cards)
@@ -127,7 +127,7 @@ def ac_areDue(p: DueParams) -> List[bool]:
         raise ValueError(str(exc)) from exc
 
 
-@registry.register("getIntervals", params=GetIntervalsParams)
+@registry.register("getIntervals", params=GetIntervalsParams, permission="read:cards")
 def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
     try:
         ids = raw_id_list(p.cards)
@@ -143,14 +143,14 @@ def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
         raise ValueError(str(exc)) from exc
 
 
-@registry.register("cardsToNotes", params=CardsParams)
+@registry.register("cardsToNotes", params=CardsParams, permission="read:cards")
 def ac_cardsToNotes(p: CardsParams) -> List[int]:
     from ....adapters.anki.compat import notes_of_cards_raw
 
     return notes_of_cards_raw(p.cards)
 
 
-@registry.register("cardsModTime", params=CardsInfoParams)
+@registry.register("cardsModTime", params=CardsInfoParams, permission="read:cards")
 def ac_cardsModTime(p: CardsInfoParams) -> List[Dict[str, Any]]:
     return cards_mod_times(_object_ids(p.cards))
 
@@ -164,7 +164,7 @@ _CARDS_INFO_WANTS = {
 }
 
 
-@registry.register("cardsInfo", params=CardsInfoParams)
+@registry.register("cardsInfo", params=CardsInfoParams, permission="read:cards")
 def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
     if p.cards is None:
         raise ValueError("'NoneType' object is not iterable")
@@ -207,21 +207,21 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
     return out
 
 
-@registry.register("forgetCards", params=CardsInfoParams)
+@registry.register("forgetCards", params=CardsInfoParams, permission="write:cards")
 def ac_forgetCards(p: CardsInfoParams) -> None:
     from ....adapters.anki.compat import reschedule_cards_raw
 
     reschedule_cards_raw(p.cards, "forget")
 
 
-@registry.register("relearnCards", params=CardsInfoParams)
+@registry.register("relearnCards", params=CardsInfoParams, permission="write:cards")
 def ac_relearnCards(p: CardsInfoParams) -> None:
     from ....adapters.anki.compat import reschedule_cards_raw
 
     reschedule_cards_raw(p.cards, "relearn")
 
 
-@registry.register("setDueDate", params=SetDueDateParams)
+@registry.register("setDueDate", params=SetDueDateParams, permission="write:cards")
 def ac_setDueDate(p: SetDueDateParams) -> bool:
     from ....adapters.anki.compat import reschedule_cards_raw
 
@@ -233,7 +233,7 @@ class AnswerCardsParams(BaseModel):
     answers: Any = ...
 
 
-@registry.register("answerCards", params=AnswerCardsParams)
+@registry.register("answerCards", params=AnswerCardsParams, permission="write:cards")
 def ac_answerCards(p: AnswerCardsParams) -> List[bool]:
     from ....adapters.anki.compat import answer_cards_raw
 
@@ -243,7 +243,7 @@ def ac_answerCards(p: AnswerCardsParams) -> List[bool]:
     return result
 
 
-@registry.register("setSpecificValueOfCard")
+@registry.register("setSpecificValueOfCard", permission="write:cards")
 def ac_setSpecificValueOfCard(params: Dict[str, Any]) -> Any:
     """
     Canonical's return ladder, quirks and all: every input problem is a bare

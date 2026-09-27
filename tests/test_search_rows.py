@@ -34,7 +34,7 @@ def source():
     app = FastAPI()
     app.include_router(create_resource_routes(
         "/things", caps=SourceCaps(search=SearchSpec(find_ids=find_ids, hydrate=hydrate, rows=search_rows)),
-        response_model=Paginated[ModelRow], resource_name="thing", resource_plural="things", tag="Things",
+        response_model=Paginated[ModelRow], resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
     ))
     with TestClient(app) as client:
         yield client, calls

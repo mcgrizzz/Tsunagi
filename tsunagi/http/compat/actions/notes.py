@@ -172,13 +172,13 @@ def _resolve_note_media(spec, *, updating: bool = False) -> List[Dict[str, Any]]
     return _resolve_media(spec, on_resolved=stage)
 
 
-@registry.register("addNote", params=AddNoteParams)
+@registry.register("addNote", params=AddNoteParams, permission="write:notes")
 def ac_addNote(p: AddNoteParams) -> int:
     spec = p.note
     return ac_add_note(spec, _resolve_note_media(spec))
 
 
-@registry.register("addNotes", params=AddNotesParams)
+@registry.register("addNotes", params=AddNotesParams, permission="write:notes")
 def ac_addNotes(p: AddNotesParams) -> List[int]:
     created: List[int] = []
     errors: List[str] = []
@@ -195,12 +195,12 @@ def ac_addNotes(p: AddNotesParams) -> List[int]:
     return created
 
 
-@registry.register("canAddNotes", params=AddNotesParams)
+@registry.register("canAddNotes", params=AddNotesParams, permission="read:notes")
 def ac_canAddNotes(p: AddNotesParams) -> List[bool]:
     return [ok for ok, _err in _can_add_many(p.notes)]
 
 
-@registry.register("canAddNotesWithErrorDetail", params=AddNotesParams)
+@registry.register("canAddNotesWithErrorDetail", params=AddNotesParams, permission="read:notes")
 def ac_canAddNotesWithErrorDetail(p: AddNotesParams) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for ok, err in _can_add_many(p.notes):
@@ -251,7 +251,7 @@ def _can_add_many(notes):
         yield from results
 
 
-@registry.register("updateNoteFields", params=UpdateNoteFieldsParams)
+@registry.register("updateNoteFields", params=UpdateNoteFieldsParams, permission="write:notes")
 def ac_updateNoteFields(p: UpdateNoteFieldsParams) -> None:
     spec = p.note
     try:
@@ -263,7 +263,7 @@ def ac_updateNoteFields(p: UpdateNoteFieldsParams) -> None:
     return None
 
 
-@registry.register("notesInfo", params=NotesInfoParams)
+@registry.register("notesInfo", params=NotesInfoParams, permission="read:notes")
 def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
     from collections import Counter
 
@@ -310,7 +310,7 @@ def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
     return out
 
 
-@registry.register("findNotes", params=FindNotesParams)
+@registry.register("findNotes", params=FindNotesParams, permission="read:notes")
 def ac_findNotes(p: FindNotesParams) -> List[int]:
     from ....adapters.anki.compat import find_ids
 
@@ -319,7 +319,7 @@ def ac_findNotes(p: FindNotesParams) -> List[int]:
     return find_ids(p.query)
 
 
-@registry.register("findCards", params=FindNotesParams)
+@registry.register("findCards", params=FindNotesParams, permission="read:cards")
 def ac_findCards(p: FindNotesParams) -> List[int]:
     from ....adapters.anki.compat import find_ids
 
@@ -328,7 +328,7 @@ def ac_findCards(p: FindNotesParams) -> List[int]:
     return find_ids(p.query, cards=True)
 
 
-@registry.register("deleteNotes", params=DeleteNotesParams)
+@registry.register("deleteNotes", params=DeleteNotesParams, permission="write:notes")
 def ac_deleteNotes(p: DeleteNotesParams) -> None:
     delete_notes(p.notes)
     return None
@@ -344,7 +344,7 @@ class AddTagsParams(TagsParams):
     add: Any = True
 
 
-@registry.register("addTags", params=AddTagsParams)
+@registry.register("addTags", params=AddTagsParams, permission="write:tags")
 def ac_addTags(p: AddTagsParams) -> None:
     from ....adapters.anki.compat import bulk_note_tags
 
@@ -352,7 +352,7 @@ def ac_addTags(p: AddTagsParams) -> None:
     return None
 
 
-@registry.register("removeTags", params=TagsParams)
+@registry.register("removeTags", params=TagsParams, permission="write:tags")
 def ac_removeTags(p: TagsParams) -> None:
     from ....adapters.anki.compat import bulk_note_tags
 
@@ -360,12 +360,12 @@ def ac_removeTags(p: TagsParams) -> None:
     return None
 
 
-@registry.register("getTags")
+@registry.register("getTags", permission="read:tags")
 def ac_getTags(params: Dict[str, Any]) -> List[str]:
     return all_tags()
 
 
-@registry.register("notesModTime", params=NotesLookupParams)
+@registry.register("notesModTime", params=NotesLookupParams, permission="read:notes")
 def ac_notesModTime(p: NotesLookupParams) -> List[Dict[str, Any]]:
     from ....adapters.anki.compat import validate_object_ids
 
@@ -403,20 +403,20 @@ class ReplaceTagsAllParams(BaseModel):
     replace_with_tag: Any = ...
 
 
-@registry.register("canAddNote", params=AddNoteParams)
+@registry.register("canAddNote", params=AddNoteParams, permission="read:notes")
 def ac_canAddNote(p: AddNoteParams) -> bool:
     can_add, _ = _can_add(p.note)
     return can_add
 
 
-@registry.register("canAddNoteWithErrorDetail", params=AddNoteParams)
+@registry.register("canAddNoteWithErrorDetail", params=AddNoteParams, permission="read:notes")
 def ac_canAddNoteWithErrorDetail(p: AddNoteParams) -> Dict[str, Any]:
     can_add, error = _can_add(p.note)
     # Success carries no "error" key at all.
     return {"canAdd": True} if can_add else {"canAdd": False, "error": error}
 
 
-@registry.register("updateNote", params=UpdateNoteParams)
+@registry.register("updateNote", params=UpdateNoteParams, permission="write:notes")
 def ac_updateNote(p: UpdateNoteParams) -> None:
     spec = p.note
     try:
@@ -433,7 +433,7 @@ def ac_updateNote(p: UpdateNoteParams) -> None:
         raise ValueError(str(exc)) from exc
 
 
-@registry.register("updateNoteModel", params=UpdateNoteModelParams)
+@registry.register("updateNoteModel", params=UpdateNoteModelParams, permission="write:notes")
 def ac_updateNoteModel(p: UpdateNoteModelParams) -> None:
     from ....adapters.anki.compat import update_note_model_raw
 
@@ -454,38 +454,38 @@ def _set_note_tags(note_id: int, tags: Any) -> None:
         add_tags([note_id], new_tag)
 
 
-@registry.register("updateNoteTags", params=UpdateNoteTagsParams)
+@registry.register("updateNoteTags", params=UpdateNoteTagsParams, permission="write:tags")
 def ac_updateNoteTags(p: UpdateNoteTagsParams) -> None:
     _set_note_tags(p.note, p.tags)
 
 
-@registry.register("getNoteTags", params=NoteIdParams)
+@registry.register("getNoteTags", params=NoteIdParams, permission="read:tags")
 def ac_getNoteTags(p: NoteIdParams) -> List[str]:
     from ....adapters.anki.compat import note_tags
 
     return note_tags(p.note)
 
 
-@registry.register("clearUnusedTags")
+@registry.register("clearUnusedTags", permission="write:tags")
 def ac_clearUnusedTags(params: Dict[str, Any]) -> None:
     # Returns None; the native POST /v1/tags:clear-unused reports a count.
     clear_unused_tags()
 
 
-@registry.register("replaceTags", params=ReplaceTagsParams)
+@registry.register("replaceTags", params=ReplaceTagsParams, permission="write:tags")
 def ac_replaceTags(p: ReplaceTagsParams) -> None:
     _, error = replace_tag_on_notes(p.notes, p.tag_to_replace, p.replace_with_tag)
     if error is not None:
         raise ValueError(error)
 
 
-@registry.register("replaceTagsInAllNotes", params=ReplaceTagsAllParams)
+@registry.register("replaceTagsInAllNotes", params=ReplaceTagsAllParams, permission="write:tags")
 def ac_replaceTagsInAllNotes(p: ReplaceTagsAllParams) -> None:
     _, error = replace_tag_everywhere(p.tag_to_replace, p.replace_with_tag)
     if error is not None:
         raise ValueError(error)
 
 
-@registry.register("removeEmptyNotes")
+@registry.register("removeEmptyNotes", permission="write:notes")
 def ac_removeEmptyNotes(params: Dict[str, Any]) -> None:
     remove_unused_note_types()

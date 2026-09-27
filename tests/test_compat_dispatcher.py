@@ -190,7 +190,7 @@ class TestAlwaysEnvelope:
 class TestRegistry:
     def test_duplicate_registration_raises(self):
         with pytest.raises(ValueError):
-            @registry.register("version")
+            @registry.register("version", permission="public")
             def _dup(params):
                 pass
 

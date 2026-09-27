@@ -14,7 +14,7 @@ class ApiReflectParams(BaseModel):
     actions: Any = None
 
 
-@registry.register("version")
+@registry.register("version", permission="public")
 def ac_version(params: Dict[str, Any]) -> int:
     if params:
         key = next(iter(params))
@@ -22,7 +22,7 @@ def ac_version(params: Dict[str, Any]) -> int:
     return 6
 
 
-@registry.register("apiReflect", params=ApiReflectParams)
+@registry.register("apiReflect", params=ApiReflectParams, permission="public")
 def ac_apiReflect(p: ApiReflectParams) -> Dict[str, Any]:
     """
     Capability discovery. Clients call this to learn which actions exist;

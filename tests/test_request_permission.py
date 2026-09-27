@@ -29,9 +29,10 @@ def _test_echo_action():
     non-existent action into the global registry - test_parity_doc.py then saw
     'testEcho' as implemented and failed depending on test order.
     """
-    registry.register("testEcho")(lambda params: {"echo": params or None})
+    registry.register("testEcho", permission="public")(lambda params: {"echo": params or None})
     yield
     registry._handlers.pop("testEcho", None)   # our mess, our cleanup
+    registry._permissions.pop("testEcho", None)
 
 
 def rpc(action, settings, origin=None, key=None, ask=None):

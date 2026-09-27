@@ -13,6 +13,7 @@ from ...adapters.anki.reviews import (
     search_review_rows,
 )
 from ...shared.errors import handle_mutation_errors
+from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.reviews import InsertReviewsRequest, InsertReviewsResult
@@ -52,6 +53,7 @@ router = create_resource_routes(
     id_getter=make_id_getter("id"),
     resource_name="review",
     resource_plural="reviews",
+    permission_resource="reviews",
     tag="Reviews",
     description=(
         "Review history from the revlog, newest last. `id` is the review's "
@@ -66,6 +68,7 @@ router = create_resource_routes(
 
 @router.post(
     "/v1/reviews",
+    openapi_extra=requires("write:reviews"),
     response_model=InsertReviewsResult,
     summary="Insert raw review rows",
     description=(

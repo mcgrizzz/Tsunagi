@@ -2404,7 +2404,8 @@
         "summary": "Tsunagi API landing page",
         "tags": [
           "Health"
-        ]
+        ],
+        "x-permission": "public"
       },
       "post": {
         "description": "AnkiConnect-compatible POST endpoint at root. Send action and params in JSON body.",
@@ -2422,7 +2423,8 @@
         "summary": "AnkiConnect RPC endpoint",
         "tags": [
           "AnkiConnect Compatibility"
-        ]
+        ],
+        "x-permission": "public"
       }
     },
     "/actions": {
@@ -2453,7 +2455,8 @@
         "summary": "List available AnkiConnect actions",
         "tags": [
           "AnkiConnect Compatibility"
-        ]
+        ],
+        "x-permission": "public"
       }
     },
     "/v1/addons": {
@@ -2483,7 +2486,8 @@
         "summary": "List installed add-ons",
         "tags": [
           "Add-ons"
-        ]
+        ],
+        "x-permission": "read:addons"
       }
     },
     "/v1/addons/{addon_id}": {
@@ -2535,7 +2539,8 @@
         "summary": "Get an add-on",
         "tags": [
           "Add-ons"
-        ]
+        ],
+        "x-permission": "read:addons"
       }
     },
     "/v1/capabilities": {
@@ -2565,7 +2570,8 @@
         "summary": "Native API capabilities",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "read:collection"
       }
     },
     "/v1/cards": {
@@ -2678,7 +2684,8 @@
         "summary": "List cards",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "read:cards"
       }
     },
     "/v1/cards/query": {
@@ -2734,7 +2741,8 @@
         "summary": "Query cards (POST)",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "read:cards"
       }
     },
     "/v1/cards:answer": {
@@ -2784,7 +2792,8 @@
         "summary": "Answer cards",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:batch": {
@@ -2834,7 +2843,8 @@
         "summary": "Run several scheduling verbs as one undoable operation",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:bury": {
@@ -2884,7 +2894,8 @@
         "summary": "Bury cards",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:change-deck": {
@@ -2934,7 +2945,8 @@
         "summary": "Move cards to another deck",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:forget": {
@@ -2984,7 +2996,8 @@
         "summary": "Reset cards to new",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:reposition": {
@@ -3034,7 +3047,8 @@
         "summary": "Reposition new cards",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:set-due-date": {
@@ -3084,7 +3098,8 @@
         "summary": "Set the due date",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:set-ease": {
@@ -3134,7 +3149,8 @@
         "summary": "Set ease factors",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:set-flag": {
@@ -3184,7 +3200,8 @@
         "summary": "Set the coloured flag",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:set-memory-state": {
@@ -3234,7 +3251,8 @@
         "summary": "Set FSRS memory state",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "memory_state"
       }
     },
     "/v1/cards:set-values": {
@@ -3284,7 +3302,8 @@
         "summary": "Set raw card columns",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:suspend": {
@@ -3334,7 +3353,8 @@
         "summary": "Suspend cards",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:unbury": {
@@ -3384,7 +3404,8 @@
         "summary": "Unbury cards",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/cards:unsuspend": {
@@ -3434,7 +3455,8 @@
         "summary": "Unsuspend cards",
         "tags": [
           "Cards"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/collection": {
@@ -3464,7 +3486,8 @@
         "summary": "Collection metadata",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "read:collection"
       }
     },
     "/v1/collection/import-options": {
@@ -3494,7 +3517,8 @@
         "summary": "Read saved package import options",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "read:collection"
       }
     },
     "/v1/collection:check-database": {
@@ -3524,7 +3548,8 @@
         "summary": "Check the database",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "manage"
       }
     },
     "/v1/collection:export": {
@@ -3574,7 +3599,8 @@
         "summary": "Export a deck",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "manage"
       }
     },
     "/v1/collection:import": {
@@ -3634,7 +3660,8 @@
         "summary": "Import a package",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "manage"
       }
     },
     "/v1/collection:reload": {
@@ -3665,7 +3692,8 @@
         "summary": "Reload the collection (deprecated no-op)",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "manage"
       }
     },
     "/v1/collection:sync": {
@@ -3695,7 +3723,8 @@
         "summary": "Sync the collection",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "sync"
       }
     },
     "/v1/deck-configs": {
@@ -3808,7 +3837,8 @@
         "summary": "List deck_configs",
         "tags": [
           "Deck Configs"
-        ]
+        ],
+        "x-permission": "read:deck_configs"
       },
       "post": {
         "description": "Create a new deck_config. Deck options groups. Rows are Anki's config dicts verbatim, so newer scheduler keys survive a read-modify-write. Assign one to a deck with PATCH /v1/decks/{id} {config_id}.",
@@ -3858,7 +3888,8 @@
         "summary": "Create deck_config",
         "tags": [
           "Deck Configs"
-        ]
+        ],
+        "x-permission": "write:deck_configs"
       }
     },
     "/v1/deck-configs/query": {
@@ -3914,7 +3945,8 @@
         "summary": "Query deck_configs (POST)",
         "tags": [
           "Deck Configs"
-        ]
+        ],
+        "x-permission": "read:deck_configs"
       }
     },
     "/v1/deck-configs/{id}": {
@@ -3967,7 +3999,8 @@
         "summary": "Delete deck_config",
         "tags": [
           "Deck Configs"
-        ]
+        ],
+        "x-permission": "write:deck_configs"
       },
       "patch": {
         "description": "Partially update a deck_config. Only provided fields will be updated.",
@@ -4030,7 +4063,8 @@
         "summary": "Update deck_config",
         "tags": [
           "Deck Configs"
-        ]
+        ],
+        "x-permission": "write:deck_configs"
       }
     },
     "/v1/decks": {
@@ -4143,7 +4177,8 @@
         "summary": "List decks",
         "tags": [
           "Decks"
-        ]
+        ],
+        "x-permission": "read:decks"
       },
       "post": {
         "description": "Create a new deck. Deck hierarchy (nested names use '::'). Filtered (dynamic) decks appear in reads; mutations operate on normal decks.",
@@ -4193,7 +4228,8 @@
         "summary": "Create deck",
         "tags": [
           "Decks"
-        ]
+        ],
+        "x-permission": "write:decks"
       }
     },
     "/v1/decks/query": {
@@ -4249,7 +4285,8 @@
         "summary": "Query decks (POST)",
         "tags": [
           "Decks"
-        ]
+        ],
+        "x-permission": "read:decks"
       }
     },
     "/v1/decks/{id}": {
@@ -4302,7 +4339,8 @@
         "summary": "Delete deck",
         "tags": [
           "Decks"
-        ]
+        ],
+        "x-permission": "write:decks"
       },
       "patch": {
         "description": "Partially update a deck. Only provided fields will be updated.",
@@ -4365,7 +4403,8 @@
         "summary": "Update deck",
         "tags": [
           "Decks"
-        ]
+        ],
+        "x-permission": "write:decks"
       }
     },
     "/v1/events": {
@@ -4463,7 +4502,8 @@
         "summary": "Stream collection events",
         "tags": [
           "Events"
-        ]
+        ],
+        "x-permission": "read:collection"
       }
     },
     "/v1/fsrs:compute-params": {
@@ -4512,7 +4552,8 @@
         "summary": "Optimize FSRS parameters",
         "tags": [
           "FSRS"
-        ]
+        ],
+        "x-permission": "read:reviews"
       }
     },
     "/v1/fsrs:evaluate-params": {
@@ -4562,7 +4603,8 @@
         "summary": "Evaluate FSRS parameters",
         "tags": [
           "FSRS"
-        ]
+        ],
+        "x-permission": "read:reviews"
       }
     },
     "/v1/fsrs:optimal-retention": {
@@ -4612,7 +4654,8 @@
         "summary": "Compute optimal retention",
         "tags": [
           "FSRS"
-        ]
+        ],
+        "x-permission": "read:reviews"
       }
     },
     "/v1/fsrs:simulate": {
@@ -4662,7 +4705,8 @@
         "summary": "Simulate a review workload",
         "tags": [
           "FSRS"
-        ]
+        ],
+        "x-permission": "read:reviews"
       }
     },
     "/v1/fsrs:simulate-workload": {
@@ -4712,7 +4756,8 @@
         "summary": "Compare workload across retentions",
         "tags": [
           "FSRS"
-        ]
+        ],
+        "x-permission": "read:reviews"
       }
     },
     "/v1/gui/current-card": {
@@ -4742,7 +4787,8 @@
         "summary": "The card being reviewed",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui/selected-notes": {
@@ -4772,7 +4818,8 @@
         "summary": "Notes selected in the Browser",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:add-cards": {
@@ -4821,7 +4868,8 @@
         "summary": "Open Add Cards",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:answer-card": {
@@ -4871,7 +4919,8 @@
         "summary": "Answer the current card",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "write:cards"
       }
     },
     "/v1/gui:browse": {
@@ -4920,7 +4969,8 @@
         "summary": "Open the Browser",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:deck-browser": {
@@ -4950,7 +5000,8 @@
         "summary": "Show the deck list",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:deck-overview": {
@@ -5000,7 +5051,8 @@
         "summary": "Show a deck's overview",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:deck-review": {
@@ -5050,7 +5102,8 @@
         "summary": "Start reviewing a deck",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:edit-note": {
@@ -5100,7 +5153,8 @@
         "summary": "Open a note for editing",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:exit": {
@@ -5130,7 +5184,8 @@
         "summary": "Close Anki",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "manage"
       }
     },
     "/v1/gui:import-file": {
@@ -5179,7 +5234,8 @@
         "summary": "Request the import dialog",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:play-audio": {
@@ -5209,7 +5265,8 @@
         "summary": "Replay the card's audio",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:select-card": {
@@ -5259,7 +5316,8 @@
         "summary": "Select a card in the Browser",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:set-add-note-data": {
@@ -5309,7 +5367,8 @@
         "summary": "Amend the open Add Cards dialog",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:show-answer": {
@@ -5339,7 +5398,8 @@
         "summary": "Show the answer",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:show-question": {
@@ -5369,7 +5429,8 @@
         "summary": "Show the question",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:start-card-timer": {
@@ -5399,7 +5460,8 @@
         "summary": "Restart the answer timer",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "gui"
       }
     },
     "/v1/gui:undo": {
@@ -5429,7 +5491,8 @@
         "summary": "Undo",
         "tags": [
           "GUI"
-        ]
+        ],
+        "x-permission": "write"
       }
     },
     "/v1/health": {
@@ -5451,7 +5514,8 @@
         "summary": "Check API health",
         "tags": [
           "Health"
-        ]
+        ],
+        "x-permission": "public"
       }
     },
     "/v1/jobs/{job_id}": {
@@ -5502,7 +5566,8 @@
         "summary": "Poll a job",
         "tags": [
           "Jobs"
-        ]
+        ],
+        "x-permission": "read:collection"
       }
     },
     "/v1/jobs/{job_id}:abort": {
@@ -5553,7 +5618,8 @@
         "summary": "Abort a job",
         "tags": [
           "Jobs"
-        ]
+        ],
+        "x-permission": "read:collection"
       }
     },
     "/v1/media": {
@@ -5640,7 +5706,8 @@
         "summary": "List media files",
         "tags": [
           "Media"
-        ]
+        ],
+        "x-permission": "read:media"
       },
       "post": {
         "description": "Accepts one upload object or an array. Each input provides exactly one of base64 'data', a server-local 'path' (disabled by default), or a 'url'. Always returns created and failed arrays with zero-based input indexes. Successful files stay stored when another is rejected. Anki renames on collision; use the returned filename. The configured upload-size limit applies per file. Media storage is not undoable.",
@@ -5700,7 +5767,8 @@
         "summary": "Store one or more media files",
         "tags": [
           "Media"
-        ]
+        ],
+        "x-permission": "write:media"
       }
     },
     "/v1/media/{filename}": {
@@ -5753,7 +5821,8 @@
         "summary": "Delete a media file",
         "tags": [
           "Media"
-        ]
+        ],
+        "x-permission": "write:media"
       },
       "get": {
         "description": "Streams the raw bytes with a guessed Content-Type. Note: when an API key is configured this URL cannot be used directly in <img src> - browsers can't attach the header; fetch() it and use createObjectURL.",
@@ -5797,7 +5866,8 @@
         "summary": "Download a media file",
         "tags": [
           "Media"
-        ]
+        ],
+        "x-permission": "read:media"
       }
     },
     "/v1/models": {
@@ -5910,7 +5980,8 @@
         "summary": "List models",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "read:models"
       },
       "post": {
         "description": "Create a new model. Note types define the structure of cards in Anki. Select note_count for the live number of notes using each type across all decks, or filter with where=note_count>0. Counts are included in full native query results; name/ID-only queries do not calculate them.",
@@ -5960,7 +6031,8 @@
         "summary": "Create model",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models/query": {
@@ -6016,7 +6088,8 @@
         "summary": "Query models (POST)",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "read:models"
       }
     },
     "/v1/models/{id}": {
@@ -6069,7 +6142,8 @@
         "summary": "Delete model",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       },
       "patch": {
         "description": "Partially update a model. Only provided fields will be updated.",
@@ -6132,7 +6206,8 @@
         "summary": "Update model",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models/{model_id}/fields": {
@@ -6197,7 +6272,8 @@
         "summary": "Create field",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models/{model_id}/fields/{field_id}": {
@@ -6261,7 +6337,8 @@
         "summary": "Delete field",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       },
       "patch": {
         "description": "Update properties of a field in the model",
@@ -6335,7 +6412,8 @@
         "summary": "Update field",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models/{model_id}/fields:order": {
@@ -6404,7 +6482,8 @@
         "summary": "Reorder fields",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models/{model_id}/templates": {
@@ -6469,7 +6548,8 @@
         "summary": "Create template",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models/{model_id}/templates/{template_id}": {
@@ -6533,7 +6613,8 @@
         "summary": "Delete template",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       },
       "patch": {
         "description": "Update properties of a template in the model",
@@ -6607,7 +6688,8 @@
         "summary": "Update template",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models/{model_id}/templates:order": {
@@ -6676,7 +6758,8 @@
         "summary": "Reorder templates",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:models"
       }
     },
     "/v1/models:find-replace": {
@@ -6726,7 +6809,8 @@
         "summary": "Find and replace across templates and styling",
         "tags": [
           "Models"
-        ]
+        ],
+        "x-permission": "write:notes"
       }
     },
     "/v1/notes": {
@@ -6839,7 +6923,8 @@
         "summary": "List notes",
         "tags": [
           "Notes"
-        ]
+        ],
+        "x-permission": "read:notes"
       },
       "post": {
         "description": "Accepts one note object or an array. Always returns created and failed arrays, with zero-based input indexes (0 for a single object). Valid notes stay saved when another note is rejected. Inputs are processed in order and successful additions form one undo step. Malformed request bodies return 422 before writes. Add include=cards to return generated card IDs. Upload media separately and reference the stored filenames in fields.",
@@ -6915,7 +7000,8 @@
         "summary": "Create one or more notes",
         "tags": [
           "Notes"
-        ]
+        ],
+        "x-permission": "write:notes"
       }
     },
     "/v1/notes/query": {
@@ -6971,7 +7057,8 @@
         "summary": "Query notes (POST)",
         "tags": [
           "Notes"
-        ]
+        ],
+        "x-permission": "read:notes"
       }
     },
     "/v1/notes/{id}": {
@@ -7024,7 +7111,8 @@
         "summary": "Delete note",
         "tags": [
           "Notes"
-        ]
+        ],
+        "x-permission": "write:notes"
       },
       "patch": {
         "description": "Partially update a note. Only provided fields will be updated.",
@@ -7087,7 +7175,8 @@
         "summary": "Update note",
         "tags": [
           "Notes"
-        ]
+        ],
+        "x-permission": "write:notes"
       }
     },
     "/v1/notes:check": {
@@ -7157,7 +7246,8 @@
         "summary": "Check whether notes can be added",
         "tags": [
           "Notes"
-        ]
+        ],
+        "x-permission": "read:notes"
       }
     },
     "/v1/profiles": {
@@ -7187,7 +7277,8 @@
         "summary": "List profiles",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "read:collection"
       }
     },
     "/v1/profiles:load": {
@@ -7237,7 +7328,8 @@
         "summary": "Switch profile",
         "tags": [
           "Collection"
-        ]
+        ],
+        "x-permission": "manage"
       }
     },
     "/v1/reviews": {
@@ -7350,7 +7442,8 @@
         "summary": "List reviews",
         "tags": [
           "Reviews"
-        ]
+        ],
+        "x-permission": "read:reviews"
       },
       "post": {
         "description": "Appends rows to the revlog behind the scheduler's back - AnkiConnect's insertReviews, meant for importing review history. Rows use the same fields GET returns (aliases accepted); `id` is the review's epoch-ms timestamp and must be unique. All rows land in one transaction or none do. Side effects inherent to a raw revlog write: the undo history and cached study queues are discarded, and no event is emitted.",
@@ -7398,7 +7491,8 @@
         "summary": "Insert raw review rows",
         "tags": [
           "Reviews"
-        ]
+        ],
+        "x-permission": "write:reviews"
       }
     },
     "/v1/reviews/query": {
@@ -7454,7 +7548,8 @@
         "summary": "Query reviews (POST)",
         "tags": [
           "Reviews"
-        ]
+        ],
+        "x-permission": "read:reviews"
       }
     },
     "/v1/tags": {
@@ -7507,7 +7602,8 @@
         "summary": "List tags",
         "tags": [
           "Tags"
-        ]
+        ],
+        "x-permission": "read:tags"
       }
     },
     "/v1/tags/{tag}": {
@@ -7560,7 +7656,8 @@
         "summary": "Delete a tag",
         "tags": [
           "Tags"
-        ]
+        ],
+        "x-permission": "write:tags"
       },
       "patch": {
         "description": "Renames the tag and its children ('a' also renames 'a::b').",
@@ -7621,7 +7718,8 @@
         "summary": "Rename a tag",
         "tags": [
           "Tags"
-        ]
+        ],
+        "x-permission": "write:tags"
       }
     },
     "/v1/tags:bulk-add": {
@@ -7671,7 +7769,8 @@
         "summary": "Add tags to many notes",
         "tags": [
           "Tags"
-        ]
+        ],
+        "x-permission": "write:tags"
       }
     },
     "/v1/tags:bulk-remove": {
@@ -7721,7 +7820,8 @@
         "summary": "Remove tags from many notes",
         "tags": [
           "Tags"
-        ]
+        ],
+        "x-permission": "write:tags"
       }
     },
     "/v1/tags:clear-unused": {
@@ -7751,7 +7851,8 @@
         "summary": "Clear unused tags",
         "tags": [
           "Tags"
-        ]
+        ],
+        "x-permission": "write:tags"
       }
     }
   },

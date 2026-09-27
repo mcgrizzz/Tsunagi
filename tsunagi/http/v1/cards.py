@@ -34,6 +34,7 @@ from ...shared.errors import (
     ValidationError,
     handle_mutation_errors,
 )
+from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.cards import (
@@ -83,12 +84,14 @@ router = create_resource_routes(
     id_getter=make_id_getter("id"),
     resource_name="card",
     resource_plural="cards",
+    permission_resource="cards",
     tag="Cards",
     description="Cards are generated from notes by a model's templates. Use `search` for Anki query syntax; scheduling changes go through the verb routes.",
 )
 
 
-def _verb(path: str, summary: str, description: str) -> Callable:
+def _verb(path: str, summary: str, description: str,
+          permission: str = "write:cards") -> Callable:
     """
     Register a batch scheduling route.
 
@@ -106,6 +109,7 @@ def _verb(path: str, summary: str, description: str) -> Callable:
             description=description,
             tags=["Cards"],
             operation_id=operation_id,
+            openapi_extra=requires(permission),
         )(handle_mutation_errors(path)(fn))
     return decorate
 
@@ -199,7 +203,8 @@ def ease(body: SetEaseRequest = Body(...)) -> SchedulingResult:
        "Overwrites per-card FSRS state (stability/difficulty, desired retention, "
        "decay) - how FSRS helper tools reschedule. An omitted field is left "
        "unchanged; an explicit null clears it. Off by default: requires the "
-       "`gates.cards_set_memory_state` config gate.")
+       "`gates.cards_set_memory_state` config gate.",
+       permission="memory_state")
 def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResult:
     if not settings.gate_enabled("cards_set_memory_state"):
         raise ValidationError("cards:set-memory-state is disabled; "
@@ -245,6 +250,7 @@ def set_values(body: SetCardValuesRequest = Body(...)) -> SchedulingResult:
 
 @router.post(
     "/v1/cards:batch",
+    openapi_extra=requires("write:cards"),
     response_model=BatchResult,
     summary="Run several scheduling verbs as one undoable operation",
     description=(

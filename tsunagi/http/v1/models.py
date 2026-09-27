@@ -26,6 +26,7 @@ from ...adapters.anki.models import (
     reorder_templates,
 )
 from ...shared.errors import handle_mutation_errors
+from ...shared.permissions import requires
 from ...shared.planning import (
     IndexSpec,
     MutationCaps,
@@ -101,6 +102,7 @@ router = create_resource_routes(
     id_getter=make_id_getter("id"),
     resource_name="model",
     resource_plural="models",
+    permission_resource="models",
     tag="Models",
     description="Note types define the structure of cards in Anki. Select note_count "
                 "for the live number of notes using each type across all decks, or "
@@ -111,6 +113,7 @@ router = create_resource_routes(
 
 @router.post(
     "/v1/models:find-replace",
+    openapi_extra=requires("write:notes"),
     response_model=FindReplaceResult,
     summary="Find and replace across templates and styling",
     description="Literal (not regex) replacement in card templates and CSS. Omit `model_name` to sweep every model. Only models that actually contained the text are touched or counted.",

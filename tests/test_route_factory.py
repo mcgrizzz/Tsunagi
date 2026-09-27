@@ -154,6 +154,7 @@ def client(store):
         id_getter=make_id_getter("id"),
         resource_name="thing",
         resource_plural="things",
+        permission_resource="notes",
         tag="Things",
     ))
     return TestClient(app)
@@ -240,7 +241,7 @@ class TestQueries:
         app = FastAPI()
         app.include_router(create_resource_routes(
             path="/v1/boom", caps=caps, response_model=None,
-            resource_name="boom", resource_plural="booms", tag="Boom",
+            resource_name="boom", resource_plural="booms", tag="Boom", permission_resource="notes",
         ))
         resp = TestClient(app, raise_server_exceptions=False).get("/v1/boom")
         assert resp.status_code == 500
@@ -265,7 +266,7 @@ class TestSearchParam:
         app.include_router(create_resource_routes(
             path="/v1/things", caps=caps, response_model=None,
             id_getter=make_id_getter("id"),
-            resource_name="thing", resource_plural="things", tag="Things",
+            resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
         return TestClient(app)
 
@@ -318,7 +319,7 @@ class TestSearchParam:
         app.include_router(create_resource_routes(
             path="/v1/things", caps=caps, response_model=None,
             id_getter=make_id_getter("id"),
-            resource_name="thing", resource_plural="things", tag="Things",
+            resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
         client = TestClient(app)
         response = (client.get("/v1/things", params={"limit": 6001}) if method == "GET" else
@@ -397,7 +398,7 @@ class TestAvailabilityErrors:
         register_exception_handlers(app)
         app.include_router(create_resource_routes(
             path="/v1/things", caps=caps, response_model=None,
-            resource_name="thing", resource_plural="things", tag="Things",
+            resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
         return TestClient(app, raise_server_exceptions=False)
 
@@ -514,7 +515,7 @@ class TestKeysetScan:
         app.include_router(create_resource_routes(
             path="/v1/things", caps=caps, response_model=None,
             id_getter=make_id_getter("id"),
-            resource_name="thing", resource_plural="things", tag="Things",
+            resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
         return TestClient(app), calls
 
@@ -598,7 +599,7 @@ class TestIdIndexPaging:
         app.include_router(create_resource_routes(
             path="/v1/things", caps=caps, response_model=None,
             id_getter=make_id_getter("id"),
-            resource_name="thing", resource_plural="things", tag="Things",
+            resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
         client = TestClient(app)
         id_list = ",".join(str(i) for i in range(1, 601))
@@ -640,7 +641,7 @@ class TestTwoPhaseHydrate:
         app.include_router(create_resource_routes(
             path="/v1/things", caps=caps, response_model=None,
             id_getter=make_id_getter("id"),
-            resource_name="thing", resource_plural="things", tag="Things",
+            resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
         return TestClient(app)
 

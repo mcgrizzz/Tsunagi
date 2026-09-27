@@ -74,23 +74,23 @@ class RemoveDeckConfigIdParams(BaseModel):
     configId: Any = ...
 
 
-@registry.register("deckNames")
+@registry.register("deckNames", permission="read:decks")
 def ac_deckNames(params: Dict[str, Any]) -> List[str]:
     return [d["name"] for d in get_deck_names_and_ids()]
 
 
-@registry.register("deckNamesAndIds")
+@registry.register("deckNamesAndIds", permission="read:decks")
 def ac_deckNamesAndIds(params: Dict[str, Any]) -> Dict[str, int]:
     return {d["name"]: d["id"] for d in get_deck_names_and_ids()}
 
 
-@registry.register("createDeck", params=CreateDeckParams)
+@registry.register("createDeck", params=CreateDeckParams, permission="write:decks")
 def ac_createDeck(p: CreateDeckParams) -> int:
     # Existing name returns the existing id without error; "::" creates parents.
     return create_deck_if_missing(p.deck)
 
 
-@registry.register("deckNameFromId", params=DeckIdParams)
+@registry.register("deckNameFromId", params=DeckIdParams, permission="read:decks")
 def ac_deckNameFromId(p: DeckIdParams) -> str:
     # Narrow wants: without it the deck fetcher builds due counts, which
     # costs a full scheduler pass over every card - to read one name.
@@ -100,14 +100,14 @@ def ac_deckNameFromId(p: DeckIdParams) -> str:
     return decks[0].name
 
 
-@registry.register("getDecks", params=CardsParams)
+@registry.register("getDecks", params=CardsParams, permission="read:decks")
 def ac_getDecks(p: CardsParams) -> Dict[str, List[int]]:
     from ....adapters.anki.compat import decks_for_cards
 
     return decks_for_cards(raw_id_list(p.cards))
 
 
-@registry.register("changeDeck", params=ChangeDeckParams)
+@registry.register("changeDeck", params=ChangeDeckParams, permission="write:cards")
 def ac_changeDeck(p: ChangeDeckParams) -> None:
     # Canonical creates the target deck if it doesn't exist (decks.id), unlike
     # the native POST /v1/cards:change-deck, which refuses.
@@ -115,7 +115,7 @@ def ac_changeDeck(p: ChangeDeckParams) -> None:
     change_deck(p.cards, deck_id=deck_id)
 
 
-@registry.register("deleteDecks", params=DeleteDecksParams)
+@registry.register("deleteDecks", params=DeleteDecksParams, permission="write:decks")
 def ac_deleteDecks(p: DeleteDecksParams) -> None:
     if not p.cardsToo:
         # Anki has not been able to delete a deck while keeping its cards
@@ -126,35 +126,35 @@ def ac_deleteDecks(p: DeleteDecksParams) -> None:
         delete_deck(deck.id)
 
 
-@registry.register("getDeckConfig", params=DeckParams)
+@registry.register("getDeckConfig", params=DeckParams, permission="read:deck_configs")
 def ac_getDeckConfig(p: DeckParams):
     from ....adapters.anki.compat import get_deck_config_legacy
 
     return get_deck_config_legacy(p.deck)
 
 
-@registry.register("saveDeckConfig", params=SaveDeckConfigParams)
+@registry.register("saveDeckConfig", params=SaveDeckConfigParams, permission="write:deck_configs")
 def ac_saveDeckConfig(p: SaveDeckConfigParams) -> bool:
     from ....adapters.anki.compat import save_deck_config_legacy
 
     return save_deck_config_legacy(p.config)
 
 
-@registry.register("setDeckConfigId", params=SetDeckConfigIdParams)
+@registry.register("setDeckConfigId", params=SetDeckConfigIdParams, permission="write:deck_configs")
 def ac_setDeckConfigId(p: SetDeckConfigIdParams) -> bool:
     from ....adapters.anki.compat import set_deck_config_legacy
 
     return set_deck_config_legacy(p.decks, p.configId)
 
 
-@registry.register("cloneDeckConfigId", params=CloneDeckConfigIdParams)
+@registry.register("cloneDeckConfigId", params=CloneDeckConfigIdParams, permission="write:deck_configs")
 def ac_cloneDeckConfigId(p: CloneDeckConfigIdParams):
     from ....adapters.anki.compat import clone_deck_config_legacy
 
     return clone_deck_config_legacy(p.name, p.cloneFrom)
 
 
-@registry.register("removeDeckConfigId", params=RemoveDeckConfigIdParams)
+@registry.register("removeDeckConfigId", params=RemoveDeckConfigIdParams, permission="write:deck_configs")
 def ac_removeDeckConfigId(p: RemoveDeckConfigIdParams) -> bool:
     from ....adapters.anki.compat import remove_deck_config_legacy
 
@@ -164,7 +164,7 @@ def ac_removeDeckConfigId(p: RemoveDeckConfigIdParams) -> bool:
     return result
 
 
-@registry.register("getDeckStats", params=DeckStatsParams)
+@registry.register("getDeckStats", params=DeckStatsParams, permission="read:decks")
 def ac_getDeckStats(p: DeckStatsParams) -> Dict[int, Dict[str, Any]]:
     from ....adapters.anki.compat import deck_tree_names, resolve_deck_names
 

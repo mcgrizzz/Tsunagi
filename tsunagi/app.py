@@ -42,6 +42,7 @@ from .http.v1.notes import router as notes_router
 from .http.v1.reviews import router as reviews_router
 from .http.v1.tags import router as tags_router
 from .shared.errors import register_exception_handlers
+from .shared.permissions import PUBLIC, requires
 from .shared.schemas.capabilities import Versions, runtime_versions
 from .shared.version import ADDON_VERSION
 
@@ -168,7 +169,8 @@ def redoc_page():
     description="Scalar API reference and interactive request console",
     response_class=HTMLResponse,
     tags=["Health"],
-    operation_id="rootLandingPage"
+    operation_id="rootLandingPage",
+    openapi_extra=requires(PUBLIC),
 )
 def root_landing_page():
     """Serve Scalar against the same OpenAPI document used by Swagger and ReDoc."""
@@ -182,7 +184,8 @@ def root_landing_page():
     summary="AnkiConnect RPC endpoint",
     description="AnkiConnect-compatible POST endpoint at root. Send action and params in JSON body.",
     tags=["AnkiConnect Compatibility"],
-    operation_id="ankiConnectRpc"
+    operation_id="ankiConnectRpc",
+    openapi_extra=requires(PUBLIC),  # each action declares its own
 )
 async def ankiconnect_rpc_endpoint(request: Request) -> Any:
     """
@@ -247,7 +250,8 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
     summary="List available AnkiConnect actions",
     description="Get a list of all registered AnkiConnect-compatible actions",
     tags=["AnkiConnect Compatibility"],
-    operation_id="listAnkiConnectActions"
+    operation_id="listAnkiConnectActions",
+    openapi_extra=requires(PUBLIC),
 )
 def list_ankiconnect_actions() -> dict:
     """
@@ -290,7 +294,8 @@ _SERVER_STATE = _ServerState()
     summary="Check API health",
     description="Verify the Tsunagi server is running and responsive",
     tags=["Health"],
-    operation_id="checkHealth"
+    operation_id="checkHealth",
+    openapi_extra=requires(PUBLIC),
 )
 def health() -> Health:
     """Get API health status including version, port and collection state."""

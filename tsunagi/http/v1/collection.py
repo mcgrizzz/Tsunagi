@@ -29,6 +29,7 @@ from ...adapters.anki.collection import (
 )
 from ...adapters.jobs import jobs
 from ...shared.errors import anki_error_detail, handle_mutation_errors
+from ...shared.permissions import requires
 from ...shared.schemas.capabilities import Capabilities, runtime_versions
 from ...shared.schemas.collection import (
     CollectionActionResult,
@@ -54,6 +55,7 @@ def _stats(start: float) -> dict:
 
 @router.get(
     "/v1/capabilities",
+    openapi_extra=requires("read:collection"),
     response_model=Capabilities,
     summary="Native API capabilities",
     description=(
@@ -78,6 +80,7 @@ def capabilities(request: Request) -> Capabilities:
 
 @router.get(
     "/v1/collection",
+    openapi_extra=requires("read:collection"),
     response_model=CollectionMeta,
     summary="Collection metadata",
     description=(
@@ -100,6 +103,7 @@ def meta() -> CollectionMeta:
 
 @router.get(
     "/v1/profiles",
+    openapi_extra=requires("read:collection"),
     response_model=ProfileList,
     summary="List profiles",
     description="Every Anki profile, and which one is currently open.",
@@ -115,6 +119,7 @@ def profiles() -> ProfileList:
 
 @router.post(
     "/v1/profiles:load",
+    openapi_extra=requires("manage"),
     response_model=ProfileLoadResult,
     summary="Switch profile",
     description=(
@@ -135,6 +140,7 @@ def load(body: ProfileLoad = Body(...)) -> ProfileLoadResult:
 
 @router.post(
     "/v1/collection:sync",
+    openapi_extra=requires("sync"),
     response_model=SyncResult,
     summary="Sync the collection",
     description=(
@@ -155,6 +161,7 @@ def sync() -> SyncResult:
 
 @router.post(
     "/v1/collection:export",
+    openapi_extra=requires("manage"),
     response_model=CollectionActionResult,
     summary="Export a deck",
     description=(
@@ -173,6 +180,7 @@ def export(body: ExportRequest = Body(...)) -> CollectionActionResult:
 
 @router.get(
     "/v1/collection/import-options",
+    openapi_extra=requires("read:collection"),
     response_model=ImportPreferences,
     summary="Read saved package import options",
     description=(
@@ -192,6 +200,7 @@ def import_options() -> ImportPreferences:
 
 @router.post(
     "/v1/collection:import",
+    openapi_extra=requires("manage"),
     response_model=ImportResult,
     responses={202: {"model": JobSubmitted, "description": "Import still running; poll the job"}},
     summary="Import a package",
@@ -252,6 +261,7 @@ def import_(body: ImportRequest = Body(...)) -> Union[ImportResult, JSONResponse
 
 @router.post(
     "/v1/collection:reload",
+    openapi_extra=requires("manage"),
     response_model=CollectionActionResult,
     summary="Reload the collection (deprecated no-op)",
     description=(
@@ -273,6 +283,7 @@ def reload() -> CollectionActionResult:
 
 @router.post(
     "/v1/collection:check-database",
+    openapi_extra=requires("manage"),
     response_model=CollectionActionResult,
     summary="Check the database",
     description="Runs Anki's Check Database, which rebuilds indexes and fixes inconsistencies.",

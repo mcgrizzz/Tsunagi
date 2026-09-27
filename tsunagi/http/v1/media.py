@@ -26,6 +26,7 @@ from ...shared.errors import (
     handle_mutation_errors,
 )
 from ...shared.pagination import decode_cursor, encode_cursor
+from ...shared.permissions import requires
 from ...shared.schemas.media import (
     MediaCreateResponse,
     MediaDeletionResult,
@@ -131,6 +132,7 @@ def _resolve_upload(body: MediaUpload) -> tuple:
 
 @router.get(
     "/v1/media",
+    openapi_extra=requires("read:media"),
     response_model=MediaList,
     summary="List media files",
     description="Media is a flat file namespace, not a queryable resource - filter with prefix/suffix rather than the select/where DSL.",
@@ -168,6 +170,7 @@ def list_media_files(
 
 @router.get(
     "/v1/media/{filename:path}",
+    openapi_extra=requires("read:media"),
     response_class=FileResponse,
     summary="Download a media file",
     description="Streams the raw bytes with a guessed Content-Type. Note: when an API key is configured this URL cannot be used directly in <img src> - browsers can't attach the header; fetch() it and use createObjectURL.",
@@ -186,6 +189,7 @@ def get_media_file(filename: str = Path(..., description="Media filename")) -> F
 
 @router.post(
     "/v1/media",
+    openapi_extra=requires("write:media"),
     response_model=MediaCreateResponse,
     summary="Store one or more media files",
     description=("Accepts one upload object or an array. Each input provides exactly one of base64 'data', "
@@ -206,6 +210,7 @@ def store_media(
 
 @router.delete(
     "/v1/media/{filename:path}",
+    openapi_extra=requires("write:media"),
     response_model=MediaDeletionResult,
     summary="Delete a media file",
     description="Moves the file to Anki's media trash.",

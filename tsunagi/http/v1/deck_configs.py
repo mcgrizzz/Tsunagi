@@ -35,6 +35,7 @@ router = create_resource_routes(
     id_getter=make_id_getter("id"),
     resource_name="deck_config",
     resource_plural="deck_configs",
+    permission_resource="deck_configs",
     tag="Deck Configs",
     description="Deck options groups. Rows are Anki's config dicts verbatim, so newer scheduler keys survive a read-modify-write. Assign one to a deck with PATCH /v1/decks/{id} {config_id}.",
 )

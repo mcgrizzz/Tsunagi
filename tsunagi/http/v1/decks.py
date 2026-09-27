@@ -47,6 +47,7 @@ router = create_resource_routes(
     id_getter=make_id_getter("id"),
     resource_name="deck",
     resource_plural="decks",
+    permission_resource="decks",
     tag="Decks",
     description="Deck hierarchy (nested names use '::'). Filtered (dynamic) decks appear in reads; mutations operate on normal decks."
 )

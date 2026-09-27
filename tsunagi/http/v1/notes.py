@@ -13,6 +13,7 @@ from ...adapters.anki.notes import (
     patch_note,
 )
 from ...shared.errors import handle_mutation_errors
+from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, MutationCaps, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.notes import (
@@ -55,6 +56,7 @@ router = create_resource_routes(
     id_getter=make_id_getter("id"),
     resource_name="note",
     resource_plural="notes",
+    permission_resource="notes",
     tag="Notes",
     description="Notes hold the content; cards are generated from them by a model's templates. Use `search` for Anki query syntax."
 )
@@ -62,6 +64,7 @@ router = create_resource_routes(
 
 @router.post(
     "/v1/notes:check",
+    openapi_extra=requires("read:notes"),
     response_model=NoteCheckResponse,
     summary="Check whether notes can be added",
     description=("Reports per candidate whether it can be added, and why not (empty first field, "
@@ -87,6 +90,7 @@ def check(
 
 @router.post(
     "/v1/notes",
+    openapi_extra=requires("write:notes"),
     response_model=NoteCreateResponse,
     response_model_exclude_none=True,
     summary="Create one or more notes",

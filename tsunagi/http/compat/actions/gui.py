@@ -81,17 +81,17 @@ def _media_of(note: Any, *, on_resolved=None) -> List[Dict[str, Any]]:
 # Browser
 # ====================
 
-@registry.register("guiBrowse", params=GuiBrowseParams)
+@registry.register("guiBrowse", params=GuiBrowseParams, permission="gui")
 def ac_guiBrowse(p: GuiBrowseParams) -> List[int]:
     return g.ac_browse(p.query, p.reorderCards)
 
 
-@registry.register("guiSelectCard", params=CardParams)
+@registry.register("guiSelectCard", params=CardParams, permission="gui")
 def ac_guiSelectCard(p: CardParams) -> bool:
     return g.ac_select_card(p.card)
 
 
-@registry.register("guiSelectNote", params=SelectNoteParams)
+@registry.register("guiSelectNote", params=SelectNoteParams, permission="gui")
 def ac_guiSelectNote(p: SelectNoteParams) -> bool:
     """
     Canonical's own deprecated alias: it selects a CARD despite the name, and
@@ -100,12 +100,12 @@ def ac_guiSelectNote(p: SelectNoteParams) -> bool:
     return g.ac_select_card(p.note)
 
 
-@registry.register("guiSelectedNotes")
+@registry.register("guiSelectedNotes", permission="gui")
 def ac_guiSelectedNotes(params: Optional[Dict[str, Any]] = None) -> List[int]:
     return g.selected_notes()
 
 
-@registry.register("guiEditNote", params=NoteParams)
+@registry.register("guiEditNote", params=NoteParams, permission="gui")
 def ac_guiEditNote(p: NoteParams) -> None:
     g.ac_edit_note(p.note)
     return None
@@ -115,7 +115,7 @@ def ac_guiEditNote(p: NoteParams) -> None:
 # Add Cards
 # ====================
 
-@registry.register("guiAddCards", params=GuiAddCardsParams)
+@registry.register("guiAddCards", params=GuiAddCardsParams, permission="gui")
 def ac_guiAddCards(p: GuiAddCardsParams) -> int:
     try:
         return g.add_cards(p.note, _compat=True,
@@ -124,7 +124,7 @@ def ac_guiAddCards(p: GuiAddCardsParams) -> int:
         raise ValueError(str(exc)) from exc
 
 
-@registry.register("guiAddNoteSetData", params=GuiAddNoteSetDataParams)
+@registry.register("guiAddNoteSetData", params=GuiAddNoteSetDataParams, permission="gui")
 def ac_guiAddNoteSetData(p: GuiAddNoteSetDataParams) -> Any:
     if not g.add_note_dialog_open():
         return dict(g.ADD_DIALOG_CLOSED)
@@ -139,12 +139,12 @@ def ac_guiAddNoteSetData(p: GuiAddNoteSetDataParams) -> Any:
 # Reviewer
 # ====================
 
-@registry.register("guiReviewActive")
+@registry.register("guiReviewActive", permission="gui")
 def ac_guiReviewActive(params: Optional[Dict[str, Any]] = None) -> bool:
     return _gui_call(g.review_active)
 
 
-@registry.register("guiCurrentCard")
+@registry.register("guiCurrentCard", permission="gui")
 def ac_guiCurrentCard(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     card = _gui_call(g.current_card, _compat=True)
     if card is None:
@@ -153,32 +153,32 @@ def ac_guiCurrentCard(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
     return card
 
 
-@registry.register("guiStartCardTimer")
+@registry.register("guiStartCardTimer", permission="gui")
 def ac_guiStartCardTimer(params: Optional[Dict[str, Any]] = None) -> bool:
     return _gui_call(g.start_card_timer)
 
 
-@registry.register("guiShowQuestion")
+@registry.register("guiShowQuestion", permission="gui")
 def ac_guiShowQuestion(params: Optional[Dict[str, Any]] = None) -> bool:
     return _gui_call(g.show_question)
 
 
-@registry.register("guiShowAnswer")
+@registry.register("guiShowAnswer", permission="gui")
 def ac_guiShowAnswer(params: Optional[Dict[str, Any]] = None) -> bool:
     return _gui_call(g.show_answer)
 
 
-@registry.register("guiAnswerCard", params=EaseParams)
+@registry.register("guiAnswerCard", params=EaseParams, permission="write:cards")
 def ac_guiAnswerCard(p: EaseParams) -> bool:
     return _gui_call(g.answer_card, p.ease)
 
 
-@registry.register("guiUndo")
+@registry.register("guiUndo", permission="write")
 def ac_guiUndo(params: Optional[Dict[str, Any]] = None) -> bool:
     return _gui_call(g.undo)
 
 
-@registry.register("guiPlayAudio")
+@registry.register("guiPlayAudio", permission="gui")
 def ac_guiPlayAudio(params: Optional[Dict[str, Any]] = None) -> bool:
     return _gui_call(g.play_audio)
 
@@ -187,29 +187,29 @@ def ac_guiPlayAudio(params: Optional[Dict[str, Any]] = None) -> bool:
 # Navigation and windows
 # ====================
 
-@registry.register("guiDeckBrowser")
+@registry.register("guiDeckBrowser", permission="gui")
 def ac_guiDeckBrowser(params: Optional[Dict[str, Any]] = None) -> None:
     _gui_call(g.deck_browser)
     return None
 
 
-@registry.register("guiDeckOverview", params=DeckParams)
+@registry.register("guiDeckOverview", params=DeckParams, permission="gui")
 def ac_guiDeckOverview(p: DeckParams) -> bool:
     return _gui_call(g.deck_overview, p.name)
 
 
-@registry.register("guiDeckReview", params=DeckParams)
+@registry.register("guiDeckReview", params=DeckParams, permission="gui")
 def ac_guiDeckReview(p: DeckParams) -> bool:
     return _gui_call(g.deck_review, p.name)
 
 
-@registry.register("guiImportFile", params=ImportFileParams)
+@registry.register("guiImportFile", params=ImportFileParams, permission="gui")
 def ac_guiImportFile(p: ImportFileParams) -> None:
     _gui_call(g.import_file, p.path, _compat=True)
     return None
 
 
-@registry.register("guiCheckDatabase")
+@registry.register("guiCheckDatabase", permission="manage")
 def ac_guiCheckDatabase(params: Optional[Dict[str, Any]] = None) -> bool:
     from ....adapters.anki.collection import check_database
 
@@ -217,7 +217,7 @@ def ac_guiCheckDatabase(params: Optional[Dict[str, Any]] = None) -> bool:
     return True
 
 
-@registry.register("guiExitAnki")
+@registry.register("guiExitAnki", permission="manage")
 def ac_guiExitAnki(params: Optional[Dict[str, Any]] = None) -> None:
     _gui_call(g.exit_anki)
     return None

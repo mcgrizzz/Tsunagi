@@ -151,17 +151,17 @@ def _moved(names: List[str], name: str, index: int) -> List[str]:
     return rest[:index] + [name] + rest[index:]
 
 
-@registry.register("modelNames")
+@registry.register("modelNames", permission="read:models")
 def ac_modelNames(params: Dict[str, Any]) -> List[str]:
     return [d["name"] for d in get_model_names_and_ids()]
 
 
-@registry.register("modelNamesAndIds")
+@registry.register("modelNamesAndIds", permission="read:models")
 def ac_modelNamesAndIds(params: Dict[str, Any]) -> Dict[str, int]:
     return {d["name"]: d["id"] for d in get_model_names_and_ids()}
 
 
-@registry.register("modelFieldNames", params=ModelFieldNamesParams)
+@registry.register("modelFieldNames", params=ModelFieldNamesParams, permission="read:models")
 def ac_modelFieldNames(p: ModelFieldNamesParams) -> List[str]:
     return [field["name"] for field in _raw_model(p.modelName)["flds"]]
 
@@ -170,14 +170,14 @@ def ac_modelFieldNames(p: ModelFieldNamesParams) -> List[str]:
 # Routing them through ModelInfo would silently drop any schema11 key our
 # schema doesn't model - the v1 API is where the curated shape belongs.
 
-@registry.register("findModelsByName", params=FindModelsByNameParams)
+@registry.register("findModelsByName", params=FindModelsByNameParams, permission="read:models")
 def ac_findModelsByName(p: FindModelsByNameParams) -> List[Dict[str, Any]]:
     from ....adapters.anki.compat import read_models_raw
 
     return read_models_raw(p.modelNames)
 
 
-@registry.register("findModelsById", params=FindModelsByIdParams)
+@registry.register("findModelsById", params=FindModelsByIdParams, permission="read:models")
 def ac_findModelsById(p: FindModelsByIdParams) -> List[Dict[str, Any]]:
     from ....adapters.anki.compat import read_models_raw
 
@@ -189,14 +189,14 @@ def ac_findModelsById(p: FindModelsByIdParams) -> List[Dict[str, Any]]:
 # findModelsBy* does: ModelField.font/size are Optional, so a curated shape
 # would turn "Anki always sets this" into a lying null.
 
-@registry.register("modelNameFromId", params=ModelIdParams)
+@registry.register("modelNameFromId", params=ModelIdParams, permission="read:models")
 def ac_modelNameFromId(p: ModelIdParams) -> str:
     from ....adapters.anki.compat import read_models_raw
 
     return read_models_raw([p.modelId], by_id=True)[0]["name"]
 
 
-@registry.register("modelFieldDescriptions", params=ModelFieldNamesParams)
+@registry.register("modelFieldDescriptions", params=ModelFieldNamesParams, permission="read:models")
 def ac_modelFieldDescriptions(p: ModelFieldNamesParams) -> List[str]:
     flds = _raw_model(p.modelName)["flds"]
     try:
@@ -206,13 +206,13 @@ def ac_modelFieldDescriptions(p: ModelFieldNamesParams) -> List[str]:
         return ["" for _ in flds]
 
 
-@registry.register("modelFieldFonts", params=ModelFieldNamesParams)
+@registry.register("modelFieldFonts", params=ModelFieldNamesParams, permission="read:models")
 def ac_modelFieldFonts(p: ModelFieldNamesParams) -> Dict[str, Dict[str, Any]]:
     return {f["name"]: {"font": f["font"], "size": f["size"]}
             for f in _raw_model(p.modelName)["flds"]}
 
 
-@registry.register("modelFieldsOnTemplates", params=ModelFieldNamesParams)
+@registry.register("modelFieldsOnTemplates", params=ModelFieldNamesParams, permission="read:models")
 def ac_modelFieldsOnTemplates(p: ModelFieldNamesParams) -> Dict[str, List[List[str]]]:
     """{templateName: [[question fields], [answer fields]]} - canonical's parse."""
     out: Dict[str, List[List[str]]] = {}
@@ -236,27 +236,27 @@ def ac_modelFieldsOnTemplates(p: ModelFieldNamesParams) -> Dict[str, List[List[s
     return out
 
 
-@registry.register("modelTemplates", params=ModelFieldNamesParams)
+@registry.register("modelTemplates", params=ModelFieldNamesParams, permission="read:models")
 def ac_modelTemplates(p: ModelFieldNamesParams) -> Dict[str, Dict[str, str]]:
     return {t["name"]: {"Front": t["qfmt"], "Back": t["afmt"]}
             for t in _raw_model(p.modelName)["tmpls"]}
 
 
-@registry.register("modelStyling", params=ModelFieldNamesParams)
+@registry.register("modelStyling", params=ModelFieldNamesParams, permission="read:models")
 def ac_modelStyling(p: ModelFieldNamesParams) -> Dict[str, str]:
     return {"css": _raw_model(p.modelName)["css"]}
 
 
 # --- creation and bulk edits --------------------------------------------
 
-@registry.register("createModel", params=CreateModelParams)
+@registry.register("createModel", params=CreateModelParams, permission="write:models")
 def ac_createModel(p: CreateModelParams) -> Dict[str, Any]:
     from ....adapters.anki.compat import create_model_raw
 
     return create_model_raw(p.modelName, p.inOrderFields, p.cardTemplates, p.css, p.isCloze)
 
 
-@registry.register("findAndReplaceInModels", params=FindAndReplaceParams)
+@registry.register("findAndReplaceInModels", params=FindAndReplaceParams, permission="write:notes")
 def ac_findAndReplaceInModels(p: FindAndReplaceParams) -> int:
     from ....adapters.anki.compat import replace_in_models_raw
 
@@ -266,14 +266,14 @@ def ac_findAndReplaceInModels(p: FindAndReplaceParams) -> int:
     return count
 
 
-@registry.register("updateModelTemplates", params=UpdateModelTemplatesParams)
+@registry.register("updateModelTemplates", params=UpdateModelTemplatesParams, permission="write:models")
 def ac_updateModelTemplates(p: UpdateModelTemplatesParams) -> None:
     from ....adapters.anki.compat import update_model_raw
 
     update_model_raw(p.model, templates=True)
 
 
-@registry.register("updateModelStyling", params=UpdateModelStylingParams)
+@registry.register("updateModelStyling", params=UpdateModelStylingParams, permission="write:models")
 def ac_updateModelStyling(p: UpdateModelStylingParams) -> None:
     from ....adapters.anki.compat import update_model_raw
 
@@ -282,57 +282,57 @@ def ac_updateModelStyling(p: UpdateModelStylingParams) -> None:
 
 # --- template edits -----------------------------------------------------
 
-@registry.register("modelTemplateRename", params=TemplateRenameParams)
+@registry.register("modelTemplateRename", params=TemplateRenameParams, permission="write:models")
 def ac_modelTemplateRename(p: TemplateRenameParams) -> None:
     return _template_change(p, "rename", name=p.oldTemplateName, value=p.newTemplateName)
 
 
-@registry.register("modelTemplateReposition", params=TemplateRepositionParams)
+@registry.register("modelTemplateReposition", params=TemplateRepositionParams, permission="write:models")
 def ac_modelTemplateReposition(p: TemplateRepositionParams) -> None:
     return _template_change(p, "reposition", name=p.templateName, index=p.index)
 
 
-@registry.register("modelTemplateAdd", params=TemplateAddParams)
+@registry.register("modelTemplateAdd", params=TemplateAddParams, permission="write:models")
 def ac_modelTemplateAdd(p: TemplateAddParams) -> None:
     return _template_change(p, "add", spec=p.template)
 
 
-@registry.register("modelTemplateRemove", params=TemplateNameParams)
+@registry.register("modelTemplateRemove", params=TemplateNameParams, permission="write:models")
 def ac_modelTemplateRemove(p: TemplateNameParams) -> None:
     return _template_change(p, "remove", name=p.templateName)
 
 
-@registry.register("modelFieldRename", params=FieldRenameParams)
+@registry.register("modelFieldRename", params=FieldRenameParams, permission="write:models")
 def ac_modelFieldRename(p: FieldRenameParams) -> None:
     return _field_change(p, "rename", p.oldFieldName, value=p.newFieldName)
 
 
-@registry.register("modelFieldReposition", params=FieldRepositionParams)
+@registry.register("modelFieldReposition", params=FieldRepositionParams, permission="write:models")
 def ac_modelFieldReposition(p: FieldRepositionParams) -> None:
     return _field_change(p, "reposition", p.fieldName, index=p.index)
 
 
-@registry.register("modelFieldAdd", params=FieldAddParams)
+@registry.register("modelFieldAdd", params=FieldAddParams, permission="write:models")
 def ac_modelFieldAdd(p: FieldAddParams) -> None:
     return _field_change(p, "add", p.fieldName, index=p.index)
 
 
-@registry.register("modelFieldRemove", params=FieldNameParams)
+@registry.register("modelFieldRemove", params=FieldNameParams, permission="write:models")
 def ac_modelFieldRemove(p: FieldNameParams) -> None:
     return _field_change(p, "remove", p.fieldName)
 
 
-@registry.register("modelFieldSetFont", params=FieldSetFontParams)
+@registry.register("modelFieldSetFont", params=FieldSetFontParams, permission="write:models")
 def ac_modelFieldSetFont(p: FieldSetFontParams) -> None:
     return _field_change(p, "font", p.fieldName, value=p.font)
 
 
-@registry.register("modelFieldSetFontSize", params=FieldSetFontSizeParams)
+@registry.register("modelFieldSetFontSize", params=FieldSetFontSizeParams, permission="write:models")
 def ac_modelFieldSetFontSize(p: FieldSetFontSizeParams) -> None:
     return _field_change(p, "size", p.fieldName, value=p.fontSize)
 
 
-@registry.register("modelFieldSetDescription", params=FieldSetDescriptionParams)
+@registry.register("modelFieldSetDescription", params=FieldSetDescriptionParams, permission="write:models")
 def ac_modelFieldSetDescription(p: FieldSetDescriptionParams) -> bool:
     return _field_change(p, "description", p.fieldName, value=p.description)
 

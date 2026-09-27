@@ -16,6 +16,7 @@ from ...adapters.anki.tags import (
     rename_tag,
 )
 from ...shared.errors import ResourceNotFoundError, handle_mutation_errors
+from ...shared.permissions import requires
 from ...shared.schemas.tags import (
     TagBulkRequest,
     TagList,
@@ -32,6 +33,7 @@ def _stats(start: float) -> dict:
 
 @router.get(
     "/v1/tags",
+    openapi_extra=requires("read:tags"),
     response_model=TagList,
     summary="List tags",
     description="Every tag in the collection, sorted. Nesting uses '::'.",
@@ -51,6 +53,7 @@ def list_tags(
 
 @router.patch(
     "/v1/tags/{tag}",
+    openapi_extra=requires("write:tags"),
     response_model=TagMutationResult,
     summary="Rename a tag",
     description="Renames the tag and its children ('a' also renames 'a::b').",
@@ -70,6 +73,7 @@ def rename(
 
 @router.delete(
     "/v1/tags/{tag}",
+    openapi_extra=requires("write:tags"),
     response_model=TagMutationResult,
     summary="Delete a tag",
     description="Removes the tag and its children from every note.",
@@ -86,6 +90,7 @@ def delete(tag: str = Path(..., description="The tag to remove")) -> TagMutation
 
 @router.post(
     "/v1/tags:clear-unused",
+    openapi_extra=requires("write:tags"),
     response_model=TagMutationResult,
     summary="Clear unused tags",
     description="Drops registered tags that no note references any more.",
@@ -100,6 +105,7 @@ def clear_unused() -> TagMutationResult:
 
 @router.post(
     "/v1/tags:bulk-add",
+    openapi_extra=requires("write:tags"),
     response_model=TagMutationResult,
     summary="Add tags to many notes",
     description="One undoable op for the whole batch. `tags` is space-separated.",
@@ -114,6 +120,7 @@ def bulk_add(body: TagBulkRequest = Body(...)) -> TagMutationResult:
 
 @router.post(
     "/v1/tags:bulk-remove",
+    openapi_extra=requires("write:tags"),
     response_model=TagMutationResult,
     summary="Remove tags from many notes",
     description="One undoable op for the whole batch. `tags` is space-separated.",

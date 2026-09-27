@@ -31,7 +31,7 @@ def test_query_encoding_matches_framework(method, monkeypatch):
     app = FastAPI()
     app.include_router(route_factory.create_resource_routes(
         "/query", caps=SimpleNamespace(mutations=None), response_model=Paginated[ModelRow],
-        resource_name="item", resource_plural="items", tag="Test",
+        resource_name="item", resource_plural="items", tag="Test", permission_resource="notes",
     ))
 
     @app.get("/reference", response_model=Paginated[ModelRow], response_model_by_alias=False)
@@ -55,7 +55,7 @@ def test_custom_query_response_still_validates(monkeypatch):
     app = FastAPI()
     app.include_router(route_factory.create_resource_routes(
         "/query", caps=SimpleNamespace(mutations=None), response_model=StrictPage,
-        resource_name="item", resource_plural="items", tag="Test",
+        resource_name="item", resource_plural="items", tag="Test", permission_resource="notes",
     ))
     with TestClient(app, raise_server_exceptions=False) as client:
         assert client.get("/query").status_code == 500

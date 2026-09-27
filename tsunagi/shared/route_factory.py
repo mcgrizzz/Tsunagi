@@ -27,6 +27,7 @@ from .errors import (
 )
 from .filtering import build_predicate, parse_where
 from .model_export import model_row_dict
+from .permissions import requires
 from .planning import SourceCaps, make_plan
 from .query_encoding import render_query_page
 from .selecting import (
@@ -334,6 +335,7 @@ def create_resource_routes(
     resource_name: str,
     resource_plural: str,
     tag: str,
+    permission_resource: str,
     description: str = "",
     post_path: Optional[str] = None,
 ) -> APIRouter:
@@ -348,6 +350,8 @@ def create_resource_routes(
         resource_name: Singular resource name (e.g., "model", "deck", "card")
         resource_plural: Plural resource name (e.g., "models", "decks", "cards")
         tag: OpenAPI tag for grouping (e.g., "Models", "Decks", "Cards")
+        permission_resource: Queries need read:<this>, mutations write:<this>
+            (shared/permissions.py)
         description: Brief description of the resource (included in operation descriptions)
         post_path: Optional custom path for POST query endpoint (default: path + "/query")
 
@@ -369,6 +373,7 @@ def create_resource_routes(
             resource_name="model",
             resource_plural="models",
             tag="Models",
+            permission_resource="models",
             description="Note types define the structure of cards in Anki."
         )
         app.include_router(router)
@@ -382,6 +387,8 @@ def create_resource_routes(
     # Capitalize for operation IDs
     resource_name_title = resource_name.title()
     resource_plural_title = resource_plural.title()
+    read_permission = requires(f"read:{permission_resource}")
+    write_permission = requires(f"write:{permission_resource}")
 
     def query_response(page):
         # The shared query engine already validated this envelope. Preserve
@@ -398,7 +405,8 @@ def create_resource_routes(
         summary=f"List {resource_plural}",
         description=f"Query {resource_plural} with filtering, field selection, and pagination. {description}",
         tags=[tag],
-        operation_id=f"list{resource_plural_title}"
+        operation_id=f"list{resource_plural_title}",
+        openapi_extra=read_permission,
     )
     def _get(
         select: Optional[str] = Query(default=None, description="Comma-separated fields to return"),
@@ -424,7 +432,8 @@ def create_resource_routes(
         summary=f"Query {resource_plural} (POST)",
         description=f"Query {resource_plural} using request body. Supports complex queries with filtering and field selection. Omit cursor or use null to start at page one; malformed or empty cursors return 400.",
         tags=[tag],
-        operation_id=f"query{resource_plural_title}"
+        operation_id=f"query{resource_plural_title}",
+        openapi_extra=read_permission,
     )
     def _post_query(
         query: QueryRequest = Body(..., description="Query parameters in request body"),
@@ -453,7 +462,8 @@ def create_resource_routes(
                 summary=f"Create {resource_name}",
                 description=f"Create a new {resource_name}. {description}",
                 tags=[tag],
-                operation_id=f"create{resource_name_title}"
+                operation_id=f"create{resource_name_title}",
+                openapi_extra=write_permission,
             )
             @handle_mutation_errors("create")
             def _create(
@@ -473,7 +483,8 @@ def create_resource_routes(
                 summary=f"Update {resource_name}",
                 description=f"Partially update a {resource_name}. Only provided fields will be updated.",
                 tags=[tag],
-                operation_id=f"update{resource_name_title}"
+                operation_id=f"update{resource_name_title}",
+                openapi_extra=write_permission,
             )
             @handle_mutation_errors("update")
             def _patch(
@@ -495,7 +506,8 @@ def create_resource_routes(
                 summary=f"Delete {resource_name}",
                 description=f"Delete a {resource_name}.",
                 tags=[tag],
-                operation_id=f"delete{resource_name_title}"
+                operation_id=f"delete{resource_name_title}",
+                openapi_extra=write_permission,
             )
             @handle_mutation_errors("delete")
             def _delete(
@@ -510,7 +522,8 @@ def create_resource_routes(
 
         # Subresource routes - pass parent tag to keep all operations under same tag
         for subres_name, subres_caps in caps.mutations.subresources.items():
-            _add_subresource_routes(router, path, resource_name, subres_name, subres_caps, response_model=Any, parent_tag=tag)
+            _add_subresource_routes(router, path, resource_name, subres_name, subres_caps, response_model=Any, parent_tag=tag,
+                                    openapi_extra=write_permission)
 
     return router
 
@@ -523,6 +536,7 @@ def _add_subresource_routes(
     caps: Any,  # SubresourceMutations
     response_model: Any,
     parent_tag: str,
+    openapi_extra: Dict[str, Any],
 ):
     """
     Add routes for a subresource (fields, templates, etc.)
@@ -608,7 +622,8 @@ def _add_subresource_routes(
             summary=f"Create {sub_resource_singular}",
             description=f"Add a new {sub_resource_singular} to the {parent_resource_name}",
             tags=[parent_tag],
-            operation_id=f"create{sub_resource_singular_title}"
+            operation_id=f"create{sub_resource_singular_title}",
+            openapi_extra=openapi_extra,
         )
 
     # PATCH - Update subresource item
@@ -643,7 +658,8 @@ def _add_subresource_routes(
             summary=f"Update {sub_resource_singular}",
             description=f"Update properties of a {sub_resource_singular} in the {parent_resource_name}",
             tags=[parent_tag],
-            operation_id=f"update{sub_resource_singular_title}"
+            operation_id=f"update{sub_resource_singular_title}",
+            openapi_extra=openapi_extra,
         )
 
     # DELETE - Remove subresource item
@@ -675,7 +691,8 @@ def _add_subresource_routes(
             summary=f"Delete {sub_resource_singular}",
             description=f"Remove a {sub_resource_singular} from the {parent_resource_name}",
             tags=[parent_tag],
-            operation_id=f"delete{sub_resource_singular_title}"
+            operation_id=f"delete{sub_resource_singular_title}",
+            openapi_extra=openapi_extra,
         )
 
     # PUT :order - Reorder subresource items
@@ -710,7 +727,8 @@ def _add_subresource_routes(
             summary=f"Reorder {subres_name}",
             description=f"Change the order of {subres_name} in the {parent_resource_name}",
             tags=[parent_tag],
-            operation_id=f"reorder{subres_name_title}"
+            operation_id=f"reorder{subres_name_title}",
+            openapi_extra=openapi_extra,
         )
 
 def make_id_getter(id_key: str = "id"):

@@ -31,41 +31,41 @@ class ImportPackageParams(BaseModel):
     path: Any = ...
 
 
-@registry.register("getProfiles")
+@registry.register("getProfiles", permission="read:collection")
 def ac_getProfiles(params: Optional[Dict[str, Any]] = None) -> List[str]:
     return list_profiles()
 
 
-@registry.register("getActiveProfile")
+@registry.register("getActiveProfile", permission="read:collection")
 def ac_getActiveProfile(params: Optional[Dict[str, Any]] = None) -> Optional[str]:
     return active_profile()
 
 
-@registry.register("loadProfile", params=LoadProfileParams)
+@registry.register("loadProfile", params=LoadProfileParams, permission="manage")
 def ac_loadProfile(p: LoadProfileParams) -> bool:
     return load_profile(p.name)
 
 
-@registry.register("sync")
+@registry.register("sync", permission="sync")
 def ac_sync(params: Optional[Dict[str, Any]] = None) -> None:
     sync_collection()
     return None
 
 
-@registry.register("reloadCollection")
+@registry.register("reloadCollection", permission="manage")
 def ac_reloadCollection(params: Optional[Dict[str, Any]] = None) -> None:
     reload_collection()
     return None
 
 
-@registry.register("exportPackage", params=ExportPackageParams)
+@registry.register("exportPackage", params=ExportPackageParams, permission="manage")
 def ac_exportPackage(p: ExportPackageParams) -> bool:
     from ....adapters.anki.compat import export_package_legacy
 
     return export_package_legacy(p.deck, p.path, p.includeSched)
 
 
-@registry.register("importPackage", params=ImportPackageParams)
+@registry.register("importPackage", params=ImportPackageParams, permission="manage")
 def ac_importPackage(p: ImportPackageParams) -> bool:
     from ....adapters.anki.compat import import_package_legacy
 

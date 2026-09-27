@@ -18,6 +18,7 @@ from fastapi import APIRouter, Body
 from ...adapters.anki import gui as g
 from ...adapters.anki.cards import find_card_ids
 from ...shared.errors import handle_mutation_errors
+from ...shared.permissions import requires
 from ...shared.schemas.gui import (
     AddCardsRequest,
     AddCardsResult,
@@ -42,7 +43,8 @@ def _stats(start: float) -> dict:
     return {"duration_ms": round((time.perf_counter() - start) * 1000, 3)}
 
 
-def _verb(path: str, summary: str, description: str, response_model=GuiResult) -> Callable:
+def _verb(path: str, summary: str, description: str, response_model=GuiResult,
+          permission: str = "gui") -> Callable:
     def decorate(fn: Callable) -> Callable:
         operation_id = "gui" + "".join(p.capitalize() for p in path.split("-"))
         return router.post(
@@ -52,6 +54,7 @@ def _verb(path: str, summary: str, description: str, response_model=GuiResult) -
             description=description,
             tags=["GUI"],
             operation_id=operation_id,
+            openapi_extra=requires(permission),
         )(handle_mutation_errors(path)(fn))
     return decorate
 
@@ -92,6 +95,7 @@ def edit_note(body: NoteIdRequest = Body(...)) -> GuiResult:
 
 @router.get(
     "/v1/gui/selected-notes",
+    openapi_extra=requires("gui"),
     response_model=NoteIdList,
     summary="Notes selected in the Browser",
     description="Empty when no Browser is open.",
@@ -151,6 +155,7 @@ def set_add_note_data(body: SetAddNoteDataRequest = Body(...)) -> SetAddNoteData
 
 @router.get(
     "/v1/gui/current-card",
+    openapi_extra=requires("gui"),
     response_model=CurrentCardResult,
     summary="The card being reviewed",
     description="`card` is null and `review_active` false when no review is in progress.",
@@ -190,7 +195,8 @@ def show_answer() -> GuiResult:
 
 
 @_verb("answer-card", "Answer the current card",
-       "Presses an answer button (1-4). False unless the answer is showing.")
+       "Presses an answer button (1-4). False unless the answer is showing.",
+       permission="write:cards")
 def answer_card(body: AnswerRequest = Body(...)) -> GuiResult:
     start = time.perf_counter()
     return GuiResult(ok=g.answer_card(body.ease), stats=_stats(start))
@@ -210,7 +216,8 @@ def play_audio() -> GuiResult:
     return GuiResult(ok=g.play_audio(), stats=_stats(start))
 
 
-@_verb("undo", "Undo", "Undoes the last operation, as Ctrl+Z would.")
+@_verb("undo", "Undo", "Undoes the last operation, as Ctrl+Z would.",
+       permission="write")  # can revert any kind of change
 def undo() -> GuiResult:
     start = time.perf_counter()
     return GuiResult(ok=g.undo(), stats=_stats(start))
@@ -253,7 +260,8 @@ def import_file(body: Optional[ImportFileRequest] = Body(None)) -> GuiResult:
 
 
 @_verb("exit", "Close Anki",
-       "Shuts Anki down. Deferred by a second so this reply reaches you first.")
+       "Shuts Anki down. Deferred by a second so this reply reaches you first.",
+       permission="manage")
 def exit_anki() -> GuiResult:
     start = time.perf_counter()
     return GuiResult(ok=g.exit_anki(), stats=_stats(start))

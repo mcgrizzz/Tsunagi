@@ -36,7 +36,8 @@ def query_client(request):
     app.include_router(create_resource_routes(
         path="/v1/things", caps=caps, response_model=None,
         id_getter=make_id_getter("id"), resource_name="thing",
-        resource_plural="things", tag="Things",
+        resource_plural="things",
+        permission_resource="notes", tag="Things",
     ))
     with TestClient(app) as client:
         yield client, renders, calls

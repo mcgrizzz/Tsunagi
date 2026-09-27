@@ -24,6 +24,7 @@ from ...shared.errors import (
     anki_error_detail,
     handle_mutation_errors,
 )
+from ...shared.permissions import requires
 from ...shared.schemas.fsrs import (
     ComputeParamsRequest,
     EvaluateParamsRequest,
@@ -54,6 +55,7 @@ def _verb(path: str, summary: str, description: str,
             description=description,
             tags=["FSRS"],
             operation_id=operation_id,
+            openapi_extra=requires("read:reviews"),  # computations; nothing is saved
         )(handle_mutation_errors(path)(fn))
     return decorate
 
@@ -135,6 +137,7 @@ def evaluate_params(body: EvaluateParamsRequest = Body(...)) -> JobSubmitted:
 
 @router.get(
     "/v1/jobs/{job_id}",
+    openapi_extra=requires("read:collection"),
     response_model=JobInfo,
     summary="Poll a job",
     description="Status, best-effort progress while running, and the result "
@@ -164,6 +167,7 @@ def get_job(job_id: str) -> JobInfo:
 
 @router.post(
     "/v1/jobs/{job_id}:abort",
+    openapi_extra=requires("read:collection"),
     response_model=JobInfo,
     summary="Abort a job",
     description="A 200 here guarantees the job ends `aborted` - poll to "

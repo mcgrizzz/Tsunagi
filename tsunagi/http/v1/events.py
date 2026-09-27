@@ -30,6 +30,7 @@ from ...adapters.events import (
 )
 from ...adapters.settings import settings
 from ...shared.errors import CollectionUnavailableError
+from ...shared.permissions import requires
 
 router = APIRouter()
 
@@ -153,6 +154,7 @@ def _parse_filter(value: Optional[str], name: str,
 
 @router.get(
     "/v1/events",
+    openapi_extra=requires("read:collection"),
     response_model=None,
     responses={200: {"content": {"text/event-stream": {}},
                      "description": "An SSE stream of collection events."}},
