@@ -252,7 +252,7 @@ function summary(role) {
 
 function usersOf(id) {
   const users = draft.apps.filter((a) => a.role === id).map((a) => ({ label: a.name || "(unnamed app)", page: "apps" }));
-  for (const r of S.no_key_rows) if (draft[r.setting] === id) users.push({ label: "No key: " + r.label, page: "nokey" });
+  for (const r of S.no_key_rows) if (draft[r.setting] === id) users.push({ label: "No key: " + r.short, page: "nokey" });
   return users;
 }
 

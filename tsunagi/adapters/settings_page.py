@@ -58,10 +58,11 @@ NAMES: Dict[str, str] = {
 }
 _NAME_LABEL = {"events:reviews": NAMES["reviews_live"]}
 
+# (setting, label, short label for "Used by" lists, help)
 NO_KEY_ROWS = [
-    ("no_key_local_role", "Programs on this computer",
+    ("no_key_local_role", "Programs on this computer", "This computer",
      "Requests without a key from this computer, such as Yomitan or a script."),
-    ("no_key_remote_role", "Other devices",
+    ("no_key_remote_role", "Other devices", "Other devices",
      "Requests without a key from anywhere else, including through Tailscale or "
      "another proxy. Anyone who can reach the port gets this role."),
 ]
@@ -103,9 +104,9 @@ def page_state(cfg: Dict[str, Any], ankiconnect: Dict[str, Any]) -> Dict[str, An
         "apps": [{"name": str(a.get("name") or ""), "key": str(a.get("key") or ""),
                   "role": str(a.get("role") or NO_ACCESS)}
                  for a in cfg.get("apps") or [] if isinstance(a, dict)],
-        "no_key_rows": [{"setting": k, "label": label, "help": help_text,
+        "no_key_rows": [{"setting": k, "label": label, "short": short, "help": help_text,
                          "role": str(cfg.get(k, DEFAULTS[k]))}
-                        for k, label, help_text in NO_KEY_ROWS],
+                        for k, label, short, help_text in NO_KEY_ROWS],
         "roles": _roles_for_page(cfg),
         "catalog": permission_catalog(),
         "ankiconnect": {**ankiconnect, "history": import_history_text(cfg),
