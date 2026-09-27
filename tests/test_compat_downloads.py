@@ -19,6 +19,11 @@ def download_url(download_requests):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             download_requests.append(self.path)
+            if self.path.startswith("/redirect/"):
+                self.send_response(302)
+                self.send_header("Location", self.path[len("/redirect/"):])
+                self.end_headers()
+                return
             status, length = self.path.strip("/").split("/")
             self.send_response(int(status))
             if length == "declared":
@@ -64,6 +69,14 @@ def test_compat_download_retains_size_limit(client, col, reset_settings, downloa
 
 def test_native_download_still_accepts_201(download_url):
     assert _fetch_url(download_url + "/201/declared") == b"payload"
+
+
+def test_native_download_follows_http_redirects_only(download_url):
+    from tsunagi.shared.errors import ValidationError
+
+    assert _fetch_url(f"{download_url}/redirect/{download_url}/200/declared") == b"payload"
+    with pytest.raises(ValidationError, match="non-http"):
+        _fetch_url(f"{download_url}/redirect/ftp://127.0.0.1/secret.txt")
 
 
 @pytest.mark.parametrize("action", ["addNote", "canAddNotes", "canAddNotesWithErrorDetail"])

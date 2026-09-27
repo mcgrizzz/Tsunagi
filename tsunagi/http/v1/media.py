@@ -48,6 +48,17 @@ def _max_bytes() -> int:
     return int(settings.get("media_max_bytes", 67108864))
 
 
+class _HttpOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    # urllib also follows redirects to ftp://; keep the http(s) rule below.
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.lower().startswith(("http://", "https://")):
+            raise ValidationError("url redirected to a non-http(s) address")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = urllib.request.build_opener(_HttpOnlyRedirects)
+
+
 def _fetch_url(url: str) -> bytes:
     """
     Download media. Runs on the request thread, deliberately OUTSIDE any Anki
@@ -62,7 +73,7 @@ def _fetch_url(url: str) -> bytes:
     timeout = float(settings.get("media_fetch_timeout_seconds", 30))
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (scheme checked above)
+        with _OPENER.open(req, timeout=timeout) as resp:  # scheme checked above and on redirect
             declared = resp.headers.get("Content-Length")
             if declared and int(declared) > limit:
                 raise ValidationError(f"file exceeds media_max_bytes ({limit})")

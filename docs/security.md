@@ -100,13 +100,15 @@ card scripts never see. Tsunagi trusts all local origins with no token.
 
 Ranked by how likely they are to matter.
 
-1. **Media URL downloads reach the local network.** A `url` upload has Anki fetch
-   any `http(s)` address, including routers, other local services and cloud
-   metadata endpoints, and store the response as media the caller can read
-   back. Allowed clients can do this today.
-   Possible fix: a gate or refusing private and loopback addresses, weighed
-   against Yomitan-style local audio servers that rely on `http://localhost`
-   URLs.
+1. **Media URL downloads reach the local network (accepted).** A `url` upload
+   has Anki fetch any `http(s)` address, including routers and other local
+   services, and store the response as media the caller can read back. Only
+   clients already trusted can ask (extensions, local tools, key holders).
+   This matches Anki's own editor and AnkiConnect, neither of which restricts
+   addresses, and local audio servers rely on `localhost` URLs, so it is kept.
+   Tsunagi adds a size limit and timeout, and redirects must stay on
+   `http(s)`. On a cloud server, blocking the metadata range `169.254.0.0/16`
+   would be worth adding.
 2. **Every local page and every extension is trusted.** Any page served from
    `127.0.0.1` on any port, and any installed browser extension, has full
    access by default. This is the AnkiConnect-compatible default that makes
