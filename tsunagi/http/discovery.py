@@ -44,10 +44,6 @@ def native_operations(routes, support):
                 status = gate_state("cards_set_memory_state")
                 options["cards[].decay"] = gate_state("cards_set_memory_state",
                                                       supported=support["card_decay"])
-            if key == "GET /v1/addons/{addon_id}/config":
-                status = gate_state("addons_read_config")
-            if key == "PUT /v1/addons/{addon_id}/config":
-                status = gate_state("addons_write_config")
             if key == "POST /v1/media":
                 options["path"] = gate_state("media_allow_local_path")
             if method in {"POST", "PATCH"} and route.path in {"/v1/decks", "/v1/decks/{id}"}:

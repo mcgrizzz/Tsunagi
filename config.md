@@ -130,9 +130,8 @@ this editor toggles them without restarting Anki. (Older configs had
 `media_allow_local_path` as a top-level key; it was moved in here
 automatically, and the old flat key is ignored.)
 
-`media_allow_local_path`, `cards_set_memory_state`, `addons_read_config` and
-`addons_write_config` also need a non-empty `api_key` when `host` is not a
-loopback address (for example `0.0.0.0`):
+`media_allow_local_path` and `cards_set_memory_state` also need a non-empty
+`api_key` when `host` is not a loopback address (for example `0.0.0.0`):
 without one they stay off even when set to `true`, so no other device on
 your network can use them unauthenticated.
 
@@ -148,14 +147,6 @@ your network can use them unauthenticated.
   which is how FSRS helper add-ons reschedule — but a buggy or malicious
   client could quietly wreck your scheduling, so it stays off unless you use
   a tool that needs it.
-- `addons_read_config` — when `true`, `GET /v1/addons/{id}/config` returns an
-  add-on's settings. Off by default because some add-ons keep passwords or keys
-  there (AnkiConnect's API key, sync tokens). Tsunagi's own API key is always
-  redacted. Listing add-ons (`GET /v1/addons`) needs no switch.
-- `addons_write_config` — when `true`, `PUT /v1/addons/{id}/config` replaces an
-  add-on's settings the way Anki's settings editor does: checked against the
-  add-on's schema, saved only if changed, then the add-on is told. Tsunagi's
-  own settings can only be changed in its settings dialog.
 - `anki_page_scripts` — when `true`, JavaScript running inside Anki's own
   pages (card templates in the reviewer and previewer, and other add-ons' web
   pages) may use the API like any other local page. Off by default because a

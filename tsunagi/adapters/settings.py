@@ -19,8 +19,7 @@ PersistFn = Callable[[Dict[str, Any]], None]
 # Gates that read local files or overwrite scheduling data stay off while the
 # server listens beyond this computer with no api_key, so another device on
 # the network can never use them unauthenticated.
-KEY_REQUIRED_GATES = frozenset({"media_allow_local_path", "cards_set_memory_state",
-                                "addons_read_config", "addons_write_config"})
+KEY_REQUIRED_GATES = frozenset({"media_allow_local_path", "cards_set_memory_state"})
 
 def is_loopback_host(host: Any) -> bool:
     """True for a bind address only this computer can reach."""

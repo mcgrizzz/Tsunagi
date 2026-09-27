@@ -14,8 +14,7 @@ def check(app, screenshot):
     from test_v1_addons import HELPER, populate
 
     from tsunagi.adapters.anki import addons
-    from tsunagi.adapters.config import ADDON_PACKAGE
-    from tsunagi.shared.errors import ResourceNotFoundError, ValidationError
+    from tsunagi.shared.errors import ResourceNotFoundError
 
     mgr = aqt.mw.addonManager
     root = Path(mgr.addonsFolder())
@@ -35,31 +34,6 @@ def check(app, screenshot):
     except ResourceNotFoundError:
         pass
     print("PASS: listing matches the real AddonManager's metadata", flush=True)
-
-    assert addons.read_addon_config(HELPER) == {"easy_dates": ["2026-10-01"], "auto_disperse": True}
-    assert addons.read_addon_config("plain") is None
-    assert addons.read_addon_config(ADDON_PACKAGE)["api_key"] == "<redacted>"
-    print("PASS: config reads merge defaults and redact Tsunagi's key", flush=True)
-
-    seen = []
-    mgr.setConfigUpdatedAction(HELPER, seen.append)
-    new = {"easy_dates": ["2026-10-01", "2026-10-08"], "auto_disperse": True}
-    try:
-        addons.write_addon_config(HELPER, {"easy_dates": [5]})
-        raise AssertionError("schema violation was accepted")
-    except ValidationError as e:
-        assert "easy_dates/0" in str(e)
-    assert addons.write_addon_config(HELPER, new) is True
-    assert seen == [new] and mgr.getConfig(HELPER) == new
-    assert addons.write_addon_config(HELPER, new) is False and seen == [new]
-    for addon_id, conf in ((ADDON_PACKAGE, {"api_key": ""}), ("plain", {})):
-        try:
-            addons.write_addon_config(addon_id, conf)
-            raise AssertionError(f"write to {addon_id} was accepted")
-        except ValidationError:
-            pass
-    assert mgr.getConfig(ADDON_PACKAGE)["api_key"] == "secret"
-    print("PASS: config writes validate, call the hook once, and refuse Tsunagi's own", flush=True)
 
 
 if __name__ == "__main__":
