@@ -52,6 +52,12 @@ def check_reviewer(app, screenshot):
                   f"{seen.get('callback', '')} last text={seen.get('text')!r}", flush=True)
             raise
 
+    def scripts_missing(web):
+        result = []
+        web.page().runJavaScript("typeof _showQuestion === 'undefined'", result.append)
+        wait(lambda: len(result) > 0)
+        return result[0] is True
+
     def scheduling():
         card = col.get_card(cid)
         return (
@@ -75,7 +81,18 @@ def check_reviewer(app, screenshot):
     assert gui.ac_guiDeckReview(gui.DeckParams(name="Default")) is True
     reviewer = aqt.mw.reviewer
     wait(lambda: reviewer.card is not None and reviewer.state == "question")
-    wait_for_page(reviewer.web, "Tsunagi reviewer question")
+    try:
+        wait_for_page(reviewer.web, "Tsunagi reviewer question")
+    except AssertionError:
+        # Seen on CI and locally: Anki's reviewer page sometimes loads without
+        # its script bundle, so the card never renders. Re-render once; any
+        # other failure, or a second one, still fails the check.
+        if not scripts_missing(reviewer.web):
+            raise
+        print("reviewer page loaded without its scripts; re-rendering once", flush=True)
+        reviewer.show()
+        wait(lambda: reviewer.card is not None and reviewer.state == "question")
+        wait_for_page(reviewer.web, "Tsunagi reviewer question")
     assert gui.ac_guiReviewActive() is True
     current = gui.ac_guiCurrentCard()
     assert current["cardId"] == cid
