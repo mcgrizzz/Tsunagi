@@ -3,11 +3,13 @@
 # Every entry MUST be available as a pure-Python (none-any) wheel; the build
 # fails loudly otherwise. Regenerate deliberately - this is the lockfile.
 
-# Web framework (pydantic stays on v1: pydantic 2 needs compiled pydantic-core)
-fastapi==0.109.2
-starlette==0.36.3
+# Web framework (pydantic stays on v1: pydantic 2 needs compiled pydantic-core,
+# and FastAPI 0.125.0 is the last release that accepts pydantic 1)
+fastapi==0.125.0
+starlette==0.50.0
 pydantic==1.10.22
 typing_extensions==4.16.0
+annotated-doc==0.0.5
 
 # ASGI server (pure-Python: no uvloop/httptools)
 uvicorn==0.30.6

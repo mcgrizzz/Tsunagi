@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 # CI pins the oldest; this installs the newest.
 [project.optional-dependencies]
 dev = [
-    "pytest", "ruff", "httpx<0.28",  # starlette 0.36 TestClient breaks on httpx 0.28
+    "pytest", "ruff", "httpx",
     "anki>=26.8",
 ]
 

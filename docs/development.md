@@ -19,7 +19,7 @@ Use a virtual environment from the repository root. This follows the CI setup:
 ```sh
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install pytest ruff "httpx<0.28" anki
+python -m pip install pytest ruff httpx anki
 python tools/build_addon.py
 ```
 

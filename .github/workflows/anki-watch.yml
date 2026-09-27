@@ -82,7 +82,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install Anki ${{ needs.check.outputs.version }}
-        run: python -m pip install pytest "httpx<0.28" "anki==${{ needs.check.outputs.version }}"
+        run: python -m pip install pytest httpx "anki==${{ needs.check.outputs.version }}"
 
       - name: Build addon (vendors lib/shared)
         run: python tools/build_addon.py

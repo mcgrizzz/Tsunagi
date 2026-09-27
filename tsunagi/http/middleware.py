@@ -4,7 +4,7 @@ Pure-ASGI auth and CORS middleware.
 Both read from an injected Settings object on every request so config changes
 (API key edits, origins granted at runtime via requestPermission) apply live.
 Pure ASGI instead of BaseHTTPMiddleware: neither needs the request body or a
-buffered response, and starlette 0.36's BaseHTTPMiddleware adds task-group
+buffered response, and starlette's BaseHTTPMiddleware adds task-group
 overhead and streaming quirks.
 """
 from __future__ import annotations
