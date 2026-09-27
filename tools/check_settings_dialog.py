@@ -134,6 +134,13 @@ def check_scenario(app, scenario):
                 key.setFocus()
                 key.focusNextChild()
                 assert reveal.hasFocus()
+                original_key = key.text()
+                window.findChild(QPushButton, "generateApiKey").click()
+                generated = key.text()
+                assert len(generated) == 32 and generated != original_key
+                assert reveal.isChecked() and QApplication.clipboard().text() == generated
+                key.setText(original_key)
+                reveal.setChecked(False)
                 tabs.setCurrentIndex(0)
                 if scenario == "save" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
                     target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])

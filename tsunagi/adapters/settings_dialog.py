@@ -9,6 +9,7 @@ function-local aqt imports so this module imports without Qt.
 """
 from __future__ import annotations
 
+import secrets
 from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Tuple
 
@@ -17,6 +18,11 @@ from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 from .settings import apply_config, is_loopback_host
 
 MIB = 1024 * 1024
+
+
+def generate_api_key() -> str:
+    """A random URL-safe key: 32 characters, 192 bits."""
+    return secrets.token_urlsafe(24)
 
 
 class Field(NamedTuple):
@@ -174,7 +180,7 @@ def validate_values(values: Dict[str, Any]) -> List[str]:
         errors.append("Host must not be empty.")
     elif not is_loopback_host(values["host"]) and not str(values.get("api_key") or "").strip():
         errors.append("Set an API key before letting other devices connect "
-                      "(any Host other than 127.0.0.1).")
+                      "(any Host other than 127.0.0.1). Generate makes one.")
     for f in FIELDS:
         if f.kind in ("int", "mib") and f.maximum > 0:
             v = values.get(f.key)
@@ -297,6 +303,7 @@ def import_history_text(cfg: Dict[str, Any]) -> str:
 
 def open_settings(mw: Any) -> None:
     from aqt.qt import (
+        QApplication,
         QCheckBox,
         QComboBox,
         QDialog,
@@ -441,9 +448,24 @@ def open_settings(mw: Any) -> None:
             reveal.toggled.connect(lambda checked, edit=widget: edit.setEchoMode(
                 QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password))
             key_layout.addWidget(reveal)
+            generate = QPushButton("Generate")
+            generate.setObjectName("generateApiKey")
+            generate.setToolTip("Fill in a new random key and copy it to the clipboard.")
+            key_layout.addWidget(generate)
             form.addRow(f.label, row)
-            form.addRow(guidance("Leave empty to allow requests without an API key "
-                                 "(only while Host is 127.0.0.1)."))
+            key_note = guidance("Leave empty to allow requests without an API key "
+                                "(only while Host is 127.0.0.1).")
+            form.addRow(key_note)
+
+            def fill_new_key(_checked=False, edit=widget, show=reveal, note=key_note):
+                key = generate_api_key()
+                edit.setText(key)
+                show.setChecked(True)
+                QApplication.clipboard().setText(key)
+                note.setText("New key copied to the clipboard. Paste it into your apps, "
+                             "then Save; apps using the old key stop working.")
+
+            generate.clicked.connect(fill_new_key)
         elif f.kind == "bool":
             widget.setText(f.label)
             form.addRow(widget)

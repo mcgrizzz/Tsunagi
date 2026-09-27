@@ -63,9 +63,11 @@ usual cause. On Windows, Anki is typically allowed on networks marked
 - `port: <n>`: force a specific port; startup fails if it's busy.
 
 ### `api_key`
-- Empty (default): **authentication is off** (same as AnkiConnect). The server
-  only listens on loopback.
-- Non-empty: every request must present the key.
+- Empty (default): **authentication is off** (same as AnkiConnect). Allowed
+  only while `host` is loopback.
+- Non-empty: every request must present the key. **Generate**, next to the
+  field in the settings dialog, fills in a random 32-character key and copies
+  it to the clipboard; it applies when you Save.
   - REST API (`/v1/...`): send `X-Api-Key: <key>` or
     `Authorization: Bearer <key>` headers.
   - AnkiConnect endpoint (`POST /`): send a top-level `"key"` field in the

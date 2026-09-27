@@ -161,6 +161,16 @@ class TestGates:
         assert DEFAULTS["gates"]["media_allow_local_path"] is False
 
 
+def test_generated_api_keys_are_long_random_and_url_safe():
+    import re
+
+    from tsunagi.adapters.settings_dialog import generate_api_key
+
+    keys = {generate_api_key() for _ in range(50)}
+    assert len(keys) == 50
+    assert all(re.fullmatch(r"[A-Za-z0-9_-]{32}", key) for key in keys)
+
+
 class TestValidation:
     def test_defaults_validate_clean(self):
         assert validate_values(form_values_from_config(DEFAULTS)) == []
