@@ -96,6 +96,7 @@ def check(app, screenshot):
         # An app with a new key in Read-only; keyless local requests closed.
         js(app, dlg, "go('apps'); $('#addApp').click()")
         until(app, lambda: js(app, dlg, "document.querySelectorAll('.app').length === 1"))
+        assert js(app, dlg, "$('.app-detail .key') !== null")  # a new app opens with its key shown
         js(app, dlg, "setv('.app .app-name', 'Phone'); setv('.app select', 'read_only', 'change')")
         if screenshot:
             shoot(app, dlg, screenshot, "apps-edited")
@@ -117,13 +118,20 @@ def check(app, screenshot):
         until(app, lambda: js(app, dlg, "!$('#errors').hidden"))
         assert "Confirm that other devices" in js(app, dlg, "$('#errors').textContent")
         assert dlg.isVisible() and store["cfg"]["no_key_remote_role"] == "none"
+        assert js(app, dlg, "$('[data-page=nokey] .dot') !== null && $('#revertPage') !== null")
+        js(app, dlg, "go('server'); setv('#host', '0.0.0.0'); go('nokey'); $('#revertPage').click()")
+        # Revert brings back this page's saved values only; the Server edit stays.
+        assert js(app, dlg, "[$('#no_key_local_role').value, $('#no_key_remote_role').value].join()") == "none,none"
+        assert js(app, dlg, "$('#revertPage') === null && $('[data-page=server] .dot') !== null")
         js(app, dlg, "$('#restorePage').click()")
         assert js(app, dlg, "[$('#no_key_local_role').value, $('#no_key_remote_role').value].join()") == "default,none"
+        js(app, dlg, "go('server'); $('#revertPage').click(); go('nokey')")
         js(app, dlg, "setv('#no_key_local_role', 'none', 'change'); setv('#no_key_remote_role', 'read_only', 'change');"
                      "$('#confirmRemote').click()")
         save(app, dlg)
         assert store["cfg"]["no_key_remote_role"] == "read_only"
-        print("PASS: other devices need confirmation; page restore", flush=True)
+        assert store["cfg"]["host"] == "127.0.0.1"
+        print("PASS: other devices need confirmation; page revert and restore", flush=True)
 
         # Roles: the list shows usage; edit a built-in role, then reset it.
         dlg = open_page(app)

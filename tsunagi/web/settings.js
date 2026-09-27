@@ -13,12 +13,14 @@ const PAGES = [
 
 let S = null;          // state from Python: fields, catalog, roles' defaults, defaults...
 let draft = null;      // what Save sends
+let saved = null;      // the draft as last saved, for "Revert changes on this page"
+let preImport = null;  // the draft before a staged AnkiConnect import
 let savedRemote = "none";
 let page = "server";
 let editing = null;    // role id open in the role editor, or null for the list
 let pending = null;    // staged AnkiConnect import summary
 let confirmAll = false;
-const shownKeys = new Set();
+const openApps = new Set();   // app rows showing their detail (full key, New key, Remove)
 const openAreas = new Set();
 
 function call(op, arg) {
@@ -43,6 +45,8 @@ function h(tag, attrs, ...kids) {
 }
 const link = (label, onclick, attrs) => h("button", { type: "button", class: "link", onclick, ...attrs }, label);
 const go = (p, role) => { page = p; editing = role || null; render(); document.getElementById("main").scrollTop = 0; };
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 function draftFrom(state) {
   const d = {
@@ -60,6 +64,7 @@ function draftFrom(state) {
 function load(state) {
   S = state;
   draft = draftFrom(state);
+  saved = draftFrom(state);
   savedRemote = draft.no_key_remote_role;
   document.getElementById("version").textContent = "Tsunagi " + state.version;
   render();
@@ -68,22 +73,75 @@ function load(state) {
 function render() {
   document.getElementById("nav").replaceChildren(
     ...PAGES.map(([id, title]) => h("button", { type: "button", "data-page": id,
-      "aria-current": String(id === page), onclick: () => go(id) }, title)),
+      "aria-current": String(id === page), onclick: () => go(id) }, title,
+      changed(id) ? h("span", { class: "dot", title: "Unsaved changes" }, "•") : null)),
     h("span", { class: "spacer" }),
     h("button", { type: "button", id: "restoreAll", class: "subtle",
                   title: "Reset every page. You confirm first; nothing changes until Save.",
                   onclick: () => { confirmAll = true; render(); } }, "Restore all defaults…"));
   const main = document.getElementById("main");
   const scroll = main.scrollTop;
-  main.replaceChildren(...PAGE[page]());
+  main.replaceChildren(...PAGE[page]().flat(Infinity).filter(Boolean));
   main.scrollTop = scroll;
   document.getElementById("modal").replaceChildren(...(confirmAll ? [restoreAllDialog()] : []));
 }
 
-function header(title, lead, restore) {
+// ---------- per-page revert and restore (both only change the draft) ----------
+
+const serverKeys = () => S.fields.filter((f) => f.key !== "cors_allowlist").map((f) => f.key);
+
+function sliceOf(p, d) {
+  if (p === "server") return serverKeys().map((k) => d.values[k]);
+  if (p === "apps") return d.apps;
+  if (p === "nokey") return S.no_key_rows.map((r) => d[r.setting]);
+  if (p === "web") return [d.values.cors_allowlist, d.gates];
+  if (p === "roles") return d.roles;
+  return d.pending_import;
+}
+const changed = (p) => !same(sliceOf(p, draft), sliceOf(p, saved));
+
+const REVERT = {
+  server: (d) => { for (const k of serverKeys()) d.values[k] = saved.values[k]; },
+  apps: (d) => { d.apps = clone(saved.apps); openApps.clear(); },
+  nokey: (d) => { for (const r of S.no_key_rows) d[r.setting] = saved[r.setting]; d.confirm_remote = false; },
+  web: (d) => { d.values.cors_allowlist = saved.values.cors_allowlist; d.gates = clone(saved.gates); },
+  roles: (d) => {
+    // Keep new roles something still uses, so reverting here cannot break another page.
+    const used = new Set([...d.apps.map((a) => a.role), ...S.no_key_rows.map((r) => d[r.setting])]);
+    const keep = d.roles.filter((r) => used.has(r.id) && !saved.roles.some((x) => x.id === r.id));
+    d.roles = clone(saved.roles).concat(keep);
+  },
+  ankiconnect: (d) => {
+    for (const k of ["port", "prefer_port", "enabled", "cors_allowlist"]) d.values[k] = preImport.values[k];
+    d.apps = clone(preImport.apps);
+    d.pending_import = false;
+    pending = null;
+  },
+};
+
+const RESTORE = {
+  server: (d) => { for (const k of serverKeys()) d.values[k] = S.defaults.values[k]; },
+  nokey: (d) => { for (const r of S.defaults.no_key_rows) d[r.setting] = r.role; d.confirm_remote = false; },
+  web: (d) => { d.values.cors_allowlist = S.defaults.values.cors_allowlist;
+                for (const g of S.defaults.gates) d.gates[g.key] = g.on; },
+  roles: (d) => { for (const r of d.roles) { const def = S.roles.find((x) => x.id === r.id)?.default;
+                                             if (def) { r.name = def.name; r.grants = [...def.grants]; } } },
+};
+
+function pageActions(p) {
+  const restore = RESTORE[p];
+  const noop = restore && same(sliceOf(p, draft), sliceOf(p, (() => { const d = clone(draft); restore(d); return d; })()));
+  return h("div", { class: "head-actions" },
+    changed(p) && link("Revert changes on this page", () => { REVERT[p](draft); render(); },
+                       { id: "revertPage", title: "Back to the last saved values of this page only" }),
+    restore && link(noop ? "At defaults ✓" : "Restore this page's defaults", () => { restore(draft); render(); },
+                    { id: "restorePage", disabled: noop, title: noop ? "This page already has its default values" : "Nothing changes until Save" }));
+}
+
+function header(title, lead) {
   return h("header", { class: "page-head" },
     h("div", {}, h("h1", {}, title), lead && h("p", { class: "lead" }, lead)),
-    restore && link("Restore this page's defaults", () => { restore(); render(); }, { id: "restorePage" }));
+    pageActions(page));
 }
 
 // ---------- fields ----------
@@ -118,6 +176,7 @@ const roleById = (id) => draft.roles.find((r) => r.id === id);
 const roleName = (id) => (roleById(id) || { name: id + " (missing)" }).name;
 const areaNames = (area) => area.names.map((n) => n.name);
 const sameGrants = (a, b) => [...a].sort().join() === [...b].sort().join();
+const sameRole = (a, b) => a.name === b.name && sameGrants(a.grants, b.grants);
 
 function areaState(role, area) {
   if (role.grants.includes(area.area)) return { level: "all", count: area.names.length, some: [] };
@@ -155,9 +214,8 @@ const PAGE = {
   server() {
     const fixed = draft.values.port !== 0;
     const portKey = fixed ? "port" : "prefer_port";
-    const restore = () => { for (const f of S.fields) if (f.key !== "cors_allowlist") draft.values[f.key] = S.defaults.values[f.key]; };
     return [
-      header("Server", "Whether the API runs and where. Server changes restart it when you save.", restore),
+      header("Server", "Whether the API runs and where. Server changes restart it when you save."),
       h("section", { class: "card" },
         h("div", { class: "check" }, input(field("enabled")),
           h("label", { for: "enabled" }, h("b", {}, "Run the Tsunagi server"),
@@ -179,20 +237,29 @@ const PAGE = {
 
   apps() {
     const rows = draft.apps.map((app, i) => {
-      const shown = shownKeys.has(i);
-      return h("tr", { class: "app" },
+      const open = openApps.has(i);
+      const toggle = () => { open ? openApps.delete(i) : openApps.add(i); render(); };
+      const out = [h("tr", { class: "app" },
         h("td", {}, h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name,
                                  oninput: (e) => { app.name = e.target.value; } })),
         h("td", {}, roleSelect(app.role, (v) => { app.role = v; }, null, "Role of " + app.name)),
-        h("td", {}, h("span", { class: "keycell" },
-          h("input", { type: shown ? "text" : "password", class: "key", "aria-label": "Key of " + app.name,
-                       spellcheck: "false", value: app.key, oninput: (e) => { app.key = e.target.value; } }),
-          link(shown ? "Hide" : "Show", () => { shown ? shownKeys.delete(i) : shownKeys.add(i); render(); }),
-          link("Copy", () => call("copy", app.key)),
-          link("New", async () => { app.key = await call("new_key"); shownKeys.add(i); call("copy", app.key); render(); },
-               { title: "Replace with a new random key and copy it. The old key stops working after Save." }))),
-        h("td", { class: "end" }, link("Remove", () => { draft.apps.splice(i, 1); shownKeys.clear(); render(); },
-                                       { class: "link danger", "aria-label": "Remove " + app.name })));
+        h("td", {}, h("span", { class: "key-preview", title: "Key (More shows it in full)" },
+                      app.key ? "••••" + app.key.slice(-4) : "no key"),
+          link("Copy", () => call("copy", app.key), { title: "Copy the key" })),
+        h("td", { class: "end" }, link(open ? "Less" : "More", toggle, { "aria-expanded": String(open), class: "link more" })))];
+      if (open) {
+        out.push(h("tr", { class: "app-detail" }, h("td", { colspan: 4 },
+          h("div", { class: "detail" },
+            h("label", { class: "detail-label" }, "Key"),
+            h("input", { type: "text", class: "key", "aria-label": "Key of " + app.name, spellcheck: "false",
+                         value: app.key, oninput: (e) => { app.key = e.target.value; } }),
+            h("button", { type: "button", title: "Replace with a new random key and copy it. The old key stops working after Save.",
+                          onclick: async () => { app.key = await call("new_key"); call("copy", app.key); render(); } }, "New key"),
+            h("span", { class: "spacer" }),
+            h("button", { type: "button", class: "danger", "aria-label": "Remove " + app.name,
+                          onclick: () => { draft.apps.splice(i, 1); openApps.clear(); render(); } }, "Remove app")))));
+      }
+      return out;
     });
     return [
       header("Apps & keys", "Give each tool its own key and role. Tools send the key as the X-Api-Key header, " +
@@ -210,7 +277,7 @@ const PAGE = {
             let n = draft.apps.length + 1;
             while (draft.apps.some((a) => a.name === "New app " + n)) n++;
             draft.apps.push({ name: "New app " + n, key, role: "default" });
-            shownKeys.add(draft.apps.length - 1);
+            openApps.add(draft.apps.length - 1);
             call("copy", key);
             render();
           } }, "Add app"),
@@ -220,12 +287,8 @@ const PAGE = {
 
   nokey() {
     const remoteChanged = draft.no_key_remote_role !== "none" && draft.no_key_remote_role !== savedRemote;
-    const restore = () => {
-      for (const r of S.defaults.no_key_rows) draft[r.setting] = r.role;
-      draft.confirm_remote = false;
-    };
     return [
-      header("Requests without a key", "A request with no key, or a key no app has, gets the role of where it comes from.", restore),
+      header("Requests without a key", "A request with no key, or a key no app has, gets the role of where it comes from."),
       h("section", { class: "card flush" },
         h("table", { class: "table" },
           h("thead", {}, h("tr", {}, h("th", {}, "Source"), h("th", {}, "Role"))),
@@ -242,12 +305,8 @@ const PAGE = {
   },
 
   web() {
-    const restore = () => {
-      draft.values.cors_allowlist = S.defaults.values.cors_allowlist;
-      for (const g of S.defaults.gates) draft.gates[g.key] = g.on;
-    };
     return [
-      header("Websites & Anki pages", "Which web pages may call the API from a browser. Tools outside a browser are not affected.", restore),
+      header("Websites & Anki pages", "Which web pages may call the API from a browser. Tools outside a browser are not affected."),
       h("section", { class: "card" },
         h("h2", {}, "Allowed website origins"),
         input(field("cors_allowlist")),
@@ -264,14 +323,8 @@ const PAGE = {
 
   roles() {
     if (editing && roleById(editing)) return roleEditor(roleById(editing));
-    const restore = () => {
-      for (const r of draft.roles) {
-        const def = S.roles.find((x) => x.id === r.id)?.default;
-        if (def) { r.name = def.name; r.grants = [...def.grants]; }
-      }
-    };
     return [
-      header("Roles", "A role is a set of permissions. Each app, and each source of requests without a key, has one.", restore),
+      header("Roles", "A role is a set of permissions. Each app, and each source of requests without a key, has one."),
       h("section", { class: "card flush" },
         h("table", { class: "table roles" },
           h("thead", {}, h("tr", {}, h("th", {}, "Role"), h("th", {}, "Allows"), h("th", {}, "Used by"), h("th", {}))),
@@ -308,18 +361,19 @@ const PAGE = {
               h("h2", {}, "Ready to import"),
               row("Port", String(pending.port)), row("Key", pending.key), row("Website origins", pending.origins),
               h("p", { class: "help" }, ac.enabled ? "Save to apply these settings and disable AnkiConnect." : "Save to apply these settings."))
-          : h("div", { class: "card-foot plain" },
+          : h("div", { class: "import" },
+              h("p", { class: "help" }, !ac.config_available ? "No AnkiConnect settings to import."
+                : "Copies its port and key (as the app \"AnkiConnect key\") and merges its website origins. Nothing changes until Save."),
               h("button", { type: "button", id: "importAnkiConnect", disabled: !ac.config_available, onclick: async () => {
                 const res = await call("import_ankiconnect", draft);
                 if (res.error) return showErrors([res.error]);
+                preImport = clone(draft);
                 draft.values = res.values;
                 draft.apps = res.apps;
                 draft.pending_import = true;
                 pending = res.pending;
                 render();
-              } }, ac.imported ? "Import settings again" : "Import AnkiConnect settings"),
-              h("span", { class: "help inline" }, !ac.config_available ? "No AnkiConnect settings to import."
-                : "Copies its port and key (as the app \"AnkiConnect key\") and merges its website origins."))),
+              } }, ac.imported ? "Import settings again" : "Import AnkiConnect settings"))),
     ];
   },
 };
@@ -327,7 +381,8 @@ const PAGE = {
 function roleEditor(r) {
   const locked = r.id === "none";
   const def = S.roles.find((x) => x.id === r.id)?.default;
-  const same = def && def.name === r.name && sameGrants(r.grants, def.grants);
+  const isDefault = def && sameRole(def, r);
+  const savedRole = saved.roles.find((x) => x.id === r.id);
   const users = usersOf(r.id);
   const setGrants = (grants) => { r.grants = [...new Set(grants)].sort(); render(); };
   const rows = S.catalog.map((area) => {
@@ -365,7 +420,10 @@ function roleEditor(r) {
         h("h1", {}, r.name || "(unnamed role)"),
         h("p", { class: "lead" }, users.length ? ["Used by ", userLinks(users)] : "Not used yet.")),
       h("div", { class: "head-actions" },
-        def && !locked && h("button", { type: "button", id: "resetRole", disabled: same,
+        savedRole && !sameRole(savedRole, r) && h("button", { type: "button", id: "revertRole",
+          title: "Back to this role's last saved name and permissions", onclick: () => {
+            r.name = savedRole.name; r.grants = [...savedRole.grants]; render(); } }, "Revert changes"),
+        def && !locked && h("button", { type: "button", id: "resetRole", disabled: isDefault,
           onclick: () => { r.name = def.name; r.grants = [...def.grants]; render(); } }, "Reset to default"),
         !locked && h("button", { type: "button", id: "copyRole", onclick: () => {
           let n = 1;
@@ -404,7 +462,7 @@ function restoreAllDialog() {
         h("button", { type: "button", onclick: () => { confirmAll = false; render(); } }, "Keep my settings"),
         h("button", { type: "button", class: "danger-fill", id: "confirmRestoreAll", onclick: () => {
           draft = draftFrom(S.defaults);
-          pending = null; shownKeys.clear(); confirmAll = false; editing = null;
+          pending = null; openApps.clear(); confirmAll = false; editing = null;
           render();
         } }, "Restore all defaults"))));
 }
