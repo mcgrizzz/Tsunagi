@@ -71,6 +71,19 @@ def test_native_download_still_accepts_201(download_url):
     assert _fetch_url(download_url + "/201/declared") == b"payload"
 
 
+def test_compat_download_follows_http_redirects_only(client, col, download_url):
+    # Anki's HttpClient (requests) has no ftp:// or file:// adapter; keep it so.
+    ok = client.post("/", json={"action": "storeMediaFile", "version": 6, "params": {
+        "filename": "moved.mp3", "url": f"{download_url}/redirect/{download_url}/200/declared",
+    }}).json()
+    assert ok == {"result": "moved.mp3", "error": None}
+    refused = client.post("/", json={"action": "storeMediaFile", "version": 6, "params": {
+        "filename": "secret.mp3", "url": f"{download_url}/redirect/ftp://127.0.0.1/secret.txt",
+    }}).json()
+    assert refused["result"] is None and "ftp://" in refused["error"]
+    assert not (Path(col.media.dir()) / "secret.mp3").exists()
+
+
 def test_native_download_follows_http_redirects_only(download_url):
     from tsunagi.shared.errors import ValidationError
 
