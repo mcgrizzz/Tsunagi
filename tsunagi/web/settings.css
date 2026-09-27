@@ -20,13 +20,13 @@
 
 html, body { height: 100%; margin: 0; }
 body { background: var(--t-canvas); color: var(--t-fg); font-size: 13.5px; line-height: 1.4; overflow: hidden; }
-#shell { display: grid; grid-template-columns: 200px 1fr; height: calc(100% - 52px); }
+#shell { display: grid; grid-template-columns: 232px 1fr; height: calc(100% - 52px); }
 
 /* Navigation */
 #nav { display: flex; flex-direction: column; border-right: 1px solid var(--t-border); padding: 12px 10px; overflow: hidden; }
 #nav .spacer { flex: 1; }
 #nav button {
-  display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; width: 100%; text-align: left; margin: 1px 0; padding: 7px 10px;
+  display: flex; gap: 8px; align-items: center; box-sizing: border-box; width: 100%; white-space: nowrap; text-align: left; margin: 1px 0; padding: 7px 10px;
   border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--t-fg); font: inherit; cursor: pointer;
 }
 #nav button:hover { background: var(--t-soft); }
@@ -39,6 +39,10 @@ body { background: var(--t-canvas); color: var(--t-fg); font-size: 13.5px; line-
   border: 1px solid var(--t-danger); border-radius: 6px; padding: 5px 6px;
 }
 #nav .danger-zone button:hover { background: var(--t-danger); color: #fff; }
+#nav .label { flex: 1; }
+#nav .icon { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6;
+             stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+#nav button[aria-current="true"] .icon { opacity: 1; }
 #nav .dot { font-weight: 700; color: var(--t-link); }
 #nav button[aria-current="true"] .dot { color: var(--t-accent-fg); }
 

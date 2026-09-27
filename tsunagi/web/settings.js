@@ -11,6 +11,29 @@ const PAGES = [
   ["ankiconnect", "AnkiConnect"],
 ];
 
+// Sidebar icons: 24-unit stroke paths drawn in the text colour. They support
+// the labels, never replace them (aria-hidden).
+const ICONS = {
+  server: "M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01",
+  apps: "M14.5 9.5a4 4 0 1 1-1.2-2.8M13.3 10.7 20 17.4V20h-2.6v-2h-2v-2h-2l-.7-.7",
+  nokey: "M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M4 12h11M11 8l4 4-4 4",
+  web: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z",
+  roles: "M4 5h16v14H4zM9 11a2 2 0 1 0 0-.01M6 16c.6-1.7 1.7-2.5 3-2.5s2.4.8 3 2.5M14 10h3M14 13h3",
+  ankiconnect: "M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5",
+};
+
+function icon(name) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "icon");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", ICONS[name]);
+  svg.append(path);
+  return svg;
+}
+
 let S = null;          // state from Python: fields, catalog, roles' defaults, defaults...
 let draft = null;      // what Save sends
 let saved = null;      // the draft as last saved, for "Revert changes on this page"
@@ -89,7 +112,7 @@ function load(state) {
 function render() {
   document.getElementById("nav").replaceChildren(
     ...PAGES.map(([id, title]) => h("button", { type: "button", "data-page": id,
-      "aria-current": String(id === page), onclick: () => go(id) }, title,
+      "aria-current": String(id === page), onclick: () => go(id) }, icon(id), h("span", { class: "label" }, title),
       changed(id) ? h("span", { class: "dot", title: "Unsaved changes" }, "•") : null)),
     h("span", { class: "spacer" }),
     h("div", { class: "danger-zone" },
