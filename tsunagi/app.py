@@ -28,6 +28,7 @@ from .http.middleware import (
     DynamicCORSMiddleware,
 )
 from .http.playground import API_DESCRIPTION
+from .http.v1.addons import router as addons_router
 from .http.v1.cards import router as cards_router
 from .http.v1.collection import router as collection_router
 from .http.v1.deck_configs import router as deck_configs_router
@@ -139,6 +140,7 @@ app.include_router(collection_router)
 app.include_router(gui_router)
 app.include_router(media_router)
 app.include_router(events_router)
+app.include_router(addons_router)
 # AnkiBusyError / CollectionUnavailableError -> 503 with a reason
 register_exception_handlers(app, syncing=lambda: anki_collection.syncing)
 

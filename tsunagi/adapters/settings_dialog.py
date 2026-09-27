@@ -89,6 +89,16 @@ GATE_INFO: Dict[str, Tuple[str, str]] = {
         "retention. Leave off unless a tool you trust needs it. Needs an API "
         "key when other devices can connect.",
     ),
+    "addons_read_config": (
+        "Allow reading add-on settings",
+        "Lets API clients read any add-on's settings. Some add-ons keep "
+        "passwords or keys there. Tsunagi's own API key is never shown.",
+    ),
+    "addons_write_config": (
+        "Allow changing add-on settings",
+        "Lets API clients replace another add-on's settings, checked the same "
+        "way as Anki's settings editor. Tsunagi's own settings stay dialog-only.",
+    ),
     "anki_page_scripts": (
         "Allow card templates and add-on pages",
         "Lets JavaScript in your cards and in other add-ons' pages inside Anki "

@@ -14,7 +14,9 @@
         "cards_set_memory_state": false,
         "events_changes": true,
         "events_reviews": false,
-        "anki_page_scripts": false
+        "anki_page_scripts": false,
+        "addons_read_config": false,
+        "addons_write_config": false
     },
     "ankiconnect_import_offered": false,
     "ankiconnect_imported_at": null,

@@ -27,6 +27,8 @@ DEFAULTS = {
         "events_changes": True,               # data change events
         "events_reviews": False,              # answers and review log events
         "anki_page_scripts": False,           # card templates and add-on pages
+        "addons_read_config": False,          # other add-ons' configs (may hold secrets)
+        "addons_write_config": False,         # replacing other add-ons' configs
     },
     "ankiconnect_import_offered": False,
     "ankiconnect_imported_at": None,

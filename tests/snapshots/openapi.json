@@ -44,6 +44,143 @@
         "title": "AddCardsResult",
         "type": "object"
       },
+      "AddonConfig": {
+        "properties": {
+          "config": {
+            "description": "Null when the add-on has no config",
+            "title": "Config",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "AddonConfig",
+        "type": "object"
+      },
+      "AddonConfigWrite": {
+        "properties": {
+          "config": {
+            "description": "The whole config; it replaces the saved one",
+            "title": "Config",
+            "type": "object"
+          }
+        },
+        "required": [
+          "config"
+        ],
+        "title": "AddonConfigWrite",
+        "type": "object"
+      },
+      "AddonConfigWriteResult": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "changed",
+          "stats"
+        ],
+        "title": "AddonConfigWriteResult",
+        "type": "object"
+      },
+      "AddonInfo": {
+        "properties": {
+          "ankiweb_id": {
+            "title": "Ankiweb Id",
+            "type": "integer"
+          },
+          "compatible": {
+            "description": "Whether it declares support for this Anki version",
+            "title": "Compatible",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "has_config": {
+            "description": "Has a config readable at /v1/addons/{id}/config",
+            "title": "Has Config",
+            "type": "boolean"
+          },
+          "has_config_ui": {
+            "description": "Registers its own settings dialog instead of Anki's JSON editor",
+            "title": "Has Config Ui",
+            "type": "boolean"
+          },
+          "homepage": {
+            "title": "Homepage",
+            "type": "string"
+          },
+          "id": {
+            "description": "Folder name; the AnkiWeb ID for AnkiWeb installs",
+            "title": "Id",
+            "type": "string"
+          },
+          "installed_at": {
+            "description": "Unix seconds",
+            "title": "Installed At",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "description": "The author's version label, if any",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "compatible",
+          "installed_at",
+          "has_config",
+          "has_config_ui"
+        ],
+        "title": "AddonInfo",
+        "type": "object"
+      },
+      "AddonList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AddonInfo"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "AddonList",
+        "type": "object"
+      },
       "AnswerEntry": {
         "properties": {
           "cardId": {
@@ -2371,6 +2508,202 @@
         "summary": "List available AnkiConnect actions",
         "tags": [
           "AnkiConnect Compatibility"
+        ]
+      }
+    },
+    "/v1/addons": {
+      "get": {
+        "description": "Every installed add-on, enabled or not, sorted by folder name.",
+        "operationId": "listAddons",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List installed add-ons",
+        "tags": [
+          "Add-ons"
+        ]
+      }
+    },
+    "/v1/addons/{addon_id}": {
+      "get": {
+        "operationId": "getAddon",
+        "parameters": [
+          {
+            "description": "The add-on's folder name, as listed by GET /v1/addons",
+            "in": "path",
+            "name": "addon_id",
+            "required": true,
+            "schema": {
+              "description": "The add-on's folder name, as listed by GET /v1/addons",
+              "title": "Addon Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get an add-on",
+        "tags": [
+          "Add-ons"
+        ]
+      }
+    },
+    "/v1/addons/{addon_id}/config": {
+      "get": {
+        "description": "The config as Anki merges it with the add-on's defaults. Off by default: requires the `gates.addons_read_config` gate, because configs can hold other add-ons' secrets. Tsunagi's own API key is always redacted.",
+        "operationId": "getAddonConfig",
+        "parameters": [
+          {
+            "description": "The add-on's folder name, as listed by GET /v1/addons",
+            "in": "path",
+            "name": "addon_id",
+            "required": true,
+            "schema": {
+              "description": "The add-on's folder name, as listed by GET /v1/addons",
+              "title": "Addon Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Read an add-on's config",
+        "tags": [
+          "Add-ons"
+        ]
+      },
+      "put": {
+        "description": "Saves the whole config the way Anki's config editor does: checked against the add-on's config.schema.json, written only if changed, then the add-on's config-updated hook runs. Off by default: requires the `gates.addons_write_config` gate. Tsunagi's own config cannot be changed here.",
+        "operationId": "putAddonConfig",
+        "parameters": [
+          {
+            "description": "The add-on's folder name, as listed by GET /v1/addons",
+            "in": "path",
+            "name": "addon_id",
+            "required": true,
+            "schema": {
+              "description": "The add-on's folder name, as listed by GET /v1/addons",
+              "title": "Addon Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddonConfigWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonConfigWriteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Replace an add-on's config",
+        "tags": [
+          "Add-ons"
         ]
       }
     },
