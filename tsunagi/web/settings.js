@@ -46,6 +46,22 @@ function h(tag, attrs, ...kids) {
 const link = (label, onclick, attrs) => h("button", { type: "button", class: "link", onclick, ...attrs }, label);
 const go = (p, role) => { page = p; editing = role || null; render(); document.getElementById("main").scrollTop = 0; };
 const clone = (x) => JSON.parse(JSON.stringify(x));
+let notice = "";       // a short footer message, e.g. after a key is copied
+let noticeTimer = 0;
+function notify(text) {
+  notice = text;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { notice = ""; render(); }, 2500);
+  render();
+}
+function copyKey(key, button) {
+  call("copy", key);
+  if (button) {
+    button.textContent = "Copied";
+    button.classList.add("done");
+    setTimeout(() => { if (button.isConnected) { button.textContent = "Copy"; button.classList.remove("done"); } }, 1500);
+  }
+}
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 function draftFrom(state) {
@@ -76,9 +92,13 @@ function render() {
       "aria-current": String(id === page), onclick: () => go(id) }, title,
       changed(id) ? h("span", { class: "dot", title: "Unsaved changes" }, "•") : null)),
     h("span", { class: "spacer" }),
-    h("button", { type: "button", id: "restoreAll", class: "subtle",
-                  title: "Reset every page. You confirm first; nothing changes until Save.",
-                  onclick: () => { confirmAll = true; render(); } }, "Restore all defaults…"));
+    h("div", { class: "danger-zone" },
+      h("div", { class: "danger-title" }, "Danger zone"),
+      h("button", { type: "button", id: "restoreAll", title: "Reset every page. You confirm first; nothing changes until Save.",
+                    onclick: () => { confirmAll = true; render(); } }, "Restore all defaults…")));
+  const dirty = PAGES.filter(([id]) => changed(id)).length;
+  document.getElementById("status").textContent = notice ||
+    (dirty ? `Unsaved changes on ${dirty} page${dirty === 1 ? "" : "s"}` : "");
   const main = document.getElementById("main");
   const scroll = main.scrollTop;
   main.replaceChildren(...PAGE[page]().flat(Infinity).filter(Boolean));
@@ -128,14 +148,20 @@ const RESTORE = {
                                              if (def) { r.name = def.name; r.grants = [...def.grants]; } } },
 };
 
+// Page-state actions share one look on every page, the role editor included.
+// Each shows only when it would change something; both wait for Save.
+function actionBar(revert, restore, ids) {
+  return h("div", { class: "head-actions" },
+    revert && h("button", { type: "button", class: "quiet", id: ids[0], onclick: () => { revert(); render(); },
+                            title: "Back to the last saved values of this page only" }, "Revert changes"),
+    restore && h("button", { type: "button", class: "quiet", id: ids[1], onclick: () => { restore(); render(); },
+                             title: "Back to the defaults for this page only. Nothing changes until Save." }, "Restore defaults"));
+}
+
 function pageActions(p) {
   const restore = RESTORE[p];
-  const noop = restore && same(sliceOf(p, draft), sliceOf(p, (() => { const d = clone(draft); restore(d); return d; })()));
-  return h("div", { class: "head-actions" },
-    changed(p) && link("Revert changes on this page", () => { REVERT[p](draft); render(); },
-                       { id: "revertPage", title: "Back to the last saved values of this page only" }),
-    restore && link(noop ? "At defaults ✓" : "Restore this page's defaults", () => { restore(draft); render(); },
-                    { id: "restorePage", disabled: noop, title: noop ? "This page already has its default values" : "Nothing changes until Save" }));
+  const noop = !restore || same(sliceOf(p, draft), sliceOf(p, (() => { const d = clone(draft); restore(d); return d; })()));
+  return actionBar(changed(p) && (() => REVERT[p](draft)), !noop && (() => restore(draft)), ["revertPage", "restorePage"]);
 }
 
 function header(title, lead) {
@@ -182,6 +208,15 @@ function areaState(role, area) {
   if (role.grants.includes(area.area)) return { level: "all", count: area.names.length, some: [] };
   const some = areaNames(area).filter((n) => role.grants.includes(n));
   return { level: some.length ? "some" : "none", count: some.length, some };
+}
+
+// One cell per area: filled = all of it, half = some, empty = none.
+function strip(role) {
+  return h("span", { class: "strip", "aria-hidden": "true" }, S.catalog.map((area) => {
+    const st = areaState(role, area);
+    const what = st.level === "all" ? "all" : st.level === "some" ? `${st.count} of ${area.names.length}` : "none";
+    return h("i", { class: st.level, title: `${area.label}: ${what}` });
+  }));
 }
 
 function summary(role) {
@@ -245,7 +280,7 @@ const PAGE = {
         h("td", {}, roleSelect(app.role, (v) => { app.role = v; }, null, "Role of " + app.name)),
         h("td", {}, h("span", { class: "key-preview", title: "Key (More shows it in full)" },
                       app.key ? "••••" + app.key.slice(-4) : "no key"),
-          link("Copy", () => call("copy", app.key), { title: "Copy the key" })),
+          link("Copy", (e) => copyKey(app.key, e.currentTarget), { title: "Copy the key" })),
         h("td", { class: "end" }, link(open ? "Less" : "More", toggle, { "aria-expanded": String(open), class: "link more" })))];
       if (open) {
         out.push(h("tr", { class: "app-detail" }, h("td", { colspan: 4 },
@@ -254,7 +289,7 @@ const PAGE = {
             h("input", { type: "text", class: "key", "aria-label": "Key of " + app.name, spellcheck: "false",
                          value: app.key, oninput: (e) => { app.key = e.target.value; } }),
             h("button", { type: "button", title: "Replace with a new random key and copy it. The old key stops working after Save.",
-                          onclick: async () => { app.key = await call("new_key"); call("copy", app.key); render(); } }, "New key"),
+                          onclick: async () => { app.key = await call("new_key"); copyKey(app.key); notify("New key copied to the clipboard"); } }, "New key"),
             h("span", { class: "spacer" }),
             h("button", { type: "button", class: "danger", "aria-label": "Remove " + app.name,
                           onclick: () => { draft.apps.splice(i, 1); openApps.clear(); render(); } }, "Remove app")))));
@@ -278,10 +313,9 @@ const PAGE = {
             while (draft.apps.some((a) => a.name === "New app " + n)) n++;
             draft.apps.push({ name: "New app " + n, key, role: "default" });
             openApps.add(draft.apps.length - 1);
-            call("copy", key);
-            render();
-          } }, "Add app"),
-          h("span", { class: "help inline" }, "The new key is copied to the clipboard."))),
+            copyKey(key);
+            notify("New app added; its key is copied to the clipboard");
+          } }, "Add app"))),
     ];
   },
 
@@ -334,8 +368,9 @@ const PAGE = {
             const users = usersOf(r.id);
             return h("tr", { "data-role": r.id },
               h("td", {}, h("b", {}, r.name), def ? h("span", { class: "tag" }, edited ? "Built-in, edited" : "Built-in") : null),
-              h("td", { class: "summary" }, summary(r)),
-              h("td", { class: "users" }, users.length ? userLinks(users) : h("span", { class: "muted" }, "—")),
+              h("td", { class: "summary" }, strip(r), h("div", {}, summary(r))),
+              h("td", { class: "users" }, users.length ? users.map((u) => link(u.label, () => go(u.page)))
+                                                        : h("span", { class: "muted" }, "Not used")),
               h("td", { class: "end" }, link(r.id === "none" ? "View" : "Edit", () => go("roles", r.id), { "data-edit": r.id })));
           }))),
         h("div", { class: "card-foot" },
@@ -416,29 +451,28 @@ function roleEditor(r) {
   });
   return [
     h("header", { class: "page-head" },
-      h("div", {}, link("← All roles", () => go("roles"), { id: "backToRoles" }),
+      h("div", {},
+        h("nav", { class: "crumbs", "aria-label": "Breadcrumb" }, link("Roles", () => go("roles"), { id: "backToRoles" }), h("span", {}, "/")),
         h("h1", {}, r.name || "(unnamed role)"),
-        h("p", { class: "lead" }, users.length ? ["Used by ", userLinks(users)] : "Not used yet.")),
-      h("div", { class: "head-actions" },
-        savedRole && !sameRole(savedRole, r) && h("button", { type: "button", id: "revertRole",
-          title: "Back to this role's last saved name and permissions", onclick: () => {
-            r.name = savedRole.name; r.grants = [...savedRole.grants]; render(); } }, "Revert changes"),
-        def && !locked && h("button", { type: "button", id: "resetRole", disabled: isDefault,
-          onclick: () => { r.name = def.name; r.grants = [...def.grants]; render(); } }, "Reset to default"),
-        !locked && h("button", { type: "button", id: "copyRole", onclick: () => {
-          let n = 1;
-          while (roleById("custom_" + n)) n++;
-          draft.roles.push({ id: "custom_" + n, name: r.name + " (copy)", grants: [...r.grants] });
-          go("roles", "custom_" + n);
-        } }, "Duplicate"),
-        !def && h("button", { type: "button", class: "danger", id: "deleteRole", disabled: users.length > 0,
-          title: users.length ? "Give its apps and sources another role first." : "",
-          onclick: () => { draft.roles = draft.roles.filter((x) => x !== r); go("roles"); } }, "Delete"))),
+        h("p", { class: "lead" }, users.length ? ["Used by ", userLinks(users)] : "Not used by any app or source yet.")),
+      actionBar(savedRole && !sameRole(savedRole, r) && (() => { r.name = savedRole.name; r.grants = [...savedRole.grants]; }),
+                def && !locked && !isDefault && (() => { r.name = def.name; r.grants = [...def.grants]; }),
+                ["revertRole", "resetRole"])),
     h("section", { class: "card flush" },
       h("div", { class: "role-name" }, h("label", { for: "roleName" }, "Name"),
         h("input", { type: "text", id: "roleName", value: r.name, disabled: locked, oninput: (e) => { r.name = e.target.value; } })),
       locked ? h("p", { class: "empty" }, "No access allows nothing and cannot be changed.")
              : h("table", { class: "table areas" }, h("tbody", {}, rows))),
+    !locked && h("div", { class: "object-actions" },
+      h("button", { type: "button", id: "copyRole", onclick: () => {
+        let n = 1;
+        while (roleById("custom_" + n)) n++;
+        draft.roles.push({ id: "custom_" + n, name: r.name + " (copy)", grants: [...r.grants] });
+        go("roles", "custom_" + n);
+      } }, "Duplicate role"),
+      !def && h("button", { type: "button", class: "danger", id: "deleteRole", disabled: users.length > 0,
+        onclick: () => { draft.roles = draft.roles.filter((x) => x !== r); go("roles"); } }, "Delete role"),
+      !def && users.length > 0 && h("span", { class: "help inline" }, "To delete it, give its apps and sources another role first.")),
   ];
 }
 

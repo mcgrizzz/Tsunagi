@@ -97,6 +97,9 @@ def check(app, screenshot):
         js(app, dlg, "go('apps'); $('#addApp').click()")
         until(app, lambda: js(app, dlg, "document.querySelectorAll('.app').length === 1"))
         assert js(app, dlg, "$('.app-detail .key') !== null")  # a new app opens with its key shown
+        assert "copied" in js(app, dlg, "$('#status').textContent")
+        js(app, dlg, "[...document.querySelectorAll('.app button.link')].find((b) => b.textContent === 'Copy').click()")
+        assert js(app, dlg, "[...document.querySelectorAll('.app button.link')].some((b) => b.textContent === 'Copied')")
         js(app, dlg, "setv('.app .app-name', 'Phone'); setv('.app select', 'read_only', 'change')")
         if screenshot:
             shoot(app, dlg, screenshot, "apps-edited")
