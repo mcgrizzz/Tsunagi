@@ -99,12 +99,12 @@ reviews also accept Anki browser search syntax to narrow your results.
 4. In your tool, set the Anki connection address to **`http://127.0.0.1:7777`**.
    If it asks for a port separately, enter **`7777`**.
 
-**Keep Anki open with your profile loaded.** If you change the port or set an
-API key under **Access**, use the same values in your tool.
+**Keep Anki open with your profile loaded.** If you change the port or give
+your tool a key under **Apps & access**, use the same values in your tool.
 
 ## Move from AnkiConnect
 
-1. Open **Tools → Tsunagi Settings → Connection**.
+1. Open **Tools → Tsunagi Settings → AnkiConnect**.
 2. Click **Import AnkiConnect settings**.
 3. Review the values under **Ready to import**, then click **Save**.
 
@@ -116,15 +116,16 @@ takes over the port. Your tools can keep using the imported address and key.
 
 Open **Tools → Tsunagi Settings** to change:
 
-| Tab | Settings |
+| Section | Settings |
 | --- | --- |
-| **Connection** | Server on/off, port and AnkiConnect import. |
-| **Access** | Who can connect (host), API key, allowed websites and optional permissions. |
-| **Events** | What apps listening to the event stream may receive. |
+| **Connection** | Server on/off, port and who can connect (host). |
+| **Apps & access** | Apps and their keys, what requests without a key may do, allowed websites. |
+| **Groups** | What each group of apps may do. |
 | **Advanced** | Media limits, timeouts and logging. |
+| **AnkiConnect** | Import AnkiConnect's settings and take over its port. |
 
 If a tool can't connect, check that Anki is open and both use the same port and
-API key. For a website access error, add its origin under **Access**, including
+key. For a website access error, add its origin under **Apps & access**, including
 `http://` or `https://` and any port, without a page path.
 
 See the [configuration reference](config.md) for details. For unresolved problems,

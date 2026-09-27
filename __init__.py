@@ -167,7 +167,7 @@ else:
         # Function-local import so reload_addon()'s module purge is enough to
         # pick up new dialog code - no re-registration needed.
         try:
-            from .tsunagi.adapters.settings_dialog import open_settings
+            from .tsunagi.adapters.settings_page import open_settings
             open_settings(mw)
         except Exception:
             print("[tsunagi] settings dialog failed:\n" + traceback.format_exc())

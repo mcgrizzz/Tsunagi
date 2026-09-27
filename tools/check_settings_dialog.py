@@ -1,49 +1,32 @@
-"""Exercise actual Qt settings controls and Anki addon metadata in a temp folder."""
-import json
-import os
+"""Drive the real settings page (AnkiWebView + pycmd bridge) in a disposable Anki profile.
+
+Covers load, apps and No key rows, the other-devices confirmation, group edit and
+reset, cancel, restore defaults, and the AnkiConnect import-and-handover path.
+--screenshot PATH also saves one image per section (PATH-<section>.png).
+"""
 import socket
 import sys
-import tempfile
+import time
 import traceback
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from qt_smoke import aqt, run, until
 
-from anki.lang import set_lang  # noqa: E402
-from aqt.addons import AddonManager  # noqa: E402
-from aqt.qt import (  # noqa: E402
-    QApplication,
-    QCheckBox,
-    QComboBox,
-    QDialog,
-    QDialogButtonBox,
-    QGroupBox,
-    QLabel,
-    QLineEdit,
-    QPlainTextEdit,  # noqa: E402
-    QPushButton,
-    QSpinBox,
-    QStackedWidget,
-    QTabWidget,
-    QTimer,
-    QWidget,
-)
+from tsunagi.adapters import settings_dialog, settings_page
+from tsunagi.adapters.config import ADDON_PACKAGE, _migrate
+from tsunagi.adapters.dialogs import ANKICONNECT_ID
 
-from tsunagi.adapters import settings_dialog as dialog  # noqa: E402
-from tsunagi.adapters.config import (  # noqa: E402
-    ADDON_PACKAGE,
-    DEFAULTS,
-    default_app_key,
-)
-from tsunagi.adapters.dialogs import ANKICONNECT_ID  # noqa: E402
-from tsunagi.shared.version import ADDON_VERSION  # noqa: E402
+HELPERS = """
+window.$ = (s) => document.querySelector(s);
+window.setv = (s, v, ev) => { const e = $(s); e.value = v; e.dispatchEvent(new Event(ev || 'input')); };
+window.go = (id) => $('[data-section=' + id + ']').click();
+"""
 
 
 class ProbeServer:
     """A disposable listener with the shutdown interface used by AnkiConnect."""
+
     def __init__(self):
         self.port = 0
         self.sock = None
@@ -61,255 +44,153 @@ class ProbeServer:
             self.sock = None
 
 
-def main():
-    set_lang("en")
-    app = QApplication.instance() or QApplication([])
-    for scenario in ("missing", "cancel", "save", "restore", "restore_history", "preferred", "invalid", "save_error"):
-        check_scenario(app, scenario)
+def js(app, dlg, code):
+    out = []
+    dlg.tsunagi_web.page().runJavaScript(HELPERS + code, out.append)
+    until(app, lambda: out)
+    return out[0]
 
 
-def check_scenario(app, scenario):
-    with tempfile.TemporaryDirectory() as temporary:
-        base = Path(temporary)
-        cfg = {**DEFAULTS, "apps": [{"name": "Default key", "key": "existing-key", "group": "default"}],
-               "port": 7777,
-               "cors_allowlist": ["http://existing"]}
-        if scenario == "restore_history":
-            cfg["ankiconnect_imported_at"] = "2026-09-01T12:34:00+00:00"
-        server = ProbeServer() if scenario != "missing" else None
-        timer = QTimer()
-        timer.start(25)
-        loaded_modules = ({ANKICONNECT_ID: SimpleNamespace(ac=SimpleNamespace(server=server, timer=timer))}
-                          if server is not None else {})
-        addon_configs = {ADDON_PACKAGE: cfg}
-        if scenario != "missing":
-            addon_configs[ANKICONNECT_ID] = {
-                "apiKey": "imported-key", "webCorsOriginList": ["http://existing", "http://imported", "http://imported"],
-                "webBindPort": server.port,
-            }
-        for name, config in addon_configs.items():
-            folder = base / name
-            folder.mkdir()
-            (folder / "__init__.py").write_text("")
-            (folder / "config.json").write_text(json.dumps(config))
-        mw = QWidget()
-        manager = AddonManager.__new__(AddonManager)
-        manager.mw = mw
-        manager.addonsFolder = lambda module=None: str(base / module if module else base)
-        mw.addonManager = manager
-        failures, warnings = [], []
-        writes = []
+def open_page(app):
+    dlg = settings_page.make_dialog(aqt.mw)
+    dlg.show()
+    until(app, lambda: js(app, dlg, "window.tsunagiReady === true"))
+    return dlg
 
-        def apply(_mw, new_cfg, *, write):
-            assert write
-            writes.append(new_cfg)
-            manager.writeConfig(ADDON_PACKAGE, new_cfg)
 
-        def exercise():
-            window = next(w for w in app.topLevelWidgets()
-                          if isinstance(w, QDialog) and w.windowTitle() == "Tsunagi Settings")
-            try:
-                tabs = window.findChild(QTabWidget, "settingsTabs")
-                assert [tabs.tabText(i) for i in range(tabs.count())] == ["Connection", "Access", "Events", "Advanced"]
-                version = window.findChild(QLabel, "addonVersion")
-                assert version.text() == f"Tsunagi {ADDON_VERSION}"
-                for index in range(tabs.count()):
-                    tabs.setCurrentIndex(index)
-                    assert version.isVisible()
-                tabs.setCurrentIndex(0)
-                mode = window.findChild(QComboBox, "portMode")
-                stack = window.findChild(QStackedWidget, "portControls")
-                fixed = window.findChild(QSpinBox, "port")
-                preferred = window.findChild(QSpinBox, "prefer_port")
-                assert mode.currentIndex() == stack.currentIndex() == 1
-                assert fixed.value() == 7777
-                mode.setCurrentIndex(0)
-                assert stack.currentIndex() == 0 and not fixed.isVisible() and preferred.isVisible()
-                preferred.setValue(8888)
-                mode.setCurrentIndex(1)
-                assert fixed.value() == 7777 and preferred.value() == 8888
-                tabs.setCurrentIndex(1)
-                key = window.findChild(QLineEdit, "api_key")
-                assert key.echoMode() == QLineEdit.EchoMode.Password
-                reveal = window.findChild(QCheckBox, "showApiKey")
-                reveal.click()
-                assert key.echoMode() == QLineEdit.EchoMode.Normal
-                reveal.click()
-                app.processEvents()
-                key.setFocus()
-                key.focusNextChild()
-                assert reveal.hasFocus()
-                original_key = key.text()
-                window.findChild(QPushButton, "generateApiKey").click()
-                generated = key.text()
-                assert len(generated) == 32 and generated != original_key
-                assert reveal.isChecked() and QApplication.clipboard().text() == generated
-                key.setText(original_key)
-                reveal.setChecked(False)
-                tabs.setCurrentIndex(0)
-                if scenario == "save" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
-                    target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
-                    window.resize(640, 580)
-                    for index, name in enumerate(("connection", "access", "events", "advanced")):
-                        tabs.setCurrentIndex(index)
-                        app.processEvents()
-                        window.grab().save(str(target.with_stem(target.stem + "-" + name)))
-                    window.resize(480, 420)
-                    tabs.setCurrentIndex(1)
-                    app.processEvents()
-                    window.grab().save(str(target.with_stem(target.stem + "-small")))
-                    window.resize(640, 580)
-                    tabs.setCurrentIndex(0)
-                history = window.findChild(QLabel, "ankiconnectImportHistory")
-                if scenario == "restore_history":
-                    assert history.text() not in ("Not recorded", "Unavailable")
-                else:
-                    assert history.text() == "Not recorded"
-                original_history = history.text()
-                status = window.findChild(QLabel, "ankiconnectStatus")
-                button = window.findChild(QPushButton, "ankiconnectImport")
-                buttons = window.findChild(QDialogButtonBox)
-                if scenario == "save_error":
-                    with patch.object(dialog, "save_settings", side_effect=RuntimeError("Port unavailable")):
-                        buttons.button(QDialogButtonBox.StandardButton.Save).click()
-                    assert window.isVisible() and writes == []
-                    assert warnings == ["Could not save settings: Port unavailable"]
-                    assert manager.addon_meta(ANKICONNECT_ID).enabled
-                    warnings.clear()
-                    window.reject()
-                    return
-                if scenario == "preferred":
-                    mode.setCurrentIndex(0)
-                    buttons.button(QDialogButtonBox.StandardButton.Save).click()
-                    return
-                if scenario == "invalid":
-                    window.findChild(QLineEdit, "host").clear()
-                    buttons.button(QDialogButtonBox.StandardButton.Save).click()
-                    assert window.isVisible() and writes == []
-                    assert warnings == ["Host must not be empty."]
-                    warnings.clear()
-                    window.reject()
-                    return
-                if scenario == "missing":
-                    assert status.text() == "Not installed"
-                    assert not button.isEnabled()
-                else:
-                    assert status.text() == "Enabled"
-                    origins = window.findChild(QPlainTextEdit)
-                    origins.setPlainText("http://existing\nhttp://unsaved")
-                    button.click()
-                    assert origins.toPlainText().splitlines() == [
-                        "http://existing", "http://unsaved", "http://imported"]
-                    pending = window.findChild(QGroupBox, "ankiconnectPending")
-                    assert pending.isVisible() and not button.isVisible()
-                    assert window.findChild(QLabel, "ankiconnectPendingPort").text() == str(server.port)
-                    assert window.findChild(QLabel, "ankiconnectPendingKey").text() == "Copy from AnkiConnect"
-                    assert history.text() == original_history
-                    assert mode.currentIndex() == stack.currentIndex() == 1
-                    assert fixed.value() == preferred.value() == server.port
-                    assert window.findChild(QLabel, "ankiconnectPendingOrigins").text() == "1 new origin"
-                    if scenario == "save" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
-                        target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
-                        app.processEvents()
-                        window.grab().save(str(target.with_stem(target.stem + "-pending")))
-                    assert manager.addon_meta(ANKICONNECT_ID).enabled
-                    assert server.sock is not None and timer.isActive()
-                    assert writes == []
-                    if scenario in ("restore", "restore_history"):
-                        buttons.button(QDialogButtonBox.StandardButton.RestoreDefaults).click()
-                        assert pending.isHidden() and button.isVisible()
-                        assert mode.currentIndex() == (1 if DEFAULTS["port"] else 0)
-                        assert preferred.value() == DEFAULTS["prefer_port"]
-                role = (QDialogButtonBox.StandardButton.Save if scenario in ("save", "restore", "restore_history")
-                        else QDialogButtonBox.StandardButton.Cancel)
-                buttons.button(role).click()
-            except Exception as exc:
-                traceback.print_exc()
-                failures.append(exc)
-                window.reject()
-
-        with patch.dict(sys.modules, loaded_modules), \
-             patch.object(dialog, "apply_config", apply), \
-             patch.object(dialog, "_restart_server"), \
-             patch("aqt.utils.restoreGeom"), patch("aqt.utils.saveGeom"), \
-             patch("aqt.utils.showWarning", lambda message, **kwargs: warnings.append(message)):
-            QTimer.singleShot(0, exercise)
-            dialog.open_settings(mw)
-            if scenario == "save" and not failures:
-                def inspect_saved_import():
-                    window = next(w for w in app.topLevelWidgets()
-                                  if isinstance(w, QDialog) and w.isVisible()
-                                  and w.windowTitle() == "Tsunagi Settings")
-                    try:
-                        history = window.findChild(QLabel, "ankiconnectImportHistory")
-                        assert history.text() not in ("Not recorded", "Unavailable")
-                        button = window.findChild(QPushButton, "ankiconnectImport")
-                        assert button.text() == "Import settings again"
-                        status = window.findChild(QLabel, "ankiconnectStatus").text()
-                        assert status in ("Disabled", "Not installed")
-                        assert button.isEnabled() == (status != "Not installed")
-                        if status == "Disabled" and os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
-                            target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
-                            window.grab().save(str(target.with_stem(target.stem + "-imported")))
-                        if status == "Disabled":
-                            previous_history = history.text()
-                            button.click()
-                            assert window.findChild(QGroupBox, "ankiconnectPending").isVisible()
-                            assert window.findChild(QLabel, "ankiconnectPendingKey").text() == "Unchanged"
-                            assert window.findChild(QLabel, "ankiconnectPendingOrigins").text() == "No new origins"
-                            assert history.text() == previous_history
-                            if os.environ.get("TSUNAGI_SETTINGS_SCREENSHOT"):
-                                target = Path(os.environ["TSUNAGI_SETTINGS_SCREENSHOT"])
-                                app.processEvents()
-                                window.grab().save(str(target.with_stem(target.stem + "-pending-again")))
-                    except Exception as exc:
-                        traceback.print_exc()
-                        failures.append(exc)
-                    finally:
-                        window.reject()
-
-                QTimer.singleShot(0, inspect_saved_import)
-                dialog.open_settings(mw)
-                with patch.object(manager, "allAddons", return_value=[ADDON_PACKAGE]):
-                    QTimer.singleShot(0, inspect_saved_import)
-                    dialog.open_settings(mw)
-        assert not failures, failures
-        assert not warnings, warnings
-        if scenario == "save":
-            assert not manager.addon_meta(ANKICONNECT_ID).enabled
-            persisted = manager.getConfig(ADDON_PACKAGE)
-            assert default_app_key(persisted) == "imported-key"
-            assert persisted["cors_allowlist"] == ["http://existing", "http://unsaved", "http://imported"]
-            assert persisted["port"] == persisted["prefer_port"] == server.port
-            assert persisted["enabled"] is True
-            assert server.sock is None and not timer.isActive()
-            with socket.socket() as tsunagi_listener:
-                tsunagi_listener.bind(("127.0.0.1", persisted["port"]))
-                tsunagi_listener.listen()
-            assert persisted["ankiconnect_import_offered"] is True
-            assert persisted["ankiconnect_imported_at"]
-        elif scenario == "preferred":
-            persisted = manager.getConfig(ADDON_PACKAGE)
-            assert persisted["port"] == 0 and persisted["prefer_port"] == 8888
-            assert default_app_key(persisted) == "existing-key"
-            assert manager.addon_meta(ANKICONNECT_ID).enabled
-        elif scenario in ("restore", "restore_history"):
-            assert manager.addon_meta(ANKICONNECT_ID).enabled
-            assert manager.getConfig(ADDON_PACKAGE)["ankiconnect_imported_at"] == cfg["ankiconnect_imported_at"]
-        else:
-            assert writes == []
-            assert manager.getConfig(ADDON_PACKAGE) == cfg
-            if scenario == "cancel":
-                assert manager.addon_meta(ANKICONNECT_ID).enabled
-        if server is not None:
-            if scenario != "save":
-                assert server.sock is not None and timer.isActive()
-            server.close()
-        timer.stop()
-        mw.deleteLater()
+def shoot(app, dlg, path, name):
+    deadline = time.monotonic() + 0.4  # let the page repaint before grabbing
+    while time.monotonic() < deadline:
         app.processEvents()
-        print(f"PASS: settings {scenario}")
+    dlg.grab().save(str(path.with_name(f"{path.stem}-{name}.png")))
+
+
+def save(app, dlg):
+    js(app, dlg, "$('#save').click()")
+    until(app, lambda: not dlg.isVisible())
+
+
+def check(app, screenshot):
+    store = {"cfg": _migrate({})[0]}
+    manager = aqt.mw.addonManager
+    real_get = manager.getConfig
+    restarts = []
+    with patch.object(manager, "getConfig",
+                      lambda name: store["cfg"] if name == ADDON_PACKAGE else real_get(name)), \
+         patch.object(manager, "writeConfig",
+                      lambda name, cfg: store.update(cfg=dict(cfg)) if name == ADDON_PACKAGE else None), \
+         patch.object(settings_dialog, "_restart_server",
+                      lambda mw, enabled: restarts.append(enabled)):
+        # Load and render every section.
+        dlg = open_page(app)
+        assert js(app, dlg, "$('#version').textContent").startswith("Tsunagi ")
+        for section in ("connection", "access", "groups", "advanced", "ankiconnect"):
+            js(app, dlg, f"go('{section}')")
+            assert js(app, dlg, "$('main h1') !== null")
+            if screenshot:
+                shoot(app, dlg, screenshot, section)
+        print("PASS: page loads and renders every section", flush=True)
+
+        # An app with a new key in Read-only; keyless local requests closed.
+        js(app, dlg, "go('access'); $('#addApp').click()")
+        until(app, lambda: js(app, dlg, "document.querySelectorAll('.app').length === 1"))
+        js(app, dlg, "setv('.app .app-name', 'Phone'); setv('.app select', 'read_only', 'change');"
+                     "setv('#no_key_remote_group', 'default', 'change')")
+        if screenshot:
+            shoot(app, dlg, screenshot, "access-edited")
+            js(app, dlg, "$('.apps').scrollIntoView()")
+            shoot(app, dlg, screenshot, "access-apps")
+        js(app, dlg, "setv('#no_key_remote_group', 'none', 'change'); setv('#no_key_local_group', 'none', 'change')")
+        save(app, dlg)
+        app_row = store["cfg"]["apps"][0]
+        assert (app_row["name"], app_row["group"], len(app_row["key"])) == ("Phone", "read_only", 32)
+        assert store["cfg"]["no_key_local_group"] == "none"
+        assert restarts == []
+        print("PASS: apps and No key rows save", flush=True)
+
+        # Other devices without a key need the confirmation box.
+        dlg = open_page(app)
+        js(app, dlg, "go('access'); setv('#no_key_remote_group', 'read_only', 'change')")
+        js(app, dlg, "$('#save').click()")
+        until(app, lambda: js(app, dlg, "!$('#errors').hidden"))
+        assert "Confirm that other devices" in js(app, dlg, "$('#errors').textContent")
+        assert dlg.isVisible() and store["cfg"]["no_key_remote_group"] == "none"
+        js(app, dlg, "$('#confirmRemote').click()")
+        save(app, dlg)
+        assert store["cfg"]["no_key_remote_group"] == "read_only"
+        print("PASS: other devices need confirmation", flush=True)
+
+        # Edit a built-in group, then reset it.
+        dlg = open_page(app)
+        js(app, dlg, "go('groups'); $('[data-group=default]').click(); $('#area_manage').click();"
+                     "[...document.querySelectorAll('.area-head button')][0].click()")
+        if screenshot:
+            shoot(app, dlg, screenshot, "groups-edited")
+        save(app, dlg)
+        assert "manage" not in store["cfg"]["groups"]["default"]["grants"]
+        dlg = open_page(app)
+        js(app, dlg, "go('groups'); $('[data-group=default]').click()")
+        assert js(app, dlg, "$('#resetGroup').disabled") is False
+        js(app, dlg, "$('#resetGroup').click()")
+        save(app, dlg)
+        assert store["cfg"]["groups"] == {}
+        print("PASS: group edit and reset", flush=True)
+
+        # Cancel and Restore all defaults change nothing until Save.
+        before = dict(store["cfg"])
+        dlg = open_page(app)
+        js(app, dlg, "$('#restore').click()")
+        until(app, lambda: js(app, dlg, "go('access'); $('.apps') === null"))
+        js(app, dlg, "$('#cancel').click()")
+        until(app, lambda: not dlg.isVisible())
+        assert store["cfg"] == before
+        print("PASS: restore defaults and cancel", flush=True)
+
+        # AnkiConnect import: stage, save, hand the port over.
+        server, timer = ProbeServer(), aqt.qt.QTimer()
+        timer.start(60_000)
+        sys.modules[ANKICONNECT_ID] = SimpleNamespace(ac=SimpleNamespace(server=server, timer=timer))
+        toggled = []
+        ac_cfg = {"apiKey": "from-ankiconnect", "webBindPort": server.port,
+                  "webCorsOriginList": ["http://imported"]}
+        try:
+            with patch.object(manager, "allAddons", lambda: [ANKICONNECT_ID]), \
+                 patch.object(manager, "addon_meta", lambda name: SimpleNamespace(enabled=True)), \
+                 patch.object(manager, "toggleEnabled", lambda name, enable: toggled.append(enable)), \
+                 patch.object(manager, "getConfig",
+                              lambda name: store["cfg"] if name == ADDON_PACKAGE else ac_cfg):
+                dlg = open_page(app)
+                js(app, dlg, "go('ankiconnect'); $('#importAnkiConnect').click()")
+                until(app, lambda: js(app, dlg, "$('#pendingImport') !== null"))
+                assert str(server.port) in js(app, dlg, "$('#pendingImport').textContent")
+                save(app, dlg)
+        finally:
+            sys.modules.pop(ANKICONNECT_ID, None)
+            timer.stop()
+        cfg = store["cfg"]
+        assert cfg["port"] == server.port and cfg["prefer_port"] == server.port
+        assert {"name": "AnkiConnect key", "key": "from-ankiconnect", "group": "default"} in cfg["apps"]
+        assert "http://imported" in cfg["cors_allowlist"] and cfg["ankiconnect_imported_at"]
+        assert toggled == [False] and server.sock is None and restarts == [True]
+        server.close()
+        print("PASS: AnkiConnect import hands over its port", flush=True)
+
+        if screenshot:
+            from aqt.theme import Theme
+
+            aqt.mw.set_theme(Theme.DARK)
+            dlg = open_page(app)
+            js(app, dlg, "go('access')")
+            shoot(app, dlg, screenshot, "dark-access")
+            js(app, dlg, "go('groups')")
+            shoot(app, dlg, screenshot, "dark-groups")
+            js(app, dlg, "$('#cancel').click()")
+            until(app, lambda: not dlg.isVisible())
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        run(check, __doc__)
+    except Exception:
+        traceback.print_exc()
+        sys.exit(1)

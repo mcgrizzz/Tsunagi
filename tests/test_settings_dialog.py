@@ -18,16 +18,14 @@ from tsunagi.adapters.settings_dialog import (
 
 HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_version",
                "dev_watch_seconds", "gates", "ankiconnect_ignore_origins",
-               # edited in config.json until the settings page; the API key
-               # field edits one app in "apps"
+               # edited by the settings page's own sections (settings_page.py)
                "apps", "no_key_local_group", "no_key_remote_group", "groups"}
-FORM_ONLY = {"api_key"}  # a form field that is not a config key
 
 
 class TestFieldSpec:
     def test_every_field_key_is_a_real_config_key(self):
         for f in FIELDS:
-            assert f.key in DEFAULTS or f.key in FORM_ONLY, f.key
+            assert f.key in DEFAULTS, f.key
 
     def test_hidden_keys_never_appear_in_the_form(self):
         assert HIDDEN_KEYS.isdisjoint({f.key for f in FIELDS})
@@ -35,7 +33,7 @@ class TestFieldSpec:
     def test_form_plus_hidden_covers_the_whole_config(self):
         # A new DEFAULTS key must be placed: either in the form or explicitly
         # hidden. This fails until that decision is made.
-        assert ({f.key for f in FIELDS} - FORM_ONLY) | HIDDEN_KEYS == set(DEFAULTS)
+        assert {f.key for f in FIELDS} | HIDDEN_KEYS == set(DEFAULTS)
 
     def test_restart_keys_match_config_md_contract(self):
         # config.md: server-level keys are only read at server startup, so
@@ -52,26 +50,6 @@ class TestRoundTrip:
         assert new_cfg == DEFAULTS
         assert restart is False
         assert cfg == DEFAULTS  # input not mutated
-
-    def test_live_key_change_needs_no_restart(self):
-        values = form_values_from_config(DEFAULTS)
-        values["api_key"] = "sekrit"
-        new_cfg, restart = config_from_form(dict(DEFAULTS), values)
-        assert new_cfg["apps"] == [{"name": "Default key", "key": "sekrit", "group": "default"}]
-        assert "api_key" not in new_cfg
-        assert restart is False
-
-    def test_key_field_edits_only_the_default_key_app(self):
-        other = {"name": "Phone", "key": "p", "group": "read_only"}
-        cfg = {**DEFAULTS, "apps": [{"name": "Default key", "key": "old", "group": "everything"},
-                                    other]}
-        values = form_values_from_config(cfg)
-        assert values["api_key"] == "old"
-        values["api_key"] = "new"
-        assert config_from_form(cfg, values)[0]["apps"] == [
-            {"name": "Default key", "key": "new", "group": "everything"}, other]
-        values["api_key"] = ""
-        assert config_from_form(cfg, values)[0]["apps"] == [other]
 
     def test_restart_key_change_is_flagged(self):
         for key, value in (("port", 8765), ("enabled", False)):
@@ -94,7 +72,7 @@ class TestRoundTrip:
         cfg["ankiconnect_imported_at"] = "2026-09-11T12:34:00+00:00"
         cfg["ankiconnect_ignore_origins"] = ["https://ignored.test", ["nested"]]
         values = form_values_from_config(cfg)
-        values["api_key"] = "k"
+        values["log_level"] = "info"
         new_cfg, _ = config_from_form(cfg, values)
         assert new_cfg["ankiconnect_import_offered"] is True
         assert new_cfg["ankiconnect_imported_at"] == cfg["ankiconnect_imported_at"]
@@ -228,7 +206,7 @@ class TestAnkiConnectSettings:
     def test_import_merges_origins_without_importing_ports_or_gates(self):
         from tsunagi.adapters.dialogs import ankiconnect_import_changes
 
-        old_app = {"name": "Default key", "key": "old", "group": "default"}
+        old_app = {"name": "AnkiConnect key", "key": "old", "group": "default"}
         original = {"apps": [old_app], "cors_allowlist": ["http://existing"],
                     "port": 7777, "gates": {"anki_page_scripts": False}}
         ac = {"apiKey": "new", "webCorsOriginList": ["http://existing", "http://new"],

@@ -1,11 +1,13 @@
 # Tsunagi Configuration
 
-The usual way to change these settings is the **settings dialog**: the Config
-button on the add-on, or Tools → Tsunagi Settings. This page documents the
+The usual way to change these settings is the **settings page**: the Config
+button on the add-on, or Tools → Tsunagi Settings. It opens inside Anki and
+talks to Tsunagi directly, not through the API, so no API client, website or
+card template can read or change these settings. This page documents the
 underlying keys, which you can still edit as JSON in `meta.json` if you
 prefer.
 
-Saving the settings dialog applies Tsunagi settings immediately: per-request keys
+Saving the settings page applies Tsunagi settings immediately: per-request keys
 (`apps`, `groups`, the `no_key_*` groups, `cors_allowlist`, the `media_*`
 limits and `gates`) are simply
 read live, and server-level keys (`enabled`, `host`, `port`, `prefer_port`,
@@ -29,7 +31,7 @@ and **Preferred port**. Existing allowed origins, including unsaved form entries
 are retained; imported origins are appended without duplicates. Optional capability
 gates are unchanged. The separate startup import-only offer keeps Tsunagi's port
 because that offer leaves AnkiConnect running. AnkiConnect's API key becomes the
-key of the app **Default key**; an empty AnkiConnect key does not replace an
+key of the app **AnkiConnect key**; an empty AnkiConnect key does not replace an
 existing one. The standard AnkiConnect timer and listener are stopped before Tsunagi restarts.
 If the selected port is still occupied, the handover is cancelled and the prior
 addon state is restored. An unsupported AnkiConnect runtime requires a manual
@@ -74,10 +76,9 @@ AnkiConnect allows; other devices need a key.
 - `apps` (default `[]`): `[{"name": "Yomitan", "key": "...", "group": "default"}]`.
   An app sends its key as `X-Api-Key: <key>` or `Authorization: Bearer <key>`
   on `/v1/...`, as `?api_key=<key>` on `/v1/events` only, or as the top-level
-  `"key"` field on the AnkiConnect endpoint (`POST /`). The settings dialog's
-  **API key** field edits the key of the app named `Default key`; **Generate**
-  fills in a random 32-character key and copies it. Other apps are edited here
-  in the JSON until the settings page lands.
+  `"key"` field on the AnkiConnect endpoint (`POST /`). On the settings page,
+  **Apps & access → Add app** creates one with a random 32-character key and
+  copies it; **New key** replaces a key.
 - `no_key_local_group` (default `"default"`): the group for requests without a
   key from **this computer**, meaning the connection comes from a loopback
   address and the `Host` names one (`127.0.0.1`, `localhost`, `[::1]`). Set it

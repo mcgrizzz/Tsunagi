@@ -77,6 +77,11 @@ How it works:
    port also changes every launch, so an allowlist entry would not last.
    AnkiConnect has no such exception: any card template can use it.
 
+Settings (apps, keys, groups, allowlist) are never exposed over HTTP. The
+settings page runs inside Anki and reaches Python only through Anki's `pycmd`
+bridge on its own web view, so an API client, website or card template cannot
+read or change them.
+
 `requestPermission` from any site shows a dialog in Anki naming the requesting
 origin; approving it adds the origin to the allowlist. It exists only as an
 AnkiConnect action: the native API has no permission request yet. One is

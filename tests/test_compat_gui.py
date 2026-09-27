@@ -99,7 +99,7 @@ def test_modules_import_without_qt():
     # which is what lets the addon load before Anki has a main window.
     import tsunagi.adapters.anki.gui as adapter
     import tsunagi.adapters.events as events
-    import tsunagi.adapters.settings_dialog as settings_dialog
+    import tsunagi.adapters.settings_page as settings_page
     import tsunagi.http.compat.actions.gui as compat
     import tsunagi.http.v1.events as events_routes
     import tsunagi.http.v1.gui as routes
@@ -107,7 +107,7 @@ def test_modules_import_without_qt():
     assert hasattr(compat, "ac_guiBrowse")
     assert hasattr(adapter, "open_browser") and hasattr(adapter, "current_card")
     assert hasattr(routes, "router")
-    assert hasattr(settings_dialog, "open_settings")
+    assert hasattr(settings_page, "open_settings")
     assert hasattr(events, "broker") and hasattr(events_routes, "router")
 
 

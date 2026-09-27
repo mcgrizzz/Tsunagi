@@ -38,9 +38,8 @@ DEFAULTS = {
     "config_version": 4,
 }
 
-# The app whose key the settings dialog's API key field edits (and an
-# AnkiConnect import fills), until the settings page manages all apps.
-DEFAULT_APP = "Default key"
+# The app an AnkiConnect settings import fills with AnkiConnect's key.
+DEFAULT_APP = "AnkiConnect key"
 
 
 def default_app_key(cfg: dict) -> str:

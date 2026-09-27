@@ -12,6 +12,6 @@ def test_settings_dialog_controls_and_addon_metadata():
         pytest.skip("Set TSUNAGI_GUI_PYTHON to an interpreter with aqt/PyQt")
     result = subprocess.run(
         [interpreter, str(Path(__file__).resolve().parents[1] / "tools/check_settings_dialog.py")],
-        capture_output=True, text=True, timeout=45,
+        capture_output=True, text=True, timeout=240,
     )
     assert result.returncode == 0, result.stdout + result.stderr
