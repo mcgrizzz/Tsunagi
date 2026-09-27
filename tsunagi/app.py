@@ -344,7 +344,7 @@ def start_server(mw) -> None:
             # edits; the settings dialog calls apply_config itself (and also
             # restarts the server for server-level keys, which this path does
             # not - here host/port/op_timeout_seconds/log_level/enabled still
-            # need an Anki restart). Per-request keys (apps, groups, gates,
+            # need an Anki restart). Per-request keys (apps, roles, gates,
             # cors_allowlist, media_*) apply immediately either way.
             # write=False: Anki already wrote the edited dict.
             apply_config(mw, new_cfg, write=False)

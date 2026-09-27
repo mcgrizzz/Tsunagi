@@ -62,11 +62,11 @@ deleted card IDs aren't included. That operation won't also produce
 | Sync starting or finishing | `?types=sync` |
 | Due counts for a deck list: new, learning and review cards per deck, sent when they move (answers, suspends, deck changes, syncs, day rollover) | `?types=decks.counts` |
 
-Which kinds you receive depends on your app's group (config.md): change
+Which kinds you receive depends on your app's role (config.md): change
 messages need `events:changes` (Default and Read-only have it), review
 messages need `events:reviews` (only Everything has it by default). A kind
-your group lacks is never sent; the `ready` message lists the resources you
-can receive. If your key or group changes, the stream closes with reason
+your role lacks is never sent; the `ready` message lists the resources you
+can receive. If your key or role changes, the stream closes with reason
 `auth`; reconnect to pick up the new permissions.
 
 Filters apply before messages enter your connection's queue. A client listening

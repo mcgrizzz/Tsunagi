@@ -339,10 +339,10 @@ class TestChangeDeck:
 
 
 class TestSetMemoryState:
-    """POST /v1/cards:set-memory-state - needs memory_state (Everything group)."""
+    """POST /v1/cards:set-memory-state - needs memory_state (Everything role)."""
 
     def _enable(self, reset_settings):
-        reset_settings.update(no_key_local_group="everything")
+        reset_settings.update(no_key_local_role="everything")
 
     def _write(self, client, entry):
         return client.post("/v1/cards:set-memory-state", json={"cards": [entry]})

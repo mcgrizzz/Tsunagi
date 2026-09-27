@@ -5,7 +5,7 @@ Hand-rolled SSE over StreamingResponse - no new dependencies, and unlike a
 websocket it goes through the auth/CORS middleware like any other request.
 The generator waits on an asyncio.Event that the broker sets, through
 call_soon_threadsafe, whenever it queues an event for this stream or shuts
-down. A 1 s ceiling on the wait also notices the caller's key or group changing.
+down. A 1 s ceiling on the wait also notices the caller's key or role changing.
 
 Events are published from Qt-main-thread hook callbacks registered in the
 addon root __init__.py; see adapters/events.py for the broker and the
@@ -117,7 +117,7 @@ disconnecting.
 Delivery is best-effort and live-only: Last-Event-ID does not replay events.
 Reload relevant data after reconnecting. Restarts/profile switches create a new
 session and close old streams. close reports profile_closed (reconnect once
-a profile is open again), shutdown, auth (the caller's key or group changed), timeout or max_events. Ready and gap do not count toward max_events. Heartbeat
+a profile is open again), shutdown, auth (the caller's key or role changed), timeout or max_events. Ready and gap do not count toward max_events. Heartbeat
 comments keep idle connections alive. No active session returns HTTP 503.
 Browser EventSource can use api_key when it cannot set an authentication header.
 
@@ -226,7 +226,7 @@ def stream_events(
         def close_reason() -> Optional[str]:
             if broker.is_draining(token):
                 return broker.close_reason
-            # Key removed or group changed since connecting: reconnect to
+            # Key removed or role changed since connecting: reconnect to
             # pick up the new permissions.
             if settings.resolve_caller(caller.key, caller.local) != caller:
                 return "auth"

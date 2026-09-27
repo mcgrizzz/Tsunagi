@@ -15,7 +15,7 @@ def state(*, supported=True, enabled=True, setting=None,
 
 
 def permission_state(permission, **kwargs):
-    """Disabled when the calling app's group lacks `permission`."""
+    """Disabled when the calling app's role lacks `permission`."""
     if permission == PUBLIC:
         return state(**kwargs)
     return state(enabled=permitted(permission), setting=f"permissions.{permission}",

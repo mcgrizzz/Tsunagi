@@ -19,9 +19,9 @@ def draft_of(cfg):
     draft = {"values": state["values"],
              "gates": {g["key"]: g["on"] for g in state["gates"]},
              "apps": state["apps"],
-             "groups": [{k: g[k] for k in ("id", "name", "grants")} for g in state["groups"]]}
+             "roles": [{k: g[k] for k in ("id", "name", "grants")} for g in state["roles"]]}
     for row in state["no_key_rows"]:
-        draft[row["setting"]] = row["group"]
+        draft[row["setting"]] = row["role"]
     return draft
 
 
@@ -38,46 +38,46 @@ def test_untouched_draft_saves_the_same_config():
     assert (new_cfg, restart, errors) == (cfg, False, [])
 
 
-def test_apps_rows_and_groups_are_saved():
+def test_apps_rows_and_roles_are_saved():
     cfg = fresh()
     draft = draft_of(cfg)
-    draft["apps"] = [{"name": " Yomitan ", "key": "k" * 32, "group": "read_only"}]
-    draft["no_key_local_group"] = "none"
-    draft["groups"].append({"id": "custom_1", "name": "Tagger", "grants": ["read", "write:tags"]})
+    draft["apps"] = [{"name": " Yomitan ", "key": "k" * 32, "role": "read_only"}]
+    draft["no_key_local_role"] = "none"
+    draft["roles"].append({"id": "custom_1", "name": "Tagger", "grants": ["read", "write:tags"]})
     new_cfg, restart, errors = page.config_from_page(cfg, draft)
     assert errors == [] and restart is False
-    assert new_cfg["apps"] == [{"name": "Yomitan", "key": "k" * 32, "group": "read_only"}]
-    assert new_cfg["no_key_local_group"] == "none"
-    assert new_cfg["groups"] == {"custom_1": {"name": "Tagger", "grants": ["read", "write:tags"]}}
+    assert new_cfg["apps"] == [{"name": "Yomitan", "key": "k" * 32, "role": "read_only"}]
+    assert new_cfg["no_key_local_role"] == "none"
+    assert new_cfg["roles"] == {"custom_1": {"name": "Tagger", "grants": ["read", "write:tags"]}}
 
 
 def test_only_edited_built_ins_are_stored_and_reset_removes_them():
     cfg = fresh()
     draft = draft_of(cfg)
-    default = next(g for g in draft["groups"] if g["id"] == "default")
+    default = next(g for g in draft["roles"] if g["id"] == "default")
     default["grants"] = [g for g in default["grants"] if g != "manage"]
     edited, _, _ = page.config_from_page(cfg, draft)
-    assert edited["groups"]["default"]["grants"] == sorted(
+    assert edited["roles"]["default"]["grants"] == sorted(
         {"read", "write", "gui", "sync", "events:changes"})
     state = page.page_state(edited, {})
-    row = next(g for g in state["groups"] if g["id"] == "default")
+    row = next(g for g in state["roles"] if g["id"] == "default")
     assert row["default"]["grants"] != row["grants"]  # the page offers Reset
     reset, _, _ = page.config_from_page(edited, draft_of(cfg))
-    assert reset["groups"] == {}
+    assert reset["roles"] == {}
 
 
 @pytest.mark.parametrize("change, message", [
-    (lambda d: d["apps"].append({"name": "", "key": "x" * 20, "group": "default"}), "needs a name"),
-    (lambda d: d["apps"].extend([{"name": "A", "key": "x" * 20, "group": "default"},
-                                 {"name": "A", "key": "y" * 20, "group": "default"}]), "same name"),
-    (lambda d: d["apps"].extend([{"name": "A", "key": "x" * 20, "group": "default"},
-                                 {"name": "B", "key": "x" * 20, "group": "default"}]), "same key"),
-    (lambda d: d["apps"].append({"name": "A", "key": "", "group": "default"}), "needs a key"),
-    (lambda d: d["apps"].append({"name": "A", "key": "x" * 20, "group": "gone"}), "does not exist"),
-    (lambda d: d["groups"].pop(), "cannot be deleted"),
-    (lambda d: d["groups"].append({"id": "Bad Id", "name": "X", "grants": []}), "may only use"),
-    (lambda d: d["groups"].append({"id": "x", "name": "X", "grants": ["root"]}), "unknown permission"),
-    (lambda d: d.update(no_key_remote_group="default"), "Confirm that other devices"),
+    (lambda d: d["apps"].append({"name": "", "key": "x" * 20, "role": "default"}), "needs a name"),
+    (lambda d: d["apps"].extend([{"name": "A", "key": "x" * 20, "role": "default"},
+                                 {"name": "A", "key": "y" * 20, "role": "default"}]), "same name"),
+    (lambda d: d["apps"].extend([{"name": "A", "key": "x" * 20, "role": "default"},
+                                 {"name": "B", "key": "x" * 20, "role": "default"}]), "same key"),
+    (lambda d: d["apps"].append({"name": "A", "key": "", "role": "default"}), "needs a key"),
+    (lambda d: d["apps"].append({"name": "A", "key": "x" * 20, "role": "gone"}), "does not exist"),
+    (lambda d: d["roles"].pop(), "cannot be deleted"),
+    (lambda d: d["roles"].append({"id": "Bad Id", "name": "X", "grants": []}), "may only use"),
+    (lambda d: d["roles"].append({"id": "x", "name": "X", "grants": ["root"]}), "unknown permission"),
+    (lambda d: d.update(no_key_remote_role="default"), "Confirm that other devices"),
 ])
 def test_invalid_drafts_are_refused(change, message):
     cfg = fresh()
@@ -90,9 +90,9 @@ def test_invalid_drafts_are_refused(change, message):
 
 def test_opening_other_devices_needs_confirmation_once():
     cfg = fresh()
-    draft = {**draft_of(cfg), "no_key_remote_group": "read_only", "confirm_remote": True}
+    draft = {**draft_of(cfg), "no_key_remote_role": "read_only", "confirm_remote": True}
     new_cfg, _, errors = page.config_from_page(cfg, draft)
-    assert errors == [] and new_cfg["no_key_remote_group"] == "read_only"
+    assert errors == [] and new_cfg["no_key_remote_role"] == "read_only"
     # Saving again without changing it needs no new confirmation.
     assert page.config_from_page(new_cfg, draft_of(new_cfg))[2] == []
 
@@ -139,7 +139,7 @@ def test_bridge_ignores_other_messages_and_reports_errors():
 def test_bridge_state_new_key_copy_and_cancel():
     b, events = bridge()
     state = cmd(b, "state")
-    assert state["no_key_rows"][0]["group"] == "default"
+    assert state["no_key_rows"][0]["role"] == "default"
     assert len(cmd(b, "new_key")) == 32
     cmd(b, "copy", "abc")
     cmd(b, "cancel")
@@ -152,7 +152,7 @@ def test_bridge_save_applies_and_closes(monkeypatch):
                         lambda mw, cfg, disable_ankiconnect: saved.append((cfg, disable_ankiconnect)))
     b, events = bridge()
     draft = draft_of(fresh())
-    draft["apps"] = [{"name": "Phone", "key": "p" * 32, "group": "read_only"}]
+    draft["apps"] = [{"name": "Phone", "key": "p" * 32, "role": "read_only"}]
     assert cmd(b, "save", draft) == {"ok": True}
     assert saved[0][0]["apps"][0]["name"] == "Phone" and saved[0][1] is False
     assert events == [("close", True)] and b.restart is False
@@ -162,7 +162,7 @@ def test_bridge_save_errors_keep_the_page_open(monkeypatch):
     monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings",
                         lambda *a, **k: pytest.fail("must not save"))
     b, events = bridge()
-    draft = {**draft_of(fresh()), "no_key_remote_group": "everything"}
+    draft = {**draft_of(fresh()), "no_key_remote_role": "everything"}
     assert "errors" in cmd(b, "save", draft)
     assert events == []
 
@@ -172,16 +172,19 @@ def test_bridge_stages_an_ankiconnect_import():
     b, _ = bridge(ankiconnect=ac)
     res = cmd(b, "import_ankiconnect", draft_of(fresh()))
     assert res["values"]["port"] == 8765
-    assert res["apps"] == [{"name": "AnkiConnect key", "key": "from-ac", "group": "default"}]
+    assert res["apps"] == [{"name": "AnkiConnect key", "key": "from-ac", "role": "default"}]
     assert res["pending"] == {"port": 8765, "key": "Copy from AnkiConnect", "origins": "1 new origin"}
 
 
-def test_bridge_defaults_keep_import_history():
-    cfg = {**fresh(), "apps": [{"name": "A", "key": "a" * 20, "group": "default"}],
+def test_state_carries_defaults_and_restoring_keeps_import_history():
+    cfg = {**fresh(), "apps": [{"name": "A", "key": "a" * 20, "role": "default"}],
            "ankiconnect_imported_at": "2026-09-01T12:00:00+00:00"}
     b, _ = bridge(cfg)
-    state = cmd(b, "defaults")
-    assert state["apps"] == [] and state["ankiconnect"]["imported"] is True
+    state = cmd(b, "state")
+    assert state["apps"] and state["defaults"]["apps"] == []
+    restored, _, errors = page.config_from_page(cfg, draft_of(fresh()))
+    assert errors == [] and restored["apps"] == []
+    assert restored["ankiconnect_imported_at"] == cfg["ankiconnect_imported_at"]
 
 
 def test_page_assets_are_inlined():

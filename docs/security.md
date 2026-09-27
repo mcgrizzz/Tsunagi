@@ -19,9 +19,9 @@ marked **verified** (checked against the code or with real requests) or
 
 | Caller | Default access | Why |
 | --- | --- | --- |
-| Program on this computer (script, curl, desktop tool) | Default group (everything AnkiConnect allows) | Sends no `Origin`. It already runs as the user, so it could read the files and collection directly. The "No key, this computer" row can be set to another group. |
-| Browser extension | Default group | The default allowlist entry `http://localhost` also allows every extension origin, matching AnkiConnect, so Yomitan works with no setup. |
-| Web page served from `127.0.0.1` on any port | Default group | Same allowlist rule: `http://127.0.0.1:<any port>` is trusted. Includes local dev servers and other apps' web UIs. |
+| Program on this computer (script, curl, desktop tool) | Default role (everything AnkiConnect allows) | Sends no `Origin`. It already runs as the user, so it could read the files and collection directly. The "No key, this computer" row can be set to another role. |
+| Browser extension | Default role | The default allowlist entry `http://localhost` also allows every extension origin, matching AnkiConnect, so Yomitan works with no setup. |
+| Web page served from `127.0.0.1` on any port | Default role | Same allowlist rule: `http://127.0.0.1:<any port>` is trusted. Includes local dev servers and other apps' web UIs. |
 | Anki's own pages (reviewer, previewer, add-on pages) | None unless `gates.anki_page_scripts` is on | Card templates run JavaScript there. See below. |
 | Web page on another site | None, except `requestPermission` | Rejected before anything runs. |
 | Another device on the network | Only with an app's key | Default `host` is `127.0.0.1`. With any other `host`, keyless requests from elsewhere use the "No key, other devices" row, which is No access unless the user changes it. |
@@ -57,14 +57,14 @@ How it works:
    through the middleware (so `requestPermission` works, as in AnkiConnect) and
    rejects in the endpoint before parsing the action further. Only a
    well-formed `requestPermission` passes.
-3. **Apps and groups** (config.md): a key (`X-Api-Key` or `Authorization:
+3. **Apps and roles** (config.md): a key (`X-Api-Key` or `Authorization:
    Bearer` on `/v1/*`, the `key` field on `/`, checked per `multi` child,
    `?api_key=` on `/v1/events` only) selects an app; without one, the request
    is "No key, this computer" (loopback peer and loopback `Host`) or "No key,
-   other devices". Each is in a group, and every route and AnkiConnect action
+   other devices". Each has a role, and every route and AnkiConnect action
    declares the permission it needs; a test fails if one is missing. Local
    file paths and FSRS memory-state writes need permissions only the
-   Everything group has by default.
+   Everything role has by default.
 5. **Anki's own pages:** Anki serves the reviewer, previewer and add-on pages
    from `http://127.0.0.1:<its media port>` with CSP `frame-ancestors 'none'`
    only, so card-template JavaScript runs and can make network requests. In a
@@ -77,7 +77,7 @@ How it works:
    port also changes every launch, so an allowlist entry would not last.
    AnkiConnect has no such exception: any card template can use it.
 
-Settings (apps, keys, groups, allowlist) are never exposed over HTTP. The
+Settings (apps, keys, roles, allowlist) are never exposed over HTTP. The
 settings page runs inside Anki and reaches Python only through Anki's `pycmd`
 bridge on its own web view, so an API client, website or card template cannot
 read or change them.
@@ -120,7 +120,7 @@ Ranked by how likely they are to matter.
    `127.0.0.1` on any port, and any installed browser extension, has full
    access by default. This is the AnkiConnect-compatible default that makes
    Yomitan work. Giving each tool its own key and setting "No key, this
-   computer" to a narrower group (or No access) is how to narrow it.
+   computer" to a narrower role (or No access) is how to narrow it.
 5. **Proxies and "this computer".** A request counts as local when it comes
    from a loopback address and names a loopback `Host`. A local reverse proxy
    that rewrites `Host` to `localhost` would make remote requests look local.

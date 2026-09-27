@@ -202,7 +202,7 @@ def ease(body: SetEaseRequest = Body(...)) -> SchedulingResult:
        "Overwrites per-card FSRS state (stability/difficulty, desired retention, "
        "decay) - how FSRS helper tools reschedule. An omitted field is left "
        "unchanged; an explicit null clears it. Needs the memory_state "
-       "permission, which only the Everything group has by default.",
+       "permission, which only the Everything role has by default.",
        permission="memory_state")
 def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResult:
     start = time.perf_counter()

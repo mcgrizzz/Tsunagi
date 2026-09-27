@@ -165,7 +165,7 @@ def test_filtered_streams_keep_close_controls(event_broker, reset_settings, reas
         stream = response.body_iterator
         await stream.__anext__()  # connection comment
         if reason == "auth":
-            reset_settings.update(no_key_local_group="read_only")
+            reset_settings.update(no_key_local_role="read_only")
         else:
             event_broker.begin_drain()
         assert parse_frames(await stream.__anext__()) == [("close", {"reason": reason})]

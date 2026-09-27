@@ -8,7 +8,7 @@ underlying keys, which you can still edit as JSON in `meta.json` if you
 prefer.
 
 Saving the settings page applies Tsunagi settings immediately: per-request keys
-(`apps`, `groups`, the `no_key_*` groups, `cors_allowlist`, the `media_*`
+(`apps`, `roles`, the `no_key_*` roles, `cors_allowlist`, the `media_*`
 limits and `gates`) are simply
 read live, and server-level keys (`enabled`, `host`, `port`, `prefer_port`,
 `log_level`, `op_timeout_seconds`) are applied by restarting the embedded
@@ -47,7 +47,7 @@ unless you know exactly what exposing Anki on your network means.
 Any address other than loopback (for example `0.0.0.0` to use Tsunagi from
 your phone) lets other devices on your network connect. They get **No
 access** unless they send an app's key (see below), because
-`no_key_remote_group` is `none` by default.
+`no_key_remote_role` is `none` by default.
 
 Requests must name a loopback address (`localhost`, a loopback IP, or `[::1]`),
 the configured host, or, when bound beyond loopback, any plain IP address such
@@ -66,46 +66,46 @@ usual cause. On Windows, Anki is typically allowed on networks marked
   warning and does not start (no random fallback port).
 - `port: <n>`: force a specific port; startup fails if it's busy.
 
-### Apps and permissions: `apps`, `groups`, `no_key_local_group`, `no_key_remote_group`
+### Apps and permissions: `apps`, `roles`, `no_key_local_role`, `no_key_remote_role`
 
 Every request comes from an **app** or from one of two **No key** rows, and
-each is in a **group** that decides what it may do. The defaults behave like
+each has a **role** that decides what it may do. The defaults behave like
 AnkiConnect: programs on this computer need no key and can do everything
 AnkiConnect allows; other devices need a key.
 
-- `apps` (default `[]`): `[{"name": "Yomitan", "key": "...", "group": "default"}]`.
+- `apps` (default `[]`): `[{"name": "Yomitan", "key": "...", "role": "default"}]`.
   An app sends its key as `X-Api-Key: <key>` or `Authorization: Bearer <key>`
   on `/v1/...`, as `?api_key=<key>` on `/v1/events` only, or as the top-level
   `"key"` field on the AnkiConnect endpoint (`POST /`). On the settings page,
-  **Apps & access → Add app** creates one with a random 32-character key and
+  **Apps & keys → Add app** creates one with a random 32-character key and
   copies it; **New key** replaces a key.
-- `no_key_local_group` (default `"default"`): the group for requests without a
+- `no_key_local_role` (default `"default"`): the role for requests without a
   key from **this computer**, meaning the connection comes from a loopback
   address and the `Host` names one (`127.0.0.1`, `localhost`, `[::1]`). Set it
   to `"none"` to make every local program use a key.
-- `no_key_remote_group` (default `"none"`): the group for requests without a
+- `no_key_remote_role` (default `"none"`): the role for requests without a
   key from anywhere else, including through a local proxy such as Tailscale
   Serve. Anything other than `"none"` lets anyone who can reach the port use
-  that group without a key.
+  that role without a key.
 - A key that matches no app counts as no key, as in AnkiConnect.
-- A request without a key whose group is `none` gets HTTP 401 (`/v1/...`) or
-  `"valid api key must be provided"` (`POST /`). A request whose group lacks
-  what the route needs gets HTTP 403 naming the app, the group and the
+- A request without a key whose role is `none` gets HTTP 401 (`/v1/...`) or
+  `"valid api key must be provided"` (`POST /`). A request whose role lacks
+  what the route needs gets HTTP 403 naming the app, the role and the
   missing permission, or the same text as the AnkiConnect `error`.
 - The docs pages (`/docs`, `/openapi.json`) and `/v1/health` need no key.
 
-Built-in groups:
+Built-in roles:
 
-| Group id | Name | Grants |
+| Role id | Name | Grants |
 | --- | --- | --- |
 | `default` | Default (like AnkiConnect) | `read`, `write`, `gui`, `sync`, `manage`, `events:changes` |
 | `read_only` | Read-only | `read`, `events:changes` |
 | `everything` | Everything | every permission |
 | `none` | No access | nothing |
 
-`groups` (default `{}`) adds your own groups or replaces a built-in one under
+`roles` (default `{}`) adds your own roles or replaces a built-in one under
 the same id: `{"tagger": {"name": "Tagger", "grants": ["read", "write:tags"]}}`.
-An app in a group that does not exist gets nothing.
+An app whose role does not exist gets nothing.
 
 A grant is a whole area or one name in it. Each route in the API reference
 shows the permission it needs (`x-permission`).
@@ -122,7 +122,7 @@ shows the permission it needs (`x-permission`).
 | `memory_state` | | `POST /v1/cards:set-memory-state`: overwriting cards' FSRS memory state, desired retention and decay |
 
 Changes apply immediately. An open event stream closes with reason `auth`
-when its app's key or group changes, so the client reconnects with the new
+when its app's key or role changes, so the client reconnects with the new
 permissions.
 
 ### `cors_allowlist`
@@ -175,7 +175,7 @@ Timeout for downloading media from a URL (default 30).
 ### `gates`
 Switches about the server itself rather than a caller. Read on every request,
 so saving toggles them without restarting Anki. (What callers may do moved to
-groups; older gate keys in a saved config are ignored.)
+roles; older gate keys in a saved config are ignored.)
 
 - `anki_page_scripts` — when `true`, JavaScript running inside Anki's own
   pages (card templates in the reviewer and previewer, and other add-ons' web

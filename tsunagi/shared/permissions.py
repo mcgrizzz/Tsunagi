@@ -1,10 +1,10 @@
 """
-Permissions, groups and the caller of the current request (backlog 6.5a).
+Permissions, roles and the caller of the current request (backlog 6.5a).
 
 Every v1 route declares one permission with `openapi_extra=requires(...)`,
 which also publishes it in the OpenAPI document as `x-permission`; every
 AnkiConnect action declares one in `registry.register(..., permission=...)`.
-Each app (and each of the two "No key" rows) is in one group, and a group
+Each app (and each of the two "No key" rows) has one role, and a role
 grants whole areas ("write") or single names ("write:notes").
 """
 from __future__ import annotations
@@ -34,11 +34,11 @@ PERMISSIONS = frozenset({
     "events:reviews",
 })
 
-# What a group may list: any permission, or a whole area.
+# What a role may list: any permission, or a whole area.
 GRANTS = (PERMISSIONS - {PUBLIC}) | {p.split(":", 1)[0] for p in PERMISSIONS - {PUBLIC}}
 
 NO_ACCESS = "none"
-BUILTIN_GROUPS: Dict[str, Dict] = {
+BUILTIN_ROLES: Dict[str, Dict] = {
     # Everything any AnkiConnect client can do, so swapping it in just works.
     "default": {"name": "Default (like AnkiConnect)",
                 "grants": ["read", "write", "gui", "sync", "manage", "events:changes"]},
@@ -66,8 +66,8 @@ def allows(grants: FrozenSet[str], permission: str) -> bool:
 class Caller:
     """Who sent a request: an app, or one of the two "No key" rows."""
     name: str
-    group: str
-    group_name: str
+    role: str
+    role_name: str
     grants: FrozenSet[str]
     key: Optional[str]  # to resolve the same caller again (event streams)
     local: bool
@@ -91,5 +91,5 @@ def current_denial(permission: str) -> str:
 
 
 def denied_message(caller: Caller, permission: str) -> str:
-    return (f"{caller.name} is in the group {caller.group_name!r}, which does not "
+    return (f"{caller.name} has the role {caller.role_name!r}, which does not "
             f"allow {permission}; change it in Tsunagi's settings")

@@ -19,7 +19,7 @@ from tsunagi.adapters.settings_dialog import (
 HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_version",
                "dev_watch_seconds", "gates", "ankiconnect_ignore_origins",
                # edited by the settings page's own sections (settings_page.py)
-               "apps", "no_key_local_group", "no_key_remote_group", "groups"}
+               "apps", "no_key_local_role", "no_key_remote_role", "roles"}
 
 
 class TestFieldSpec:
@@ -122,7 +122,7 @@ class TestCors:
 
 class TestGates:
     def test_only_server_switches_remain(self):
-        # What callers may do moved to groups (6.5a).
+        # What callers may do moved to roles (6.5a).
         assert {key for key, *_ in gate_rows(DEFAULTS)} == {"anki_page_scripts"}
 
     def test_unknown_gate_renders_and_round_trips(self):
@@ -206,7 +206,7 @@ class TestAnkiConnectSettings:
     def test_import_merges_origins_without_importing_ports_or_gates(self):
         from tsunagi.adapters.dialogs import ankiconnect_import_changes
 
-        old_app = {"name": "AnkiConnect key", "key": "old", "group": "default"}
+        old_app = {"name": "AnkiConnect key", "key": "old", "role": "default"}
         original = {"apps": [old_app], "cors_allowlist": ["http://existing"],
                     "port": 7777, "gates": {"anki_page_scripts": False}}
         ac = {"apiKey": "new", "webCorsOriginList": ["http://existing", "http://new"],

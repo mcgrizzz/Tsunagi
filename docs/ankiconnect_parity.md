@@ -177,7 +177,7 @@ and its existing media side effects.
 | `getMediaDirPath` | implemented |  |
 | `getMediaFilesNames` | implemented |  |
 | `retrieveMediaFile` | implemented |  |
-| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) needs the `local_files` permission, which only the Everything group has by default. |
+| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) needs the `local_files` permission, which only the Everything role has by default. |
 
 ### Miscellaneous Actions
 

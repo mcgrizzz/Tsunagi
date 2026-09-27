@@ -13,7 +13,7 @@ import threading
 from ipaddress import ip_address
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from ..shared.permissions import BUILTIN_GROUPS, GRANTS, NO_ACCESS, Caller
+from ..shared.permissions import BUILTIN_ROLES, GRANTS, NO_ACCESS, Caller
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 
 PersistFn = Callable[[Dict[str, Any]], None]
@@ -84,14 +84,14 @@ class Settings:
         # to their defaults.
         return bool(gates.get(name, DEFAULTS["gates"].get(name, False)))
 
-    def group(self, group_id: Any) -> Tuple[str, frozenset]:
-        """(name, grants) of a group; an unknown group grants nothing."""
-        spec = {**BUILTIN_GROUPS, **(self.get("groups") or {})}.get(group_id)
+    def role(self, role_id: Any) -> Tuple[str, frozenset]:
+        """(name, grants) of a role; an unknown role grants nothing."""
+        spec = {**BUILTIN_ROLES, **(self.get("roles") or {})}.get(role_id)
         if not isinstance(spec, dict):
-            return BUILTIN_GROUPS[NO_ACCESS]["name"], frozenset()
+            return BUILTIN_ROLES[NO_ACCESS]["name"], frozenset()
         grants = spec.get("grants")
         grants = frozenset(g for g in grants if g in GRANTS) if isinstance(grants, list) else frozenset()
-        return str(spec.get("name") or group_id), grants
+        return str(spec.get("name") or role_id), grants
 
     def resolve_caller(self, key: Any, local: bool) -> Caller:
         """
@@ -109,14 +109,14 @@ class Settings:
                         and secrets.compare_digest(key.encode(), app_key.encode())):
                     match = match or app
         if match is not None:
-            name, group_id = str(match.get("name") or "App"), match.get("group")
+            name, role_id = str(match.get("name") or "App"), match.get("role")
         else:
             key = None
             name = NO_KEY_LOCAL if local else NO_KEY_REMOTE
-            row = "no_key_local_group" if local else "no_key_remote_group"
-            group_id = self.get(row, DEFAULTS[row])
-        group_name, grants = self.group(group_id)
-        return Caller(name=name, group=str(group_id), group_name=group_name,
+            row = "no_key_local_role" if local else "no_key_remote_role"
+            role_id = self.get(row, DEFAULTS[row])
+        role_name, grants = self.role(role_id)
+        return Caller(name=name, role=str(role_id), role_name=role_name,
                       grants=grants, key=key, local=local)
 
     def add_cors_origin(self, origin: str) -> None:

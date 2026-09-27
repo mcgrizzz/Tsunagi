@@ -92,7 +92,7 @@ reviews also accept Anki browser search syntax to narrow your results.
 > to bring over your connection settings.
 
 1. Open **Tools → Tsunagi Settings**.
-2. On **Connection**, leave **Enable Tsunagi server** checked and keep the default
+2. On **Server**, leave **Run the Tsunagi server** checked and keep the default
    host and preferred port. Click **Save**.
 3. Open **<http://127.0.0.1:7777/>**. The interactive API reference confirms that
    Tsunagi is reachable.
@@ -100,7 +100,7 @@ reviews also accept Anki browser search syntax to narrow your results.
    If it asks for a port separately, enter **`7777`**.
 
 **Keep Anki open with your profile loaded.** If you change the port or give
-your tool a key under **Apps & access**, use the same values in your tool.
+your tool a key under **Apps & keys**, use the same values in your tool.
 
 ## Move from AnkiConnect
 
@@ -116,16 +116,17 @@ takes over the port. Your tools can keep using the imported address and key.
 
 Open **Tools → Tsunagi Settings** to change:
 
-| Section | Settings |
+| Page | Settings |
 | --- | --- |
-| **Connection** | Server on/off, port and who can connect (host). |
-| **Apps & access** | Apps and their keys, what requests without a key may do, allowed websites. |
-| **Groups** | What each group of apps may do. |
-| **Advanced** | Media limits, timeouts and logging. |
+| **Server** | Server on/off, port, who can connect (host), limits, timeouts and logging. |
+| **Apps & keys** | Each tool's key and role. |
+| **Requests without a key** | The role for keyless requests from this computer and from other devices. |
+| **Websites & Anki pages** | Allowed website origins, and whether card templates may use the API. |
+| **Roles** | What each role allows, and who uses it. |
 | **AnkiConnect** | Import AnkiConnect's settings and take over its port. |
 
 If a tool can't connect, check that Anki is open and both use the same port and
-key. For a website access error, add its origin under **Apps & access**, including
+key. For a website access error, add its origin under **Websites & Anki pages**, including
 `http://` or `https://` and any port, without a page path.
 
 See the [configuration reference](config.md) for details. For unresolved problems,

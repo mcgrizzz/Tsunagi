@@ -54,11 +54,11 @@ class TestNoKeyRows:
         assert client.get("/v1/health").status_code == 200
 
     def test_other_devices_row_can_be_opened(self):
-        client = make_client(Settings({"no_key_remote_group": "read_only"}), peer=LAN)
+        client = make_client(Settings({"no_key_remote_role": "read_only"}), peer=LAN)
         assert client.get("/v1/thing").status_code == 200
 
     def test_this_computer_row_can_be_closed(self):
-        client = make_client(Settings({"no_key_local_group": "none"}))
+        client = make_client(Settings({"no_key_local_role": "none"}))
         assert client.get("/v1/thing").status_code == 401
 
     def test_a_proxied_request_with_an_outside_host_is_not_local(self):

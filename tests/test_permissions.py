@@ -1,4 +1,4 @@
-"""Permissions: every route and action declares one, and groups enforce them (6.5a)."""
+"""Permissions: every route and action declares one, and roles enforce them (6.5a)."""
 
 import pytest
 from access import key_required
@@ -6,7 +6,7 @@ from fastapi.routing import APIRoute
 
 from tsunagi.app import app
 from tsunagi.http.compat.registry import AnkiConnectRegistry, registry
-from tsunagi.shared.permissions import BUILTIN_GROUPS, PERMISSIONS, allows, requires
+from tsunagi.shared.permissions import BUILTIN_ROLES, PERMISSIONS, allows, requires
 
 
 def test_every_route_declares_a_known_permission():
@@ -25,9 +25,9 @@ def test_every_compat_action_declares_a_known_permission():
     assert registry.list_actions() and not undeclared
 
 
-def test_default_group_allows_every_ankiconnect_action():
+def test_default_role_allows_every_ankiconnect_action():
     # Swapping Tsunagi in for AnkiConnect must just work.
-    grants = frozenset(BUILTIN_GROUPS["default"]["grants"])
+    grants = frozenset(BUILTIN_ROLES["default"]["grants"])
     assert [a for a in registry.list_actions()
             if not allows(grants, registry.permission_of(a))] == []
 
@@ -48,7 +48,7 @@ def test_an_area_grant_covers_its_names_but_a_name_does_not_cover_the_area():
 
 @pytest.fixture()
 def read_only(reset_settings):
-    reset_settings.update(**key_required("ro", group="read_only", name="Dashboard"))
+    reset_settings.update(**key_required("ro", role="read_only", name="Dashboard"))
     return {"X-Api-Key": "ro"}
 
 
@@ -57,7 +57,7 @@ def test_read_only_app_reads_but_cannot_write_through_v1(client, col, read_only)
     resp = client.post("/v1/decks", json={"name": "Nope"}, headers=read_only)
     assert resp.status_code == 403
     assert resp.json()["detail"] == (
-        "Dashboard is in the group 'Read-only', which does not allow write:decks; "
+        "Dashboard has the role 'Read-only', which does not allow write:decks; "
         "change it in Tsunagi's settings")
     assert "Nope" not in col.decks.all_names()
 
@@ -72,8 +72,8 @@ def test_read_only_app_reads_but_cannot_write_through_ankiconnect(client, col, r
 
 
 def test_undo_needs_all_of_write(client, reset_settings):
-    reset_settings.update(groups={"notes": {"name": "Notes", "grants": ["write:notes", "gui"]}},
-                          no_key_local_group="notes")
+    reset_settings.update(roles={"notes": {"name": "Notes", "grants": ["write:notes", "gui"]}},
+                          no_key_local_role="notes")
     resp = client.post("/v1/gui:undo")
     assert resp.status_code == 403 and "does not allow write" in resp.json()["detail"]
 

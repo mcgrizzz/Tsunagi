@@ -12,7 +12,7 @@ Every operation, conditional option and collection feature uses the same status:
 | Status | Meaning |
 | --- | --- |
 | `available` | Supported and not disabled by a setting. |
-| `disabled` | Supported, but your app's group lacks the permission. `setting` names it. |
+| `disabled` | Supported, but your app's role lacks the permission. `setting` names it. |
 | `unsupported` | This Anki version lacks the required support. Enabling a setting will not fix it. |
 
 A disabled capability has these fields:
@@ -20,7 +20,7 @@ A disabled capability has these fields:
 ```json
 {
   "status": "disabled",
-  "reason": "No key, this computer is in the group 'Default (like AnkiConnect)', which does not allow memory_state; change it in Tsunagi's settings",
+  "reason": "No key, this computer has the role 'Default (like AnkiConnect)', which does not allow memory_state; change it in Tsunagi's settings",
   "setting": "permissions.memory_state"
 }
 ```

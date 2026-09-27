@@ -26,7 +26,7 @@ def test_catalog_matches_native_openapi_and_excludes_compat(client):
 
 @pytest.mark.parametrize("enabled", [False, True])
 def test_permissions_apply_to_the_operation_or_its_option(client, reset_settings, enabled):
-    reset_settings.update(no_key_local_group="everything" if enabled else "default")
+    reset_settings.update(no_key_local_role="everything" if enabled else "default")
     operations = report(client)["operations"]
     memory = operations["POST /v1/cards:set-memory-state"]
     media = operations["POST /v1/media"]
@@ -46,14 +46,14 @@ def test_permissions_apply_to_the_operation_or_its_option(client, reset_settings
         assert "disabled" in response.text
 
 
-def test_group_change_is_visible_without_restarting(client, reset_settings):
+def test_role_change_is_visible_without_restarting(client, reset_settings):
     assert report(client)["operations"]["POST /v1/cards:set-memory-state"]["status"] == "disabled"
-    reset_settings.update(no_key_local_group="everything")
+    reset_settings.update(no_key_local_role="everything")
     assert report(client)["operations"]["POST /v1/cards:set-memory-state"]["status"] == "available"
 
 
 def test_version_options_are_available_on_supported_anki(client, reset_settings):
-    reset_settings.update(no_key_local_group="everything")
+    reset_settings.update(no_key_local_role="everything")
     operations = report(client)["operations"]
     decay = operations["POST /v1/cards:set-memory-state"]["options"]["cards[].decay"]
     assert decay["status"] == "available"

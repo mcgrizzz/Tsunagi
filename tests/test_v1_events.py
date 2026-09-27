@@ -86,11 +86,11 @@ class TestStream:
         client.get("/v1/events?timeout=0.2")
         assert broker._subscribers == {}
 
-    def test_group_change_closes_an_open_stream(self, client, reset_settings):
+    def test_role_change_closes_an_open_stream(self, client, reset_settings):
         # Auth is checked at connection time only; a credential change must
         # not leave streams running under the old rules (found in smoke: an
         # open stream survived setting a key and kept receiving events).
-        threading.Timer(0.1, lambda: reset_settings.update(no_key_local_group="read_only")).start()
+        threading.Timer(0.1, lambda: reset_settings.update(no_key_local_role="read_only")).start()
         resp = client.get("/v1/events?timeout=5")
         assert parse_frames(resp.text)[-1] == ("close", {"reason": "auth"})
 

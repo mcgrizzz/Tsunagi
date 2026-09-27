@@ -15,7 +15,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..shared.permissions import BUILTIN_GROUPS, GRANTS, NO_ACCESS, PERMISSIONS
+from ..shared.permissions import BUILTIN_ROLES, GRANTS, NO_ACCESS, PERMISSIONS
 from ..shared.version import ADDON_VERSION
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 from .settings_dialog import (
@@ -29,22 +29,25 @@ from .settings_dialog import (
 )
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
-_GEOM_KEY = "tsunagiSettings"
+_GEOM_KEY = "tsunagiSettingsPage"  # not the old Qt dialog's saved size
 _PREFIX = "tsunagi:"
 
-# What each permission means, in the group editor's words. Areas in display
-# order; a test keeps this in step with shared/permissions.py.
-AREAS: List[Tuple[str, str, str]] = [
-    ("read", "Read", "See notes, cards, decks, note types, tags, review history and media."),
-    ("write", "Change", "Add, edit and delete. Undo needs every kind of change."),
-    ("gui", "Use Anki's windows", "Open the Browser, Add and Edit windows and the reviewer on this computer."),
-    ("sync", "Sync", "Sync with AnkiWeb."),
-    ("manage", "Manage the collection", "Import, export, check the database, switch profile and close Anki."),
-    ("events", "Live updates", "What the event stream sends as it happens."),
-    ("local_files", "Read files on this computer",
+# What each permission means, in the role editor's words: (area, label, short
+# label for role summaries, description). Areas in display order; a test keeps
+# this in step with shared/permissions.py.
+AREAS: List[Tuple[str, str, str, str]] = [
+    ("read", "Read", "Read", "See notes, cards, decks, note types, tags, review history and media."),
+    ("write", "Change", "Change", "Add, edit and delete. Undo needs every kind of change."),
+    ("gui", "Use Anki's windows", "Windows",
+     "Open the Browser, Add and Edit windows and the reviewer on this computer."),
+    ("sync", "Sync", "Sync", "Sync with AnkiWeb."),
+    ("manage", "Manage the collection", "Manage",
+     "Import, export, check the database, switch profile and close Anki."),
+    ("events", "Live updates", "Live updates", "What the event stream sends as it happens."),
+    ("local_files", "Read files on this computer", "Local files",
      "Media uploads that name a file on this computer. Anything with this can make "
      "Anki read any file your account can read."),
-    ("memory_state", "Rewrite FSRS memory state",
+    ("memory_state", "Rewrite FSRS memory state", "FSRS state",
      "Overwrite what FSRS knows about cards. A faulty tool could quietly damage your scheduling."),
 ]
 NAMES: Dict[str, str] = {
@@ -56,32 +59,32 @@ NAMES: Dict[str, str] = {
 _NAME_LABEL = {"events:reviews": NAMES["reviews_live"]}
 
 NO_KEY_ROWS = [
-    ("no_key_local_group", "Programs on this computer",
+    ("no_key_local_role", "Programs on this computer",
      "Requests without a key from this computer, such as Yomitan or a script."),
-    ("no_key_remote_group", "Other devices",
+    ("no_key_remote_role", "Other devices",
      "Requests without a key from anywhere else, including through Tailscale or "
-     "another proxy. Anyone who can reach the port gets this group."),
+     "another proxy. Anyone who can reach the port gets this role."),
 ]
 
 
 def permission_catalog() -> List[Dict[str, Any]]:
     out = []
-    for area, label, description in AREAS:
+    for area, label, short, description in AREAS:
         names = sorted(p for p in PERMISSIONS if p.startswith(area + ":"))
         labelled = [{"name": n, "label": _NAME_LABEL.get(n, NAMES[n.split(":", 1)[1]])} for n in names]
-        out.append({"area": area, "label": label, "description": description,
+        out.append({"area": area, "label": label, "short": short, "description": description,
                     "names": sorted(labelled, key=lambda n: n["label"])})
     return out
 
 
-def _groups_for_page(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
-    custom = cfg.get("groups") or {}
+def _roles_for_page(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+    custom = cfg.get("roles") or {}
     rows = []
-    for gid, spec in {**BUILTIN_GROUPS, **custom}.items():
+    for rid, spec in {**BUILTIN_ROLES, **custom}.items():
         if not isinstance(spec, dict):
             continue
-        builtin = BUILTIN_GROUPS.get(gid)
-        rows.append({"id": gid, "name": str(spec.get("name") or gid),
+        builtin = BUILTIN_ROLES.get(rid)
+        rows.append({"id": rid, "name": str(spec.get("name") or rid),
                      "grants": sorted(g for g in spec.get("grants") or [] if g in GRANTS),
                      "builtin": builtin is not None,
                      "default": ({"name": builtin["name"], "grants": sorted(builtin["grants"])}
@@ -98,24 +101,24 @@ def page_state(cfg: Dict[str, Any], ankiconnect: Dict[str, Any]) -> Dict[str, An
         "gates": [{"key": k, "label": label, "tooltip": tip, "on": on}
                   for k, label, tip, on in gate_rows(cfg)],
         "apps": [{"name": str(a.get("name") or ""), "key": str(a.get("key") or ""),
-                  "group": str(a.get("group") or NO_ACCESS)}
+                  "role": str(a.get("role") or NO_ACCESS)}
                  for a in cfg.get("apps") or [] if isinstance(a, dict)],
         "no_key_rows": [{"setting": k, "label": label, "help": help_text,
-                         "group": str(cfg.get(k, DEFAULTS[k]))}
+                         "role": str(cfg.get(k, DEFAULTS[k]))}
                         for k, label, help_text in NO_KEY_ROWS],
-        "groups": _groups_for_page(cfg),
+        "roles": _roles_for_page(cfg),
         "catalog": permission_catalog(),
         "ankiconnect": {**ankiconnect, "history": import_history_text(cfg),
                         "imported": bool(cfg.get("ankiconnect_imported_at"))},
     }
 
 
-def _stored_groups(groups: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Only user-made groups and edited built-ins are saved."""
+def _stored_roles(roles: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Only user-made roles and edited built-ins are saved."""
     out = {}
-    for g in groups:
+    for g in roles:
         spec = {"name": g["name"].strip(), "grants": sorted(set(g["grants"]))}
-        builtin = BUILTIN_GROUPS.get(g["id"])
+        builtin = BUILTIN_ROLES.get(g["id"])
         if builtin and spec == {"name": builtin["name"], "grants": sorted(builtin["grants"])}:
             continue
         out[g["id"]] = spec
@@ -124,22 +127,22 @@ def _stored_groups(groups: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def validate_access(cfg: Dict[str, Any], draft: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
-    groups = draft["groups"]
-    ids = [g["id"] for g in groups]
+    roles = draft["roles"]
+    ids = [g["id"] for g in roles]
     if len(set(ids)) != len(ids):
-        errors.append("Two groups have the same id.")
-    for g in groups:
+        errors.append("Two roles have the same id.")
+    for g in roles:
         if not re.fullmatch(r"[a-z0-9_]{1,40}", g["id"]):
-            errors.append(f"Group id {g['id']!r} may only use a-z, 0-9 and _.")
+            errors.append(f"Role id {g['id']!r} may only use a-z, 0-9 and _.")
         if not g["name"].strip():
-            errors.append("Every group needs a name.")
+            errors.append("Every role needs a name.")
         if not set(g["grants"]) <= GRANTS:
             errors.append(f"{g['name']}: unknown permission.")
         if g["id"] == NO_ACCESS and g["grants"]:
             errors.append("No access cannot grant anything.")
-    for gid in BUILTIN_GROUPS:
-        if gid not in ids:
-            errors.append(f"The built-in group {BUILTIN_GROUPS[gid]['name']!r} cannot be deleted.")
+    for rid in BUILTIN_ROLES:
+        if rid not in ids:
+            errors.append(f"The built-in role {BUILTIN_ROLES[rid]['name']!r} cannot be deleted.")
     names = [a["name"].strip() for a in draft["apps"]]
     keys = [a["key"] for a in draft["apps"]]
     if any(not n for n in names):
@@ -150,11 +153,11 @@ def validate_access(cfg: Dict[str, Any], draft: Dict[str, Any]) -> List[str]:
         errors.append("Every app needs a key; use New key.")
     if len(set(keys)) != len(keys):
         errors.append("Two apps have the same key.")
-    used = [a["group"] for a in draft["apps"]] + [draft[k] for k, *_ in NO_KEY_ROWS]
-    for gid in sorted(set(used) - set(ids)):
-        errors.append(f"Group {gid!r} is in use but does not exist.")
-    remote = draft["no_key_remote_group"]
-    if (remote != NO_ACCESS and remote != cfg.get("no_key_remote_group", DEFAULTS["no_key_remote_group"])
+    used = [a["role"] for a in draft["apps"]] + [draft[k] for k, *_ in NO_KEY_ROWS]
+    for rid in sorted(set(used) - set(ids)):
+        errors.append(f"Role {rid!r} is in use but does not exist.")
+    remote = draft["no_key_remote_role"]
+    if (remote != NO_ACCESS and remote != cfg.get("no_key_remote_role", DEFAULTS["no_key_remote_role"])
             and not draft.get("confirm_remote")):
         errors.append("Confirm that other devices may connect without a key.")
     return errors
@@ -167,11 +170,11 @@ def config_from_page(cfg: Dict[str, Any], draft: Dict[str, Any]) -> Tuple[Dict[s
     if errors:
         return cfg, False, errors
     new_cfg, restart = config_from_form(cfg, values)
-    new_cfg["apps"] = [{"name": a["name"].strip(), "key": a["key"], "group": a["group"]}
+    new_cfg["apps"] = [{"name": a["name"].strip(), "key": a["key"], "role": a["role"]}
                        for a in draft["apps"]]
     for key, *_ in NO_KEY_ROWS:
         new_cfg[key] = draft[key]
-    new_cfg["groups"] = _stored_groups(draft["groups"])
+    new_cfg["roles"] = _stored_roles(draft["roles"])
     return new_cfg, restart, []
 
 
@@ -215,13 +218,12 @@ class SettingsBridge:
         return ankiconnect_status(self.mw.addonManager)
 
     def op_state(self, _arg: Any) -> Dict[str, Any]:
-        return page_state(self.saved(), self._status())
-
-    def op_defaults(self, _arg: Any) -> Dict[str, Any]:
-        # Import history is bookkeeping, not a setting: keep it.
-        cfg = self.saved()
-        keep = {k: cfg.get(k) for k in ("ankiconnect_import_offered", "ankiconnect_imported_at")}
-        return page_state({**_migrate({})[0], **keep}, self._status())
+        status = self._status()
+        # Defaults ride along for "Restore defaults" (per page and global);
+        # saving applies the draft over the saved config, so import history
+        # and other bookkeeping survive a restore.
+        return {**page_state(self.saved(), status),
+                "defaults": page_state(_migrate({})[0], status)}
 
     def op_new_key(self, _arg: Any) -> str:
         return generate_api_key()
@@ -311,6 +313,6 @@ def make_dialog(mw: Any) -> Any:
             _restart_server(mw, enabled=bool(bridge.saved_cfg.get("enabled", True)))
 
     dlg.finished.connect(finished)
-    dlg.resize(860, 640)
+    dlg.resize(980, 680)
     restoreGeom(dlg, _GEOM_KEY)
     return dlg

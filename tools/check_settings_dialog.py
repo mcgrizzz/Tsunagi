@@ -1,8 +1,9 @@
 """Drive the real settings page (AnkiWebView + pycmd bridge) in a disposable Anki profile.
 
-Covers load, apps and No key rows, the other-devices confirmation, group edit and
-reset, cancel, restore defaults, and the AnkiConnect import-and-handover path.
---screenshot PATH also saves one image per section (PATH-<section>.png).
+Covers load, apps and no-key roles, the other-devices confirmation, a page's own
+restore, role edit and reset, the confirmed global restore, cancel, and the
+AnkiConnect import-and-handover path. --screenshot PATH also saves images
+(PATH-<name>.png), in light and dark themes.
 """
 import socket
 import sys
@@ -20,7 +21,7 @@ from tsunagi.adapters.dialogs import ANKICONNECT_ID
 HELPERS = """
 window.$ = (s) => document.querySelector(s);
 window.setv = (s, v, ev) => { const e = $(s); e.value = v; e.dispatchEvent(new Event(ev || 'input')); };
-window.go = (id) => $('[data-section=' + id + ']').click();
+window.go = (id) => $('[data-page=' + id + ']').click();
 """
 
 
@@ -81,70 +82,79 @@ def check(app, screenshot):
                       lambda name, cfg: store.update(cfg=dict(cfg)) if name == ADDON_PACKAGE else None), \
          patch.object(settings_dialog, "_restart_server",
                       lambda mw, enabled: restarts.append(enabled)):
-        # Load and render every section.
+        # Load and render every page.
         dlg = open_page(app)
         assert js(app, dlg, "$('#version').textContent").startswith("Tsunagi ")
-        for section in ("connection", "access", "groups", "advanced", "ankiconnect"):
-            js(app, dlg, f"go('{section}')")
+        assert js(app, dlg, "$('footer #restoreAll') === null && $('#nav #restoreAll') !== null")
+        for page in ("server", "apps", "nokey", "web", "roles", "ankiconnect"):
+            js(app, dlg, f"go('{page}')")
             assert js(app, dlg, "$('main h1') !== null")
             if screenshot:
-                shoot(app, dlg, screenshot, section)
-        print("PASS: page loads and renders every section", flush=True)
+                shoot(app, dlg, screenshot, page)
+        print("PASS: page loads and renders every page", flush=True)
 
         # An app with a new key in Read-only; keyless local requests closed.
-        js(app, dlg, "go('access'); $('#addApp').click()")
+        js(app, dlg, "go('apps'); $('#addApp').click()")
         until(app, lambda: js(app, dlg, "document.querySelectorAll('.app').length === 1"))
-        js(app, dlg, "setv('.app .app-name', 'Phone'); setv('.app select', 'read_only', 'change');"
-                     "setv('#no_key_remote_group', 'default', 'change')")
+        js(app, dlg, "setv('.app .app-name', 'Phone'); setv('.app select', 'read_only', 'change')")
         if screenshot:
-            shoot(app, dlg, screenshot, "access-edited")
-            js(app, dlg, "$('.apps').scrollIntoView()")
-            shoot(app, dlg, screenshot, "access-apps")
-        js(app, dlg, "setv('#no_key_remote_group', 'none', 'change'); setv('#no_key_local_group', 'none', 'change')")
+            shoot(app, dlg, screenshot, "apps-edited")
+        js(app, dlg, "go('nokey'); setv('#no_key_local_role', 'none', 'change')")
         save(app, dlg)
         app_row = store["cfg"]["apps"][0]
-        assert (app_row["name"], app_row["group"], len(app_row["key"])) == ("Phone", "read_only", 32)
-        assert store["cfg"]["no_key_local_group"] == "none"
+        assert (app_row["name"], app_row["role"], len(app_row["key"])) == ("Phone", "read_only", 32)
+        assert store["cfg"]["no_key_local_role"] == "none"
         assert restarts == []
-        print("PASS: apps and No key rows save", flush=True)
+        print("PASS: apps and no-key roles save", flush=True)
 
-        # Other devices without a key need the confirmation box.
+        # Other devices without a key need the confirmation box; the page's
+        # own restore puts both sources back.
         dlg = open_page(app)
-        js(app, dlg, "go('access'); setv('#no_key_remote_group', 'read_only', 'change')")
+        js(app, dlg, "go('nokey'); setv('#no_key_remote_role', 'read_only', 'change')")
+        if screenshot:
+            shoot(app, dlg, screenshot, "nokey-confirm")
         js(app, dlg, "$('#save').click()")
         until(app, lambda: js(app, dlg, "!$('#errors').hidden"))
         assert "Confirm that other devices" in js(app, dlg, "$('#errors').textContent")
-        assert dlg.isVisible() and store["cfg"]["no_key_remote_group"] == "none"
-        js(app, dlg, "$('#confirmRemote').click()")
+        assert dlg.isVisible() and store["cfg"]["no_key_remote_role"] == "none"
+        js(app, dlg, "$('#restorePage').click()")
+        assert js(app, dlg, "[$('#no_key_local_role').value, $('#no_key_remote_role').value].join()") == "default,none"
+        js(app, dlg, "setv('#no_key_local_role', 'none', 'change'); setv('#no_key_remote_role', 'read_only', 'change');"
+                     "$('#confirmRemote').click()")
         save(app, dlg)
-        assert store["cfg"]["no_key_remote_group"] == "read_only"
-        print("PASS: other devices need confirmation", flush=True)
+        assert store["cfg"]["no_key_remote_role"] == "read_only"
+        print("PASS: other devices need confirmation; page restore", flush=True)
 
-        # Edit a built-in group, then reset it.
+        # Roles: the list shows usage; edit a built-in role, then reset it.
         dlg = open_page(app)
-        js(app, dlg, "go('groups'); $('[data-group=default]').click(); $('#area_manage').click();"
-                     "[...document.querySelectorAll('.area-head button')][0].click()")
+        js(app, dlg, "go('roles')")
+        assert "Phone" in js(app, dlg, "$('[data-role=read_only]').textContent")
+        js(app, dlg, "$('[data-edit=default]').click(); $('#area_manage').click(); $('[data-area=read]').click()")
         if screenshot:
-            shoot(app, dlg, screenshot, "groups-edited")
+            shoot(app, dlg, screenshot, "role-editor")
         save(app, dlg)
-        assert "manage" not in store["cfg"]["groups"]["default"]["grants"]
+        assert "manage" not in store["cfg"]["roles"]["default"]["grants"]
         dlg = open_page(app)
-        js(app, dlg, "go('groups'); $('[data-group=default]').click()")
-        assert js(app, dlg, "$('#resetGroup').disabled") is False
-        js(app, dlg, "$('#resetGroup').click()")
+        js(app, dlg, "go('roles'); $('[data-edit=default]').click()")
+        assert js(app, dlg, "$('#resetRole').disabled") is False
+        js(app, dlg, "$('#resetRole').click()")
         save(app, dlg)
-        assert store["cfg"]["groups"] == {}
-        print("PASS: group edit and reset", flush=True)
+        assert store["cfg"]["roles"] == {}
+        print("PASS: role edit and reset", flush=True)
 
-        # Cancel and Restore all defaults change nothing until Save.
+        # Restore all defaults asks first; Cancel then changes nothing.
         before = dict(store["cfg"])
         dlg = open_page(app)
-        js(app, dlg, "$('#restore').click()")
-        until(app, lambda: js(app, dlg, "go('access'); $('.apps') === null"))
+        js(app, dlg, "$('#restoreAll').click()")
+        assert "Remove 1 app" in js(app, dlg, "$('.dialog').textContent")
+        if screenshot:
+            shoot(app, dlg, screenshot, "restore-all")
+        js(app, dlg, "$('#confirmRestoreAll').click()")
+        until(app, lambda: js(app, dlg, "go('apps'); $('.app') === null && $('.dialog') === null"))
         js(app, dlg, "$('#cancel').click()")
         until(app, lambda: not dlg.isVisible())
         assert store["cfg"] == before
-        print("PASS: restore defaults and cancel", flush=True)
+        print("PASS: restore all defaults confirms; cancel keeps settings", flush=True)
 
         # AnkiConnect import: stage, save, hand the port over.
         server, timer = ProbeServer(), aqt.qt.QTimer()
@@ -169,7 +179,7 @@ def check(app, screenshot):
             timer.stop()
         cfg = store["cfg"]
         assert cfg["port"] == server.port and cfg["prefer_port"] == server.port
-        assert {"name": "AnkiConnect key", "key": "from-ankiconnect", "group": "default"} in cfg["apps"]
+        assert {"name": "AnkiConnect key", "key": "from-ankiconnect", "role": "default"} in cfg["apps"]
         assert "http://imported" in cfg["cors_allowlist"] and cfg["ankiconnect_imported_at"]
         assert toggled == [False] and server.sock is None and restarts == [True]
         server.close()
@@ -180,10 +190,9 @@ def check(app, screenshot):
 
             aqt.mw.set_theme(Theme.DARK)
             dlg = open_page(app)
-            js(app, dlg, "go('access')")
-            shoot(app, dlg, screenshot, "dark-access")
-            js(app, dlg, "go('groups')")
-            shoot(app, dlg, screenshot, "dark-groups")
+            for page in ("apps", "roles"):
+                js(app, dlg, f"go('{page}')")
+                shoot(app, dlg, screenshot, "dark-" + page)
             js(app, dlg, "$('#cancel').click()")
             until(app, lambda: not dlg.isVisible())
 

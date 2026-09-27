@@ -78,35 +78,35 @@ def fake_mw(writes):
 class TestResolveCaller:
     """Who a request is: an app by its key, else a No key row (6.5a)."""
 
-    APPS = {"apps": [{"name": "Yomitan", "key": "yk", "group": "default"},
-                     {"name": "Dashboard", "key": "dk", "group": "read_only"}]}
+    APPS = {"apps": [{"name": "Yomitan", "key": "yk", "role": "default"},
+                     {"name": "Dashboard", "key": "dk", "role": "read_only"}]}
 
-    def test_a_key_selects_its_app_and_group(self):
+    def test_a_key_selects_its_app_and_role(self):
         caller = Settings(self.APPS).resolve_caller("dk", False)
-        assert (caller.name, caller.group, caller.key) == ("Dashboard", "read_only", "dk")
+        assert (caller.name, caller.role, caller.key) == ("Dashboard", "read_only", "dk")
         assert caller.grants == {"read", "events:changes"}
 
     def test_no_key_uses_the_row_for_where_it_came_from(self):
         s = Settings({})
-        assert s.resolve_caller(None, True).group == "default"
-        assert s.resolve_caller(None, False).group == "none"
+        assert s.resolve_caller(None, True).role == "default"
+        assert s.resolve_caller(None, False).role == "none"
         assert s.resolve_caller(None, False).grants == frozenset()
 
     def test_unknown_key_is_the_no_key_row(self):
         caller = Settings(self.APPS).resolve_caller("nope", True)
-        assert caller.key is None and caller.group == "default"
+        assert caller.key is None and caller.role == "default"
 
-    def test_unknown_group_grants_nothing(self):
-        caller = Settings({"apps": [{"name": "X", "key": "k", "group": "gone"}]}).resolve_caller("k", True)
+    def test_unknown_role_grants_nothing(self):
+        caller = Settings({"apps": [{"name": "X", "key": "k", "role": "gone"}]}).resolve_caller("k", True)
         assert caller.grants == frozenset()
 
-    def test_edited_built_in_and_custom_groups(self):
-        s = Settings({**self.APPS, "groups": {
+    def test_edited_built_in_and_custom_roles(self):
+        s = Settings({**self.APPS, "roles": {
             "default": {"name": "Default", "grants": ["read", "write:notes", "bogus"]},
             "tagger": {"name": "Tagger", "grants": ["read:notes", "write:tags"]}},
-            "no_key_local_group": "tagger"})
+            "no_key_local_role": "tagger"})
         assert s.resolve_caller("yk", True).grants == {"read", "write:notes"}
-        assert s.resolve_caller(None, True).group_name == "Tagger"
+        assert s.resolve_caller(None, True).role_name == "Tagger"
 
 
 class TestApplyConfig:

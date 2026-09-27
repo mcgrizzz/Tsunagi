@@ -10,13 +10,13 @@ DEFAULTS = {
     "host": "127.0.0.1",
     "port": 0,
     "prefer_port": 7777,
-    # Who may do what (backlog 6.5a). Apps are {"name", "key", "group"};
-    # requests without a key use one of the two no_key groups. `groups` holds
-    # user-made groups and edited built-ins (shared/permissions.py).
+    # Who may do what (backlog 6.5a). Apps are {"name", "key", "role"};
+    # requests without a key use one of the two no_key roles. `roles` holds
+    # user-made roles and edited built-ins (shared/permissions.py).
     "apps": [],
-    "no_key_local_group": "default",
-    "no_key_remote_group": "none",
-    "groups": {},
+    "no_key_local_role": "default",
+    "no_key_remote_role": "none",
+    "roles": {},
     # AnkiConnect's default. The "http://localhost" entry also covers
     # 127.0.0.1 origins and browser extensions (see Settings.is_origin_allowed).
     "cors_allowlist": ["http://localhost"],
@@ -25,7 +25,7 @@ DEFAULTS = {
     "media_max_bytes": 67108864,          # 64 MiB
     "media_fetch_timeout_seconds": 30,
     # Switches about the server rather than a caller; what callers may do is
-    # set by groups. Read live, so toggling takes effect without a restart.
+    # set by roles. Read live, so toggling takes effect without a restart.
     "gates": {
         "anki_page_scripts": False,           # card templates and add-on pages
     },
@@ -50,14 +50,14 @@ def default_app_key(cfg: dict) -> str:
 
 
 def with_default_app_key(cfg: dict, key: str) -> list:
-    """cfg's apps with DEFAULT_APP's key set (it keeps its group), or removed if empty."""
-    apps, group = [], "default"
+    """cfg's apps with DEFAULT_APP's key set (it keeps its role), or removed if empty."""
+    apps, role = [], "default"
     for app in cfg.get("apps") or []:
         if isinstance(app, dict) and app.get("name") == DEFAULT_APP:
-            group = app.get("group", group)
+            role = app.get("role", role)
         else:
             apps.append(app)
-    return [{"name": DEFAULT_APP, "key": key, "group": group}, *apps] if key else apps
+    return [{"name": DEFAULT_APP, "key": key, "role": role}, *apps] if key else apps
 
 
 def _migrate(cfg: dict) -> Tuple[dict, bool]:

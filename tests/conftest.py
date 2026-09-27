@@ -157,11 +157,11 @@ def local_caller(reset_settings):
 
 @pytest.fixture()
 def review_events(reset_settings):
-    """Stream tests also use review events, which only the Everything group gets.
+    """Stream tests also use review events, which only the Everything role gets.
     Also sets the caller, for tests that call stream_events directly."""
     from tsunagi.shared.permissions import current_caller
 
-    reset_settings.update(no_key_local_group="everything")
+    reset_settings.update(no_key_local_role="everything")
     token = current_caller.set(reset_settings.resolve_caller(None, True))
     yield reset_settings
     current_caller.reset(token)

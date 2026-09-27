@@ -2,27 +2,27 @@
 // Tsunagi settings page. Talks to Python only through Anki's pycmd bridge
 // (adapters/settings_page.py, SettingsBridge). No build step.
 
-const SECTIONS = [
-  ["connection", "Connection"],
-  ["access", "Apps & access"],
-  ["groups", "Groups"],
-  ["advanced", "Advanced"],
+const PAGES = [
+  ["server", "Server"],
+  ["apps", "Apps & keys"],
+  ["nokey", "Requests without a key"],
+  ["web", "Websites & Anki pages"],
+  ["roles", "Roles"],
   ["ankiconnect", "AnkiConnect"],
 ];
 
-let S = null;          // state from Python (fields, catalog, groups' defaults...)
+let S = null;          // state from Python: fields, catalog, roles' defaults, defaults...
 let draft = null;      // what Save sends
 let savedRemote = "none";
-let section = "connection";
-let selectedGroup = "default";
+let page = "server";
+let editing = null;    // role id open in the role editor, or null for the list
 let pending = null;    // staged AnkiConnect import summary
+let confirmAll = false;
 const shownKeys = new Set();
 const openAreas = new Set();
 
 function call(op, arg) {
-  return new Promise((resolve) => {
-    pycmd("tsunagi:" + JSON.stringify({ op, arg }), resolve);
-  });
+  return new Promise((resolve) => pycmd("tsunagi:" + JSON.stringify({ op, arg }), resolve));
 }
 
 // DOM helper: text always goes through textContent, never innerHTML.
@@ -35,304 +35,378 @@ function h(tag, attrs, ...kids) {
     else if (k === "checked") el.checked = v;
     else el.setAttribute(k, v === true ? "" : v);
   }
-  for (const kid of kids.flat()) {
+  for (const kid of kids.flat(Infinity)) {
     if (kid == null || kid === false) continue;
     el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
   }
   return el;
 }
+const link = (label, onclick, attrs) => h("button", { type: "button", class: "link", onclick, ...attrs }, label);
+const go = (p, role) => { page = p; editing = role || null; render(); document.getElementById("main").scrollTop = 0; };
 
-function load(state, restoring) {
-  S = state;
-  draft = {
+function draftFrom(state) {
+  const d = {
     values: { ...state.values },
     gates: Object.fromEntries(state.gates.map((g) => [g.key, g.on])),
     apps: state.apps.map((a) => ({ ...a })),
-    groups: state.groups.map((g) => ({ id: g.id, name: g.name, grants: [...g.grants] })),
+    roles: state.roles.map((r) => ({ id: r.id, name: r.name, grants: [...r.grants] })),
     confirm_remote: false,
     pending_import: false,
   };
-  for (const row of state.no_key_rows) draft[row.setting] = row.group;
-  if (!restoring) savedRemote = draft.no_key_remote_group;
-  pending = null;
-  shownKeys.clear();
-  if (!draft.groups.some((g) => g.id === selectedGroup)) selectedGroup = "default";
+  for (const row of state.no_key_rows) d[row.setting] = row.role;
+  return d;
+}
+
+function load(state) {
+  S = state;
+  draft = draftFrom(state);
+  savedRemote = draft.no_key_remote_role;
   document.getElementById("version").textContent = "Tsunagi " + state.version;
   render();
 }
 
 function render() {
-  const nav = document.getElementById("nav");
-  nav.replaceChildren(...SECTIONS.map(([id, title]) =>
-    h("button", { type: "button", "data-section": id, "aria-current": String(id === section),
-                  onclick: () => { section = id; render(); } }, title)));
+  document.getElementById("nav").replaceChildren(
+    ...PAGES.map(([id, title]) => h("button", { type: "button", "data-page": id,
+      "aria-current": String(id === page), onclick: () => go(id) }, title)),
+    h("span", { class: "spacer" }),
+    h("button", { type: "button", id: "restoreAll", class: "subtle",
+                  title: "Reset every page. You confirm first; nothing changes until Save.",
+                  onclick: () => { confirmAll = true; render(); } }, "Restore all defaults…"));
   const main = document.getElementById("main");
   const scroll = main.scrollTop;
-  main.replaceChildren(...RENDER[section]());
+  main.replaceChildren(...PAGE[page]());
   main.scrollTop = scroll;
+  document.getElementById("modal").replaceChildren(...(confirmAll ? [restoreAllDialog()] : []));
+}
+
+function header(title, lead, restore) {
+  return h("header", { class: "page-head" },
+    h("div", {}, h("h1", {}, title), lead && h("p", { class: "lead" }, lead)),
+    restore && link("Restore this page's defaults", () => { restore(); render(); }, { id: "restorePage" }));
 }
 
 // ---------- fields ----------
 
 const field = (key) => S.fields.find((f) => f.key === key);
+const setNum = (obj, key) => (e) => { const n = Number(e.target.value); obj[key] = Number.isInteger(n) ? n : e.target.value; };
 
-function fieldInput(f) {
-  const set = (v) => { draft.values[f.key] = v; };
+function input(f) {
   const v = draft.values[f.key];
-  if (f.kind === "bool") {
-    return h("input", { type: "checkbox", id: f.key, checked: v,
-                        onchange: (e) => set(e.target.checked) });
-  }
+  const set = (x) => { draft.values[f.key] = x; };
+  if (f.kind === "bool") return h("input", { type: "checkbox", id: f.key, checked: v, onchange: (e) => set(e.target.checked) });
   if (f.kind === "int" || f.kind === "mib") {
-    const num = (e) => { const n = Number(e.target.value); set(Number.isInteger(n) ? n : e.target.value); };
-    return h("span", {}, h("input", { type: "number", id: f.key, min: f.minimum, max: f.maximum,
-                                      value: v, oninput: num }),
-             f.kind === "mib" ? " MiB" : "");
+    return h("span", { class: "unit" }, h("input", { type: "number", id: f.key, min: f.minimum, max: f.maximum,
+      value: v, oninput: setNum(draft.values, f.key) }), f.kind === "mib" ? "MiB" : "");
   }
   if (f.kind === "choice") {
     return h("select", { id: f.key, onchange: (e) => set(e.target.value) },
              f.choices.map((c) => h("option", { value: c, selected: c === v }, c)));
   }
-  if (f.kind === "cors_list") {
-    return h("textarea", { id: f.key, spellcheck: "false", value: v,
-                           oninput: (e) => set(e.target.value) });
-  }
-  return h("input", { type: "text", id: f.key, spellcheck: "false", value: v,
-                      oninput: (e) => set(e.target.value) });
+  if (f.kind === "cors_list") return h("textarea", { id: f.key, spellcheck: "false", value: v, oninput: (e) => set(e.target.value) });
+  return h("input", { type: "text", id: f.key, spellcheck: "false", value: v, oninput: (e) => set(e.target.value) });
 }
 
-function fieldRow(key, help) {
-  const f = field(key);
-  if (f.kind === "bool") {
-    return h("div", { class: "check" }, fieldInput(f),
-             h("label", { for: f.key }, h("b", {}, f.label), h("div", { class: "help" }, help || f.tooltip)));
-  }
-  return h("div", { class: "row" }, h("label", { for: f.key }, f.label),
-           h("div", {}, fieldInput(f), h("div", { class: "help" }, help || f.tooltip)));
+function row(label, control, help, forId) {
+  return h("div", { class: "row" }, h("label", { for: forId }, label),
+           h("div", {}, control, help && h("div", { class: "help" }, help)));
 }
 
-function portRow() {
-  const fixed = draft.values.port !== 0;
-  const mode = h("select", { id: "portMode", onchange: (e) => {
-    draft.values.port = e.target.value === "fixed" ? draft.values.prefer_port : 0;
-    render();
-  } }, h("option", { value: "preferred", selected: !fixed }, "Use preferred port"),
-       h("option", { value: "fixed", selected: fixed }, "Use a fixed port"));
-  const key = fixed ? "port" : "prefer_port";
-  const input = h("input", { type: "number", id: key, min: 1, max: 65535, value: draft.values[key],
-                             oninput: (e) => { const n = Number(e.target.value);
-                                               draft.values[key] = Number.isInteger(n) ? n : e.target.value; } });
-  return h("div", { class: "row" }, h("label", { for: "portMode" }, "Port"),
-           h("div", {}, mode, " ", input,
-             h("div", { class: "help" }, "The port must be free. Tsunagi does not pick another one if it is busy.")));
+// ---------- roles ----------
+
+const roleById = (id) => draft.roles.find((r) => r.id === id);
+const roleName = (id) => (roleById(id) || { name: id + " (missing)" }).name;
+const areaNames = (area) => area.names.map((n) => n.name);
+const sameGrants = (a, b) => [...a].sort().join() === [...b].sort().join();
+
+function areaState(role, area) {
+  if (role.grants.includes(area.area)) return { level: "all", count: area.names.length, some: [] };
+  const some = areaNames(area).filter((n) => role.grants.includes(n));
+  return { level: some.length ? "some" : "none", count: some.length, some };
 }
 
-// ---------- groups ----------
-
-const groupById = (id) => draft.groups.find((g) => g.id === id);
-const groupName = (id) => (groupById(id) || { name: id + " (missing)" }).name;
-
-function groupSelect(value, onchange, id) {
-  return h("select", { id, onchange: (e) => onchange(e.target.value) },
-           draft.groups.map((g) => h("option", { value: g.id, selected: g.id === value }, g.name)),
-           groupById(value) ? null : h("option", { value, selected: true }, value + " (missing)"));
+function summary(role) {
+  const states = S.catalog.map((area) => [area, areaState(role, area)]);
+  if (states.every(([, st]) => st.level === "all")) return "Everything";
+  const parts = states.filter(([, st]) => st.level !== "none").map(([area, st]) =>
+    st.level === "all" ? area.short : `${area.short} (${st.count}/${area.names.length})`);
+  return parts.length ? parts.join(", ") : "Nothing";
 }
 
 function usersOf(id) {
-  const users = draft.apps.filter((a) => a.group === id).map((a) => a.name || "(unnamed app)");
-  for (const row of S.no_key_rows) if (draft[row.setting] === id) users.push("No key: " + row.label);
+  const users = draft.apps.filter((a) => a.role === id).map((a) => ({ label: a.name || "(unnamed app)", page: "apps" }));
+  for (const r of S.no_key_rows) if (draft[r.setting] === id) users.push({ label: "No key: " + r.label, page: "nokey" });
   return users;
 }
 
-// ---------- sections ----------
+function roleSelect(value, onchange, id, label) {
+  return h("span", { class: "role-pick" },
+    h("select", { id, "aria-label": label, onchange: (e) => { onchange(e.target.value); render(); } },
+      draft.roles.map((r) => h("option", { value: r.id, selected: r.id === value }, r.name)),
+      roleById(value) ? null : h("option", { value, selected: true }, value + " (missing)")),
+    link("View", () => go("roles", value), { title: "Open this role" }));
+}
 
-const RENDER = {
-  connection() {
+const userLinks = (users) => users.map((u, i) => [i ? ", " : "", link(u.label, () => go(u.page))]);
+
+// ---------- pages ----------
+
+const PAGE = {
+  server() {
+    const fixed = draft.values.port !== 0;
+    const portKey = fixed ? "port" : "prefer_port";
+    const restore = () => { for (const f of S.fields) if (f.key !== "cors_allowlist") draft.values[f.key] = S.defaults.values[f.key]; };
     return [
-      h("h1", {}, "Connection"),
-      h("p", { class: "lead" }, "Whether the API runs, and where. Changes here restart the server when you save."),
-      h("div", { class: "card" },
-        fieldRow("enabled"),
-        portRow(),
-        fieldRow("host", "127.0.0.1 accepts connections from this computer only. Any other address lets other " +
-                         "devices connect; without a key they get the group set under Apps & access (No access by default).")),
+      header("Server", "Whether the API runs and where. Server changes restart it when you save.", restore),
+      h("section", { class: "card" },
+        h("div", { class: "check" }, input(field("enabled")),
+          h("label", { for: "enabled" }, h("b", {}, "Run the Tsunagi server"),
+            h("span", { class: "help inline" }, " When off, the API does not start with Anki."))),
+        row("Port", h("span", { class: "inline-controls" },
+          h("select", { id: "portMode", onchange: (e) => { draft.values.port = e.target.value === "fixed" ? draft.values.prefer_port : 0; render(); } },
+            h("option", { value: "preferred", selected: !fixed }, "Preferred port"),
+            h("option", { value: "fixed", selected: fixed }, "Fixed port")),
+          h("input", { type: "number", id: portKey, min: 1, max: 65535, value: draft.values[portKey], oninput: setNum(draft.values, portKey) })),
+          "Must be free; Tsunagi does not pick another port.", "portMode"),
+        row("Host", input(field("host")),
+          "127.0.0.1: this computer only. Any other address lets other devices connect; they need a key (see Requests without a key).", "host")),
+      h("section", { class: "card" },
+        h("h2", {}, "Limits and logging"),
+        h("div", { class: "grid4" }, S.fields.filter((f) => f.section === "Advanced").map((f) =>
+          h("div", { class: "cell" }, h("label", { for: f.key, title: f.tooltip }, f.label), input(f))))),
     ];
   },
 
-  access() {
-    const remoteChanged = draft.no_key_remote_group !== "none" && draft.no_key_remote_group !== savedRemote;
-    const noKey = h("div", { class: "card" },
-      h("h2", {}, "Without a key"),
-      h("p", { class: "help" }, "Requests that send no key, or a key no app has, get the group of the row they come from."),
-      S.no_key_rows.map((row) => h("div", { class: "row" },
-        h("label", { for: row.setting }, row.label),
-        h("div", {}, groupSelect(draft[row.setting], (v) => { draft[row.setting] = v; draft.confirm_remote = false; render(); }, row.setting),
-          h("div", { class: "help" }, row.help)))),
+  apps() {
+    const rows = draft.apps.map((app, i) => {
+      const shown = shownKeys.has(i);
+      return h("tr", { class: "app" },
+        h("td", {}, h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name,
+                                 oninput: (e) => { app.name = e.target.value; } })),
+        h("td", {}, roleSelect(app.role, (v) => { app.role = v; }, null, "Role of " + app.name)),
+        h("td", {}, h("span", { class: "keycell" },
+          h("input", { type: shown ? "text" : "password", class: "key", "aria-label": "Key of " + app.name,
+                       spellcheck: "false", value: app.key, oninput: (e) => { app.key = e.target.value; } }),
+          link(shown ? "Hide" : "Show", () => { shown ? shownKeys.delete(i) : shownKeys.add(i); render(); }),
+          link("Copy", () => call("copy", app.key)),
+          link("New", async () => { app.key = await call("new_key"); shownKeys.add(i); call("copy", app.key); render(); },
+               { title: "Replace with a new random key and copy it. The old key stops working after Save." }))),
+        h("td", { class: "end" }, link("Remove", () => { draft.apps.splice(i, 1); shownKeys.clear(); render(); },
+                                       { class: "link danger", "aria-label": "Remove " + app.name })));
+    });
+    return [
+      header("Apps & keys", "Give each tool its own key and role. Tools send the key as the X-Api-Key header, " +
+             "or as \"key\" in AnkiConnect requests."),
+      h("section", { class: "card flush" },
+        draft.apps.length
+          ? h("table", { class: "table" },
+              h("thead", {}, h("tr", {}, h("th", {}, "App"), h("th", {}, "Role"), h("th", {}, "Key"), h("th", {}))),
+              h("tbody", {}, rows))
+          : h("p", { class: "empty" }, "No apps yet. Tools on this computer work without a key; add an app to give " +
+              "one its own role, or to connect from another device."),
+        h("div", { class: "card-foot" },
+          h("button", { type: "button", id: "addApp", onclick: async () => {
+            const key = await call("new_key");
+            let n = draft.apps.length + 1;
+            while (draft.apps.some((a) => a.name === "New app " + n)) n++;
+            draft.apps.push({ name: "New app " + n, key, role: "default" });
+            shownKeys.add(draft.apps.length - 1);
+            call("copy", key);
+            render();
+          } }, "Add app"),
+          h("span", { class: "help inline" }, "The new key is copied to the clipboard."))),
+    ];
+  },
+
+  nokey() {
+    const remoteChanged = draft.no_key_remote_role !== "none" && draft.no_key_remote_role !== savedRemote;
+    const restore = () => {
+      for (const r of S.defaults.no_key_rows) draft[r.setting] = r.role;
+      draft.confirm_remote = false;
+    };
+    return [
+      header("Requests without a key", "A request with no key, or a key no app has, gets the role of where it comes from.", restore),
+      h("section", { class: "card flush" },
+        h("table", { class: "table" },
+          h("thead", {}, h("tr", {}, h("th", {}, "Source"), h("th", {}, "Role"))),
+          h("tbody", {}, S.no_key_rows.map((r) => h("tr", {},
+            h("td", {}, h("b", {}, r.label), h("div", { class: "help" }, r.help)),
+            h("td", {}, roleSelect(draft[r.setting], (v) => { draft[r.setting] = v; draft.confirm_remote = false; }, r.setting, r.label))))))),
       remoteChanged && h("div", { class: "warn" },
         h("div", { class: "check" },
           h("input", { type: "checkbox", id: "confirmRemote", checked: draft.confirm_remote,
                        onchange: (e) => { draft.confirm_remote = e.target.checked; } }),
-          h("label", { for: "confirmRemote" },
-            "Anyone who can reach this computer's port gets ", h("b", {}, groupName(draft.no_key_remote_group)),
-            " without a key, including every device on your network. I understand."))));
-
-    const rows = draft.apps.map((app, i) => {
-      const shown = shownKeys.has(i);
-      return h("div", { class: "app" },
-        h("div", { class: "app-line" },
-          h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name,
-                       oninput: (e) => { app.name = e.target.value; } }),
-          groupSelect(app.group, (v) => { app.group = v; render(); }),
-          h("span", { class: "spacer" }),
-          h("button", { type: "button", class: "link danger", "aria-label": "Remove " + app.name,
-                        onclick: () => { draft.apps.splice(i, 1); shownKeys.clear(); render(); } }, "Remove")),
-        h("div", { class: "app-line" },
-          h("input", { type: shown ? "text" : "password", class: "key", "aria-label": "Key", spellcheck: "false",
-                       value: app.key, oninput: (e) => { app.key = e.target.value; } }),
-          h("button", { type: "button", class: "link", onclick: () => { shown ? shownKeys.delete(i) : shownKeys.add(i); render(); } },
-            shown ? "Hide" : "Show"),
-          h("button", { type: "button", class: "link", onclick: () => call("copy", app.key) }, "Copy"),
-          h("button", { type: "button", class: "link", title: "Replace with a new random key and copy it. Apps using the old key stop working after Save.",
-                        onclick: async () => { app.key = await call("new_key"); shownKeys.add(i); call("copy", app.key); render(); } },
-            "New key")));
-    });
-    const apps = h("div", { class: "card" },
-      h("h2", {}, "Apps"),
-      h("p", { class: "help" }, "Give each tool its own key to choose what it may do. A tool sends its key as the " +
-        "X-Api-Key header, or as \"key\" in AnkiConnect requests."),
-      draft.apps.length ? h("div", { class: "apps" }, rows) : h("p", { class: "muted" }, "No apps yet."),
-      h("button", { type: "button", id: "addApp", onclick: async () => {
-        const key = await call("new_key");
-        let n = draft.apps.length + 1;
-        while (draft.apps.some((a) => a.name === "New app " + n)) n++;
-        draft.apps.push({ name: "New app " + n, key, group: "default" });
-        shownKeys.add(draft.apps.length - 1);
-        call("copy", key);
-        render();
-      } }, "Add app"),
-      h("span", { class: "help" }, "  A new key is copied to the clipboard."));
-
-    const sites = h("div", { class: "card" },
-      h("h2", {}, "Websites and Anki's pages"),
-      fieldRow("cors_allowlist", "Browser origins allowed to call the API, one per line (\"*\" allows all). " +
-               "\"http://localhost\" also covers 127.0.0.1 pages and browser extensions, as in AnkiConnect."),
-      S.gates.map((g) => h("div", { class: "check" },
-        h("input", { type: "checkbox", id: "gate_" + g.key, checked: draft.gates[g.key],
-                     onchange: (e) => { draft.gates[g.key] = e.target.checked; } }),
-        h("label", { for: "gate_" + g.key }, h("b", {}, g.label), h("div", { class: "help" }, g.tooltip)))));
-
-    return [h("h1", {}, "Apps & access"),
-            h("p", { class: "lead" }, "Who may use the API and what they may do. Each app and each row below is in a group; " +
-              "groups are defined under Groups."),
-            noKey, apps, sites];
+          h("label", { for: "confirmRemote" }, "Anyone who can reach this computer's port gets ",
+            h("b", {}, roleName(draft.no_key_remote_role)), " without a key, including every device on your network. I understand."))),
+    ];
   },
 
-  groups() {
-    const g = groupById(selectedGroup);
-    const list = h("div", { class: "grouplist" },
-      draft.groups.map((grp) => h("button", { type: "button", "aria-current": String(grp.id === selectedGroup),
-                                              "data-group": grp.id,
-                                              onclick: () => { selectedGroup = grp.id; render(); } },
-        h("span", {}, grp.name),
-        h("span", { class: "muted small" }, usersOf(grp.id).length ? "used by " + usersOf(grp.id).length : "unused"))),
-      h("button", { type: "button", id: "newGroup", onclick: () => {
-        let n = 1;
-        while (groupById("custom_" + n)) n++;
-        draft.groups.push({ id: "custom_" + n, name: "New group " + n, grants: [...g.grants] });
-        selectedGroup = "custom_" + n;
-        render();
-      } }, "+ New group"));
-    return [h("h1", {}, "Groups"),
-            h("p", { class: "lead" }, "A group lists what its apps may do. Tick a whole area, or choose parts of it. " +
-              "+ New group starts as a copy of the selected one."),
-            list, groupEditor(g)];
+  web() {
+    const restore = () => {
+      draft.values.cors_allowlist = S.defaults.values.cors_allowlist;
+      for (const g of S.defaults.gates) draft.gates[g.key] = g.on;
+    };
+    return [
+      header("Websites & Anki pages", "Which web pages may call the API from a browser. Tools outside a browser are not affected.", restore),
+      h("section", { class: "card" },
+        h("h2", {}, "Allowed website origins"),
+        input(field("cors_allowlist")),
+        h("div", { class: "help" }, "One per line, with http:// or https:// and any port. \"*\" allows all. " +
+          "\"http://localhost\" also covers 127.0.0.1 pages and browser extensions, as in AnkiConnect.")),
+      h("section", { class: "card" },
+        h("h2", {}, "Anki's own pages"),
+        S.gates.map((g) => h("div", { class: "check" },
+          h("input", { type: "checkbox", id: "gate_" + g.key, checked: draft.gates[g.key],
+                       onchange: (e) => { draft.gates[g.key] = e.target.checked; } }),
+          h("label", { for: "gate_" + g.key }, h("b", {}, g.label), h("div", { class: "help" }, g.tooltip))))),
+    ];
   },
 
-  advanced() {
-    return [h("h1", {}, "Advanced"),
-            h("div", { class: "card" }, S.fields.filter((f) => f.section === "Advanced").map((f) => fieldRow(f.key)))];
+  roles() {
+    if (editing && roleById(editing)) return roleEditor(roleById(editing));
+    const restore = () => {
+      for (const r of draft.roles) {
+        const def = S.roles.find((x) => x.id === r.id)?.default;
+        if (def) { r.name = def.name; r.grants = [...def.grants]; }
+      }
+    };
+    return [
+      header("Roles", "A role is a set of permissions. Each app, and each source of requests without a key, has one.", restore),
+      h("section", { class: "card flush" },
+        h("table", { class: "table roles" },
+          h("thead", {}, h("tr", {}, h("th", {}, "Role"), h("th", {}, "Allows"), h("th", {}, "Used by"), h("th", {}))),
+          h("tbody", {}, draft.roles.map((r) => {
+            const def = S.roles.find((x) => x.id === r.id)?.default;
+            const edited = def && (def.name !== r.name || !sameGrants(def.grants, r.grants));
+            const users = usersOf(r.id);
+            return h("tr", { "data-role": r.id },
+              h("td", {}, h("b", {}, r.name), def ? h("span", { class: "tag" }, edited ? "Built-in, edited" : "Built-in") : null),
+              h("td", { class: "summary" }, summary(r)),
+              h("td", { class: "users" }, users.length ? userLinks(users) : h("span", { class: "muted" }, "—")),
+              h("td", { class: "end" }, link(r.id === "none" ? "View" : "Edit", () => go("roles", r.id), { "data-edit": r.id })));
+          }))),
+        h("div", { class: "card-foot" },
+          h("button", { type: "button", id: "newRole", onclick: () => {
+            let n = 1;
+            while (roleById("custom_" + n)) n++;
+            draft.roles.push({ id: "custom_" + n, name: "New role " + n, grants: ["read"] });
+            go("roles", "custom_" + n);
+          } }, "New role"))),
+    ];
   },
 
   ankiconnect() {
     const ac = S.ankiconnect;
-    const status = !ac.installed ? "Not installed" : ac.enabled ? "Enabled" : "Disabled";
-    const body = pending
-      ? h("div", { class: "card", id: "pendingImport" },
-          h("h2", {}, "Ready to import"),
-          h("div", { class: "row" }, h("label", {}, "Port"), h("div", {}, String(pending.port))),
-          h("div", { class: "row" }, h("label", {}, "API key"), h("div", {}, pending.key)),
-          h("div", { class: "row" }, h("label", {}, "Website origins"), h("div", {}, pending.origins)),
-          h("p", { class: "help" }, ac.enabled ? "Save to apply these settings and disable AnkiConnect."
-                                                : "Save to apply these settings."))
-      : h("div", { class: "card" },
-          h("p", {}, !ac.config_available ? "No AnkiConnect settings are available to import."
-                   : ac.imported ? "Import again if you've changed your AnkiConnect settings."
-                   : "Copy AnkiConnect's port and key (as the app \"AnkiConnect key\"), and merge its allowed website origins."),
-          h("button", { type: "button", id: "importAnkiConnect", disabled: !ac.config_available, onclick: async () => {
-            const res = await call("import_ankiconnect", draft);
-            if (res.error) return showErrors([res.error]);
-            draft.values = res.values;
-            draft.apps = res.apps;
-            draft.pending_import = true;
-            pending = res.pending;
-            render();
-          } }, ac.imported ? "Import settings again" : "Import AnkiConnect settings"));
-    return [h("h1", {}, "AnkiConnect"),
-            h("p", { class: "lead" }, "Tsunagi answers AnkiConnect requests, so tools built for it keep working."),
-            h("div", { class: "card" },
-              h("div", { class: "row" }, h("label", {}, "Add-on"), h("div", { id: "ankiconnectStatus" }, status)),
-              h("div", { class: "row" }, h("label", {}, "Last import"), h("div", {}, ac.history))),
-            body];
+    const status = !ac.installed ? "Not installed" : ac.enabled ? "Installed and enabled" : "Installed, disabled";
+    return [
+      header("AnkiConnect", "Tsunagi answers AnkiConnect requests, so tools built for it keep working."),
+      h("section", { class: "card" },
+        row("Add-on", h("span", { id: "ankiconnectStatus" }, status)),
+        row("Last import", ac.history),
+        pending
+          ? h("div", { id: "pendingImport", class: "pending" },
+              h("h2", {}, "Ready to import"),
+              row("Port", String(pending.port)), row("Key", pending.key), row("Website origins", pending.origins),
+              h("p", { class: "help" }, ac.enabled ? "Save to apply these settings and disable AnkiConnect." : "Save to apply these settings."))
+          : h("div", { class: "card-foot plain" },
+              h("button", { type: "button", id: "importAnkiConnect", disabled: !ac.config_available, onclick: async () => {
+                const res = await call("import_ankiconnect", draft);
+                if (res.error) return showErrors([res.error]);
+                draft.values = res.values;
+                draft.apps = res.apps;
+                draft.pending_import = true;
+                pending = res.pending;
+                render();
+              } }, ac.imported ? "Import settings again" : "Import AnkiConnect settings"),
+              h("span", { class: "help inline" }, !ac.config_available ? "No AnkiConnect settings to import."
+                : "Copies its port and key (as the app \"AnkiConnect key\") and merges its website origins."))),
+    ];
   },
 };
 
-function groupEditor(g) {
-  const locked = g.id === "none";
-  const def = S.groups.find((x) => x.id === g.id)?.default;
-  const same = def && def.name === g.name && [...g.grants].sort().join() === [...def.grants].sort().join();
-  const users = usersOf(g.id);
-  const setGrants = (grants) => { g.grants = [...new Set(grants)].sort(); render(); };
-  const areas = S.catalog.map((area) => {
-    const names = area.names.map((n) => n.name);
-    const all = g.grants.includes(area.area);
-    const some = names.filter((n) => g.grants.includes(n));
-    const head = h("input", { type: "checkbox", id: "area_" + area.area, checked: all, disabled: locked,
-      onchange: (e) => setGrants(g.grants.filter((x) => x !== area.area && !names.includes(x))
-                                          .concat(e.target.checked ? [area.area] : [])) });
-    head.indeterminate = !all && some.length > 0;
-    const open = openAreas.has(area.area) || (!all && some.length > 0);
-    return h("div", { class: "area" },
-      h("div", { class: "area-head" },
-        h("div", { class: "check" }, head,
-          h("label", { for: "area_" + area.area }, h("b", {}, area.label), h("div", { class: "help" }, area.description))),
-        names.length > 0 && h("button", { type: "button", class: "link", onclick: () => {
-          openAreas.has(area.area) ? openAreas.delete(area.area) : openAreas.add(area.area); render(); } },
-          open ? "Hide parts" : "Choose parts…")),
-      open && names.length > 0 && h("div", { class: "names" }, area.names.map((n) =>
-        h("div", { class: "check" },
-          h("input", { type: "checkbox", id: "perm_" + n.name, checked: all || some.includes(n.name), disabled: locked,
+function roleEditor(r) {
+  const locked = r.id === "none";
+  const def = S.roles.find((x) => x.id === r.id)?.default;
+  const same = def && def.name === r.name && sameGrants(r.grants, def.grants);
+  const users = usersOf(r.id);
+  const setGrants = (grants) => { r.grants = [...new Set(grants)].sort(); render(); };
+  const rows = S.catalog.map((area) => {
+    const names = areaNames(area);
+    const st = areaState(r, area);
+    const box = h("input", { type: "checkbox", id: "area_" + area.area, checked: st.level === "all", disabled: locked,
+      onchange: (e) => setGrants(r.grants.filter((x) => x !== area.area && !names.includes(x)).concat(e.target.checked ? [area.area] : [])) });
+    box.indeterminate = st.level === "some";
+    const open = openAreas.has(area.area);
+    const out = [h("tr", { class: "area" },
+      h("td", { class: "area-box" }, box),
+      h("td", {}, h("label", { for: "area_" + area.area }, h("b", {}, area.label)), h("div", { class: "help" }, area.description)),
+      h("td", { class: "end" }, names.length
+        ? [h("span", { class: "muted small" }, st.level === "all" ? "all" : `${st.count} of ${names.length}`), " ",
+           link(open ? "Done" : "Choose", () => { open ? openAreas.delete(area.area) : openAreas.add(area.area); render(); },
+                { "data-area": area.area, disabled: locked })]
+        : null))];
+    if (open && names.length) {
+      out.push(h("tr", { class: "parts" }, h("td", {}), h("td", { colspan: 2 }, h("div", { class: "names" }, area.names.map((n) =>
+        h("label", { class: "check" },
+          h("input", { type: "checkbox", id: "perm_" + n.name, checked: st.level === "all" || st.some.includes(n.name), disabled: locked,
             onchange: (e) => {
-              let chosen = all ? names : some;
+              let chosen = st.level === "all" ? names : st.some;
               chosen = e.target.checked ? chosen.concat([n.name]) : chosen.filter((x) => x !== n.name);
-              const rest = g.grants.filter((x) => x !== area.area && !names.includes(x));
+              const rest = r.grants.filter((x) => x !== area.area && !names.includes(x));
               setGrants(chosen.length === names.length ? rest.concat([area.area]) : rest.concat(chosen));
             } }),
-          h("label", { for: "perm_" + n.name }, n.label)))));
+          n.label))))));
+    }
+    return out;
   });
-  return h("div", { class: "card", id: "groupEditor" },
-    h("div", { class: "row" }, h("label", { for: "groupName" }, "Name"),
-      h("div", {}, h("input", { type: "text", id: "groupName", value: g.name, disabled: locked,
-                                oninput: (e) => { g.name = e.target.value; } }),
-        def ? h("span", { class: "tag" }, "Built-in") : null,
-        h("div", { class: "help" }, users.length ? "Used by: " + users.join(", ") : "Not used by any app yet."))),
-    locked ? h("p", { class: "muted" }, "No access grants nothing and cannot be changed.") : areas,
-    h("div", {},
-      def && !locked && h("button", { type: "button", id: "resetGroup", disabled: same, onclick: () => {
-        g.name = def.name; g.grants = [...def.grants]; render(); } }, "Reset to default"),
-      !def && h("button", { type: "button", class: "danger", id: "deleteGroup", disabled: users.length > 0,
-        title: users.length ? "Move its apps to another group first." : "",
-        onclick: () => { draft.groups = draft.groups.filter((x) => x !== g); selectedGroup = "default"; render(); } },
-        "Delete group")));
+  return [
+    h("header", { class: "page-head" },
+      h("div", {}, link("← All roles", () => go("roles"), { id: "backToRoles" }),
+        h("h1", {}, r.name || "(unnamed role)"),
+        h("p", { class: "lead" }, users.length ? ["Used by ", userLinks(users)] : "Not used yet.")),
+      h("div", { class: "head-actions" },
+        def && !locked && h("button", { type: "button", id: "resetRole", disabled: same,
+          onclick: () => { r.name = def.name; r.grants = [...def.grants]; render(); } }, "Reset to default"),
+        !locked && h("button", { type: "button", id: "copyRole", onclick: () => {
+          let n = 1;
+          while (roleById("custom_" + n)) n++;
+          draft.roles.push({ id: "custom_" + n, name: r.name + " (copy)", grants: [...r.grants] });
+          go("roles", "custom_" + n);
+        } }, "Duplicate"),
+        !def && h("button", { type: "button", class: "danger", id: "deleteRole", disabled: users.length > 0,
+          title: users.length ? "Give its apps and sources another role first." : "",
+          onclick: () => { draft.roles = draft.roles.filter((x) => x !== r); go("roles"); } }, "Delete"))),
+    h("section", { class: "card flush" },
+      h("div", { class: "role-name" }, h("label", { for: "roleName" }, "Name"),
+        h("input", { type: "text", id: "roleName", value: r.name, disabled: locked, oninput: (e) => { r.name = e.target.value; } })),
+      locked ? h("p", { class: "empty" }, "No access allows nothing and cannot be changed.")
+             : h("table", { class: "table areas" }, h("tbody", {}, rows))),
+  ];
+}
+
+function restoreAllDialog() {
+  const custom = draft.roles.filter((r) => !S.roles.find((x) => x.id === r.id)?.default).length;
+  const apps = draft.apps.length;
+  const items = [
+    "Server, limits and logging",
+    apps ? `Remove ${apps} app${apps === 1 ? "" : "s"} and ${apps === 1 ? "its key" : "their keys"}` : null,
+    "Requests without a key: this computer gets Default, other devices get No access",
+    "Allowed websites back to http://localhost; Anki's own pages off",
+    "Built-in roles back to their defaults" + (custom ? `; remove ${custom} custom role${custom === 1 ? "" : "s"}` : ""),
+  ].filter(Boolean);
+  return h("div", { class: "overlay", role: "dialog", "aria-modal": "true", "aria-labelledby": "restoreTitle" },
+    h("div", { class: "dialog" },
+      h("h2", { id: "restoreTitle" }, "Restore all defaults?"),
+      h("p", {}, "This resets every page, not just the one you're on:"),
+      h("ul", {}, items.map((t) => h("li", {}, t))),
+      h("p", { class: "help" }, "Nothing changes until you click Save. AnkiConnect import history is kept."),
+      h("div", { class: "dialog-actions" },
+        h("button", { type: "button", onclick: () => { confirmAll = false; render(); } }, "Keep my settings"),
+        h("button", { type: "button", class: "danger-fill", id: "confirmRestoreAll", onclick: () => {
+          draft = draftFrom(S.defaults);
+          pending = null; shownKeys.clear(); confirmAll = false; editing = null;
+          render();
+        } }, "Restore all defaults"))));
 }
 
 function showErrors(errors) {
@@ -348,10 +422,6 @@ document.getElementById("save").addEventListener("click", async () => {
   else if (res && res.error) showErrors([res.error]);
 });
 document.getElementById("cancel").addEventListener("click", () => call("cancel"));
-document.getElementById("restore").addEventListener("click", async () => {
-  showErrors([]);
-  load(await call("defaults"), true);
-});
 
 (function start() {
   // pycmd exists once Anki's web channel is ready.
