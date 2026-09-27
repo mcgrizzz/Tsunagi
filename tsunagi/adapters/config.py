@@ -10,7 +10,13 @@ DEFAULTS = {
     "host": "127.0.0.1",
     "port": 0,
     "prefer_port": 7777,
-    "api_key": "",
+    # Who may do what (backlog 6.5a). Apps are {"name", "key", "group"};
+    # requests without a key use one of the two no_key groups. `groups` holds
+    # user-made groups and edited built-ins (shared/permissions.py).
+    "apps": [],
+    "no_key_local_group": "default",
+    "no_key_remote_group": "none",
+    "groups": {},
     # AnkiConnect's default. The "http://localhost" entry also covers
     # 127.0.0.1 origins and browser extensions (see Settings.is_origin_allowed).
     "cors_allowlist": ["http://localhost"],
@@ -18,14 +24,9 @@ DEFAULTS = {
     "op_timeout_seconds": 15,
     "media_max_bytes": 67108864,          # 64 MiB
     "media_fetch_timeout_seconds": 30,
-    # Opt-in switches for routes that are off by default. Grouped so a future
-    # settings UI can enumerate them; read live via settings.get(), so toggling
-    # takes effect without a restart.
+    # Switches about the server rather than a caller; what callers may do is
+    # set by groups. Read live, so toggling takes effect without a restart.
     "gates": {
-        "media_allow_local_path": False,      # server-side file reads
-        "cards_set_memory_state": False,      # writing FSRS memory state
-        "events_changes": True,               # data change events
-        "events_reviews": False,              # answers and review log events
         "anki_page_scripts": False,           # card templates and add-on pages
     },
     "ankiconnect_import_offered": False,
@@ -36,6 +37,29 @@ DEFAULTS = {
     "dev_watch_seconds": 0,
     "config_version": 4,
 }
+
+# The app whose key the settings dialog's API key field edits (and an
+# AnkiConnect import fills), until the settings page manages all apps.
+DEFAULT_APP = "Default key"
+
+
+def default_app_key(cfg: dict) -> str:
+    for app in cfg.get("apps") or []:
+        if isinstance(app, dict) and app.get("name") == DEFAULT_APP:
+            return str(app.get("key") or "")
+    return ""
+
+
+def with_default_app_key(cfg: dict, key: str) -> list:
+    """cfg's apps with DEFAULT_APP's key set (it keeps its group), or removed if empty."""
+    apps, group = [], "default"
+    for app in cfg.get("apps") or []:
+        if isinstance(app, dict) and app.get("name") == DEFAULT_APP:
+            group = app.get("group", group)
+        else:
+            apps.append(app)
+    return [{"name": DEFAULT_APP, "key": key, "group": group}, *apps] if key else apps
+
 
 def _migrate(cfg: dict) -> Tuple[dict, bool]:
     """Fill defaults and upgrade legacy keys. Returns (cfg, changed). Pure."""
@@ -59,13 +83,12 @@ def _migrate(cfg: dict) -> Tuple[dict, bool]:
             cfg["cors_allowlist"] = ["http://localhost", *allowlist]
         cfg["config_version"] = 3
         changed = True
-    # v4 grouped the opt-in switches under "gates". Carry the old flat
-    # media_allow_local_path value across; the flat key is dead afterwards.
+    # v4 grouped the opt-in switches under "gates". The old flat
+    # media_allow_local_path is now the local_files permission; drop it.
     if cfg.get("config_version", 1) < 4:
         gates = dict(DEFAULTS["gates"])
         gates.update(cfg.get("gates") or {})
-        if "media_allow_local_path" in cfg:
-            gates["media_allow_local_path"] = bool(cfg.pop("media_allow_local_path"))
+        cfg.pop("media_allow_local_path", None)
         cfg["gates"] = gates
         cfg["config_version"] = 4
         changed = True

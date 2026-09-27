@@ -8,18 +8,18 @@ stays importable without aqt (tests construct their own Settings).
 """
 from __future__ import annotations
 
+import secrets
 import threading
 from ipaddress import ip_address
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
+from ..shared.permissions import BUILTIN_GROUPS, GRANTS, NO_ACCESS, Caller
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 
 PersistFn = Callable[[Dict[str, Any]], None]
 
-# Gates that read local files or overwrite scheduling data stay off while the
-# server listens beyond this computer with no api_key, so another device on
-# the network can never use them unauthenticated.
-KEY_REQUIRED_GATES = frozenset({"media_allow_local_path", "cards_set_memory_state"})
+NO_KEY_LOCAL = "No key, this computer"
+NO_KEY_REMOTE = "No key, other devices"
 
 def is_loopback_host(host: Any) -> bool:
     """True for a bind address only this computer can reach."""
@@ -79,26 +79,45 @@ class Settings:
 
     def gate_enabled(self, name: str) -> bool:
         """True if the opt-in gate `name` (a key under "gates") is enabled."""
-        if name in KEY_REQUIRED_GATES and self._needs_key():
-            return False
-        return self._gate_switched_on(name)
-
-    def _needs_key(self) -> bool:
-        """No api_key while bound to a non-loopback address."""
-        return not self.get("api_key") and not is_loopback_host(self.get("host"))
-
-    def _gate_switched_on(self, name: str) -> bool:
         gates = self.get("gates") or {}
         # Anki keeps a saved "gates" dict whole, so gates added later fall back
         # to their defaults.
         return bool(gates.get(name, DEFAULTS["gates"].get(name, False)))
 
-    def gate_off_reason(self, name: str) -> str:
-        """What the user must change for a disabled gate to take effect."""
-        if self._gate_switched_on(name):
-            return (f"gates.{name} needs an API key while Tsunagi accepts connections "
-                    "from other devices; set one in Tsunagi's settings")
-        return f"enable gates.{name} in Tsunagi's settings"
+    def group(self, group_id: Any) -> Tuple[str, frozenset]:
+        """(name, grants) of a group; an unknown group grants nothing."""
+        spec = {**BUILTIN_GROUPS, **(self.get("groups") or {})}.get(group_id)
+        if not isinstance(spec, dict):
+            return BUILTIN_GROUPS[NO_ACCESS]["name"], frozenset()
+        grants = spec.get("grants")
+        grants = frozenset(g for g in grants if g in GRANTS) if isinstance(grants, list) else frozenset()
+        return str(spec.get("name") or group_id), grants
+
+    def resolve_caller(self, key: Any, local: bool) -> Caller:
+        """
+        The app a key belongs to, else the "No key" row for where the request
+        came from (`local`: this computer, see middleware.is_local_request).
+        A key that matches no app counts as no key, as in AnkiConnect: it
+        gains nothing a keyless request would not get.
+        """
+        match = None
+        if isinstance(key, str) and key:
+            for app in self.get("apps") or []:
+                app_key = app.get("key") if isinstance(app, dict) else None
+                # Compare against every app so timing does not reveal which matched.
+                if (isinstance(app_key, str) and app_key
+                        and secrets.compare_digest(key.encode(), app_key.encode())):
+                    match = match or app
+        if match is not None:
+            name, group_id = str(match.get("name") or "App"), match.get("group")
+        else:
+            key = None
+            name = NO_KEY_LOCAL if local else NO_KEY_REMOTE
+            row = "no_key_local_group" if local else "no_key_remote_group"
+            group_id = self.get(row, DEFAULTS[row])
+        group_name, grants = self.group(group_id)
+        return Caller(name=name, group=str(group_id), group_name=group_name,
+                      grants=grants, key=key, local=local)
 
     def add_cors_origin(self, origin: str) -> None:
         allowlist = list(self.get("cors_allowlist", []))

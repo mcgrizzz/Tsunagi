@@ -23,12 +23,12 @@ dispatcher stays importable without Anki for tests.
 """
 from __future__ import annotations
 
-import secrets
 import traceback
 from typing import Any, Callable, Dict, Optional
 
 from ...adapters.dialogs import PermissionDecision
 from ...shared.errors import ValidationError as TsunagiValidationError
+from ...shared.permissions import allows, current_caller, denied_message
 from .errors import (  # noqa: F401  (API_KEY_ERROR re-exported)
     ACTION_FAILED,
     API_KEY_ERROR,
@@ -69,6 +69,7 @@ def _request_permission(
     ask: Optional[Callable[[Any], bool | PermissionDecision]],
     *,
     allowed: Any = _HTTP_PERMISSION,
+    local: bool = True,
 ) -> Dict[str, Any]:
     """
     AnkiConnect requestPermission contract (API v6).
@@ -82,7 +83,7 @@ def _request_permission(
         "permission": "granted",
         # Canonical spells this with a lowercase k ("requireApikey"); clients
         # read that exact key, so don't "fix" the casing.
-        "requireApikey": bool(settings.get("api_key", "")),
+        "requireApikey": not settings.resolve_caller(None, local).grants,
         "version": 6,
     }
     if allowed is _HTTP_PERMISSION:
@@ -117,6 +118,7 @@ def handle_ankiconnect_rpc(
     ask_permission: Optional[Callable[[Any], bool | PermissionDecision]] = None,
     *,
     _nested: bool = False,
+    local: bool = True,
 ) -> Any:
     """
     Handle an AnkiConnect-style RPC request.
@@ -127,6 +129,8 @@ def handle_ankiconnect_rpc(
         settings: injectable Settings (defaults to the live singleton)
         ask_permission: injectable permission prompt (defaults to the Qt dialog)
         _nested: internal marker for multi children that bypass HTTP context injection
+        local: the request came from this computer (middleware.is_local_request);
+            app.py always passes it, the default serves direct calls in tests
 
     Returns:
         Bare result (version <= 4 success) or a {"result","error"} envelope.
@@ -152,19 +156,17 @@ def handle_ankiconnect_rpc(
                 validate_arguments(action, params)
             if _nested:
                 return _success(version, _request_permission(
-                    params["origin"], settings, ask_permission, allowed=params["allowed"]))
-            return _success(version, _request_permission(origin, settings, ask_permission))
+                    params["origin"], settings, ask_permission, allowed=params["allowed"],
+                    local=local))
+            return _success(version, _request_permission(origin, settings, ask_permission,
+                                                         local=local))
         except ValueError as e:
             return _error(str(e))
 
     # Key gate. Runs per invocation, so multi sub-actions are each gated with
     # their own key (matches AnkiConnect).
-    api_key: str = settings.get("api_key", "")
-    key_ok = (not api_key) or (
-        isinstance(key, str)
-        and secrets.compare_digest(key.encode(), api_key.encode())
-    )
-    if not key_ok:
+    caller = settings.resolve_caller(key, local)
+    if caller.key is None and not caller.grants:
         return _error(API_KEY_ERROR)
 
     # Malformed action/params must remain RPC errors, including inside multi.
@@ -173,6 +175,10 @@ def handle_ankiconnect_rpc(
         return _error(UNSUPPORTED_ACTION)
     if action != "multi" and not registry.is_registered(action):
         return _error(UNSUPPORTED_ACTION)
+    if action != "multi":
+        permission = registry.permission_of(action)
+        if not allows(caller.grants, permission):
+            return _error(denied_message(caller, permission))
 
     from .signatures import validate_arguments
 
@@ -189,7 +195,7 @@ def handle_ankiconnect_rpc(
             subs = [
                 handle_ankiconnect_rpc(
                     sub, origin=origin, settings=settings,
-                    ask_permission=ask_permission, _nested=True,
+                    ask_permission=ask_permission, _nested=True, local=local,
                 )
                 for sub in params["actions"]
             ]
@@ -197,6 +203,7 @@ def handle_ankiconnect_rpc(
             return _error(str(exc))
         return _success(version, subs)
 
+    token = current_caller.set(caller)
     try:
         return _success(version, registry.handle(action, params))
     except (ValueError, TsunagiValidationError) as e:
@@ -208,6 +215,8 @@ def handle_ankiconnect_rpc(
         # Server error - log internally, return a generic string to the client
         print("[tsunagi] compat action failed:\n" + traceback.format_exc())
         return _error(ACTION_FAILED)
+    finally:
+        current_caller.reset(token)
 
 
 def origin_allowed_for(action: str, origin: Optional[str], settings: Any = None) -> bool:

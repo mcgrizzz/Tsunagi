@@ -2,6 +2,7 @@
 
 import pytest
 
+from tsunagi.adapters.settings import Settings
 from tsunagi.http.compat.ankiconnect import handle_ankiconnect_rpc
 
 
@@ -50,7 +51,7 @@ def test_nested_permission_missing_context_fails_without_prompt():
         "action": "multi", "version": 6, "params": {"actions": [
             {"action": "requestPermission", "version": 6},
         ]},
-    }, settings={}, ask_permission=lambda origin: prompts.append(origin))
+    }, settings=Settings({}), ask_permission=lambda origin: prompts.append(origin))
     assert reply == {"result": [{"result": None, "error": (
         "AnkiConnect.requestPermission() missing 2 required positional arguments: 'origin' and 'allowed'"
     )}], "error": None}
@@ -70,7 +71,7 @@ def test_nested_permission_uses_supplied_allowed_value(allowed):
             {"action": "requestPermission", "version": 6,
              "params": {"origin": "", "allowed": allowed}},
         ]},
-    }, settings={}, ask_permission=deny)
+    }, settings=Settings({}), ask_permission=deny)
     permission = {"permission": "granted", "requireApikey": False, "version": 6} if allowed else {
         "permission": "denied"}
     assert reply == {"result": [{"result": permission, "error": None}], "error": None}

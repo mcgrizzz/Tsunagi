@@ -23,7 +23,7 @@ class TestMigrate:
         cfg, changed = _migrate({"token": "auto-minted-garbage"})
         assert changed
         assert "token" not in cfg
-        assert cfg["api_key"] == ""  # auth stays OFF for upgraders
+        assert cfg["apps"] == []  # no key is required after upgrading
 
     def test_migrated_config_is_stable(self):
         cfg, _ = _migrate({})
@@ -63,13 +63,14 @@ class TestMigrate:
         cfg, changed = _migrate(old)
         assert changed
         assert "media_allow_local_path" not in cfg
-        assert cfg["gates"]["media_allow_local_path"] is True
-        assert cfg["gates"]["cards_set_memory_state"] is False
+        assert cfg["gates"] == DEFAULTS["gates"]  # now a permission (6.5a)
         assert cfg["config_version"] == 4
 
     def test_migration_does_not_alias_defaults(self):
         # A migrated config must own its nested containers - mutating them
         # must never write through into the shared DEFAULTS dict.
         cfg, _ = _migrate({})
-        cfg["gates"]["media_allow_local_path"] = True
-        assert DEFAULTS["gates"]["media_allow_local_path"] is False
+        cfg["gates"]["anki_page_scripts"] = True
+        cfg["apps"].append({"name": "x"})
+        assert DEFAULTS["gates"]["anki_page_scripts"] is False
+        assert DEFAULTS["apps"] == []

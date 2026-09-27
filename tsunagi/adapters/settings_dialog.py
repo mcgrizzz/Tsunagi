@@ -14,8 +14,14 @@ from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Tuple
 
 from ..shared.version import ADDON_VERSION
-from .config import ADDON_PACKAGE, DEFAULTS, _migrate
-from .settings import apply_config, is_loopback_host
+from .config import (
+    ADDON_PACKAGE,
+    DEFAULTS,
+    _migrate,
+    default_app_key,
+    with_default_app_key,
+)
+from .settings import apply_config
 
 MIB = 1024 * 1024
 
@@ -52,8 +58,9 @@ FIELDS: Tuple[Field, ...] = (
           tooltip="Used when Port is 0. Startup fails loudly if it is busy."),
     Field("host", "Access", "text", "Host", restart=True,
           tooltip="Bind address. 127.0.0.1 keeps the API local-only."),
+    # Not a config key: edits the key of the DEFAULT_APP app (config.py).
     Field("api_key", "Access", "text", "API key",
-          tooltip="Clients must send this key when set. Applies immediately."),
+          tooltip="Key of the app \"Default key\" (Default group). Applies immediately."),
     Field("cors_allowlist", "Access", "cors_list", "Allowed website origins",
           tooltip="Browser origins allowed to call the API. \"*\" allows all; "
                   "\"http://localhost\" also covers 127.0.0.1 and browser "
@@ -77,34 +84,12 @@ RESTART_KEYS = frozenset(f.key for f in FIELDS if f.restart)
 # code) still render, using the raw key as label. Long-form docs live in
 # config.md; a test keeps the two in lockstep.
 GATE_INFO: Dict[str, Tuple[str, str]] = {
-    "media_allow_local_path": (
-        "Allow local file paths in media actions",
-        "Lets API clients read files from this computer by path. "
-        "Leave off unless a tool you trust needs it. Needs an API key when "
-        "other devices can connect.",
-    ),
-    "cards_set_memory_state": (
-        "Allow rewriting FSRS memory state",
-        "Lets API clients overwrite cards' FSRS memory state and desired "
-        "retention. Leave off unless a tool you trust needs it. Needs an API "
-        "key when other devices can connect.",
-    ),
     "anki_page_scripts": (
         "Allow card templates and add-on pages",
         "Lets JavaScript in your cards and in other add-ons' pages inside Anki "
         "use the API. Leave off unless you use card templates or add-ons "
         "built for it: a shared deck could otherwise read and change your "
         "collection while you review.",
-    ),
-    "events_changes": (
-        "Changes to your collection",
-        "Notes, cards, decks, note types, tags and settings being added, "
-        "edited or deleted, and decks' due counts changing.",
-    ),
-    "events_reviews": (
-        "Your review activity",
-        "Each card you answer, with its new interval. Off by default; review "
-        "history stays readable through the API either way.",
     ),
 }
 _UNKNOWN_GATE_TOOLTIP = "Opt-in switch - see the add-on documentation."
@@ -123,7 +108,7 @@ def form_values_from_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Widget-ready values for every field, plus a "gates" sub-dict."""
     values: Dict[str, Any] = {}
     for f in FIELDS:
-        raw = cfg.get(f.key, DEFAULTS[f.key])
+        raw = default_app_key(cfg) if f.key == "api_key" else cfg.get(f.key, DEFAULTS[f.key])
         if f.kind == "bool":
             values[f.key] = bool(raw)
         elif f.kind in ("int",):
@@ -161,10 +146,13 @@ def config_from_form(cfg: Dict[str, Any], values: Dict[str, Any]) -> Tuple[Dict[
                 continue  # whitespace-only edit
         elif f.kind == "text":
             parsed = str(values[f.key]).strip()
-            if parsed == str(cfg.get(f.key, "")):
+            if parsed == baseline[f.key]:
                 continue  # whitespace-only edit
         else:
             parsed = values[f.key]
+        if f.key == "api_key":
+            new_cfg["apps"] = with_default_app_key(cfg, parsed)
+            continue
         new_cfg[f.key] = parsed
         restart = restart or f.restart
     if values.get("gates", {}) != baseline["gates"]:
@@ -178,9 +166,6 @@ def validate_values(values: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     if not str(values.get("host", "")).strip():
         errors.append("Host must not be empty.")
-    elif not is_loopback_host(values["host"]) and not str(values.get("api_key") or "").strip():
-        errors.append("Set an API key before letting other devices connect "
-                      "(any Host other than 127.0.0.1). Generate makes one.")
     for f in FIELDS:
         if f.kind in ("int", "mib") and f.maximum > 0:
             v = values.get(f.key)
@@ -453,8 +438,9 @@ def open_settings(mw: Any) -> None:
             generate.setToolTip("Fill in a new random key and copy it to the clipboard.")
             key_layout.addWidget(generate)
             form.addRow(f.label, row)
-            key_note = guidance("Leave empty to allow requests without an API key "
-                                "(only while Host is 127.0.0.1).")
+            key_note = guidance("Other devices need this key. Programs on this computer "
+                                "work without one. More apps and groups: config.json "
+                                "for now.")
             form.addRow(key_note)
 
             def fill_new_key(_checked=False, edit=widget, show=reveal, note=key_note):
@@ -473,8 +459,8 @@ def open_settings(mw: Any) -> None:
             form.addRow(f.label, widget)
         if f.key == "host":
             form.addRow(guidance("127.0.0.1 accepts connections from this computer only. "
-                                 "Any other address lets other devices connect and "
-                                 "needs an API key."))
+                                 "Any other address lets other devices connect; they "
+                                 "need an API key."))
         elif f.key == "cors_allowlist":
             form.addRow(guidance("One origin per line, including http:// or https://. Use * to allow all origins."))
 
@@ -588,7 +574,7 @@ def open_settings(mw: Any) -> None:
             return
         current, _ = config_from_form(cfg, collect())
         old_origins = set(current.get("cors_allowlist") or [])
-        old_key = current.get("api_key")
+        old_key = default_app_key(current)
         try:
             current.update(ankiconnect_import_changes(current, ac, include_port=True))
         except ValueError as exc:
@@ -598,7 +584,7 @@ def open_settings(mw: Any) -> None:
         pending_import = True
         added = len(set(current.get("cors_allowlist") or []) - old_origins)
         pending_port.setText(str(current["port"] or current["prefer_port"]))
-        pending_key.setText("Unchanged" if current.get("api_key") == old_key else "Copy from AnkiConnect")
+        pending_key.setText("Unchanged" if default_app_key(current) == old_key else "Copy from AnkiConnect")
         pending_origins.setText(
             "No new origins" if not added else f"{added} new origin" + ("s" if added != 1 else "")
         )

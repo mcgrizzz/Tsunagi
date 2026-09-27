@@ -145,10 +145,26 @@ def reset_settings():
 
 
 @pytest.fixture()
+def local_caller(reset_settings):
+    """For handlers called directly: the caller the middleware would set for a
+    keyless request from this computer (re-resolved live by event streams)."""
+    from tsunagi.shared.permissions import current_caller
+
+    token = current_caller.set(reset_settings.resolve_caller(None, True))
+    yield
+    current_caller.reset(token)
+
+
+@pytest.fixture()
 def review_events(reset_settings):
-    """Stream tests also use review events, which users receive only after opting in."""
-    reset_settings.update(gates={**reset_settings.get("gates"), "events_reviews": True})
-    return reset_settings
+    """Stream tests also use review events, which only the Everything group gets.
+    Also sets the caller, for tests that call stream_events directly."""
+    from tsunagi.shared.permissions import current_caller
+
+    reset_settings.update(no_key_local_group="everything")
+    token = current_caller.set(reset_settings.resolve_caller(None, True))
+    yield reset_settings
+    current_caller.reset(token)
 
 
 @pytest.fixture()
@@ -158,5 +174,6 @@ def client(col, reset_settings):
 
     from tsunagi.app import app
 
-    with TestClient(app, base_url="http://127.0.0.1") as c:
+    # From this computer (peer and Host loopback), like a local tool.
+    with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as c:
         yield c

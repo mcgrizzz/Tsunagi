@@ -55,7 +55,7 @@ def test_legacy_window_detection_and_closed_response_are_preserved(windows):
 def test_compatibility_response_explains_the_unsupported_editor(windows, action):
     windows["NewAddCards"] = SimpleNamespace(editor=object())
     params = {"note": {"fields": {}}} if action == "guiAddNoteSetData" else {}
-    with TestClient(app, base_url="http://127.0.0.1") as client:
+    with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
         response = client.post("/", json={"action": action, "version": 6, "params": params})
     assert response.status_code == 200
     assert response.json()["result"] is None

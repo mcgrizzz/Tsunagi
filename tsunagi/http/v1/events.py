@@ -5,7 +5,7 @@ Hand-rolled SSE over StreamingResponse - no new dependencies, and unlike a
 websocket it goes through the auth/CORS middleware like any other request.
 The generator waits on an asyncio.Event that the broker sets, through
 call_soon_threadsafe, whenever it queues an event for this stream or shuts
-down. A 1 s ceiling on the wait also notices API key rotation.
+down. A 1 s ceiling on the wait also notices the caller's key or group changing.
 
 Events are published from Qt-main-thread hook callbacks registered in the
 addon root __init__.py; see adapters/events.py for the broker and the
@@ -26,11 +26,11 @@ from ...adapters.events import (
     DATA_EVENT_TYPES,
     EVENT_TYPES,
     broker,
-    event_allowed,
+    event_permitted,
 )
 from ...adapters.settings import settings
 from ...shared.errors import CollectionUnavailableError
-from ...shared.permissions import requires
+from ...shared.permissions import current_caller, requires
 
 router = APIRouter()
 
@@ -117,13 +117,14 @@ disconnecting.
 Delivery is best-effort and live-only: Last-Event-ID does not replay events.
 Reload relevant data after reconnecting. Restarts/profile switches create a new
 session and close old streams. close reports profile_closed (reconnect once
-a profile is open again), shutdown, auth (API key changed), timeout or max_events. Ready and gap do not count toward max_events. Heartbeat
+a profile is open again), shutdown, auth (the caller's key or group changed), timeout or max_events. Ready and gap do not count toward max_events. Heartbeat
 comments keep idle connections alive. No active session returns HTTP 503.
 Browser EventSource can use api_key when it cannot set an authentication header.
 
 General and detailed Add-dialog notifications can overlap. Media/import coverage
 is incomplete; other add-ons can bypass hooks. Optional origin/anki fields are
-diagnostics, not stable identifiers for user actions.
+diagnostics, not stable identifiers for user actions. Changes made through the
+API carry client, the name of the app that sent the request.
 """
 
 
@@ -198,11 +199,13 @@ def stream_events(
         if not data_resources:
             raise HTTPException(status_code=422,
                                 detail="types must match at least one selected data resource")
-    # Listed in `ready`: what this stream can actually receive under the gates.
-    data_resources = frozenset(r for r in data_resources if event_allowed(f"{r}.stale"))
+    # Listed in `ready`: what this stream can actually receive with the
+    # caller's permissions.
+    caller = current_caller.get()
+    data_resources = frozenset(r for r in data_resources
+                               if event_permitted(caller.grants, f"{r}.stale"))
     if broker.is_draining():
         raise CollectionUnavailableError("No active event session")
-    key_at_connect: str = settings.get("api_key", "")
 
     async def gen() -> AsyncIterator[str]:
         loop = asyncio.get_running_loop()
@@ -215,7 +218,7 @@ def stream_events(
                 pass
 
         token = broker.subscribe(types=selected_types, resources=selected_resources,
-                                 wake=wake)
+                                 grants=caller.grants, wake=wake)
         if token is None:
             yield _close_frame(broker.close_reason)
             return
@@ -223,7 +226,9 @@ def stream_events(
         def close_reason() -> Optional[str]:
             if broker.is_draining(token):
                 return broker.close_reason
-            if settings.get("api_key", "") != key_at_connect:
+            # Key removed or group changed since connecting: reconnect to
+            # pick up the new permissions.
+            if settings.resolve_caller(caller.key, caller.local) != caller:
                 return "auth"
             return None
 

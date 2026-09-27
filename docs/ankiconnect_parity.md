@@ -140,7 +140,7 @@ or GUI state matches upstream.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `addNote` | implemented |  |
+| `addNote` | implemented | Deviation: media entries with `path` need the `local_files` permission (see `storeMediaFile`). |
 | `addNotes` | implemented |  |
 | `addTags` | implemented | Supports upstream's undocumented `add=false` argument to remove tags. |
 | `canAddNote` | implemented | Not in the upstream README. |
@@ -177,7 +177,7 @@ and its existing media side effects.
 | `getMediaDirPath` | implemented |  |
 | `getMediaFilesNames` | implemented |  |
 | `retrieveMediaFile` | implemented |  |
-| `storeMediaFile` | implemented |  |
+| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) needs the `local_files` permission, which only the Everything group has by default. |
 
 ### Miscellaneous Actions
 

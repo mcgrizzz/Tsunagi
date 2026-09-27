@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from threading import Event
 from typing import Any
 
+from .config import with_default_app_key
+
 ANKICONNECT_ID = "2055492159"
 
 _IMPORT_TEXT = (
@@ -143,7 +145,7 @@ def ankiconnect_import_changes(cfg: dict, ac: dict, *, include_port: bool = Fals
     """Share key/origin merging; port takeover is explicit in settings only."""
     changes: dict = {"ankiconnect_import_offered": True}
     if ac.get("apiKey"):
-        changes["api_key"] = ac["apiKey"]
+        changes["apps"] = with_default_app_key(cfg, ac["apiKey"])
     merged = list(cfg.get("cors_allowlist", []))
     for origin in ac.get("webCorsOriginList") or []:
         if origin not in merged:

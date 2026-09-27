@@ -6,14 +6,14 @@ import traceback
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, JSONResponse
 
 from .adapters.anki import collection as anki_collection
 from .adapters.config import ADDON_PACKAGE, choose_port, load_config
-from .adapters.settings import apply_config, is_loopback_host, make_persist, settings
+from .adapters.settings import apply_config, make_persist, settings
 from .http.compat import (
     actions as _compat_actions,  # noqa: F401  (side-effect import: registers action handlers)
 )
@@ -26,6 +26,8 @@ from .http.middleware import (
     AUTH_EXEMPT_PATHS,
     ApiKeyAuthMiddleware,
     DynamicCORSMiddleware,
+    check_route_permission,
+    is_local_request,
 )
 from .http.playground import API_DESCRIPTION
 from .http.v1.addons import router as addons_router
@@ -57,6 +59,7 @@ app = FastAPI(
     # the restructured redoc 3 alpha - browsers refuse it (MIME mismatch under
     # nosniff). A pinned /redoc route is defined below instead.
     redoc_url=None,
+    dependencies=[Depends(check_route_permission)],
     description=API_DESCRIPTION,
     license_info={"name": "MIT"},
     openapi_tags=[
@@ -115,7 +118,8 @@ def openapi_with_auth():
     schema = _generate_openapi()
     schema.setdefault("components", {}).setdefault("securitySchemes", {}).update({
         "ApiKey": {"type": "apiKey", "in": "header", "name": "X-API-Key",
-                   "description": "Required when an API key is configured in Tsunagi settings."},
+                   "description": "An app's key from Tsunagi settings. Needed from other devices, "
+                                  "and wherever a keyless request has No access."},
         "BearerAuth": {"type": "http", "scheme": "bearer",
                        "description": "Alternative to the X-API-Key header."},
     })
@@ -152,7 +156,7 @@ app.add_middleware(DynamicCORSMiddleware, settings=settings)
 
 # Replacement for the disabled default /redoc (see the FastAPI() call): same
 # path (so AUTH_EXEMPT_PATHS still covers it), same page, working bundle.
-@app.get("/redoc", include_in_schema=False)
+@app.get("/redoc", include_in_schema=False, openapi_extra=requires(PUBLIC))
 def redoc_page():
     from fastapi.openapi.docs import get_redoc_html
     return get_redoc_html(
@@ -210,6 +214,7 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
     from .http.compat.request_validation import request_error
 
     raw_body = await request.body()
+    local = is_local_request(request.scope)
     origin = request.headers.get("origin")
     try:
         # Upstream decodes UTF-8 explicitly; json.loads(bytes) would also
@@ -239,7 +244,7 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
         # Compatibility handlers already return JSON values. Encode once here
         # instead of having FastAPI recursively convert the full result again.
         # Keep large-response encoding off the event loop with the Anki work.
-        return JSONResponse(handle_ankiconnect_rpc(body, origin=origin))
+        return JSONResponse(handle_ankiconnect_rpc(body, origin=origin, local=local))
 
     return await run_in_threadpool(dispatch_response)
 
@@ -339,7 +344,7 @@ def start_server(mw) -> None:
             # edits; the settings dialog calls apply_config itself (and also
             # restarts the server for server-level keys, which this path does
             # not - here host/port/op_timeout_seconds/log_level/enabled still
-            # need an Anki restart). Per-request keys (gates, api_key,
+            # need an Anki restart). Per-request keys (apps, groups, gates,
             # cors_allowlist, media_*) apply immediately either way.
             # write=False: Anki already wrote the edited dict.
             apply_config(mw, new_cfg, write=False)
@@ -347,10 +352,6 @@ def start_server(mw) -> None:
         mw.addonManager.setConfigUpdatedAction(ADDON_PACKAGE, _on_config_updated)
 
         host = cfg["host"]
-        if not is_loopback_host(host) and not cfg.get("api_key"):
-            raise RuntimeError(
-                f"host {host} lets other devices connect, which needs an API key; "
-                "set one in Tsunagi's settings or set host back to 127.0.0.1")
         port = choose_port(cfg)
 
         from .adapters.events import broker

@@ -9,16 +9,17 @@ overhead and streaming quirks.
 """
 from __future__ import annotations
 
-import secrets
 from ipaddress import ip_address
 from urllib.parse import urlsplit
 
+from fastapi import HTTPException, Request
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from ..adapters.settings import is_loopback_host
+from ..shared.permissions import PUBLIC, allows, current_caller, denied_message
 
-# Paths reachable without an API key:
+# Paths the auth middleware lets through without resolving a caller:
 # - "/"        : GET redirects to docs; POST is the AnkiConnect RPC, which
 #                checks the AnkiConnect-style top-level "key" body field in
 #                the dispatcher instead of headers.
@@ -28,16 +29,38 @@ from ..adapters.settings import is_loopback_host
 AUTH_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect", "/v1/health"}
 
 
+def is_local_request(scope) -> bool:
+    """
+    From this computer: the peer is loopback and the Host names loopback. The
+    Host half matters behind a local proxy such as Tailscale Serve, whose peer
+    is always 127.0.0.1 (unverified that it keeps the phone's Host).
+    """
+    client = scope.get("client")
+    try:
+        if not client or not ip_address(client[0]).is_loopback:
+            return False
+    except ValueError:
+        return False
+    try:
+        hostname = urlsplit("//" + (Headers(scope=scope).get("host") or "")).hostname
+    except ValueError:
+        return False
+    return hostname is not None and is_loopback_host(hostname)
+
+
 class ApiKeyAuthMiddleware:
+    """
+    Resolves who is calling (an app by its key, else a "No key" row) and makes
+    it the request's current_caller. A keyless request whose row is No access
+    gets 401; what each route needs is checked by check_route_permission.
+    """
+
     def __init__(self, app, settings):
         self.app = app
         self.settings = settings
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
-            return await self.app(scope, receive, send)
-        api_key: str = self.settings.get("api_key", "")
-        if not api_key:  # empty key = auth off (AnkiConnect semantics)
             return await self.app(scope, receive, send)
         if scope["method"] == "OPTIONS" or scope["path"] in AUTH_EXEMPT_PATHS:
             return await self.app(scope, receive, send)
@@ -56,11 +79,30 @@ class ApiKeyAuthMiddleware:
             values = parse_qs(scope.get("query_string", b"").decode()).get("api_key")
             if values:
                 provided = values[0]
-        if provided is not None and secrets.compare_digest(provided.encode(), api_key.encode()):
-            return await self.app(scope, receive, send)
+        caller = self.settings.resolve_caller(provided, is_local_request(scope))
+        if caller.key is None and not caller.grants:
+            resp = JSONResponse({"detail": "Invalid or missing API key"}, status_code=401)
+            return await resp(scope, receive, send)
+        token = current_caller.set(caller)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            current_caller.reset(token)
 
-        resp = JSONResponse({"detail": "Invalid or missing API key"}, status_code=401)
-        await resp(scope, receive, send)
+
+async def check_route_permission(request: Request) -> None:
+    """App-wide dependency: the caller must have the route's x-permission."""
+    extra = getattr(request.scope.get("route"), "openapi_extra", None) or {}
+    permission = extra.get("x-permission")
+    if permission == PUBLIC:
+        return
+    caller = current_caller.get()
+    if caller is None:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    if permission is None:  # tests/test_permissions.py keeps this unreachable
+        raise HTTPException(status_code=403, detail="This route declares no permission")
+    if not allows(caller.grants, permission):
+        raise HTTPException(status_code=403, detail=denied_message(caller, permission))
 
 
 def _host_allowed(headers: Headers, bind_host: str) -> bool:
@@ -88,7 +130,7 @@ def _host_allowed(headers: Headers, bind_host: str) -> bool:
         if address.is_loopback:
             return True
         # Rebinding needs a domain name, so a plain IP is safe to accept once
-        # other devices may connect (which requires an API key). A phone then
+        # other devices may connect (they need an API key). A phone then
         # reaches a 0.0.0.0 bind at this computer's LAN address.
         if not is_loopback_host(bind_host):
             return True
@@ -107,7 +149,7 @@ def _host_allowed(headers: Headers, bind_host: str) -> bool:
 class DynamicCORSMiddleware:
     """
     CORS against the live cors_allowlist ("*" allowed). Unknown origins get a
-    hard 403 - that's the actual enforcement when no API key is set (blocks
+    hard 403 - that's the actual enforcement for keyless local requests (blocks
     cross-origin side effects, not just response reads). Exception: the
     AnkiConnect root path "/" stays reachable from any origin so that
     requestPermission can be called and its response read; origin enforcement

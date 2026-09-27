@@ -95,7 +95,7 @@ def _resolve_media(
     media before a malformed later entry aborts the enclosing action. When
     supplied, on_resolved stores/checks each entry before the next is fetched.
     """
-    from ....adapters.settings import settings
+    from ....shared.permissions import current_denial, permitted
     from ..downloads import download_media
 
     out: List[Dict[str, Any]] = []
@@ -127,9 +127,9 @@ def _resolve_media(
                 if encoded:
                     data = base64.b64decode(encoded)
                 elif path:
-                    if not settings.gate_enabled("media_allow_local_path"):
+                    if not permitted("local_files"):
                         raise ValueError("local 'path' uploads are disabled; "
-                                         + settings.gate_off_reason("media_allow_local_path"))
+                                         + current_denial("local_files"))
                     with open(path, "rb") as fh:
                         data = fh.read()
                 elif url:

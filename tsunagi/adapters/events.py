@@ -20,7 +20,7 @@ from collections import deque
 from typing import Any, Callable, Deque, Dict, FrozenSet, List, Optional
 from uuid import uuid4
 
-from .settings import settings
+from ..shared.permissions import allows
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 
@@ -41,7 +41,7 @@ def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
     resources = (CHANGE_RESOURCES if broad or not affected or "collection" in affected
                  else set(affected))
     results = {} if broad else payload.get("changes", {})
-    metadata = {key: payload[key] for key in ("origin", "anki") if key in payload}
+    metadata = {key: payload[key] for key in ("origin", "client", "anki") if key in payload}
     events = []
     for resource in sorted(resources | results.keys()):
         if resource in results:
@@ -64,25 +64,28 @@ class ApiOp:
     concurrent ops. After a dev reload an in-flight op still holding the old
     module's class maps to origin "ui" - harmless.
     """
-    __slots__ = ("details", "collection", "changes")
+    __slots__ = ("details", "collection", "changes", "client")
 
     def __init__(self, details: Optional[Dict[str, Any]] = None, *,
-                 collection: Any = None) -> None:
+                 collection: Any = None, client: Optional[str] = None) -> None:
         self.details = dict(details or {})
         self.collection = collection
         self.changes: Dict[str, Any] = {}
+        self.client = client  # the app that sent the request (6.5a)
 
 
 class _Subscriber:
-    __slots__ = ("queue", "dropped", "ready", "types", "resources", "wake")
+    __slots__ = ("queue", "dropped", "ready", "types", "resources", "grants", "wake")
 
     def __init__(self, session_id: str, after_seq: int, *,
                  types: Optional[FrozenSet[str]],
                  resources: Optional[FrozenSet[str]],
+                 grants: Optional[FrozenSet[str]],
                  wake: Callable[[], None]) -> None:
         self.wake = wake  # tells the stream to drain; must not block
         self.types = types
         self.resources = resources
+        self.grants = grants
         self.queue: Deque[Dict[str, Any]] = deque(maxlen=MAX_QUEUED)
         self.dropped = 0
         # Registration and its boundary are captured under the publish lock.
@@ -91,6 +94,8 @@ class _Subscriber:
                       "after_seq": after_seq, "ts": int(time.time() * 1000)}
 
     def accepts(self, type: str) -> bool:
+        if self.grants is not None and not event_permitted(self.grants, type):
+            return False
         is_data = type in DATA_EVENT_TYPES
         if self.types is not None and type not in self.types:
             if not (is_data and "change" in self.types):
@@ -126,7 +131,9 @@ class EventBroker:
 
     def subscribe(self, *, types: Optional[FrozenSet[str]] = None,
                   resources: Optional[FrozenSet[str]] = None,
+                  grants: Optional[FrozenSet[str]] = None,
                   wake: Callable[[], None] = lambda: None) -> Optional[int]:
+        """`grants`: the caller's; None (internal use and tests) sends every kind."""
         with self._lock:
             if self._draining or self._session_id is None:
                 return None
@@ -136,7 +143,8 @@ class EventBroker:
             token = self._next_token
             self._next_token += 1
             self._subscribers[token] = _Subscriber(
-                self._session_id, self._seq, types=types, resources=resources, wake=wake)
+                self._session_id, self._seq, types=types, resources=resources,
+                grants=grants, wake=wake)
             return token
 
     def ready(self, token: int) -> Optional[Dict[str, Any]]:
@@ -157,7 +165,7 @@ class EventBroker:
         """Skip computing an event nobody would receive."""
         with self._lock:
             subs = list(self._subscribers.values())
-        return event_allowed(type) and any(sub.accepts(type) for sub in subs)
+        return any(sub.accepts(type) for sub in subs)
 
     def has_change_subscribers(self) -> bool:
         """Avoid preparing changed IDs for review/sync-only listeners."""
@@ -181,8 +189,6 @@ class EventBroker:
                 self._enqueue_locked(type, payload)
 
     def _enqueue_locked(self, type: str, payload: dict) -> None:
-        if not event_allowed(type):
-            return
         self._seq += 1
         event = {**payload, "type": type, "seq": self._seq,
                  "session_id": self._session_id, "ts": int(time.time() * 1000)}
@@ -236,11 +242,11 @@ class EventBroker:
         self.start_session(None)
 
 
-def event_allowed(type: str) -> bool:
-    """The user's gates decide which kinds of event are sent at all."""
+def event_permitted(grants: FrozenSet[str], type: str) -> bool:
+    """Review events need events:reviews, data events events:changes."""
     if type == "review" or type.startswith("reviews."):
-        return settings.gate_enabled("events_reviews")
-    return type not in DATA_EVENT_TYPES or settings.gate_enabled("events_changes")
+        return allows(grants, "events:reviews")
+    return type not in DATA_EVENT_TYPES or allows(grants, "events:changes")
 
 
 # Module singleton, mirroring adapters.jobs.jobs.
@@ -342,6 +348,7 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
                    **({"changes": record_changes} if record_changes else {}),
                    collection=handler.collection if api else None,
                    origin=origin, affected=affected_resources(flags),
+                   **({"client": handler.client} if api and handler.client else {}),
                    anki=anki)
 
 

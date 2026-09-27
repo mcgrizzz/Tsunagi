@@ -6,7 +6,8 @@ underlying keys, which you can still edit as JSON in `meta.json` if you
 prefer.
 
 Saving the settings dialog applies Tsunagi settings immediately: per-request keys
-(`api_key`, `cors_allowlist`, the `media_*` limits and `gates`) are simply
+(`apps`, `groups`, the `no_key_*` groups, `cors_allowlist`, the `media_*`
+limits and `gates`) are simply
 read live, and server-level keys (`enabled`, `host`, `port`, `prefer_port`,
 `log_level`, `op_timeout_seconds`) are applied by restarting the embedded
 server on the spot. If you edit `meta.json` as JSON instead, the server-level
@@ -27,8 +28,9 @@ The explicit takeover imports `webBindPort` (normally 8765) into both **Port**
 and **Preferred port**. Existing allowed origins, including unsaved form entries,
 are retained; imported origins are appended without duplicates. Optional capability
 gates are unchanged. The separate startup import-only offer keeps Tsunagi's port
-because that offer leaves AnkiConnect running. An empty AnkiConnect API key does not replace
-an existing Tsunagi key. The standard AnkiConnect timer and listener are stopped before Tsunagi restarts.
+because that offer leaves AnkiConnect running. AnkiConnect's API key becomes the
+key of the app **Default key**; an empty AnkiConnect key does not replace an
+existing one. The standard AnkiConnect timer and listener are stopped before Tsunagi restarts.
 If the selected port is still occupied, the handover is cancelled and the prior
 addon state is restored. An unsupported AnkiConnect runtime requires a manual
 disable and Anki restart before importing. Detection alone never disables it.
@@ -41,9 +43,9 @@ Address the server binds to. Keep the default `127.0.0.1` (loopback only)
 unless you know exactly what exposing Anki on your network means.
 
 Any address other than loopback (for example `0.0.0.0` to use Tsunagi from
-your phone) lets other devices on your network connect, so it **requires an
-API key**: the settings dialog will not save it without one, and Tsunagi does
-not start if the config has one without the other.
+your phone) lets other devices on your network connect. They get **No
+access** unless they send an app's key (see below), because
+`no_key_remote_group` is `none` by default.
 
 Requests must name a loopback address (`localhost`, a loopback IP, or `[::1]`),
 the configured host, or, when bound beyond loopback, any plain IP address such
@@ -62,19 +64,65 @@ usual cause. On Windows, Anki is typically allowed on networks marked
   warning and does not start (no random fallback port).
 - `port: <n>`: force a specific port; startup fails if it's busy.
 
-### `api_key`
-- Empty (default): **authentication is off** (same as AnkiConnect). Allowed
-  only while `host` is loopback.
-- Non-empty: every request must present the key. **Generate**, next to the
-  field in the settings dialog, fills in a random 32-character key and copies
-  it to the clipboard; it applies when you Save.
-  - REST API (`/v1/...`): send `X-Api-Key: <key>` or
-    `Authorization: Bearer <key>` headers.
-  - AnkiConnect endpoint (`POST /`): send a top-level `"key"` field in the
-    JSON body (AnkiConnect convention). Missing/wrong key returns the
-    canonical `"valid api key must be provided"` error.
-  - The docs pages (`/docs`, `/openapi.json`) and the liveness probe
-    (`/v1/health`) stay reachable without a key.
+### Apps and permissions: `apps`, `groups`, `no_key_local_group`, `no_key_remote_group`
+
+Every request comes from an **app** or from one of two **No key** rows, and
+each is in a **group** that decides what it may do. The defaults behave like
+AnkiConnect: programs on this computer need no key and can do everything
+AnkiConnect allows; other devices need a key.
+
+- `apps` (default `[]`): `[{"name": "Yomitan", "key": "...", "group": "default"}]`.
+  An app sends its key as `X-Api-Key: <key>` or `Authorization: Bearer <key>`
+  on `/v1/...`, as `?api_key=<key>` on `/v1/events` only, or as the top-level
+  `"key"` field on the AnkiConnect endpoint (`POST /`). The settings dialog's
+  **API key** field edits the key of the app named `Default key`; **Generate**
+  fills in a random 32-character key and copies it. Other apps are edited here
+  in the JSON until the settings page lands.
+- `no_key_local_group` (default `"default"`): the group for requests without a
+  key from **this computer**, meaning the connection comes from a loopback
+  address and the `Host` names one (`127.0.0.1`, `localhost`, `[::1]`). Set it
+  to `"none"` to make every local program use a key.
+- `no_key_remote_group` (default `"none"`): the group for requests without a
+  key from anywhere else, including through a local proxy such as Tailscale
+  Serve. Anything other than `"none"` lets anyone who can reach the port use
+  that group without a key.
+- A key that matches no app counts as no key, as in AnkiConnect.
+- A request without a key whose group is `none` gets HTTP 401 (`/v1/...`) or
+  `"valid api key must be provided"` (`POST /`). A request whose group lacks
+  what the route needs gets HTTP 403 naming the app, the group and the
+  missing permission, or the same text as the AnkiConnect `error`.
+- The docs pages (`/docs`, `/openapi.json`) and `/v1/health` need no key.
+
+Built-in groups:
+
+| Group id | Name | Grants |
+| --- | --- | --- |
+| `default` | Default (like AnkiConnect) | `read`, `write`, `gui`, `sync`, `manage`, `events:changes` |
+| `read_only` | Read-only | `read`, `events:changes` |
+| `everything` | Everything | every permission |
+| `none` | No access | nothing |
+
+`groups` (default `{}`) adds your own groups or replaces a built-in one under
+the same id: `{"tagger": {"name": "Tagger", "grants": ["read", "write:tags"]}}`.
+An app in a group that does not exist gets nothing.
+
+A grant is a whole area or one name in it. Each route in the API reference
+shows the permission it needs (`x-permission`).
+
+| Area | Names | What it covers |
+| --- | --- | --- |
+| `read` | `read:notes`, `read:cards`, `read:decks`, `read:deck_configs`, `read:models`, `read:tags`, `read:reviews`, `read:media`, `read:collection`, `read:addons` | Reading anything, FSRS computations, jobs, capabilities, the event stream |
+| `write` | `write:notes`, `write:cards`, `write:decks`, `write:deck_configs`, `write:models`, `write:tags`, `write:reviews`, `write:media` | Adding, changing and deleting. Tagging notes is `write:tags`. Undo needs the whole `write` area |
+| `gui` | | Opening and driving Anki's windows on this computer |
+| `sync` | | Syncing with AnkiWeb |
+| `manage` | | Import, export, check database, reload, switch profile, close Anki |
+| `events` | `events:changes`, `events:reviews` | Which messages the event stream sends: changes to the collection, and each card you answer |
+| `local_files` | | Media uploads that name a file **on this computer** (`{"path": "C:/pictures/dog.png"}`), as AnkiConnect's `storeMediaFile` allows. Anything with it can make Anki read any file your account can read |
+| `memory_state` | | `POST /v1/cards:set-memory-state`: overwriting cards' FSRS memory state, desired retention and decay |
+
+Changes apply immediately. An open event stream closes with reason `auth`
+when its app's key or group changes, so the client reconnects with the new
+permissions.
 
 ### `cors_allowlist`
 Origins allowed to call Tsunagi from a browser. Requests from other origins
@@ -124,43 +172,16 @@ uploads, URL downloads, and local files alike.
 Timeout for downloading media from a URL (default 30).
 
 ### `gates`
-Switches for capabilities you may not want exposed. Most are **off by
-default**. Gates are read on every request, so saving
-this editor toggles them without restarting Anki. (Older configs had
-`media_allow_local_path` as a top-level key; it was moved in here
-automatically, and the old flat key is ignored.)
+Switches about the server itself rather than a caller. Read on every request,
+so saving toggles them without restarting Anki. (What callers may do moved to
+groups; older gate keys in a saved config are ignored.)
 
-`media_allow_local_path` and `cards_set_memory_state` also need a non-empty
-`api_key` when `host` is not a loopback address (for example `0.0.0.0`):
-without one they stay off even when set to `true`, so no other device on
-your network can use them unauthenticated.
-
-- `media_allow_local_path` — when `true`, media uploads may name a file **on
-  this computer** for the server to read (`{"path": "C:/pictures/dog.png"}`),
-  which is how AnkiConnect's `storeMediaFile` behaves. With it on, anything
-  that can reach the API can make Anki read any file your user account can
-  read. Turn it on only if you use local scripts that pass file paths. Base64
-  `data` and `url` uploads work either way.
-- `cards_set_memory_state` — when `true`, `POST /v1/cards:set-memory-state`
-  may overwrite cards' FSRS memory state (stability/difficulty), desired
-  retention and decay. This rewrites what the scheduler knows about a card,
-  which is how FSRS helper add-ons reschedule — but a buggy or malicious
-  client could quietly wreck your scheduling, so it stays off unless you use
-  a tool that needs it.
 - `anki_page_scripts` — when `true`, JavaScript running inside Anki's own
   pages (card templates in the reviewer and previewer, and other add-ons' web
   pages) may use the API like any other local page. Off by default because a
   shared deck's template could otherwise read and change your collection while
   you review it. These pages cannot ask for access with `requestPermission`;
   this switch is the only way to allow them.
-- `events_changes` (default `true`) — the event stream (`GET /v1/events`)
-  sends messages when notes, cards, decks, note types, tags or settings
-  change, and when a deck's due counts move. When `false`, those messages are
-  never sent.
-- `events_reviews` (default `false`) — the event stream sends a message each
-  time you answer a card, and when review log rows are added. Turn it on for
-  tools that react to your studying live. Review history stays readable
-  through the API either way.
 
 ### `dev_watch_seconds`
 **For working on Tsunagi itself.** When greater than zero, Anki polls the

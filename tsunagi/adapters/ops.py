@@ -12,6 +12,7 @@ from aqt.operations import CollectionOp, QueryOp
 from typing_extensions import Concatenate, ParamSpec
 
 from ..shared.errors import AnkiBusyError, CollectionUnavailableError
+from ..shared.permissions import current_caller
 from .event_results import freeze_changes
 from .events import ApiOp, broker
 
@@ -222,6 +223,7 @@ def collection_op_run_async(
     """Run a write through Anki's CollectionOp, reporting completion via callbacks."""
     # Capture identity only; collection methods still run on Anki's op thread.
     collection = mw.col
+    caller = current_caller.get()  # the request's; not visible on the main thread
 
     def start_on_main() -> None:
         if collection is None or mw.col is not collection:
@@ -235,7 +237,8 @@ def collection_op_run_async(
         def _failure(exc: Exception) -> None:
             on_failure(exc)
 
-        initiator = ApiOp(event_details, collection=collection)
+        initiator = ApiOp(event_details, collection=collection,
+                          client=caller.name if caller else None)
 
         # Wrap the function to return a ResultWithChanges object
         def wrapped_op(col: Collection) -> Any:

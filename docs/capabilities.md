@@ -12,7 +12,7 @@ Every operation, conditional option and collection feature uses the same status:
 | Status | Meaning |
 | --- | --- |
 | `available` | Supported and not disabled by a setting. |
-| `disabled` | Supported, but disabled in settings. `setting` identifies the switch. |
+| `disabled` | Supported, but your app's group lacks the permission. `setting` names it. |
 | `unsupported` | This Anki version lacks the required support. Enabling a setting will not fix it. |
 
 A disabled capability has these fields:
@@ -20,13 +20,13 @@ A disabled capability has these fields:
 ```json
 {
   "status": "disabled",
-  "reason": "enable gates.cards_set_memory_state in Tsunagi's settings",
-  "setting": "gates.cards_set_memory_state"
+  "reason": "No key, this computer is in the group 'Default (like AnkiConnect)', which does not allow memory_state; change it in Tsunagi's settings",
+  "setting": "permissions.memory_state"
 }
 ```
 
-A gate that is switched on but needs an API key, because Tsunagi accepts
-connections from other devices, says so in its `reason` instead.
+The report is for the app that asks: the same request with another key can
+show different statuses.
 
 Available entries have a null `reason`. A `setting` can still be present when
 its switch is enabled. Entries without a controlling setting use null.
@@ -80,7 +80,7 @@ saved import choices; clients do not need it to discover unsupported options.
 curl "http://127.0.0.1:7777/v1/capabilities"
 ```
 
-Supply your configured API key. Discovery requires an open collection and returns
+Send your app's key, if it has one. Discovery requires an open collection and returns
 503 while no collection is available. Query it again after switching profiles
 or changing settings. It does not return API keys or the website allowlist.
 

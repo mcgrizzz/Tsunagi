@@ -32,7 +32,7 @@ def test_startup_offer_records_only_accepted_imports(monkeypatch, accepted):
     assert len(saved) == 1 and saved[0]["ankiconnect_import_offered"] is True
     if accepted:
         assert datetime.fromisoformat(saved[0]["ankiconnect_imported_at"]).utcoffset().total_seconds() == 0
-        assert saved[0]["api_key"] == "imported"
+        assert saved[0]["apps"][0]["key"] == "imported"
         assert saved[0]["cors_allowlist"] == ["http://existing", "http://imported"]
     else:
         assert not saved[0].get("ankiconnect_imported_at")

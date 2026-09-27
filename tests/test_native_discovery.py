@@ -1,5 +1,6 @@
 """Native discovery reports the routes clients can call and their restrictions."""
 import pytest
+from access import key_required
 
 
 def report(client):
@@ -24,20 +25,20 @@ def test_catalog_matches_native_openapi_and_excludes_compat(client):
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-def test_settings_apply_to_the_operation_or_its_option(client, reset_settings, enabled):
-    reset_settings.update(gates={"cards_set_memory_state": enabled, "media_allow_local_path": enabled})
+def test_permissions_apply_to_the_operation_or_its_option(client, reset_settings, enabled):
+    reset_settings.update(no_key_local_group="everything" if enabled else "default")
     operations = report(client)["operations"]
     memory = operations["POST /v1/cards:set-memory-state"]
     media = operations["POST /v1/media"]
     assert memory["status"] == ("available" if enabled else "disabled")
-    assert memory["setting"] == "gates.cards_set_memory_state"
+    assert memory["setting"] == "permissions.memory_state"
     assert media["status"] == "available"
     assert media["options"]["path"]["status"] == ("available" if enabled else "disabled")
-    assert media["options"]["path"]["setting"] == "gates.media_allow_local_path"
+    assert media["options"]["path"]["setting"] == "permissions.local_files"
     if memory["options"]["cards[].decay"]["status"] != "unsupported":
         assert memory["options"]["cards[].decay"]["status"] == memory["status"]
     if not enabled:
-        assert "enable gates.cards_set_memory_state" in memory["reason"]
+        assert "does not allow memory_state" in memory["reason"]
         response = client.post("/v1/media", json={"filename": "probe", "path": "/missing"})
         assert response.status_code == 200
         assert response.json()["created"] == []
@@ -45,14 +46,14 @@ def test_settings_apply_to_the_operation_or_its_option(client, reset_settings, e
         assert "disabled" in response.text
 
 
-def test_gate_change_is_visible_without_restarting(client, reset_settings):
+def test_group_change_is_visible_without_restarting(client, reset_settings):
     assert report(client)["operations"]["POST /v1/cards:set-memory-state"]["status"] == "disabled"
-    reset_settings.update(gates={"cards_set_memory_state": True})
+    reset_settings.update(no_key_local_group="everything")
     assert report(client)["operations"]["POST /v1/cards:set-memory-state"]["status"] == "available"
 
 
 def test_version_options_are_available_on_supported_anki(client, reset_settings):
-    reset_settings.update(gates={"cards_set_memory_state": True})
+    reset_settings.update(no_key_local_group="everything")
     operations = report(client)["operations"]
     decay = operations["POST /v1/cards:set-memory-state"]["options"]["cards[].decay"]
     assert decay["status"] == "available"
@@ -62,7 +63,8 @@ def test_version_options_are_available_on_supported_anki(client, reset_settings)
 
 def test_discovery_does_not_expose_keys_or_change_collection(client, col, reset_settings):
     before = col.undo_status()
-    reset_settings.update(api_key="private-discovery-key", cors_allowlist=["https://private-origin.test"])
+    reset_settings.update(**key_required("private-discovery-key"),
+                          cors_allowlist=["https://private-origin.test"])
     response = client.get("/v1/capabilities", headers={"X-API-Key": "private-discovery-key"})
     assert response.status_code == 200, response.text
     assert "private-discovery-key" not in response.text

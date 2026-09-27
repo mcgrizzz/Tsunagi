@@ -1,4 +1,5 @@
 import pytest
+from access import key_required
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -103,7 +104,7 @@ class TestLiveAllowlist:
 
 @pytest.mark.parametrize("base_url", ["http://localhost:7777", "http://127.0.0.1:8765", "http://[::1]:7777"])
 def test_docs_same_origin_post_still_requires_api_key(base_url):
-    config = Settings({"cors_allowlist": [], "api_key": "test-key"})
+    config = Settings({"cors_allowlist": [], **key_required("test-key")})
     app = FastAPI()
     calls = []
 
@@ -116,7 +117,8 @@ def test_docs_same_origin_post_still_requires_api_key(base_url):
     app.add_middleware(DynamicCORSMiddleware, settings=config)
     # The bundled TestClient predates IPv6 URL parsing; set the wire Host
     # explicitly so IPv6 still exercises the middleware's origin comparison.
-    with TestClient(app, headers={"Host": base_url.removeprefix("http://")}) as client:
+    with TestClient(app, headers={"Host": base_url.removeprefix("http://")},
+                    client=("127.0.0.1", 50000)) as client:
         assert client.post("/v1/probe", headers={"Origin": base_url}).status_code == 401
         assert not calls
         response = client.post("/v1/probe", headers={"Origin": base_url, "X-API-Key": "test-key"})

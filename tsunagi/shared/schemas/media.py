@@ -68,7 +68,7 @@ class MediaList(BaseModel):
 class MediaUpload(BaseModel):
     filename: Optional[str] = None
     data: Optional[str] = None   # base64
-    path: Optional[str] = None   # server-local file (config-gated)
+    path: Optional[str] = None   # server-local file (local_files permission)
     url: Optional[str] = None
 
 

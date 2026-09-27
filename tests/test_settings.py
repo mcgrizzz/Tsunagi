@@ -75,26 +75,38 @@ def fake_mw(writes):
     )
 
 
-class TestKeyRequiredGates:
-    """Risky gates need an API key only when other devices can connect."""
+class TestResolveCaller:
+    """Who a request is: an app by its key, else a No key row (6.5a)."""
 
-    def _settings(self, host, api_key=""):
-        return Settings({**DEFAULTS, "host": host, "api_key": api_key,
-                         "gates": {**DEFAULTS["gates"], "media_allow_local_path": True}})
+    APPS = {"apps": [{"name": "Yomitan", "key": "yk", "group": "default"},
+                     {"name": "Dashboard", "key": "dk", "group": "read_only"}]}
 
-    def test_loopback_needs_no_key(self):
-        for host in ("127.0.0.1", "localhost", "::1", "[::1]"):
-            assert self._settings(host).gate_enabled("media_allow_local_path"), host
+    def test_a_key_selects_its_app_and_group(self):
+        caller = Settings(self.APPS).resolve_caller("dk", False)
+        assert (caller.name, caller.group, caller.key) == ("Dashboard", "read_only", "dk")
+        assert caller.grants == {"read", "events:changes"}
 
-    def test_network_bind_without_key_keeps_gate_off(self):
-        for host in ("0.0.0.0", "192.168.1.20", "anki-box.local"):
-            s = self._settings(host)
-            assert not s.gate_enabled("media_allow_local_path"), host
-            assert "needs an API key" in s.gate_off_reason("media_allow_local_path")
-        assert self._settings("0.0.0.0", api_key="k").gate_enabled("media_allow_local_path")
+    def test_no_key_uses_the_row_for_where_it_came_from(self):
+        s = Settings({})
+        assert s.resolve_caller(None, True).group == "default"
+        assert s.resolve_caller(None, False).group == "none"
+        assert s.resolve_caller(None, False).grants == frozenset()
 
-    def test_other_gates_are_unaffected(self):
-        assert self._settings("0.0.0.0").gate_enabled("events_changes")
+    def test_unknown_key_is_the_no_key_row(self):
+        caller = Settings(self.APPS).resolve_caller("nope", True)
+        assert caller.key is None and caller.group == "default"
+
+    def test_unknown_group_grants_nothing(self):
+        caller = Settings({"apps": [{"name": "X", "key": "k", "group": "gone"}]}).resolve_caller("k", True)
+        assert caller.grants == frozenset()
+
+    def test_edited_built_in_and_custom_groups(self):
+        s = Settings({**self.APPS, "groups": {
+            "default": {"name": "Default", "grants": ["read", "write:notes", "bogus"]},
+            "tagger": {"name": "Tagger", "grants": ["read:notes", "write:tags"]}},
+            "no_key_local_group": "tagger"})
+        assert s.resolve_caller("yk", True).grants == {"read", "write:notes"}
+        assert s.resolve_caller(None, True).group_name == "Tagger"
 
 
 class TestApplyConfig:
@@ -115,8 +127,8 @@ class TestApplyConfig:
         assert settings.get("config_version") == DEFAULTS["config_version"]
 
     def test_write_false_still_writes_when_migration_changed(self, reset_settings):
-        # A pre-v4 flat media_allow_local_path must be folded into gates and
-        # the corrected dict written back, even on the no-write path.
+        # A pre-v4 flat media_allow_local_path must be dropped and the
+        # corrected dict written back, even on the no-write path.
         writes = []
         cfg = dict(DEFAULTS)
         cfg.pop("gates")
@@ -124,9 +136,8 @@ class TestApplyConfig:
         cfg["config_version"] = 3
         migrated = apply_config(fake_mw(writes), cfg, write=False)
         assert len(writes) == 1
-        assert migrated["gates"]["media_allow_local_path"] is True
         assert "media_allow_local_path" not in migrated
-        assert settings.gate_enabled("media_allow_local_path")
+        assert settings.get("gates") == DEFAULTS["gates"]
 
     def test_persist_callback_writes_through_addon_manager(self, reset_settings):
         writes = []

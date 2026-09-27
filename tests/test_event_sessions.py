@@ -120,7 +120,7 @@ def test_suspended_generator_discards_remaining_batch(transition, reset_settings
             broker.publish("review", card_id=3, ease=3)
             reason = "shutdown"
         else:
-            reset_settings.update(api_key="rotated")
+            reset_settings.update(no_key_local_group="read_only")
             reason = "auth"
         final = await gen.__anext__()
         assert "event: close" in final

@@ -28,7 +28,6 @@ from ...adapters.anki.cards import (
     unbury_cards,
     unsuspend_cards,
 )
-from ...adapters.settings import settings
 from ...shared.errors import (
     ResourceNotFoundError,
     ValidationError,
@@ -202,13 +201,10 @@ def ease(body: SetEaseRequest = Body(...)) -> SchedulingResult:
 @_verb("set-memory-state", "Set FSRS memory state",
        "Overwrites per-card FSRS state (stability/difficulty, desired retention, "
        "decay) - how FSRS helper tools reschedule. An omitted field is left "
-       "unchanged; an explicit null clears it. Off by default: requires the "
-       "`gates.cards_set_memory_state` config gate.",
+       "unchanged; an explicit null clears it. Needs the memory_state "
+       "permission, which only the Everything group has by default.",
        permission="memory_state")
 def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResult:
-    if not settings.gate_enabled("cards_set_memory_state"):
-        raise ValidationError("cards:set-memory-state is disabled; "
-                              + settings.gate_off_reason("cards_set_memory_state"))
     start = time.perf_counter()
     results: List[bool] = set_memory_states(
         [e.dict(exclude_unset=True) for e in body.cards])

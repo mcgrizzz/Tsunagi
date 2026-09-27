@@ -33,7 +33,11 @@ from aqt.qt import (  # noqa: E402
 )
 
 from tsunagi.adapters import settings_dialog as dialog  # noqa: E402
-from tsunagi.adapters.config import ADDON_PACKAGE, DEFAULTS  # noqa: E402
+from tsunagi.adapters.config import (  # noqa: E402
+    ADDON_PACKAGE,
+    DEFAULTS,
+    default_app_key,
+)
 from tsunagi.adapters.dialogs import ANKICONNECT_ID  # noqa: E402
 from tsunagi.shared.version import ADDON_VERSION  # noqa: E402
 
@@ -67,7 +71,8 @@ def main():
 def check_scenario(app, scenario):
     with tempfile.TemporaryDirectory() as temporary:
         base = Path(temporary)
-        cfg = {**DEFAULTS, "api_key": "existing-key", "port": 7777,
+        cfg = {**DEFAULTS, "apps": [{"name": "Default key", "key": "existing-key", "group": "default"}],
+               "port": 7777,
                "cors_allowlist": ["http://existing"]}
         if scenario == "restore_history":
             cfg["ankiconnect_imported_at"] = "2026-09-01T12:34:00+00:00"
@@ -273,7 +278,7 @@ def check_scenario(app, scenario):
         if scenario == "save":
             assert not manager.addon_meta(ANKICONNECT_ID).enabled
             persisted = manager.getConfig(ADDON_PACKAGE)
-            assert persisted["api_key"] == "imported-key"
+            assert default_app_key(persisted) == "imported-key"
             assert persisted["cors_allowlist"] == ["http://existing", "http://unsaved", "http://imported"]
             assert persisted["port"] == persisted["prefer_port"] == server.port
             assert persisted["enabled"] is True
@@ -286,7 +291,7 @@ def check_scenario(app, scenario):
         elif scenario == "preferred":
             persisted = manager.getConfig(ADDON_PACKAGE)
             assert persisted["port"] == 0 and persisted["prefer_port"] == 8888
-            assert persisted["api_key"] == "existing-key"
+            assert default_app_key(persisted) == "existing-key"
             assert manager.addon_meta(ANKICONNECT_ID).enabled
         elif scenario in ("restore", "restore_history"):
             assert manager.addon_meta(ANKICONNECT_ID).enabled

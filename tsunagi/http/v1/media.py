@@ -26,7 +26,7 @@ from ...shared.errors import (
     handle_mutation_errors,
 )
 from ...shared.pagination import decode_cursor, encode_cursor
-from ...shared.permissions import requires
+from ...shared.permissions import current_denial, permitted, requires
 from ...shared.schemas.media import (
     MediaCreateResponse,
     MediaDeletionResult,
@@ -111,9 +111,9 @@ def _resolve_upload(body: MediaUpload) -> tuple:
             raise ValidationError("'data' is not valid base64") from e
         name = body.filename
     elif body.path is not None:
-        if not settings.gate_enabled("media_allow_local_path"):
+        if not permitted("local_files"):
             raise ValidationError("local 'path' uploads are disabled; "
-                                  + settings.gate_off_reason("media_allow_local_path"))
+                                  + current_denial("local_files"))
         if not os.path.isfile(body.path):
             raise ValidationError(f"no such file: {body.path}")
         if os.path.getsize(body.path) > limit:
@@ -173,7 +173,7 @@ def list_media_files(
     openapi_extra=requires("read:media"),
     response_class=FileResponse,
     summary="Download a media file",
-    description="Streams the raw bytes with a guessed Content-Type. Note: when an API key is configured this URL cannot be used directly in <img src> - browsers can't attach the header; fetch() it and use createObjectURL.",
+    description="Streams the raw bytes with a guessed Content-Type. Note: when a request needs a key this URL cannot be used directly in <img src> - browsers can't attach the header; fetch() it and use createObjectURL.",
     tags=["Media"],
     operation_id="getMediaFile",
 )

@@ -118,10 +118,10 @@ class TestUpload:
         f.write_bytes(PNG)
         resp = client.post("/v1/media", json={"path": str(f)})
         assert_upload_rejected(resp)
-        assert "media_allow_local_path" in resp.json()["failed"][0]["message"]
+        assert "does not allow local_files" in resp.json()["failed"][0]["message"]
 
     def test_local_path_when_enabled(self, client, reset_settings, tmp_path):
-        reset_settings.update(gates={"media_allow_local_path": True})
+        reset_settings.update(no_key_local_group="everything")
         f = tmp_path / "local.png"
         f.write_bytes(PNG)
         body = client.post("/v1/media", json={"path": str(f)}).json()["created"][0]

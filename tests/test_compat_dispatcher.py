@@ -6,6 +6,7 @@ enveloped, multi re-dispatches raw sub-requests with per-sub version/key.
 Runs over the real full app (aqt fakes from conftest).
 """
 import pytest
+from access import key_required
 
 from tsunagi.adapters.config import DEFAULTS
 from tsunagi.http.compat import actions  # noqa: F401  (ensure handlers are registered)
@@ -58,7 +59,7 @@ class TestErrors:
         assert body == {"result": None, "error": UNSUPPORTED_ACTION}
 
     def test_key_error_enveloped_at_v4(self, client, reset_settings):
-        reset_settings.configure({**DEFAULTS, "api_key": "k"}, persist=None)
+        reset_settings.configure({**DEFAULTS, **key_required("k")}, persist=None)
         body = client.post("/", json={"action": "version"}).json()
         assert body == {"result": None, "error": API_KEY_ERROR}
 
@@ -93,7 +94,7 @@ class TestMulti:
         assert body["result"] == [{"result": None, "error": UNSUPPORTED_ACTION}, 6]
 
     def test_key_checked_per_sub_action(self, client, reset_settings):
-        reset_settings.configure({**DEFAULTS, "api_key": "k"}, persist=None)
+        reset_settings.configure({**DEFAULTS, **key_required("k")}, persist=None)
         body = client.post("/", json={
             "action": "multi", "version": 6, "key": "k",
             "params": {"actions": [

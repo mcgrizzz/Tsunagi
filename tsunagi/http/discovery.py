@@ -1,7 +1,7 @@
-"""Combine registered native routes with Anki support and current settings."""
+"""Combine registered native routes with Anki support and the caller's permissions."""
 from fastapi.routing import APIRoute
 
-from ..adapters.settings import settings
+from ..shared.permissions import PUBLIC, current_denial, permitted
 from ..shared.schemas.capabilities import CapabilityState, OperationCapability
 
 
@@ -14,9 +14,12 @@ def state(*, supported=True, enabled=True, setting=None,
     return CapabilityState(setting=setting)
 
 
-def gate_state(name, **kwargs):
-    return state(enabled=settings.gate_enabled(name), setting=f"gates.{name}",
-                 reason=settings.gate_off_reason(name), **kwargs)
+def permission_state(permission, **kwargs):
+    """Disabled when the calling app's group lacks `permission`."""
+    if permission == PUBLIC:
+        return state(**kwargs)
+    return state(enabled=permitted(permission), setting=f"permissions.{permission}",
+                 reason=current_denial(permission), **kwargs)
 
 
 def native_features(support):
@@ -32,24 +35,25 @@ def native_operations(routes, support):
             continue
         for method in sorted(route.methods):
             key = f"{method} {route.path_format}"
-            status = state()
+            status = permission_state((route.openapi_extra or {}).get("x-permission"))
             options = {}
             if method == "POST" and route.path.startswith("/v1/fsrs:"):
                 name = route.path.split(":", 1)[1].replace("-", "_")
                 feature = support["fsrs"]["operations"].get(name)
                 if feature is not None:
-                    status = state(supported=feature["available"])
+                    if not feature["available"]:
+                        status = state(supported=False)
                     options = {name: state(supported=False) for name in feature.get("unsupported_options", [])}
             if key == "POST /v1/cards:set-memory-state":
-                status = gate_state("cards_set_memory_state")
-                options["cards[].decay"] = gate_state("cards_set_memory_state",
-                                                      supported=support["card_decay"])
+                options["cards[].decay"] = permission_state("memory_state",
+                                                            supported=support["card_decay"])
             if key == "POST /v1/media":
-                options["path"] = gate_state("media_allow_local_path")
+                options["path"] = permission_state("local_files")
             if method in {"POST", "PATCH"} and route.path in {"/v1/decks", "/v1/decks/{id}"}:
                 options["desired_retention"] = state(supported=support["deck_desired_retention"])
             if key in {"POST /v1/collection:import", "GET /v1/collection/import-options"}:
-                status = state(supported=support["import_available"])
+                if not support["import_available"]:
+                    status = state(supported=False)
                 options.update({name: state(supported=False) for name in support["unsupported_import_options"]})
             operations[key] = OperationCapability(operation_id=route.operation_id or route.unique_id,
                                                  options=options, **status.dict())

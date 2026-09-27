@@ -17,13 +17,17 @@ from tsunagi.adapters.settings_dialog import (
 )
 
 HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_version",
-               "dev_watch_seconds", "gates", "ankiconnect_ignore_origins"}
+               "dev_watch_seconds", "gates", "ankiconnect_ignore_origins",
+               # edited in config.json until the settings page; the API key
+               # field edits one app in "apps"
+               "apps", "no_key_local_group", "no_key_remote_group", "groups"}
+FORM_ONLY = {"api_key"}  # a form field that is not a config key
 
 
 class TestFieldSpec:
     def test_every_field_key_is_a_real_config_key(self):
         for f in FIELDS:
-            assert f.key in DEFAULTS, f.key
+            assert f.key in DEFAULTS or f.key in FORM_ONLY, f.key
 
     def test_hidden_keys_never_appear_in_the_form(self):
         assert HIDDEN_KEYS.isdisjoint({f.key for f in FIELDS})
@@ -31,7 +35,7 @@ class TestFieldSpec:
     def test_form_plus_hidden_covers_the_whole_config(self):
         # A new DEFAULTS key must be placed: either in the form or explicitly
         # hidden. This fails until that decision is made.
-        assert {f.key for f in FIELDS} | HIDDEN_KEYS == set(DEFAULTS)
+        assert ({f.key for f in FIELDS} - FORM_ONLY) | HIDDEN_KEYS == set(DEFAULTS)
 
     def test_restart_keys_match_config_md_contract(self):
         # config.md: server-level keys are only read at server startup, so
@@ -53,8 +57,21 @@ class TestRoundTrip:
         values = form_values_from_config(DEFAULTS)
         values["api_key"] = "sekrit"
         new_cfg, restart = config_from_form(dict(DEFAULTS), values)
-        assert new_cfg["api_key"] == "sekrit"
+        assert new_cfg["apps"] == [{"name": "Default key", "key": "sekrit", "group": "default"}]
+        assert "api_key" not in new_cfg
         assert restart is False
+
+    def test_key_field_edits_only_the_default_key_app(self):
+        other = {"name": "Phone", "key": "p", "group": "read_only"}
+        cfg = {**DEFAULTS, "apps": [{"name": "Default key", "key": "old", "group": "everything"},
+                                    other]}
+        values = form_values_from_config(cfg)
+        assert values["api_key"] == "old"
+        values["api_key"] = "new"
+        assert config_from_form(cfg, values)[0]["apps"] == [
+            {"name": "Default key", "key": "new", "group": "everything"}, other]
+        values["api_key"] = ""
+        assert config_from_form(cfg, values)[0]["apps"] == [other]
 
     def test_restart_key_change_is_flagged(self):
         for key, value in (("port", 8765), ("enabled", False)):
@@ -126,12 +143,9 @@ class TestCors:
 
 
 class TestGates:
-    def test_gates_missing_from_a_saved_config_show_their_defaults(self):
-        cfg = {**DEFAULTS, "gates": {"media_allow_local_path": True}}  # saved before new gates
-        values = form_values_from_config(cfg)
-        assert values["gates"]["events_changes"] is True
-        assert values["gates"]["events_reviews"] is False
-        assert {key for key, *_ in gate_rows(cfg)} == set(DEFAULTS["gates"])
+    def test_only_server_switches_remain(self):
+        # What callers may do moved to groups (6.5a).
+        assert {key for key, *_ in gate_rows(DEFAULTS)} == {"anki_page_scripts"}
 
     def test_unknown_gate_renders_and_round_trips(self):
         cfg = dict(DEFAULTS)
@@ -143,22 +157,14 @@ class TestGates:
         new_cfg, _ = config_from_form(cfg, form_values_from_config(cfg))
         assert new_cfg["gates"]["future_gate"] is True
 
-    def test_toggling_one_gate_leaves_siblings(self):
-        values = form_values_from_config(DEFAULTS)
-        values["gates"] = {**values["gates"], "cards_set_memory_state": True}
-        new_cfg, restart = config_from_form(dict(DEFAULTS), values)
-        assert new_cfg["gates"]["cards_set_memory_state"] is True
-        assert new_cfg["gates"]["media_allow_local_path"] is False
-        assert restart is False
-
     def test_result_gates_dict_is_a_fresh_object(self):
         cfg = dict(DEFAULTS)  # shallow: cfg["gates"] IS DEFAULTS["gates"]
         values = form_values_from_config(cfg)
-        values["gates"] = {**values["gates"], "media_allow_local_path": True}
+        values["gates"] = {**values["gates"], "anki_page_scripts": True}
         new_cfg, _ = config_from_form(cfg, values)
         assert new_cfg["gates"] is not DEFAULTS["gates"]
         assert new_cfg["gates"] is not cfg["gates"]
-        assert DEFAULTS["gates"]["media_allow_local_path"] is False
+        assert DEFAULTS["gates"]["anki_page_scripts"] is False
 
 
 def test_generated_api_keys_are_long_random_and_url_safe():
@@ -180,11 +186,10 @@ class TestValidation:
         values["host"] = "   "
         assert any("Host" in e for e in validate_values(values))
 
-    def test_network_host_needs_an_api_key(self):
+    def test_network_host_is_allowed_without_a_key(self):
+        # Other devices get No access without a key, so nothing to refuse.
         values = form_values_from_config(DEFAULTS)
         values["host"] = "0.0.0.0"
-        assert any("API key" in e for e in validate_values(values))
-        values["api_key"] = "secret"
         assert validate_values(values) == []
 
     def test_out_of_range_int_is_an_error(self):
@@ -223,17 +228,18 @@ class TestAnkiConnectSettings:
     def test_import_merges_origins_without_importing_ports_or_gates(self):
         from tsunagi.adapters.dialogs import ankiconnect_import_changes
 
-        original = {"api_key": "old", "cors_allowlist": ["http://existing"],
-                    "port": 7777, "gates": {"media_allow_local_path": False}}
+        old_app = {"name": "Default key", "key": "old", "group": "default"}
+        original = {"apps": [old_app], "cors_allowlist": ["http://existing"],
+                    "port": 7777, "gates": {"anki_page_scripts": False}}
         ac = {"apiKey": "new", "webCorsOriginList": ["http://existing", "http://new"],
-              "webBindPort": 8765, "gates": {"media_allow_local_path": True}}
+              "webBindPort": 8765, "gates": {"anki_page_scripts": True}}
         result = {**original, **ankiconnect_import_changes(original, ac)}
-        assert result["api_key"] == "new"
+        assert result["apps"] == [{**old_app, "key": "new"}]
         assert result["cors_allowlist"] == ["http://existing", "http://new"]
         assert result["port"] == 7777
         assert result["gates"] == original["gates"]
         assert original["cors_allowlist"] == ["http://existing"]
-        assert {**original, **ankiconnect_import_changes(original, {})}["api_key"] == "old"
+        assert {**original, **ankiconnect_import_changes(original, {})}["apps"] == [old_app]
 
     def test_saving_unrelated_settings_does_not_inspect_or_disable_ankiconnect(self, monkeypatch):
         from types import SimpleNamespace

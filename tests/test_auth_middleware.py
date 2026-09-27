@@ -1,12 +1,16 @@
 import pytest
+from access import key_required
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from tsunagi.adapters.settings import Settings
-from tsunagi.http.middleware import ApiKeyAuthMiddleware
+from tsunagi.http.middleware import ApiKeyAuthMiddleware, is_local_request
+
+LOCAL = ("127.0.0.1", 50000)
+LAN = ("192.168.1.20", 50000)
 
 
-def make_client(settings: Settings) -> TestClient:
+def make_client(settings: Settings, peer=LOCAL, host="127.0.0.1") -> TestClient:
     app = FastAPI()
 
     @app.get("/")
@@ -30,19 +34,61 @@ def make_client(settings: Settings) -> TestClient:
         return {"ok": True}
 
     app.add_middleware(ApiKeyAuthMiddleware, settings=settings)
-    return TestClient(app)
+    return TestClient(app, base_url=f"http://{host}", client=peer)
 
 
 @pytest.fixture()
 def keyed_client():
-    return make_client(Settings({"api_key": "sekrit"}))
+    return make_client(Settings(key_required("sekrit")))
 
 
-class TestAuthOff:
-    def test_empty_key_everything_passes(self):
-        client = make_client(Settings({"api_key": ""}))
+class TestNoKeyRows:
+    def test_this_computer_uses_default_out_of_the_box(self):
+        client = make_client(Settings({}))
         for path in ("/", "/v1/health", "/v1/thing"):
             assert client.get(path).status_code == 200
+
+    def test_other_devices_get_no_access_out_of_the_box(self):
+        client = make_client(Settings({}), peer=LAN)
+        assert client.get("/v1/thing").status_code == 401
+        assert client.get("/v1/health").status_code == 200
+
+    def test_other_devices_row_can_be_opened(self):
+        client = make_client(Settings({"no_key_remote_group": "read_only"}), peer=LAN)
+        assert client.get("/v1/thing").status_code == 200
+
+    def test_this_computer_row_can_be_closed(self):
+        client = make_client(Settings({"no_key_local_group": "none"}))
+        assert client.get("/v1/thing").status_code == 401
+
+    def test_a_proxied_request_with_an_outside_host_is_not_local(self):
+        # Tailscale Serve: the peer is loopback, the Host is the tailnet name.
+        client = make_client(Settings({}), host="anki.tailnet.ts.net")
+        assert client.get("/v1/thing").status_code == 401
+
+    def test_unknown_key_counts_as_no_key(self):
+        # As in AnkiConnect: a stale key in a client still works while no key
+        # is required, and gains nothing beyond the No key row.
+        client = make_client(Settings({}))
+        assert client.get("/v1/thing", headers={"X-Api-Key": "stale"}).status_code == 200
+
+    def test_a_key_works_from_other_devices(self):
+        client = make_client(Settings(key_required("sekrit")), peer=LAN,
+                             host="192.168.1.10:7777")
+        assert client.get("/v1/thing", headers={"X-Api-Key": "sekrit"}).status_code == 200
+
+
+@pytest.mark.parametrize("peer, host, local", [
+    ("127.0.0.1", "127.0.0.1:7777", True),
+    ("127.0.0.1", "localhost:7777", True),
+    ("::1", "[::1]:7777", True),
+    ("127.0.0.1", "anki.tailnet.ts.net", False),
+    ("192.168.1.20", "127.0.0.1:7777", False),
+    ("testclient", "127.0.0.1", False),
+])
+def test_is_local_request(peer, host, local):
+    scope = {"client": (peer, 1), "headers": [(b"host", host.encode())]}
+    assert is_local_request(scope) is local
 
 
 class TestAuthOn:

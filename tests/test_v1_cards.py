@@ -339,10 +339,10 @@ class TestChangeDeck:
 
 
 class TestSetMemoryState:
-    """POST /v1/cards:set-memory-state - opt-in via gates.cards_set_memory_state."""
+    """POST /v1/cards:set-memory-state - needs memory_state (Everything group)."""
 
     def _enable(self, reset_settings):
-        reset_settings.update(gates={"cards_set_memory_state": True})
+        reset_settings.update(no_key_local_group="everything")
 
     def _write(self, client, entry):
         return client.post("/v1/cards:set-memory-state", json={"cards": [entry]})
@@ -355,17 +355,8 @@ class TestSetMemoryState:
         cid = ids(seeded)[0]
         resp = self._write(seeded, {
             "id": cid, "memory_state": {"stability": 9.0, "difficulty": 3.0}})
-        assert resp.status_code == 400
-        assert "gates.cards_set_memory_state" in resp.json()["detail"]
-        assert self._row(seeded, cid)["memory_state"] is None
-
-    def test_network_bind_without_key_keeps_the_gate_off(self, seeded, reset_settings):
-        reset_settings.update(host="0.0.0.0", gates={"cards_set_memory_state": True})
-        cid = ids(seeded)[0]
-        resp = self._write(seeded, {
-            "id": cid, "memory_state": {"stability": 9.0, "difficulty": 3.0}})
-        assert resp.status_code == 400
-        assert "needs an API key" in resp.json()["detail"]
+        assert resp.status_code == 403
+        assert "does not allow memory_state" in resp.json()["detail"]
         assert self._row(seeded, cid)["memory_state"] is None
 
     def test_write_round_trip(self, seeded, reset_settings):

@@ -1,15 +1,17 @@
 """
-Permission names (backlog Part B 6.5a).
+Permissions, groups and the caller of the current request (backlog 6.5a).
 
-Every v1 route declares one with `openapi_extra=requires(...)`, which also
-publishes it in the OpenAPI document as `x-permission`; every AnkiConnect
-action declares one in `registry.register(..., permission=...)`. Nothing
-enforces them yet. A group will grant a whole area ("write") or one name
-("write:notes").
+Every v1 route declares one permission with `openapi_extra=requires(...)`,
+which also publishes it in the OpenAPI document as `x-permission`; every
+AnkiConnect action declares one in `registry.register(..., permission=...)`.
+Each app (and each of the two "No key" rows) is in one group, and a group
+grants whole areas ("write") or single names ("write:notes").
 """
 from __future__ import annotations
 
-from typing import Dict
+from contextvars import ContextVar
+from dataclasses import dataclass
+from typing import Dict, FrozenSet, Optional
 
 PUBLIC = "public"  # reachable by anyone who can reach the server
 
@@ -32,9 +34,62 @@ PERMISSIONS = frozenset({
     "events:reviews",
 })
 
+# What a group may list: any permission, or a whole area.
+GRANTS = (PERMISSIONS - {PUBLIC}) | {p.split(":", 1)[0] for p in PERMISSIONS - {PUBLIC}}
+
+NO_ACCESS = "none"
+BUILTIN_GROUPS: Dict[str, Dict] = {
+    # Everything any AnkiConnect client can do, so swapping it in just works.
+    "default": {"name": "Default (like AnkiConnect)",
+                "grants": ["read", "write", "gui", "sync", "manage", "events:changes"]},
+    "read_only": {"name": "Read-only", "grants": ["read", "events:changes"]},
+    "everything": {"name": "Everything", "grants": sorted(
+        {p.split(":", 1)[0] for p in PERMISSIONS - {PUBLIC}})},
+    NO_ACCESS: {"name": "No access", "grants": []},
+}
+
 
 def requires(permission: str) -> Dict[str, str]:
     """openapi_extra for a route that needs `permission`."""
     if permission not in PERMISSIONS:
         raise ValueError(f"Unknown permission {permission!r}")
     return {"x-permission": permission}
+
+
+def allows(grants: FrozenSet[str], permission: str) -> bool:
+    """A grant covers its own name and, for an area, every name in it."""
+    return (permission == PUBLIC or permission in grants
+            or permission.split(":", 1)[0] in grants)
+
+
+@dataclass(frozen=True)
+class Caller:
+    """Who sent a request: an app, or one of the two "No key" rows."""
+    name: str
+    group: str
+    group_name: str
+    grants: FrozenSet[str]
+    key: Optional[str]  # to resolve the same caller again (event streams)
+    local: bool
+
+
+# Set for each request by the auth middleware, and per action by the
+# AnkiConnect dispatcher. Unset means no request: nothing is permitted.
+current_caller: ContextVar[Optional[Caller]] = ContextVar("tsunagi_caller", default=None)
+
+
+def permitted(permission: str) -> bool:
+    """Whether the current request's caller has `permission`."""
+    caller = current_caller.get()
+    return caller is not None and allows(caller.grants, permission)
+
+
+def current_denial(permission: str) -> str:
+    """Why the current caller lacks `permission` (for handler-level checks)."""
+    caller = current_caller.get()
+    return denied_message(caller, permission) if caller else f"needs {permission}"
+
+
+def denied_message(caller: Caller, permission: str) -> str:
+    return (f"{caller.name} is in the group {caller.group_name!r}, which does not "
+            f"allow {permission}; change it in Tsunagi's settings")

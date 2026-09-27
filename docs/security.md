@@ -8,7 +8,7 @@ marked **verified** (checked against the code or with real requests) or
 
 - **The collection:** notes, cards, review history and scheduling. Every write
   goes through Anki's undo, but a client can make many writes quickly.
-- **Files on the computer:** with `gates.media_allow_local_path` on, a client
+- **Files on the computer:** with the `local_files` permission, a client
   can have Anki read any file the user can read, store it as media and fetch it
   back.
 - **The local network:** media `url` uploads make Anki fetch a URL and store the
@@ -19,12 +19,12 @@ marked **verified** (checked against the code or with real requests) or
 
 | Caller | Default access | Why |
 | --- | --- | --- |
-| Program on this computer (script, curl, desktop tool) | Full | Sends no `Origin`. It already runs as the user, so it could read the files and collection directly. |
-| Browser extension | Full | The default allowlist entry `http://localhost` also allows every extension origin, matching AnkiConnect, so Yomitan works with no setup. |
-| Web page served from `127.0.0.1` on any port | Full | Same allowlist rule: `http://127.0.0.1:<any port>` is trusted. Includes local dev servers and other apps' web UIs. |
+| Program on this computer (script, curl, desktop tool) | Default group (everything AnkiConnect allows) | Sends no `Origin`. It already runs as the user, so it could read the files and collection directly. The "No key, this computer" row can be set to another group. |
+| Browser extension | Default group | The default allowlist entry `http://localhost` also allows every extension origin, matching AnkiConnect, so Yomitan works with no setup. |
+| Web page served from `127.0.0.1` on any port | Default group | Same allowlist rule: `http://127.0.0.1:<any port>` is trusted. Includes local dev servers and other apps' web UIs. |
 | Anki's own pages (reviewer, previewer, add-on pages) | None unless `gates.anki_page_scripts` is on | Card templates run JavaScript there. See below. |
 | Web page on another site | None, except `requestPermission` | Rejected before anything runs. |
-| Another device on the network | Only with the API key | Default `host` is `127.0.0.1`. Any other `host` requires a key, or Tsunagi does not start. |
+| Another device on the network | Only with an app's key | Default `host` is `127.0.0.1`. With any other `host`, keyless requests from elsewhere use the "No key, other devices" row, which is No access unless the user changes it. |
 
 ## What stops a hostile web page (verified)
 
@@ -51,18 +51,20 @@ How it works:
    loopback) a plain IP address, before anything else. This defeats DNS
    rebinding, where an attacker's domain resolves to `127.0.0.1`. It does not
    identify the caller: a program on another device can write any `Host`, so
-   network access is protected by the required API key, not by this check.
+   network access is protected by app keys, not by this check.
 2. **Origin check:** `/v1/*` rejects unknown origins in the middleware, so the
    request never reaches a route. The AnkiConnect root `/` lets every origin
    through the middleware (so `requestPermission` works, as in AnkiConnect) and
    rejects in the endpoint before parsing the action further. Only a
    well-formed `requestPermission` passes.
-3. **API key** (empty by default; required when `host` is not loopback): `X-Api-Key` or `Authorization:
-   Bearer` on `/v1/*`, the `key` field on `/`, checked per `multi` child. Browser
-   `EventSource` may pass it as `?api_key=` on `/v1/events` only.
-4. **Gates:** off-by-default switches for risky features. File-path media and
-   FSRS memory-state writes additionally stay off when `host` is not loopback
-   and there is no API key.
+3. **Apps and groups** (config.md): a key (`X-Api-Key` or `Authorization:
+   Bearer` on `/v1/*`, the `key` field on `/`, checked per `multi` child,
+   `?api_key=` on `/v1/events` only) selects an app; without one, the request
+   is "No key, this computer" (loopback peer and loopback `Host`) or "No key,
+   other devices". Each is in a group, and every route and AnkiConnect action
+   declares the permission it needs; a test fails if one is missing. Local
+   file paths and FSRS memory-state writes need permissions only the
+   Everything group has by default.
 5. **Anki's own pages:** Anki serves the reviewer, previewer and add-on pages
    from `http://127.0.0.1:<its media port>` with CSP `frame-ancestors 'none'`
    only, so card-template JavaScript runs and can make network requests. In a
@@ -112,8 +114,13 @@ Ranked by how likely they are to matter.
 2. **Every local page and every extension is trusted.** Any page served from
    `127.0.0.1` on any port, and any installed browser extension, has full
    access by default. This is the AnkiConnect-compatible default that makes
-   Yomitan work. Per-application keys with their own permissions are the
-   planned way to narrow it.
+   Yomitan work. Giving each tool its own key and setting "No key, this
+   computer" to a narrower group (or No access) is how to narrow it.
+5. **Proxies and "this computer".** A request counts as local when it comes
+   from a loopback address and names a loopback `Host`. A local reverse proxy
+   that rewrites `Host` to `localhost` would make remote requests look local.
+   **Unconfirmed** whether Tailscale Serve keeps the phone's `Host`; check
+   before relying on keyless local access alongside it.
 3. **`requestPermission` is a social-engineering prompt.** Any site can open the
    dialog. Its protection is the user reading the origin before approving.
 4. **Key in the URL.** `?api_key=` on `/v1/events` can end up in browser history
