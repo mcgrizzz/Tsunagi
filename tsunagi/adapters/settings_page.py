@@ -15,9 +15,10 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..shared.permissions import BUILTIN_ROLES, GRANTS, NO_ACCESS, PERMISSIONS
+from ..shared.permissions import BUILTIN_ROLES, NO_ACCESS, PERMISSIONS, is_grant
 from ..shared.version import ADDON_VERSION
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
+from .settings import approved_defaults
 from .settings_dialog import (
     FIELDS,
     config_from_form,
@@ -49,6 +50,8 @@ AREAS: List[Tuple[str, str, str, str]] = [
      "Anki read any file your account can read."),
     ("memory_state", "Rewrite FSRS memory state", "FSRS state",
      "Overwrite what FSRS knows about cards. A faulty tool could quietly damage your scheduling."),
+    ("addon", "Run add-on actions", "Add-ons",
+     "Run the add-on actions you approved, including destructive ones (a backup is made first)."),
 ]
 NAMES: Dict[str, str] = {
     "notes": "Notes", "cards": "Cards", "decks": "Decks", "deck_configs": "Deck options",
@@ -78,18 +81,27 @@ def permission_catalog() -> List[Dict[str, Any]]:
     return out
 
 
+def _role_default(rid: str, approvals: Any) -> Optional[Dict[str, Any]]:
+    builtin = BUILTIN_ROLES.get(rid)
+    if builtin is None:
+        return None
+    return {"name": builtin["name"],
+            "grants": sorted(set(builtin["grants"]) | approved_defaults(rid, approvals))}
+
+
 def _roles_for_page(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
     custom = cfg.get("roles") or {}
+    approvals = cfg.get("addon_approvals")
     rows = []
     for rid, spec in {**BUILTIN_ROLES, **custom}.items():
         if not isinstance(spec, dict):
             continue
-        builtin = BUILTIN_ROLES.get(rid)
+        default = _role_default(rid, approvals)
+        # addon:<provider>/<item> grants have no checkbox yet but must survive a save.
+        grants = sorted(g for g in spec.get("grants") or [] if is_grant(g))
         rows.append({"id": rid, "name": str(spec.get("name") or rid),
-                     "grants": sorted(g for g in spec.get("grants") or [] if g in GRANTS),
-                     "builtin": builtin is not None,
-                     "default": ({"name": builtin["name"], "grants": sorted(builtin["grants"])}
-                                 if builtin else None)})
+                     "grants": default["grants"] if rid not in custom and default else grants,
+                     "builtin": default is not None, "default": default})
     return rows
 
 
@@ -114,13 +126,12 @@ def page_state(cfg: Dict[str, Any], ankiconnect: Dict[str, Any]) -> Dict[str, An
     }
 
 
-def _stored_roles(roles: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _stored_roles(roles: List[Dict[str, Any]], approvals: Any) -> Dict[str, Any]:
     """Only user-made roles and edited built-ins are saved."""
     out = {}
     for g in roles:
         spec = {"name": g["name"].strip(), "grants": sorted(set(g["grants"]))}
-        builtin = BUILTIN_ROLES.get(g["id"])
-        if builtin and spec == {"name": builtin["name"], "grants": sorted(builtin["grants"])}:
+        if spec == _role_default(g["id"], approvals):
             continue
         out[g["id"]] = spec
     return out
@@ -137,7 +148,7 @@ def validate_access(cfg: Dict[str, Any], draft: Dict[str, Any]) -> List[str]:
             errors.append(f"Role id {g['id']!r} may only use a-z, 0-9 and _.")
         if not g["name"].strip():
             errors.append("Every role needs a name.")
-        if not set(g["grants"]) <= GRANTS:
+        if not all(is_grant(x) for x in g["grants"]):
             errors.append(f"{g['name']}: unknown permission.")
         if g["id"] == NO_ACCESS and g["grants"]:
             errors.append("No access cannot grant anything.")
@@ -175,7 +186,7 @@ def config_from_page(cfg: Dict[str, Any], draft: Dict[str, Any]) -> Tuple[Dict[s
                        for a in draft["apps"]]
     for key, *_ in NO_KEY_ROWS:
         new_cfg[key] = draft[key]
-    new_cfg["roles"] = _stored_roles(draft["roles"])
+    new_cfg["roles"] = _stored_roles(draft["roles"], cfg.get("addon_approvals"))
     return new_cfg, restart, []
 
 

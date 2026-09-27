@@ -19,7 +19,9 @@ from tsunagi.adapters.settings_dialog import (
 HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_version",
                "dev_watch_seconds", "gates", "ankiconnect_ignore_origins",
                # edited by the settings page's own sections (settings_page.py)
-               "apps", "no_key_local_role", "no_key_remote_role", "roles"}
+               "apps", "no_key_local_role", "no_key_remote_role", "roles",
+               # approved on the settings page's Add-ons section (backlog 2b-P)
+               "addon_approvals"}
 
 
 class TestFieldSpec:

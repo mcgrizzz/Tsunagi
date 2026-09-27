@@ -14,6 +14,18 @@ marked **verified** (checked against the code or with real requests) or
 - **The local network:** media `url` uploads make Anki fetch a URL and store the
   response, which a client can read back through media retrieval.
 - **Anki's UI:** GUI actions open dialogs, switch profiles and answer cards.
+- **Other add-ons' actions:** a provider can run an add-on's actions (FSRS
+  Helper's rescheduling through a bundled provider; other add-ons register
+  their own), which may bypass Anki's operations and change many cards at
+  once. A registering add-on is already code running inside Anki, so its
+  labels are trusted. Each action runs only after the
+  user approves it (`addon_approvals`, only in the config file for now), and
+  only for roles that grant it. Approved `normal` actions join Default;
+  `destructive` ones are only in Everything and run after an Anki backup.
+  An add-on update that relabels an action puts it back to unapproved. A
+  provider checks the add-on's entry points before calling them and reports
+  "unsupported" rather than guessing (verified in tests and against FSRS
+  Helper in a disposable profile).
 
 ## Who can reach the server
 

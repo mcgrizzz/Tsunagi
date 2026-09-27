@@ -351,6 +351,10 @@ def start_server(mw) -> None:
 
         mw.addonManager.setConfigUpdatedAction(ADDON_PACKAGE, _on_config_updated)
 
+        # Other add-ons' action providers (backlog 2b-P); all are loaded by now.
+        from .adapters import addon_actions
+        addon_actions.collect()
+
         host = cfg["host"]
         port = choose_port(cfg)
 

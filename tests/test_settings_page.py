@@ -66,6 +66,27 @@ def test_only_edited_built_ins_are_stored_and_reset_removes_them():
     assert reset["roles"] == {}
 
 
+def test_add_on_grants_survive_an_unrelated_save():
+    cfg = fresh()
+    cfg["addon_approvals"] = {"fsrs_helper/easy_days": "normal"}
+    cfg["roles"] = {"phone": {"name": "Phone", "grants": ["addon:fsrs_helper/easy_days", "read"]}}
+    new_cfg, _, errors = page.config_from_page(cfg, draft_of(cfg))
+    assert errors == [] and new_cfg == cfg
+
+
+def test_default_shows_its_approved_add_on_actions_and_keeps_them_when_edited():
+    cfg = fresh()
+    cfg["addon_approvals"] = {"fsrs_helper/easy_days": "normal", "fsrs_helper/wipe": "destructive"}
+    row = next(g for g in page.page_state(cfg, {})["roles"] if g["id"] == "default")
+    assert "addon:fsrs_helper/easy_days" in row["grants"] == row["default"]["grants"]
+    assert "addon:fsrs_helper/wipe" not in row["grants"]
+    draft = draft_of(cfg)
+    default = next(g for g in draft["roles"] if g["id"] == "default")
+    default["grants"] = [g for g in default["grants"] if g != "manage"]
+    edited, _, _ = page.config_from_page(cfg, draft)
+    assert "addon:fsrs_helper/easy_days" in edited["roles"]["default"]["grants"]
+
+
 @pytest.mark.parametrize("change, message", [
     (lambda d: d["apps"].append({"name": "", "key": "x" * 20, "role": "default"}), "needs a name"),
     (lambda d: d["apps"].extend([{"name": "A", "key": "x" * 20, "role": "default"},

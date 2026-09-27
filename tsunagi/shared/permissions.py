@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from typing import Dict, FrozenSet, Optional
 
 PUBLIC = "public"  # reachable by anyone who can reach the server
+# One add-on item (`addon:<provider>/<item>`, 2b-P). As a route's declaration
+# it means the handler checks the item; as a grant, every approved item.
+ADDON = "addon"
 
 _READ = ("notes", "cards", "decks", "deck_configs", "models", "tags", "reviews",
          "media", "collection", "addons")
@@ -28,13 +31,15 @@ PERMISSIONS = frozenset({
     "sync",
     "manage",
     "memory_state",
+    ADDON,
     # Checked inside handlers or the event stream, not declared by a route.
     "local_files",
     "events:changes",
     "events:reviews",
 })
 
-# What a role may list: any permission, or a whole area.
+# What a role may list: any permission, or a whole area. Roles may also list
+# `addon:<provider>/<item>` names, which come from the providers (is_grant).
 GRANTS = (PERMISSIONS - {PUBLIC}) | {p.split(":", 1)[0] for p in PERMISSIONS - {PUBLIC}}
 
 NO_ACCESS = "none"
@@ -47,6 +52,10 @@ BUILTIN_ROLES: Dict[str, Dict] = {
         {p.split(":", 1)[0] for p in PERMISSIONS - {PUBLIC}})},
     NO_ACCESS: {"name": "No access", "grants": []},
 }
+
+
+def is_grant(name: str) -> bool:
+    return name in GRANTS or name.startswith(ADDON + ":")
 
 
 def requires(permission: str) -> Dict[str, str]:

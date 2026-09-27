@@ -17,7 +17,7 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from ..adapters.settings import is_loopback_host
-from ..shared.permissions import PUBLIC, allows, current_caller, denied_message
+from ..shared.permissions import ADDON, PUBLIC, allows, current_caller, denied_message
 
 # Paths the auth middleware lets through without resolving a caller:
 # - "/"        : GET redirects to docs; POST is the AnkiConnect RPC, which
@@ -101,6 +101,8 @@ async def check_route_permission(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
     if permission is None:  # tests/test_permissions.py keeps this unreachable
         raise HTTPException(status_code=403, detail="This route declares no permission")
+    if permission == ADDON:
+        return  # the handler checks addon:<provider>/<item>
     if not allows(caller.grants, permission):
         raise HTTPException(status_code=403, detail=denied_message(caller, permission))
 

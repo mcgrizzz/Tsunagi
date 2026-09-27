@@ -63,6 +63,13 @@ For example:
   including any options that this backend cannot accept.
 - `features.fsrs_scheduling` reports the collection's FSRS scheduling switch.
   `setting: "anki.fsrs"` refers to Anki's FSRS setting, not a Tsunagi permission.
+- `features["addon_actions.fsrs_helper"]` reports whether Tsunagi can drive
+  FSRS Helper: `unsupported` with a reason when it is missing, disabled, did
+  not load or is a version whose entry points changed. Whether the calling
+  app may run each action is in `GET /v1/addons/fsrs_helper/actions`
+  (`status` per action), so
+  `operations["POST /v1/addons/{provider_id}/actions/{name}:run"]` itself is
+  always available.
 
 FSRS computations can run while FSRS scheduling is disabled. Their entries stay
 available in that case. The scheduling feature itself reports disabled. Clients

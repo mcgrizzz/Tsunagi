@@ -7,6 +7,7 @@ of scope (they need a restart and Anki's own prompts).
 from typing import Any, Dict, List
 
 from ...shared.errors import ResourceNotFoundError
+from ..addon_actions import provider_for_addon
 from ..ops import call_on_main
 
 
@@ -32,6 +33,7 @@ def _info(mgr: Any, meta: Any) -> Dict[str, Any]:
         "homepage": meta.homepage,
         "has_config": mgr.addonConfigDefaults(meta.dir_name) is not None,
         "has_config_ui": mgr.configAction(meta.dir_name) is not None,
+        "provider": provider_for_addon(meta.dir_name),
     }
 
 

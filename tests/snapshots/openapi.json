@@ -1,6 +1,142 @@
 {
   "components": {
     "schemas": {
+      "ActionInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "level": {
+            "description": "read, normal or destructive (a backup is made before it runs)",
+            "title": "Level",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ActionParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "shows_ui": {
+            "description": "Shows a progress window or message on the computer running Anki",
+            "title": "Shows Ui",
+            "type": "boolean"
+          },
+          "status": {
+            "description": "allowed, needs_approval (approve it in Tsunagi's settings), not_permitted (the caller's role lacks it) or unsupported",
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "description",
+          "level",
+          "params",
+          "shows_ui",
+          "status"
+        ],
+        "title": "ActionInfo",
+        "type": "object"
+      },
+      "ActionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActionInfo"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "unsupported": {
+            "description": "Why the provider cannot run, if it cannot",
+            "title": "Unsupported",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "title",
+          "items",
+          "stats"
+        ],
+        "title": "ActionList",
+        "type": "object"
+      },
+      "ActionParam": {
+        "properties": {
+          "default": {
+            "title": "Default"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "description": "integer, boolean or dates (a list of YYYY-MM-DD)",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "description",
+          "required"
+        ],
+        "title": "ActionParam",
+        "type": "object"
+      },
+      "ActionResult": {
+        "properties": {
+          "result": {
+            "title": "Result"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          }
+        },
+        "required": [
+          "stats"
+        ],
+        "title": "ActionResult",
+        "type": "object"
+      },
       "AddCardsRequest": {
         "description": "Everything optional: an empty body just opens the dialog.",
         "properties": {
@@ -85,6 +221,11 @@
           },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "description": "Id of the Tsunagi provider offering this add-on's actions, if any; see GET /v1/addons/{provider}/actions",
+            "title": "Provider",
             "type": "string"
           },
           "version": {
@@ -2541,6 +2682,147 @@
           "Add-ons"
         ],
         "x-permission": "read:addons"
+      }
+    },
+    "/v1/addons/{provider_id}/actions": {
+      "get": {
+        "description": "What a provider offers for its add-on: reads return data, other actions run as jobs. `provider_id` is the provider's id (`provider` in GET /v1/addons), the same on every install.",
+        "operationId": "listAddonActions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List an add-on's actions",
+        "tags": [
+          "Add-ons"
+        ],
+        "x-permission": "read:addons"
+      }
+    },
+    "/v1/addons/{provider_id}/actions/{name}:run": {
+      "post": {
+        "description": "The body holds the action's parameters. A read answers 200 with its data. Any other action answers 202 with a job; poll GET /v1/jobs/{id}. Its result is `{provider, action, result, settled, backup}`: `settled` is false if the add-on's follow-up work did not end within two minutes, `backup` names the Anki backup made before a destructive action. Actions cannot be aborted. Needs `addon:<provider>/<name>`, which the user approves in Tsunagi's settings; reads need read:addons. 409 if the add-on is unavailable or another job is running.",
+        "operationId": "runAddonAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ActionResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/JobSubmitted"
+                    }
+                  ],
+                  "title": "Response Runaddonaction"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobSubmitted"
+                }
+              }
+            },
+            "description": "The action runs as a job"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Run an add-on action",
+        "tags": [
+          "Add-ons"
+        ],
+        "x-permission": "addon"
       }
     },
     "/v1/capabilities": {
@@ -5520,7 +5802,7 @@
     },
     "/v1/jobs/{job_id}": {
       "get": {
-        "description": "Status, best-effort progress while running, and the result or error once terminal. Finished jobs are kept in memory until evicted, not persisted. Import jobs report their result or error but do not expose progress or support abort.",
+        "description": "Status, best-effort progress while running, and the result or error once terminal. Finished jobs are kept in memory until evicted, not persisted. Import jobs and add-on actions report their result or error but do not expose progress or support abort.",
         "operationId": "getJob",
         "parameters": [
           {
@@ -5572,7 +5854,7 @@
     },
     "/v1/jobs/{job_id}:abort": {
       "post": {
-        "description": "A 200 here guarantees the job ends `aborted` - poll to observe it. Anki is asked to stop the computation; if it finishes anyway (its abort flag has blind spots), the result is discarded - these computations write nothing, so nothing is lost but the numbers. 409 if the job already ended or is an import job, which cannot be aborted through this endpoint.",
+        "description": "A 200 here guarantees the job ends `aborted` - poll to observe it. Anki is asked to stop the computation; if it finishes anyway (its abort flag has blind spots), the result is discarded - these computations write nothing, so nothing is lost but the numbers. 409 if the job already ended or is an import job or add-on action, which cannot be aborted.",
         "operationId": "abortJob",
         "parameters": [
           {

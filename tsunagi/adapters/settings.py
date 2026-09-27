@@ -13,13 +13,21 @@ import threading
 from ipaddress import ip_address
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from ..shared.permissions import BUILTIN_ROLES, GRANTS, NO_ACCESS, Caller
+from ..shared.permissions import ADDON, BUILTIN_ROLES, NO_ACCESS, Caller, is_grant
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
 
 PersistFn = Callable[[Dict[str, Any]], None]
 
 NO_KEY_LOCAL = "No key, this computer"
 NO_KEY_REMOTE = "No key, other devices"
+
+def approved_defaults(role_id: Any, approvals: Any) -> frozenset:
+    """Add-on grants a built-in role has by default: approved normal items are
+    part of Default's defaults, so "Reset to default" keeps them (2b-P)."""
+    if role_id != "default" or not isinstance(approvals, dict):
+        return frozenset()
+    return frozenset(f"{ADDON}:{item}" for item, level in approvals.items() if level == "normal")
+
 
 def is_loopback_host(host: Any) -> bool:
     """True for a bind address only this computer can reach."""
@@ -86,12 +94,19 @@ class Settings:
 
     def role(self, role_id: Any) -> Tuple[str, frozenset]:
         """(name, grants) of a role; an unknown role grants nothing."""
-        spec = {**BUILTIN_ROLES, **(self.get("roles") or {})}.get(role_id)
+        edited = self.get("roles") or {}
+        spec = {**BUILTIN_ROLES, **edited}.get(role_id)
         if not isinstance(spec, dict):
             return BUILTIN_ROLES[NO_ACCESS]["name"], frozenset()
         grants = spec.get("grants")
-        grants = frozenset(g for g in grants if g in GRANTS) if isinstance(grants, list) else frozenset()
+        grants = frozenset(g for g in grants if is_grant(g)) if isinstance(grants, list) else frozenset()
+        if role_id not in edited:
+            grants |= approved_defaults(role_id, self.get("addon_approvals"))
         return str(spec.get("name") or role_id), grants
+
+    def addon_approvals(self) -> Dict[str, str]:
+        approvals = self.get("addon_approvals")
+        return {k: v for k, v in approvals.items() if isinstance(v, str)} if isinstance(approvals, dict) else {}
 
     def resolve_caller(self, key: Any, local: bool) -> Caller:
         """

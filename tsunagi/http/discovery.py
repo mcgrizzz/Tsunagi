@@ -1,7 +1,8 @@
 """Combine registered native routes with Anki support and the caller's permissions."""
 from fastapi.routing import APIRoute
 
-from ..shared.permissions import PUBLIC, current_denial, permitted
+from ..adapters import addon_actions
+from ..shared.permissions import ADDON, PUBLIC, current_denial, permitted
 from ..shared.schemas.capabilities import CapabilityState, OperationCapability
 
 
@@ -24,8 +25,15 @@ def permission_state(permission, **kwargs):
 
 def native_features(support):
     fsrs = support["fsrs"]
-    return {"fsrs_scheduling": state(supported=fsrs["supported"], enabled=fsrs["enabled"],
-                                    setting="anki.fsrs")}
+    features = {"fsrs_scheduling": state(supported=fsrs["supported"], enabled=fsrs["enabled"],
+                                        setting="anki.fsrs")}
+    # Each bundled add-on provider; its items' own statuses are in
+    # GET /v1/addons/{provider}/actions.
+    for provider in addon_actions.PROVIDERS.values():
+        reason = addon_actions.unavailable(provider)
+        features[f"addon_actions.{provider.id}"] = (
+            CapabilityState(status="unsupported", reason=reason) if reason else state())
+    return features
 
 
 def native_operations(routes, support):
@@ -35,7 +43,9 @@ def native_operations(routes, support):
             continue
         for method in sorted(route.methods):
             key = f"{method} {route.path_format}"
-            status = permission_state((route.openapi_extra or {}).get("x-permission"))
+            permission = (route.openapi_extra or {}).get("x-permission")
+            # Add-on items are allowed one by one; the actions list has each status.
+            status = state() if permission == ADDON else permission_state(permission)
             options = {}
             if method == "POST" and route.path.startswith("/v1/fsrs:"):
                 name = route.path.split(":", 1)[1].replace("-", "_")
