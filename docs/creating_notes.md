@@ -94,6 +94,52 @@ One undo step removes all successful additions in the request,
 without undoing earlier work. A request that creates nothing leaves undo history
 unchanged.
 
+## Create, or add to the note you already have
+
+"I already have this word; add the new sentence to it" is one request with
+**`POST /v1/notes:upsert`**. It takes the same notes as creation, plus how to
+find the existing note and how to merge into it:
+
+```json
+{
+  "modelName": "Mining", "deckName": "Mining",
+  "fields": {"Expression": "食べる", "Sentence": "もう食べた。", "Audio": "[sound:taberu.mp3]"},
+  "tags": ["mined"],
+  "match": {"field": "Expression"},
+  "onMatch": {
+    "fields": {"Sentence": "append", "Audio": "replace_if_empty", "*": "keep"},
+    "tags": "union",
+    "separator": "<br>"
+  }
+}
+```
+
+- **Finding the note.** Without `match`, Anki's duplicate check decides: the
+  first field, ignoring HTML, within the note type, honoring `duplicateScope`.
+  With `match.field`, that field's exact content decides (case-insensitive;
+  `*` and `_` are literal).
+- **No match:** the note is created, exactly as `POST /v1/notes` would.
+- **One match:** it is updated. Its cards stay in their decks.
+- **Several matches:** the item fails with code `ambiguous`, naming the notes;
+  nothing changes for it.
+
+Field rules, per field or for all others with `"*"`:
+
+| Rule | The existing field becomes |
+| --- | --- |
+| `replace_if_empty` (default) | the new value if it was empty; otherwise unchanged |
+| `keep` | unchanged |
+| `replace` | the new value (unless the new value is empty) |
+| `append` | old + `separator` + new; unchanged if that value is already there |
+
+Fields the request doesn't send are never touched. `tags` is `union` (add the
+request's tags, default), `replace` or `keep`.
+
+The response has `created` and `updated` arrays (each updated note lists
+`fields_changed` and `tags_changed`; repeating the same request changes
+nothing), plus `failed` as for creation. `include=cards` adds card IDs. All
+successful writes form one undo step.
+
 ## Check without saving
 
 Use **`POST /v1/notes:check`** with a body containing `{"notes": [...]}`.

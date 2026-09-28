@@ -5,7 +5,7 @@ from fastapi import Body, Header, Query
 from fastapi.responses import JSONResponse
 
 from ...adapters import idempotency
-from ...adapters.anki.note_batches import create_notes
+from ...adapters.anki.note_batches import create_notes, upsert_notes
 from ...adapters.anki.notes import (
     check_notes,
     delete_notes,
@@ -25,6 +25,8 @@ from ...shared.schemas.notes import (
     NoteCheckResponse,
     NoteCreate,
     NoteCreateResponse,
+    NoteUpsert,
+    NoteUpsertResponse,
 )
 from ...shared.schemas.wrappers import Paginated
 
@@ -90,6 +92,33 @@ def check(
         "results": results,
         "stats": {"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
     }
+
+
+@router.post(
+    "/v1/notes:upsert",
+    openapi_extra=requires("write:notes"),
+    response_model=NoteUpsertResponse,
+    response_model_exclude_none=True,
+    summary="Create notes, or update the notes they match",
+    description=(
+        "Accepts one note object or an array, like POST /v1/notes. Each note is matched "
+        "against existing notes of its note type: by default with Anki's duplicate check (the "
+        "first field, HTML ignored, honoring duplicateScope), or by `match.field`'s exact "
+        "content. No match: the note is created (duplicate rules apply). One match: that note "
+        "is updated by `on_match`, and its cards stay in their decks. Several matches: the item "
+        "fails as `ambiguous` with the note ids. Fields the request does not send are never "
+        "touched; a field without a rule is filled only if empty. Returns created, updated "
+        "(with the fields that changed) and failed; successful writes form one undo step."
+    ),
+    tags=["Notes"],
+    operation_id="upsertNotes",
+)
+@handle_mutation_errors("upsert notes")
+def upsert(
+    body: Union[List[NoteUpsert], NoteUpsert] = Body(..., description="One note or an array of notes"),
+    include: Optional[Literal["cards"]] = Query(default=None, description="Also return card IDs"),
+) -> NoteUpsertResponse:
+    return upsert_notes(body if isinstance(body, list) else [body], include_cards=include == "cards")
 
 
 @router.post(

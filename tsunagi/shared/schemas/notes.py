@@ -5,7 +5,7 @@ from typing import Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, StrictBool
 
 # ----------------- Response Schemas -----------------
-from .creation import CreationResult
+from .creation import CreationFailure, CreationResult
 
 
 class NoteField(BaseModel):
@@ -152,3 +152,47 @@ class NoteCreated(BaseModel):
 
 class NoteCreateResponse(CreationResult[NoteCreated]):
     pass
+
+
+# ----------------- Upsert (backlog 7.1) -----------------
+
+FieldRule = Literal["keep", "replace", "replace_if_empty", "append"]
+
+
+class UpsertMatch(BaseModel):
+    field: Optional[str] = Field(
+        default=None,
+        description=("Field whose content identifies the note, compared exactly (case-insensitive) "
+                     "within the note type. Default: Anki's duplicate check (the first field, "
+                     "HTML ignored), including duplicateScope and its options."))
+
+
+class OnMatch(BaseModel):
+    fields: Dict[str, FieldRule] = Field(
+        default_factory=dict,
+        description=("Per field: keep, replace (unless the new value is empty), replace_if_empty, "
+                     "or append (after `separator`, skipped when the value is already there). "
+                     "\"*\" sets the rule for the others; default replace_if_empty. Fields the "
+                     "request does not send are never touched."))
+    tags: Literal["union", "replace", "keep"] = Field(
+        default="union", description="union adds the request's tags; replace sets them; keep leaves them.")
+    separator: str = Field(default="<br>", description="Put between the old and new value by append.")
+
+
+class NoteUpsert(NoteCreate):
+    match: UpsertMatch = Field(default_factory=UpsertMatch)
+    on_match: OnMatch = Field(alias="onMatch", default_factory=OnMatch)
+
+
+class NoteUpdated(BaseModel):
+    index: int = Field(description="Zero-based position in the submitted array; 0 for one object.")
+    id: int
+    fields_changed: List[str] = Field(description="Fields whose value changed; empty when nothing did.")
+    tags_changed: bool
+    cards: Optional[List[int]] = Field(default=None, description="Present when include=cards was requested.")
+
+
+class NoteUpsertResponse(BaseModel):
+    created: List[NoteCreated] = Field(default_factory=list)
+    updated: List[NoteUpdated] = Field(default_factory=list)
+    failed: List[CreationFailure] = Field(default_factory=list)

@@ -1749,6 +1749,189 @@
         "title": "NoteIdRequest",
         "type": "object"
       },
+      "NoteUpdated": {
+        "properties": {
+          "cards": {
+            "description": "Present when include=cards was requested.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "fields_changed": {
+            "description": "Fields whose value changed; empty when nothing did.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields Changed",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "index": {
+            "description": "Zero-based position in the submitted array; 0 for one object.",
+            "title": "Index",
+            "type": "integer"
+          },
+          "tags_changed": {
+            "title": "Tags Changed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "index",
+          "id",
+          "fields_changed",
+          "tags_changed"
+        ],
+        "title": "NoteUpdated",
+        "type": "object"
+      },
+      "NoteUpsert": {
+        "properties": {
+          "allowDuplicate": {
+            "default": false,
+            "title": "Allowduplicate",
+            "type": "boolean"
+          },
+          "deckId": {
+            "title": "Deckid",
+            "type": "integer"
+          },
+          "deckName": {
+            "title": "Deckname",
+            "type": "string"
+          },
+          "duplicateScope": {
+            "description": "Where to look for duplicates: the whole collection (default) or one deck.",
+            "enum": [
+              "collection",
+              "deck"
+            ],
+            "title": "Duplicatescope",
+            "type": "string"
+          },
+          "duplicateScopeOptions": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DuplicateScopeOptions"
+              }
+            ],
+            "description": "Deck and note-type options for the duplicate check. When deck scope or check_all_models is used, notes match on the first field's checksum, as in AnkiConnect.",
+            "title": "Duplicatescopeoptions"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteFieldValue"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Fields"
+          },
+          "match": {
+            "$ref": "#/components/schemas/UpsertMatch"
+          },
+          "modelId": {
+            "title": "Modelid",
+            "type": "integer"
+          },
+          "modelName": {
+            "title": "Modelname",
+            "type": "string"
+          },
+          "onMatch": {
+            "$ref": "#/components/schemas/OnMatch"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields"
+        ],
+        "title": "NoteUpsert",
+        "type": "object"
+      },
+      "NoteUpsertResponse": {
+        "properties": {
+          "created": {
+            "items": {
+              "$ref": "#/components/schemas/NoteCreated"
+            },
+            "title": "Created",
+            "type": "array"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/CreationFailure"
+            },
+            "title": "Failed",
+            "type": "array"
+          },
+          "updated": {
+            "items": {
+              "$ref": "#/components/schemas/NoteUpdated"
+            },
+            "title": "Updated",
+            "type": "array"
+          }
+        },
+        "title": "NoteUpsertResponse",
+        "type": "object"
+      },
+      "OnMatch": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "enum": [
+                "keep",
+                "replace",
+                "replace_if_empty",
+                "append"
+              ],
+              "type": "string"
+            },
+            "description": "Per field: keep, replace (unless the new value is empty), replace_if_empty, or append (after `separator`, skipped when the value is already there). \"*\" sets the rule for the others; default replace_if_empty. Fields the request does not send are never touched.",
+            "title": "Fields",
+            "type": "object"
+          },
+          "separator": {
+            "default": "<br>",
+            "description": "Put between the old and new value by append.",
+            "title": "Separator",
+            "type": "string"
+          },
+          "tags": {
+            "default": "union",
+            "description": "union adds the request's tags; replace sets them; keep leaves them.",
+            "enum": [
+              "union",
+              "replace",
+              "keep"
+            ],
+            "title": "Tags",
+            "type": "string"
+          }
+        },
+        "title": "OnMatch",
+        "type": "object"
+      },
       "OperationCapability": {
         "properties": {
           "operation_id": {
@@ -2408,6 +2591,17 @@
           "name"
         ],
         "title": "TagRename",
+        "type": "object"
+      },
+      "UpsertMatch": {
+        "properties": {
+          "field": {
+            "description": "Field whose content identifies the note, compared exactly (case-insensitive) within the note type. Default: Anki's duplicate check (the first field, HTML ignored), including duplicateScope and its options.",
+            "title": "Field",
+            "type": "string"
+          }
+        },
+        "title": "UpsertMatch",
         "type": "object"
       },
       "ValidationError": {
@@ -7606,6 +7800,85 @@
           "Notes"
         ],
         "x-permission": "read:notes"
+      }
+    },
+    "/v1/notes:upsert": {
+      "post": {
+        "description": "Accepts one note object or an array, like POST /v1/notes. Each note is matched against existing notes of its note type: by default with Anki's duplicate check (the first field, HTML ignored, honoring duplicateScope), or by `match.field`'s exact content. No match: the note is created (duplicate rules apply). One match: that note is updated by `on_match`, and its cards stay in their decks. Several matches: the item fails as `ambiguous` with the note ids. Fields the request does not send are never touched; a field without a rule is filled only if empty. Returns created, updated (with the fields that changed) and failed; successful writes form one undo step.",
+        "operationId": "upsertNotes",
+        "parameters": [
+          {
+            "description": "Also return card IDs",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "description": "Also return card IDs",
+              "enum": [
+                "cards"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/components/schemas/NoteUpsert"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NoteUpsert"
+                  }
+                ],
+                "description": "One note or an array of notes",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteUpsertResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create notes, or update the notes they match",
+        "tags": [
+          "Notes"
+        ],
+        "x-permission": "write:notes"
       }
     },
     "/v1/profiles": {
