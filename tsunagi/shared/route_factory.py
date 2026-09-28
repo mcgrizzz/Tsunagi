@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import logging
 import time
-import traceback
 from bisect import bisect_right
 from operator import itemgetter
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union, get_args
@@ -323,7 +323,7 @@ def _execute_query(
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve)) from ve
     except Exception:
-        print("[tsunagi] query failed:\n" + traceback.format_exc())
+        logging.getLogger(__name__).exception("Query failed")
         raise HTTPException(status_code=500, detail="Internal error") from None
 
 def create_resource_routes(

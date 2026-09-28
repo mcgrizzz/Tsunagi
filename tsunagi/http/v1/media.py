@@ -4,21 +4,25 @@ namespace: no integer id, nothing for the query planner to plan.
 """
 import base64
 import binascii
+import contextvars
 import mimetypes
 import os
+import threading
 import time
 import urllib.request
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, Body, Path, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Body, Header, Path, Query
+from fastapi.responses import FileResponse, JSONResponse
 
+from ...adapters import idempotency
 from ...adapters.anki.media import (
     delete_media_file,
     list_media,
     resolve_media_path,
 )
 from ...adapters.anki.media_batches import create_media
+from ...adapters.ops import FOREVER
 from ...adapters.settings import settings
 from ...shared.errors import (
     ResourceNotFoundError,
@@ -27,6 +31,7 @@ from ...shared.errors import (
 )
 from ...shared.pagination import decode_cursor, encode_cursor
 from ...shared.permissions import current_denial, permitted, requires
+from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import (
     MediaCreateResponse,
     MediaDeletionResult,
@@ -203,8 +208,28 @@ def get_media_file(filename: str = Path(..., description="Media filename")) -> F
 @handle_mutation_errors("store_media")
 def store_media(
     body: Union[List[MediaUpload], MediaUpload] = Body(..., description="One upload or an array of uploads"),
-) -> MediaCreateResponse:
-    return create_media(body if isinstance(body, list) else [body], _resolve_upload)
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", description=IDEMPOTENCY_HELP),
+) -> Union[MediaCreateResponse, JSONResponse]:
+    candidates = body if isinstance(body, list) else [body]
+    if not idempotency_key:
+        return create_media(candidates, _resolve_upload)
+
+    def start(done, fail):
+        # The whole upload runs on its own thread, with no deadline per chunk,
+        # so it is recorded when it ends even after this request's 503. It
+        # keeps the request's context: permissions such as local_files.
+        context = contextvars.copy_context()
+
+        def work():
+            try:
+                done(create_media(candidates, _resolve_upload, timeout=FOREVER).dict())
+            except BaseException as exc:
+                fail(exc)
+        threading.Thread(target=context.run, args=(work,), daemon=True).start()
+    response, replayed = idempotency.run(
+        idempotency.scope("POST /v1/media", idempotency_key),
+        idempotency.fingerprint([c.dict() for c in candidates]), start)
+    return JSONResponse(response, headers={"Idempotent-Replayed": "true"} if replayed else None)
 
 
 

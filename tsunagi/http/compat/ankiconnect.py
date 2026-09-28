@@ -23,7 +23,7 @@ dispatcher stays importable without Anki for tests.
 """
 from __future__ import annotations
 
-import traceback
+import logging
 from typing import Any, Callable, Dict, Optional
 
 from ...adapters.dialogs import PermissionDecision
@@ -213,7 +213,7 @@ def handle_ankiconnect_rpc(
         return _error(str(e))
     except Exception:
         # Server error - log internally, return a generic string to the client
-        print("[tsunagi] compat action failed:\n" + traceback.format_exc())
+        logging.getLogger(__name__).exception("AnkiConnect action failed")
         return _error(ACTION_FAILED)
     finally:
         current_caller.reset(token)

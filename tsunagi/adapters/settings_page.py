@@ -10,8 +10,8 @@ Module level is pure dict-in/dict-out logic, tested headless; the Qt shell
 from __future__ import annotations
 
 import json
+import logging
 import re
-import traceback
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -264,7 +264,7 @@ class SettingsBridge:
             msg = json.loads(cmd[len(_PREFIX):])
             return getattr(self, "op_" + msg["op"])(msg.get("arg"))
         except Exception as exc:
-            print("[tsunagi] settings page:\n" + traceback.format_exc())
+            logging.getLogger(__name__).exception("Settings page request failed")
             return {"error": str(exc)}
 
     def _status(self) -> Dict[str, Any]:

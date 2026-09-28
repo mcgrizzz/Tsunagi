@@ -6046,6 +6046,19 @@
       "post": {
         "description": "Accepts one upload object or an array. Each input provides exactly one of base64 'data', a server-local 'path' (disabled by default), or a 'url'. Always returns created and failed arrays with zero-based input indexes. Successful files stay stored when another is rejected. Anki renames on collision; use the returned filename. The configured upload-size limit applies per file. Media storage is not undoable.",
         "operationId": "storeMedia",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7275,6 +7288,17 @@
                 "cards"
               ],
               "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+              "title": "Idempotency-Key",
               "type": "string"
             }
           }

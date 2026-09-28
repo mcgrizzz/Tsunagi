@@ -122,16 +122,21 @@ Open **Tools → Tsunagi Settings** to change:
 | **Apps & keys** | Each tool's key and role. |
 | **Requests without a key** | The role for keyless requests from this computer and from other devices. |
 | **Websites & Anki pages** | Allowed website origins, and whether card templates may use the API. |
+| **Add-ons** | Which add-on actions (such as FSRS Helper's) apps may run. |
 | **Roles** | What each role allows, and who uses it. |
 | **AnkiConnect** | Import AnkiConnect's settings and take over its port. |
 
 If a tool can't connect, check that Anki is open and both use the same port and
-key. For a website access error, add its origin under **Websites & Anki pages**, including
+key; the bottom of the settings window shows whether the server is running. If
+Tsunagi says it did not start because another add-on loaded a different version
+of a library it needs, disable the add-on it names (or update either one) and
+restart Anki. For a website access error, add its origin under **Websites & Anki pages**, including
 `http://` or `https://` and any port, without a page path.
 
 See the [configuration reference](config.md) for details. For unresolved problems,
 [open an issue](https://github.com/mcgrizzz/Tsunagi/issues) with your Anki version,
-operating system and the tool or request involved. Remove API keys and private
+operating system, the tool or request involved, and Tsunagi's log file from
+Anki's `logs/addons/` folder. Remove API keys and private
 note content from examples.
 
 ## Learn more

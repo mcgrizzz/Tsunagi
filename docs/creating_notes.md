@@ -177,6 +177,27 @@ Retrying immediately can create another note or repeat a media write. Check
 what was saved before retrying; do not treat a timeout as a `failed` result for
 every submitted input.
 
+### Retry safely with an idempotency key
+
+Send an `Idempotency-Key` header, a new unique value (such as a UUID) per
+request, on `POST /v1/notes` and `POST /v1/media`, and reuse it when you retry
+that request:
+
+```sh
+curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" -d '{...}'
+```
+
+- A retry with the same key returns the first attempt's response instead of
+  writing again, with the header `Idempotent-Replayed: true`. This holds after
+  a 503: the result is recorded when the write completes, not when the
+  request gives up.
+- A retry while the first attempt is still running waits for it, like any
+  write (503 again if it still isn't done).
+- The same key with a different body is refused (400). Use a new key for a new
+  request.
+- Keys belong to the app that sent them and are kept for ten minutes. A first
+  attempt that failed with an error is forgotten, so its retry runs again.
+
 ## How batching reduces repeated work
 
 Note creation resolves each distinct note type and deck once within a collection

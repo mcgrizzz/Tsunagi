@@ -3,8 +3,8 @@ Custom error classes and utilities for API operations.
 """
 from __future__ import annotations
 
+import logging
 import time
-import traceback
 from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Iterator, TypeVar
@@ -195,7 +195,7 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
             # Pass through existing HTTPExceptions without wrapping
             return exc
         # Log the real error server-side; don't leak internals to clients.
-        print(f"[tsunagi] {operation_name} failed:\n" + traceback.format_exc())
+        logging.getLogger(__name__).exception("%s failed", operation_name.capitalize())
         return HTTPException(
             status_code=500,
             detail=f"{operation_name.capitalize()} failed"

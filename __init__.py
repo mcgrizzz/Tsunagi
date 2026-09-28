@@ -18,41 +18,36 @@ def _add_shared():
 # call this early
 _add_shared()
 
+from .tsunagi.log import log  # noqa: E402  (stdlib only; after the path setup)
+
+
+def _anki_roots():
+    roots = []
+    for base_mod in ("anki", "aqt"):
+        mod_file = getattr(sys.modules.get(base_mod), "__file__", None)
+        if mod_file:
+            roots.append(str(Path(mod_file).resolve().parent.parent))
+    return roots
+
+
+def _vendor_clashes():
+    """Bundled libraries already imported from another add-on (their copy wins
+    for the whole session; see tsunagi/vendor_check.py)."""
+    shared = LIB / "shared"
+    if not shared.is_dir():
+        return []
+    from .tsunagi.vendor_check import find_clashes
+    return find_clashes(shared, _anki_roots())
+
+
 def _log_vendor_conflicts() -> None:
-    """
-    A module we vendor that is ALREADY imported from somewhere else (another
-    addon's bundled copy, or Anki's own environment) keeps winning for the
-    whole session - sys.modules beats sys.path, so our lib/shared pin never
-    loads. That can't be fixed from here, but it CAN be the first line of a
-    bug report instead of a mystery: say exactly which module and whose file.
-    """
+    """Say which module and whose file, so it is the first line of a bug
+    report instead of a mystery."""
     try:
-        shared = LIB / "shared"
-        if not shared.is_dir():
-            return
-        prefix = str(shared)
-        # Anki ships some of the same packages (attrs, idna, ...) in its own
-        # bundle, imported before any addon runs. That's the normal, working
-        # environment, not a conflict worth reporting - only flag copies from
-        # OUTSIDE Anki's bundle (i.e. another addon's).
-        anki_roots = []
-        for base_mod in ("anki", "aqt"):
-            mod_file = getattr(sys.modules.get(base_mod), "__file__", None)
-            if mod_file:
-                anki_roots.append(str(Path(mod_file).resolve().parent.parent))
-        clashes = []
-        for child in sorted(shared.iterdir()):
-            name = child.name[:-3] if child.name.endswith(".py") else child.name
-            if not name.isidentifier():
-                continue
-            mod = sys.modules.get(name)
-            file = getattr(mod, "__file__", None) if mod is not None else None
-            if file and not file.startswith(prefix) \
-                    and not any(file.startswith(r) for r in anki_roots):
-                clashes.append(f"{name} ({file})")
+        clashes = _vendor_clashes()
         if clashes:
-            print("[tsunagi] vendored modules already imported from elsewhere, "
-                  "their versions win: " + "; ".join(clashes))
+            log.warning("Vendored modules already imported from elsewhere, their "
+                        "versions win: %s", "; ".join(f"{c.name} ({c.file})" for c in clashes))
     except Exception:
         pass
 
@@ -66,29 +61,58 @@ except ImportError:
     # Not running inside Anki (tests / tooling importing the addon root) - no-op.
     mw = None
 else:
+    def _vendor_refusal():
+        """A message if another add-on loaded a different version of the web
+        stack; the server would fail with a traceback on it (backlog 8.3a)."""
+        try:
+            from .tsunagi.vendor_check import addon_folder, refusal
+            blocking = [c for c in _vendor_clashes() if c.blocks]
+            if not blocking:
+                return None
+
+            def addon_name(file):
+                folder = addon_folder(file, mw.addonManager.addonsFolder())
+                meta = mw.addonManager.addon_meta(folder) if folder else None
+                return meta.human_name() if meta else folder
+            return refusal(blocking, addon_name)
+        except Exception:
+            log.exception("Vendor check failed")
+            return None
+
     def _on_profile_open() -> None:
+        try:  # first, so a refused or failed start is in Anki's add-on log too
+            from .tsunagi.log import attach_to_anki
+            attach_to_anki(__name__, (mw.addonManager.getConfig(__name__) or {}).get("log_level", "warning"))
+        except Exception:
+            log.exception("Could not attach Anki's add-on log")
         _log_vendor_conflicts()   # all addons are imported by now
+        message = _vendor_refusal()
+        if message:
+            log.error(message)
+            from aqt.utils import tooltip
+            tooltip(message, period=15000)
+            return
         try:
             from .tsunagi.app import start_server
             start_server(mw)   # pass mw so app can read/write config via addonManager
         except Exception:
-            print("[tsunagi] boot failed:\n" + traceback.format_exc())
+            log.exception("Server failed to start")
         try:
             _start_dev_watch()
         except Exception:
-            print("[tsunagi] dev watch failed:\n" + traceback.format_exc())
+            log.exception("Dev watch failed")
         try:
             from .tsunagi.adapters.dialogs import offer_ankiconnect_import
             offer_ankiconnect_import()   # one-time; no-op if AnkiConnect absent
         except Exception:
-            print("[tsunagi] ankiconnect import offer failed:\n" + traceback.format_exc())
+            log.exception("AnkiConnect import offer failed")
 
     def _on_profile_close() -> None:
         try:
             from .tsunagi.app import stop_server
             stop_server("profile_closed")
         except Exception:
-            print("[tsunagi] shutdown failed:\n" + traceback.format_exc())
+            log.exception("Server shutdown failed")
 
     # Start once a profile (and its collection) is open; stop before it closes
     # so the port is free for a restart or profile switch.
@@ -170,7 +194,7 @@ else:
             from .tsunagi.adapters.settings_page import open_settings
             open_settings(mw)
         except Exception:
-            print("[tsunagi] settings dialog failed:\n" + traceback.format_exc())
+            log.exception("Settings dialog failed")
             return False  # literal False: Anki falls back to the JSON editor
 
     # Registered at import time (not profile_did_open) so the dialog works
@@ -236,7 +260,7 @@ def _start_dev_watch() -> None:
         _watch_stamp = stamp
         _watch_pending = None
         message = reload_addon()
-        print(f"[tsunagi] dev watch: {message}")
+        log.info("Dev watch: %s", message)
         try:
             from aqt.utils import tooltip
             tooltip(f"Tsunagi: {message}", period=3000)
@@ -246,7 +270,7 @@ def _start_dev_watch() -> None:
     _watch_timer = QTimer(mw)
     _watch_timer.timeout.connect(_tick)
     _watch_timer.start(int(seconds * 1000))
-    print(f"[tsunagi] dev watch active ({seconds}s)")
+    log.info("Dev watch active (%ss)", seconds)
 
 
 def reload_addon() -> str:

@@ -190,7 +190,13 @@ again. The list suppresses permission prompts; it does not revoke an existing
 allowlist grant. Changes apply immediately.
 
 ### `log_level`
-Uvicorn log level (`critical`, `error`, `warning`, `info`, `debug`).
+Uvicorn log level (`critical`, `error`, `warning`, `info`, `debug`). Tsunagi's
+own messages (start and stop, errors with their tracebacks) are logged at
+`info`, or at `debug` when this is `debug`.
+
+Both go to Anki's log file for this add-on, `logs/addons/<add-on folder>/`,
+inside Anki's data folder (for example `%APPDATA%\Anki2\logs\addons\` on
+Windows). It rotates daily and keeps ten days. Attach it to a bug report.
 
 ### `op_timeout_seconds`
 How long a request may wait for Anki (busy, syncing, etc.) before returning
@@ -200,7 +206,9 @@ or `closed` (no collection open). `GET /v1/health` reports the same value as
 
 A timeout stops the request from waiting; it does not cancel a queued or
 running operation. A write may still complete after the 503 response. Check
-the collection before retrying, since a retry can repeat the write.
+the collection before retrying, since a retry can repeat the write, or send
+an `Idempotency-Key` when creating notes or media so a retry is safe (see
+[Create notes and upload media](docs/creating_notes.md)).
 
 ### `media_max_bytes`
 Largest file accepted by a media upload (default 64 MiB). Applies to base64

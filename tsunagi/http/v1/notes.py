@@ -1,8 +1,10 @@
 import time
 from typing import List, Literal, Optional, Union
 
-from fastapi import Body, Query
+from fastapi import Body, Header, Query
+from fastapi.responses import JSONResponse
 
+from ...adapters import idempotency
 from ...adapters.anki.note_batches import create_notes
 from ...adapters.anki.notes import (
     check_notes,
@@ -12,10 +14,12 @@ from ...adapters.anki.notes import (
     page_note_ids,
     patch_note,
 )
+from ...adapters.ops import collection_op_run_async
 from ...shared.errors import handle_mutation_errors
 from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, MutationCaps, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
+from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.notes import (
     NoteCheckRequest,
     NoteCheckResponse,
@@ -109,5 +113,18 @@ def check(
 def create(
     body: Union[List[NoteCreate], NoteCreate] = Body(..., description="One note or an array of notes"),
     include: Optional[Literal["cards"]] = Query(default=None, description="Also return generated card IDs"),
-) -> NoteCreateResponse:
-    return create_notes(body if isinstance(body, list) else [body], include_cards=include == "cards")
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", description=IDEMPOTENCY_HELP),
+) -> Union[NoteCreateResponse, JSONResponse]:
+    candidates = body if isinstance(body, list) else [body]
+    include_cards = include == "cards"
+    if not idempotency_key:
+        return create_notes(candidates, include_cards=include_cards)
+
+    def start(done, fail):
+        # Recorded when the write completes, even after this request's 503.
+        collection_op_run_async(create_notes.__wrapped__, candidates, include_cards=include_cards,
+                                on_success=lambda r: done(r.dict(exclude_none=True)), on_failure=fail)
+    response, replayed = idempotency.run(
+        idempotency.scope("POST /v1/notes", idempotency_key),
+        idempotency.fingerprint([c.dict() for c in candidates], include_cards), start)
+    return JSONResponse(response, headers={"Idempotent-Replayed": "true"} if replayed else None)

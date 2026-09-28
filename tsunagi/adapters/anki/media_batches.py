@@ -1,6 +1,6 @@
 """Resolve sources on the request thread; store bounded chunks in one collection."""
 import logging
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from anki.collection import Collection
 from aqt import mw
@@ -36,7 +36,9 @@ def _store_chunk(col: Collection, expected: Collection, items: List[Tuple[int, s
     return result
 
 
-def create_media(candidates: List[MediaUpload], resolve: Callable[[MediaUpload], tuple]) -> MediaCreateResponse:
+def create_media(candidates: List[MediaUpload], resolve: Callable[[MediaUpload], tuple],
+                 timeout: Optional[float] = None) -> MediaCreateResponse:
+    """`timeout` applies to each stored chunk (None: op_timeout_seconds)."""
     # Keep identity across downloads and every storage chunk. A profile switch
     # must never redirect the remaining uploads to a different collection.
     collection = mw.col
@@ -50,7 +52,7 @@ def create_media(candidates: List[MediaUpload], resolve: Callable[[MediaUpload],
         nonlocal pending_bytes
         if not pending:
             return
-        stored = query_op_call(_store_chunk, collection, pending)
+        stored = query_op_call(_store_chunk, collection, pending, timeout=timeout)
         result.created.extend(stored.created)
         result.failed.extend(stored.failed)
         pending.clear()

@@ -1,6 +1,5 @@
 # tsunagi/app.py
 import json
-import sys
 import threading
 import traceback
 from dataclasses import dataclass
@@ -43,13 +42,14 @@ from .http.v1.models import router as models_router
 from .http.v1.notes import router as notes_router
 from .http.v1.reviews import router as reviews_router
 from .http.v1.tags import router as tags_router
+from .log import log
 from .shared.errors import register_exception_handlers
 from .shared.permissions import PUBLIC, requires
 from .shared.schemas.capabilities import Versions, runtime_versions
 from .shared.version import ADDON_VERSION
 
 
-def _log(msg: str) -> None: print("[tsunagi]", msg, file=sys.stdout)
+def _log(msg: str) -> None: log.info(msg)
 
 # FastAPI app with comprehensive documentation
 app = FastAPI(

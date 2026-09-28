@@ -65,9 +65,9 @@ def test_internal_chunks_bound_work_without_limiting_request(client, monkeypatch
     monkeypatch.setattr(media_batches, "UPLOAD_CHUNK_BYTES", byte_bound)
     original = media_batches.query_op_call
     sizes = []
-    def dispatch(fn, expected, items):
+    def dispatch(fn, expected, items, **kwargs):
         sizes.append(len(items))
-        return original(fn, expected, items)
+        return original(fn, expected, items, **kwargs)
     monkeypatch.setattr(media_batches, "query_op_call", dispatch)
     result = create(client, [upload(f"{i}.png") for i in range(5)])
     assert result["failed"] == []
@@ -78,11 +78,11 @@ def test_internal_chunks_bound_work_without_limiting_request(client, monkeypatch
 def test_later_external_source_can_read_earlier_upload_off_collection_thread(client, col, monkeypatch):
     inside_dispatch = False
     original = media_batches.query_op_call
-    def dispatch(*args):
+    def dispatch(*args, **kwargs):
         nonlocal inside_dispatch
         inside_dispatch = True
         try:
-            return original(*args)
+            return original(*args, **kwargs)
         finally:
             inside_dispatch = False
     def fetch(url):
