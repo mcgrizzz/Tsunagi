@@ -10,6 +10,7 @@ overhead and streaming quirks.
 from __future__ import annotations
 
 from ipaddress import ip_address
+from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import HTTPException, Request
@@ -29,12 +30,22 @@ from ..shared.permissions import ADDON, PUBLIC, allows, current_caller, denied_m
 AUTH_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect", "/v1/health"}
 
 
+# Set by a proxy in front of Tsunagi. Tailscale Serve always adds
+# Tailscale-User-Login and strips it from what clients send; the others are the
+# usual reverse-proxy headers. A local program sending one only loses access.
+PROXY_HEADERS = ("tailscale-user-login", "forwarded", "x-forwarded-for",
+                 "x-forwarded-host", "x-real-ip")
+
+
 def is_local_request(scope) -> bool:
     """
-    From this computer: the peer is loopback and the Host names loopback. The
-    Host half matters behind a local proxy such as Tailscale Serve, whose peer
-    is always 127.0.0.1 (unverified that it keeps the phone's Host).
+    From this computer: the peer is loopback, the Host names loopback, and no
+    proxy says it forwarded the request. Behind a local proxy such as
+    Tailscale Serve the peer is always 127.0.0.1, so the other two decide.
     """
+    headers = Headers(scope=scope)
+    if any(name in headers for name in PROXY_HEADERS):
+        return False
     client = scope.get("client")
     try:
         if not client or not ip_address(client[0]).is_loopback:
@@ -42,7 +53,7 @@ def is_local_request(scope) -> bool:
     except ValueError:
         return False
     try:
-        hostname = urlsplit("//" + (Headers(scope=scope).get("host") or "")).hostname
+        hostname = urlsplit("//" + (headers.get("host") or "")).hostname
     except ValueError:
         return False
     return hostname is not None and is_loopback_host(hostname)
@@ -107,7 +118,7 @@ async def check_route_permission(request: Request) -> None:
         raise HTTPException(status_code=403, detail=denied_message(caller, permission))
 
 
-def _host_allowed(headers: Headers, bind_host: str) -> bool:
+def _host_allowed(headers: Headers, bind_host: str, allowed_hosts: Any = ()) -> bool:
     hosts = headers.getlist("host")
     if len(hosts) != 1:
         return False
@@ -126,6 +137,11 @@ def _host_allowed(headers: Headers, bind_host: str) -> bool:
     except ValueError:
         return False
     if hostname == "localhost":
+        return True
+    # Names this computer is reached by through a proxy (allowed_hosts), e.g.
+    # the tailnet name in front of Tailscale Serve.
+    if isinstance(allowed_hosts, list) and hostname.lower() in (
+            str(h).strip().lower() for h in allowed_hosts):
         return True
     try:
         address = ip_address(hostname)
@@ -168,7 +184,8 @@ class DynamicCORSMiddleware:
         headers = Headers(scope=scope)
         # Host is a trust boundary even without Origin (same-origin GETs),
         # and before the compatibility permission handshake or CORS allowlist.
-        if not _host_allowed(headers, self.settings.get("host", "127.0.0.1")):
+        if not _host_allowed(headers, self.settings.get("host", "127.0.0.1"),
+                             self.settings.get("allowed_hosts") or []):
             return await PlainTextResponse("Disallowed Host header", status_code=403)(
                 scope, receive, send,
             )

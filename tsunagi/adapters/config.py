@@ -23,6 +23,9 @@ DEFAULTS = {
     # AnkiConnect's default. The "http://localhost" entry also covers
     # 127.0.0.1 origins and browser extensions (see Settings.is_origin_allowed).
     "cors_allowlist": ["http://localhost"],
+    # Host names this computer is reached by through a proxy on it, such as
+    # Tailscale Serve ("pc.tailnet.ts.net"); the Host check accepts them.
+    "allowed_hosts": [],
     "log_level": "warning",
     "op_timeout_seconds": 15,
     "media_max_bytes": 67108864,          # 64 MiB

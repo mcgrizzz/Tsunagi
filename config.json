@@ -9,6 +9,7 @@
     "roles": {},
     "addon_enabled": {},
     "cors_allowlist": ["http://localhost"],
+    "allowed_hosts": [],
     "log_level": "warning",
     "op_timeout_seconds": 15,
     "media_max_bytes": 67108864,

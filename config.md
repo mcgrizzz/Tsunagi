@@ -54,12 +54,27 @@ the configured host, or, when bound beyond loopback, any plain IP address such
 as this computer's LAN address in their `Host` header. Other names receive
 HTTP 403, even when their browser origin is allowed; this blocks DNS
 rebinding, which always uses a domain name. Forwarded-host headers do not
-override this check.
+override this check. Names listed in `allowed_hosts` are also accepted.
 
 If another device still cannot connect, the operating system's firewall is the
 usual cause. On Windows, Anki is typically allowed on networks marked
 **Private** and blocked on **Public** ones: mark your home network as Private
 (Settings → Network & internet → your network → Network profile type).
+
+### `allowed_hosts`
+Host names this computer is reached by through a proxy running on it, such as
+Tailscale Serve (`["pc.tailnet.ts.net"]`; default `[]`). The `Host` check
+above also accepts them. Bare names only: no `http://`, no port. In the
+settings page: **Server → Other host names**. Applies immediately.
+
+Tailscale Serve passes the name the phone used as `Host` (checked live), so
+until its name is listed here Tsunagi answers 403 "Disallowed Host header".
+A request that a proxy forwarded never counts as **this computer**, even with
+a loopback `Host`: Tsunagi looks for `Tailscale-User-Login` (Serve always adds
+it and removes any a client sends) and the usual `Forwarded`, `X-Forwarded-For`,
+`X-Forwarded-Host` and `X-Real-IP` headers. So keyless requests through Serve
+get `no_key_remote_role` (**No access** by default). See
+[Remote access](docs/remote_access.md).
 
 ### `port` / `prefer_port`
 - `port: 0` (default): use `prefer_port` (7777). If it's busy, Tsunagi shows a

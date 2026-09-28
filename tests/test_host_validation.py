@@ -104,3 +104,13 @@ def test_missing_duplicate_or_control_character_host_is_rejected(hosts):
         assert messages[0]["status"] == 403
 
     asyncio.run(run())
+
+
+def test_allowed_hosts_are_accepted_exactly(host_app):
+    client, settings, _ = host_app
+    tailnet = {"Host": "pc.tailnet.ts.net"}
+    assert client.get("/v1/probe", headers=tailnet).status_code == 403
+    settings.update(allowed_hosts=["PC.tailnet.ts.net"])
+    assert client.get("/v1/probe", headers=tailnet).status_code == 200
+    assert client.get("/v1/probe", headers={"Host": "pc.tailnet.ts.net:443"}).status_code == 200
+    assert client.get("/v1/probe", headers={"Host": "evil.pc.tailnet.ts.net"}).status_code == 403

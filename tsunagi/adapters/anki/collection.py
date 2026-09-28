@@ -5,12 +5,15 @@ Application actions go through `call_on_main`; collection reads and imports use
 QueryOp/CollectionOp. Every aqt import is function-local, so the module stays
 importable with no Qt present.
 """
-from typing import Any, Dict, List, Optional
+import threading
+from typing import Any, Callable, Dict, List, Optional
 
 from ...shared.errors import (
     AnkiBusyError,
     CollectionUnavailableError,
     ResourceNotFoundError,
+    SyncConflictError,
+    SyncFailedError,
     ValidationError,
 )
 from ..ops import (
@@ -108,32 +111,91 @@ def load_profile(name: str) -> bool:
     return call_on_main(_switch)
 
 
+FULL_SYNC_REQUIRED = ("The collection needs a full sync (upload or download), which Anki "
+                      "asks you about. Click Sync in Anki to choose.")
+
+
+def redraw_main_screen(mw: Any) -> None:
+    """
+    Redraw the current screen now, as after Anki's own Sync button. When Anki
+    is not the focused window (a sync or add-on action came from another
+    program), mw.reset() only dims the page (fade_out_webview) and waits for
+    focus to redraw it. Ordinary API writes keep Anki's behaviour.
+    """
+    screen = {"review": mw.reviewer, "overview": mw.overview,
+              "deckBrowser": mw.deckBrowser}.get(mw.state)
+    if screen is not None:
+        screen.refresh_if_needed()
+    mw.fade_in_webview()
+
+
+def start_sync(on_done: Callable[[Optional[Dict[str, Any]], Optional[Exception]], None]) -> None:
+    """
+    Anki's own sync path (mw._sync_collection_and_media) without its dialogs
+    (backlog 10.1, R17): sync_will_start and sync_did_finish fire, so add-ons
+    such as FSRS Helper react as to the Sync button; media syncs; the window
+    refreshes; the network work runs in the background, not on the main
+    thread. Where Anki would ask the user (a full sync) or show a warning,
+    this reports to `on_done(None, error)` instead. Main thread. Raises
+    at once when no sync account is set up.
+    """
+    from aqt import gui_hooks, mw
+
+    auth = mw.pm.sync_auth()
+    if not auth:
+        raise ValidationError(SYNC_AUTH_MISSING)
+
+    def run() -> Any:
+        # Pre-flight: never start a sync that would end in Anki's full-sync prompt.
+        status = mw.col.sync_status(auth)
+        if status.required == status.FULL_SYNC:
+            raise SyncConflictError(FULL_SYNC_REQUIRED)
+        return mw.col.sync_collection(auth, mw.pm.media_syncing_enabled())
+
+    def finished(fut: Any) -> None:
+        result, error = None, None
+        try:
+            mw.col._load_scheduler()  # the scheduler version may have changed
+            out = fut.result()
+            mw.pm.set_host_number(out.host_number)
+            if out.new_endpoint:
+                mw.pm.set_current_sync_url(out.new_endpoint)
+            if out.required not in (out.NO_CHANGES, out.NORMAL_SYNC):
+                raise SyncConflictError(FULL_SYNC_REQUIRED)
+            result = {"status": int(out.required), "server_message": out.server_message}
+        except SyncConflictError as exc:
+            error = exc
+        except Exception as exc:
+            if getattr(getattr(exc, "kind", None), "name", "") == "AUTH":
+                mw.pm.clear_sync_auth()  # as Anki does: the login is no longer valid
+            error = SyncFailedError(f"Sync failed: {exc}")
+        mw.col.models._clear_cache()
+        gui_hooks.sync_did_finish()
+        mw.reset()
+        redraw_main_screen(mw)
+        if error is None:
+            mw.media_syncer.start_monitoring()
+        on_done(result, error)
+
+    gui_hooks.sync_will_start()
+    mw.taskman.run_in_background(run, finished)
+
+
 def sync_collection() -> Dict[str, Any]:
-    """
-    Run a collection sync. Raises when no sync account is configured.
+    """Sync and wait for the result, however long it takes (AnkiConnect's
+    `sync`). Raises what start_sync reports."""
+    done = threading.Event()
+    box: Dict[str, Any] = {}
 
-    DEVIATION: canonical finishes with `mw.onSync()`, which no longer exists
-    (it is `on_sync_button_clicked` now, and it starts a *second* sync). The
-    sync itself is done by the time this returns.
-    """
-    def _sync() -> Dict[str, Any]:
-        from aqt import mw
+    def on_done(result: Optional[Dict[str, Any]], error: Optional[Exception]) -> None:
+        box.update(result=result, error=error)
+        done.set()
 
-        auth = mw.pm.sync_auth()
-        if not auth:
-            raise ValidationError(SYNC_AUTH_MISSING)
-        out = mw.col.sync_collection(auth, mw.pm.media_syncing_enabled())
-        accepted = (out.NO_CHANGES, out.NORMAL_SYNC)
-        if out.required not in accepted:
-            raise ValidationError(
-                f"Sync status {out.required} not one of {list(accepted)} - the "
-                "collection needs a full upload or download, which Anki must do "
-                "itself. See SyncCollectionResponse.ChangesRequired."
-            )
-        return {"status": int(out.required),
-                "server_message": getattr(out, "server_message", "")}
-
-    return call_on_main(_sync, timeout=None)   # a sync can take a long time
+    call_on_main(start_sync, on_done)
+    done.wait()
+    if box["error"] is not None:
+        raise box["error"]
+    return box["result"]
 
 
 @as_query_op

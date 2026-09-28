@@ -30,8 +30,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from ..shared.errors import ResourceNotFoundError, ValidationError, anki_error_detail
 from ..shared.permissions import ADDON, Caller, allows
+from .anki.collection import redraw_main_screen
 from .jobs import jobs
-from .ops import call_on_main, query_op_call
+from .ops import FOREVER, call_on_main, query_op_call
 from .settings import settings
 
 HOOK = "tsunagi.register"
@@ -39,8 +40,6 @@ API_VERSION = 1
 LEVELS = ("read", "normal", "destructive")
 PARAM_TYPES = ("integer", "boolean", "string", "dates")
 SETTLE_TIMEOUT = 120.0  # seconds to wait for an add-on's follow-up work
-# Jobs have no op timeout; ops treats timeout=None as OP_TIMEOUT, so pass this.
-NO_DEADLINE = 7 * 24 * 3600.0
 _ID_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789_")
 
 log = logging.getLogger(__name__)
@@ -262,28 +261,45 @@ def submit(provider: Provider, item: Item, params: Dict[str, Any]) -> str:
 def _work(job_id: str, provider: Provider, item: Item, params: Dict[str, Any]) -> None:
     jobs.mark_running(job_id)
     waiter = None
+    ran = False
     try:
         backup = _backup() if item.level == "destructive" else None
 
         def start():
-            nonlocal waiter
+            nonlocal waiter, ran
             waiter = provider.watch() if provider.watch else None
+            ran = True
             return item.run(**params)
 
-        value = call_on_main(start, timeout=NO_DEADLINE)
+        value = call_on_main(start, timeout=FOREVER)
         if isinstance(value, Future):
             value = value.result()
         settled = waiter(SETTLE_TIMEOUT) if waiter else True
         waiter = None
+        _redraw()
         jobs.finish(job_id, {"provider": provider.id, "action": item.name, "result": value,
                              "settled": settled, "backup": backup})
     except ActionRefused as exc:
+        if ran:
+            _redraw()
         jobs.fail(job_id, str(exc))
     except Exception as exc:
+        if ran:
+            _redraw()
         jobs.fail(job_id, anki_error_detail(exc))
     finally:
         if waiter:
             waiter(0)
+
+
+def _redraw() -> None:
+    """Show the add-on's changes now, not a dimmed page until Anki is focused
+    (redraw_main_screen); a failure here never fails the job."""
+    from aqt import mw
+    try:
+        call_on_main(redraw_main_screen, mw)
+    except Exception:
+        log.exception("Could not redraw Anki's main screen after an add-on action")
 
 
 def _backup() -> Dict[str, str]:
@@ -293,7 +309,7 @@ def _backup() -> Dict[str, str]:
     from aqt import mw
     folder = mw.pm.backupFolder()
     query_op_call(lambda col: col.create_backup(backup_folder=folder, force=True,
-                                                wait_for_completion=True), timeout=NO_DEADLINE)
+                                                wait_for_completion=True), timeout=FOREVER)
     backups = sorted(Path(folder).glob("*.colpkg"), key=lambda p: p.stat().st_mtime)
     if not backups:
         raise RuntimeError("Anki made no backup, so the action did not run")

@@ -5,6 +5,7 @@ headless, plus the save/AnkiConnect-handover path that runs on the main thread.
 """
 from __future__ import annotations
 
+import re
 import secrets
 from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Tuple
@@ -23,7 +24,7 @@ def generate_api_key() -> str:
 class Field(NamedTuple):
     key: str
     section: str
-    kind: str  # "bool" | "text" | "int" | "mib" | "choice" | "cors_list"
+    kind: str  # "bool" | "text" | "int" | "mib" | "choice" | "cors_list" (one per line)
     label: str
     # Only read at server startup; saving such a change makes the dialog
     # restart the embedded server so it still applies immediately.
@@ -47,6 +48,9 @@ FIELDS: Tuple[Field, ...] = (
           tooltip="Used when Port is 0. Startup fails loudly if it is busy."),
     Field("host", "Access", "text", "Host", restart=True,
           tooltip="Bind address. 127.0.0.1 keeps the API local-only."),
+    Field("allowed_hosts", "Access", "cors_list", "Other host names",
+          tooltip="Names this computer is reached by through a proxy on it, such as "
+                  "Tailscale Serve. One per line. Applies immediately."),
     Field("cors_allowlist", "Access", "cors_list", "Allowed website origins",
           tooltip="Browser origins allowed to call the API. \"*\" allows all; "
                   "\"http://localhost\" also covers 127.0.0.1 and browser "
@@ -149,6 +153,9 @@ def validate_values(values: Dict[str, Any]) -> List[str]:
     errors: List[str] = []
     if not str(values.get("host", "")).strip():
         errors.append("Host must not be empty.")
+    for name in _parse_cors(str(values.get("allowed_hosts", ""))):
+        if not re.fullmatch(r"[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]", name):
+            errors.append(f"Other host names: {name!r} is not a host name (no http:// or port).")
     for f in FIELDS:
         if f.kind in ("int", "mib") and f.maximum > 0:
             v = values.get(f.key)

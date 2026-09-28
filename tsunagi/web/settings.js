@@ -429,7 +429,10 @@ const PAGE = {
           h("input", { type: "number", id: portKey, min: 1, max: 65535, value: draft.values[portKey], oninput: setNum(draft.values, portKey) })),
           "Must be free; Tsunagi does not pick another port.", "portMode"),
         row("Host", input(field("host")),
-          "127.0.0.1: this computer only. Any other address lets other devices connect; they need a key (see Requests without a key).", "host")),
+          "127.0.0.1: this computer only. Any other address lets other devices connect; they need a key (see Requests without a key).", "host"),
+        row("Other host names", input(field("allowed_hosts")),
+          "Names this computer is reached by through a proxy on it, such as Tailscale Serve (pc.tailnet.ts.net). " +
+          "One per line, without http:// or a port. Requests through a proxy count as other devices.", "allowed_hosts")),
       h("section", { class: "card" },
         h("h2", {}, "Limits and logging"),
         h("div", { class: "grid4" }, S.fields.filter((f) => f.section === "Advanced").map((f) =>

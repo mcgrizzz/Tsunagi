@@ -22,6 +22,9 @@ R = TypeVar("R")
 # Default wait for cross-thread operations; overridden from config
 # ("op_timeout_seconds") at server start.
 OP_TIMEOUT: float = 15.0
+# timeout=FOREVER waits for as long as it takes (sync, add-on jobs).
+# timeout=None means OP_TIMEOUT.
+FOREVER = float("inf")
 
 
 class ValueWithChanges:
@@ -51,7 +54,9 @@ class ValueWithChanges:
         self.changes = getattr(changes, "changes", changes)
 
 def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], what: str) -> Any:
-    if not done.wait(OP_TIMEOUT if timeout is None else timeout):
+    limit = OP_TIMEOUT if timeout is None else timeout
+    # Event.wait rejects an infinite timeout, so FOREVER is no timeout at all.
+    if not done.wait(None if limit == FOREVER else limit):
         raise AnkiBusyError(f"{what} timed out; Anki may be busy or blocked by a dialog")
     if "exc" in box:
         raise box["exc"]
@@ -62,7 +67,7 @@ def call_on_main(fn: Callable[P, R], /, *args: P.args, timeout: Optional[float] 
     Run `fn(*args, **kwargs)` on Anki's UI thread and return its result.
     - If already on the UI thread, runs inline.
     - Raises AnkiBusyError if the UI thread doesn't respond within `timeout`
-      (default: OP_TIMEOUT).
+      (default: OP_TIMEOUT; FOREVER waits as long as it takes).
     - Propagates the original exception from the UI thread.
     """
     if threading.current_thread() is threading.main_thread():

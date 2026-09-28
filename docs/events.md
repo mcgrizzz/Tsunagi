@@ -59,7 +59,7 @@ deleted card IDs aren't included. That operation won't also produce
 | Only confirmed note deletions | `?types=notes.deleted` |
 | Note creations and updates | `?types=notes.created,notes.updated` |
 | Card answers, in Anki's reviewer or through either API, with the card's new interval, due, queue and FSRS memory state | `?types=review` |
-| Sync starting or finishing | `?types=sync` |
+| Sync starting or finishing, from Anki's Sync button or either API | `?types=sync` |
 | Due counts for a deck list: new, learning and review cards per deck, sent when they move (answers, suspends, deck changes, syncs, day rollover) | `?types=decks.counts` |
 
 Which kinds you receive depends on your app's role (config.md): change

@@ -91,6 +91,27 @@ def test_is_local_request(peer, host, local):
     assert is_local_request(scope) is local
 
 
+@pytest.mark.parametrize("header", [b"tailscale-user-login", b"x-forwarded-for", b"forwarded",
+                                    b"x-forwarded-host", b"x-real-ip"])
+def test_a_proxied_request_is_never_this_computer(header):
+    # Tailscale Serve connects from 127.0.0.1 and may send a loopback Host;
+    # its Tailscale-User-Login (or any proxy header) marks it as from elsewhere.
+    scope = {"client": ("127.0.0.1", 1),
+             "headers": [(b"host", b"127.0.0.1:7777"), (header, b"alice@example.com")]}
+    assert is_local_request(scope) is False
+
+
+def test_through_tailscale_serve_a_keyless_phone_gets_no_access(client, reset_settings):
+    from access import key_required
+    reset_settings.update(allowed_hosts=["pc.tailnet.ts.net"])
+    serve = {"Host": "pc.tailnet.ts.net", "Tailscale-User-Login": "alice@example.com"}
+    assert client.get("/v1/capabilities", headers=serve).status_code == 401
+    reset_settings.update(**{**key_required("phone-key", name="Phone"), "no_key_local_role": "default"})
+    caller = client.get("/v1/capabilities", headers={**serve, "X-Api-Key": "phone-key"}).json()["caller"]
+    assert caller == {"name": "Phone", "role": "Default (like AnkiConnect)", "this_computer": False,
+                      "host": "pc.tailnet.ts.net"}
+
+
 class TestAuthOn:
     def test_missing_header_is_401(self, keyed_client):
         assert keyed_client.get("/v1/thing").status_code == 401

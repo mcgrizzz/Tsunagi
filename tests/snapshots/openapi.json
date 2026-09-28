@@ -379,8 +379,49 @@
         "title": "BrowseResult",
         "type": "object"
       },
+      "CallerInfo": {
+        "properties": {
+          "host": {
+            "description": "The Host header as Tsunagi received it (useful behind a proxy)",
+            "title": "Host",
+            "type": "string"
+          },
+          "name": {
+            "description": "The app the key belongs to, or the No key row the request fell in",
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "description": "The role's display name",
+            "title": "Role",
+            "type": "string"
+          },
+          "this_computer": {
+            "description": "Counted as this computer: loopback peer and loopback Host",
+            "title": "This Computer",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "this_computer",
+          "host"
+        ],
+        "title": "CallerInfo",
+        "type": "object"
+      },
       "Capabilities": {
         "properties": {
+          "caller": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallerInfo"
+              }
+            ],
+            "description": "Who Tsunagi took this request to be; statuses below are for this caller",
+            "title": "Caller"
+          },
           "features": {
             "additionalProperties": {
               "$ref": "#/components/schemas/CapabilityState"
@@ -410,6 +451,7 @@
         },
         "required": [
           "versions",
+          "caller",
           "operations",
           "features"
         ],
@@ -3980,7 +4022,7 @@
     },
     "/v1/collection:sync": {
       "post": {
-        "description": "Runs a sync against AnkiWeb using the credentials already configured in Anki. Errors if no sync account is set up, or if the collection needs a full upload or download - that requires Anki's own UI.",
+        "description": "Syncs with AnkiWeb using the account already set up in Anki, the way Anki's Sync button does: add-ons that react to a sync (for example FSRS Helper's reschedule after sync) run, media syncs, and Anki's window stays responsive and refreshes afterwards. It never shows a dialog on the computer. Answers with the result when the sync ends within op_timeout_seconds, otherwise 202 with a job to poll (not abortable). 400 if no sync account is set up; 409 if the collection needs a full upload or download, which Anki asks the user about (click Sync in Anki); 502 if AnkiWeb or the network refused the sync. Runs as the one job, so another running job is also a 409.",
         "operationId": "syncCollection",
         "responses": {
           "200": {
@@ -3992,6 +4034,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobSubmitted"
+                }
+              }
+            },
+            "description": "Sync still running; poll the job"
           }
         },
         "security": [

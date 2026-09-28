@@ -24,13 +24,13 @@ from ...adapters.anki.collection import (
     list_profiles,
     load_profile,
     reload_collection,
+    start_sync,
     submit_import_package,
-    sync_collection,
 )
 from ...adapters.jobs import jobs
 from ...shared.errors import anki_error_detail, handle_mutation_errors
-from ...shared.permissions import requires
-from ...shared.schemas.capabilities import Capabilities, runtime_versions
+from ...shared.permissions import current_caller, requires
+from ...shared.schemas.capabilities import CallerInfo, Capabilities, runtime_versions
 from ...shared.schemas.collection import (
     CollectionActionResult,
     CollectionMeta,
@@ -73,7 +73,10 @@ def _stats(start: float) -> dict:
 def capabilities(request: Request) -> Capabilities:
     start = time.perf_counter()
     support = collection_capabilities()
-    return Capabilities(versions=runtime_versions(),
+    caller = current_caller.get()
+    who = CallerInfo(name=caller.name, role=caller.role_name, this_computer=caller.local,
+                     host=request.headers.get("host", ""))
+    return Capabilities(versions=runtime_versions(), caller=who,
                         operations=native_operations(request.app.routes, support),
                         features=native_features(support), stats=_stats(start))
 
@@ -142,21 +145,54 @@ def load(body: ProfileLoad = Body(...)) -> ProfileLoadResult:
     "/v1/collection:sync",
     openapi_extra=requires("sync"),
     response_model=SyncResult,
+    responses={202: {"model": JobSubmitted, "description": "Sync still running; poll the job"}},
     summary="Sync the collection",
     description=(
-        "Runs a sync against AnkiWeb using the credentials already configured "
-        "in Anki. Errors if no sync account is set up, or if the collection "
-        "needs a full upload or download - that requires Anki's own UI."
+        "Syncs with AnkiWeb using the account already set up in Anki, the way "
+        "Anki's Sync button does: add-ons that react to a sync (for example "
+        "FSRS Helper's reschedule after sync) run, media syncs, and Anki's "
+        "window stays responsive and refreshes afterwards. It never shows a "
+        "dialog on the computer. Answers with the result when the sync ends "
+        "within op_timeout_seconds, otherwise 202 with a job to poll (not "
+        "abortable). 400 if no sync account is set up; 409 if the collection "
+        "needs a full upload or download, which Anki asks the user about (click "
+        "Sync in Anki); 502 if AnkiWeb or the network refused the sync. Runs as "
+        "the one job, so another running job is also a 409."
     ),
     tags=["Collection"],
     operation_id="syncCollection",
 )
 @handle_mutation_errors("sync")
-def sync() -> SyncResult:
+def sync() -> Union[SyncResult, JSONResponse]:
     start = time.perf_counter()
-    out = sync_collection()
-    return SyncResult(status=out["status"],
-                      server_message=out["server_message"], stats=_stats(start))
+    job = jobs.create("sync")
+    done = threading.Event()
+    outcome = {}
+
+    def on_done(result, error):
+        if error is not None:
+            outcome["error"] = error
+            jobs.fail(job.id, str(error))
+        else:
+            out = SyncResult(status=result["status"], server_message=result["server_message"],
+                             stats=_stats(start))
+            outcome["result"] = out
+            jobs.finish(job.id, out.dict())
+        done.set()
+
+    jobs.mark_running(job.id)
+    try:
+        ops.call_on_main(start_sync, on_done)
+    except Exception as exc:
+        jobs.fail(job.id, anki_error_detail(exc))
+        raise
+    if done.wait(ops.OP_TIMEOUT):
+        if "error" in outcome:
+            raise outcome["error"]
+        return outcome["result"]
+    submitted = JobSubmitted(job_id=job.id, status="running", stats=_stats(start))
+    return JSONResponse(status_code=202, content=submitted.dict(),
+                        headers={"Location": f"/v1/jobs/{job.id}"})
 
 
 @router.post(

@@ -362,3 +362,28 @@ def test_collect_calls_every_add_on_and_isolates_a_broken_one(monkeypatch):
     # Collecting again (a server restart) replaces add-ons' providers, not ours.
     assert actions.collect() == []
     assert sorted(actions.PROVIDERS) == ["good", "late", "ours"]
+
+
+@pytest.fixture()
+def redraws(monkeypatch):
+    calls = []
+    monkeypatch.setattr(actions, "redraw_main_screen", lambda mw: calls.append("redraw"))
+    return calls
+
+
+def test_anki_redraws_after_an_action_even_when_it_fails(client, fake, reset_settings, redraws):
+    approve(reset_settings, apply="normal")
+    assert finished(run(client, "apply").json()["job_id"])["status"] == "done"
+    fake.refuse = True  # the add-on refuses after it was called
+    assert finished(run(client, "apply").json()["job_id"])["status"] == "failed"
+    assert redraws == ["redraw", "redraw"]
+
+
+def test_no_redraw_when_the_action_never_ran(client, col, fake, reset_settings, redraws, tmp_path, monkeypatch):
+    import aqt
+    monkeypatch.setattr(aqt.mw.pm, "backupFolder", lambda: str(tmp_path / "missing"), raising=False)
+    monkeypatch.setattr(actions, "query_op_call", lambda *a, **k: False)
+    approve(reset_settings, wipe="destructive")
+    reset_settings.update(no_key_local_role="everything")
+    assert finished(run(client, "wipe").json()["job_id"])["status"] == "failed"
+    assert redraws == []

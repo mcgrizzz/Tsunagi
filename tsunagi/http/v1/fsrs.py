@@ -137,7 +137,7 @@ def evaluate_params(body: EvaluateParamsRequest = Body(...)) -> JobSubmitted:
 
 def _abortable(kind: str) -> bool:
     """Only FSRS computations use Anki's abort flag and progress."""
-    return kind != "import_package" and not kind.startswith("addon:")
+    return kind not in ("import_package", "sync") and not kind.startswith("addon:")
 
 
 @router.get(

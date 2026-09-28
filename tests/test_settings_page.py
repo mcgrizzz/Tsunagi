@@ -283,3 +283,14 @@ def test_server_field_errors_point_at_their_field():
     draft["values"]["op_timeout_seconds"] = 0
     _, _, errors = page.config_from_page(cfg, draft)
     assert [(e.page, e.field) for e in errors] == [("server", "host"), ("server", "op_timeout_seconds")]
+
+
+def test_other_host_names_must_be_bare_host_names():
+    cfg = fresh()
+    draft = draft_of(cfg)
+    draft["values"]["allowed_hosts"] = "pc.tailnet.ts.net\nhttps://pc.tailnet.ts.net:443"
+    _, _, errors = page.config_from_page(cfg, draft)
+    assert [(e.page, e.field) for e in errors] == [("server", "allowed_hosts")]
+    draft["values"]["allowed_hosts"] = "pc.tailnet.ts.net\n\n pc.tailnet.ts.net "
+    new_cfg, _, errors = page.config_from_page(cfg, draft)
+    assert errors == [] and new_cfg["allowed_hosts"] == ["pc.tailnet.ts.net"]

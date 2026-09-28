@@ -45,6 +45,7 @@ still reject its input, for example a simulation with no cards.
 | Field | Contents |
 | --- | --- |
 | `versions` | Tsunagi API identifier, Tsunagi release and running Anki version. |
+| `caller` | Who Tsunagi took the request to be: the app (or No key row), its role, whether it counted as this computer, and the `Host` it received. Useful to check a proxy such as Tailscale Serve. |
 | `operations` | Tsunagi API operations keyed by `METHOD /path`, using the path templates from OpenAPI. |
 | `operations.<key>.operation_id` | The operation's OpenAPI identifier. |
 | `operations.<key>.options` | Conditional request options with their own status, reason and setting. Other inputs follow the operation's schema. |

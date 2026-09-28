@@ -134,10 +134,14 @@ Ranked by how likely they are to matter.
    Yomitan work. Giving each tool its own key and setting "No key, this
    computer" to a narrower role (or No access) is how to narrow it.
 5. **Proxies and "this computer".** A request counts as local when it comes
-   from a loopback address and names a loopback `Host`. A local reverse proxy
-   that rewrites `Host` to `localhost` would make remote requests look local.
-   **Unconfirmed** whether Tailscale Serve keeps the phone's `Host`; check
-   before relying on keyless local access alongside it.
+   from a loopback address, names a loopback `Host`, and carries no proxy
+   header (`Tailscale-User-Login`, `Forwarded`, `X-Forwarded-For`,
+   `X-Forwarded-Host`, `X-Real-IP`). Tailscale Serve keeps the phone's `Host`
+   (verified 2026-09-28) and always adds `Tailscale-User-Login`, so its
+   requests are "other devices" either way. A local proxy that rewrites
+   `Host` to `localhost` and adds none of those headers would still make
+   remote requests look local; configure such a proxy to send
+   `X-Forwarded-For`.
 3. **`requestPermission` is a social-engineering prompt.** Any site can open the
    dialog. Its protection is the user reading the origin before approving.
 4. **Key in the URL.** `?api_key=` on `/v1/events` can end up in browser history
