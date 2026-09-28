@@ -80,7 +80,7 @@ def fake(monkeypatch):
 
 
 def approve(settings, **levels):
-    settings.update(addon_approvals={f"fake/{k}": v for k, v in levels.items()})
+    settings.update(addon_enabled={f"fake/{k}": v for k, v in levels.items()})
 
 
 def finished(job_id, seconds=5):
@@ -108,11 +108,11 @@ def test_reads_are_allowed_and_actions_wait_for_approval(client, fake):
     assert apply["params"]["days"] == {"type": "integer", "description": "", "required": False,
                                        "default": 3, "min": 1, "max": 60}
     assert apply["shows_ui"] is True
-    assert statuses(client) == {"dates": "allowed", "apply": "needs_approval",
-                                "later": "needs_approval", "wipe": "needs_approval"}
+    assert statuses(client) == {"dates": "allowed", "apply": "disabled",
+                                "later": "disabled", "wipe": "disabled"}
     assert run(client, "dates").json()["result"] == ["2026-10-01"]
     resp = run(client, "apply")
-    assert resp.status_code == 403 and "not approved" in resp.json()["detail"]
+    assert resp.status_code == 403 and "is disabled; enable it" in resp.json()["detail"]
     assert fake.calls == []
 
 
@@ -136,12 +136,12 @@ def test_default_keeps_approved_items_as_its_defaults_until_edited(reset_setting
     assert reset_settings.role("mine")[1] == frozenset({"addon:fake/wipe"})
 
 
-def test_a_relabelled_item_needs_approval_again(client, fake, reset_settings):
+def test_a_relabelled_item_is_disabled_again(client, fake, reset_settings):
     approve(reset_settings, apply="normal")
     fake.relabel = "destructive"
     fake.provide(Registry())
     reset_settings.update(no_key_local_role="everything")
-    assert statuses(client)["apply"] == "needs_approval"
+    assert statuses(client)["apply"] == "disabled"
 
 
 def test_read_only_role_reads_but_cannot_run(client, fake, reset_settings):

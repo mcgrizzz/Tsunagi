@@ -68,7 +68,7 @@ def test_only_edited_built_ins_are_stored_and_reset_removes_them():
 
 def test_add_on_grants_survive_an_unrelated_save():
     cfg = fresh()
-    cfg["addon_approvals"] = {"fsrs_helper/easy_days": "normal"}
+    cfg["addon_enabled"] = {"fsrs_helper/easy_days": "normal"}
     cfg["roles"] = {"phone": {"name": "Phone", "grants": ["addon:fsrs_helper/easy_days", "read"]}}
     new_cfg, _, errors = page.config_from_page(cfg, draft_of(cfg))
     assert errors == [] and new_cfg == cfg
@@ -76,15 +76,47 @@ def test_add_on_grants_survive_an_unrelated_save():
 
 def test_default_shows_its_approved_add_on_actions_and_keeps_them_when_edited():
     cfg = fresh()
-    cfg["addon_approvals"] = {"fsrs_helper/easy_days": "normal", "fsrs_helper/wipe": "destructive"}
-    row = next(g for g in page.page_state(cfg, {})["roles"] if g["id"] == "default")
-    assert "addon:fsrs_helper/easy_days" in row["grants"] == row["default"]["grants"]
+    cfg["addon_enabled"] = {"fsrs_helper/easy_days": "normal", "fsrs_helper/wipe": "destructive"}
+    state = page.page_state(cfg, {})
+    row = next(g for g in state["roles"] if g["id"] == "default")
+    assert "addon:fsrs_helper/easy_days" in row["grants"]
     assert "addon:fsrs_helper/wipe" not in row["grants"]
+    # The page adds its draft's approvals to this itself (settings.js defaultOf).
+    assert not any(g.startswith("addon:") for g in row["default"]["grants"])
+    assert state["addon_enabled"] == cfg["addon_enabled"]
     draft = draft_of(cfg)
     default = next(g for g in draft["roles"] if g["id"] == "default")
     default["grants"] = [g for g in default["grants"] if g != "manage"]
     edited, _, _ = page.config_from_page(cfg, draft)
     assert "addon:fsrs_helper/easy_days" in edited["roles"]["default"]["grants"]
+
+
+def test_approvals_are_saved_and_default_stays_unedited():
+    cfg = fresh()
+    draft = draft_of(cfg)
+    draft["addon_enabled"] = {"fsrs_helper/easy_days": "normal"}
+    default = next(g for g in draft["roles"] if g["id"] == "default")
+    default["grants"].append("addon:fsrs_helper/easy_days")  # what approving does on the page
+    new_cfg, _, errors = page.config_from_page(cfg, draft)
+    assert errors == []
+    assert new_cfg["addon_enabled"] == {"fsrs_helper/easy_days": "normal"}
+    assert new_cfg["roles"] == {}  # Default is still at its defaults
+
+
+@pytest.mark.parametrize("approvals", [{"fsrs_helper/easy_days": "read"}, {"no slash": "normal"}])
+def test_invalid_approvals_are_refused(approvals):
+    cfg = fresh()
+    draft = draft_of(cfg)
+    draft["addon_enabled"] = approvals
+    _, _, errors = page.config_from_page(cfg, draft)
+    assert any("Add-on setting" in e for e in errors)
+
+
+def test_the_page_lists_providers_and_their_actions():
+    providers = {p["id"]: p for p in page.providers_for_page()}
+    fsrs = providers["fsrs_helper"]
+    assert fsrs["unsupported"]  # no FSRS Helper in the headless suite
+    assert {a["key"]: a["level"] for a in fsrs["actions"]}["fsrs_helper/easy_dates"] == "read"
 
 
 @pytest.mark.parametrize("change, message", [
@@ -142,7 +174,8 @@ class FakeManager:
 def bridge(cfg=None, ankiconnect=None):
     events = []
     mw = SimpleNamespace(addonManager=FakeManager(cfg or fresh(), ankiconnect))
-    b = page.SettingsBridge(mw, close=lambda saved: events.append(("close", saved)),
+    b = page.SettingsBridge(mw, restart=lambda enabled: events.append(("restart", enabled)),
+                            close=lambda: events.append("close"),
                             copy=lambda text: events.append(("copy", text)))
     return b, events
 
@@ -157,26 +190,51 @@ def test_bridge_ignores_other_messages_and_reports_errors():
     assert "error" in cmd(b, "no_such_op")
 
 
-def test_bridge_state_new_key_copy_and_cancel():
+def test_bridge_state_new_key_copy_and_close():
     b, events = bridge()
     state = cmd(b, "state")
     assert state["no_key_rows"][0]["role"] == "default"
     assert len(cmd(b, "new_key")) == 32
     cmd(b, "copy", "abc")
-    cmd(b, "cancel")
-    assert events == [("copy", "abc"), ("close", False)]
+    cmd(b, "dirty", True)
+    assert b.dirty is True  # X or Esc now asks first
+    cmd(b, "close")  # Discard in that prompt
+    assert events == [("copy", "abc"), "close"] and b.dirty is False
 
 
-def test_bridge_save_applies_and_closes(monkeypatch):
+def test_bridge_reports_whether_the_server_runs(monkeypatch):
+    b, _ = bridge()
+    monkeypatch.setattr("tsunagi.app.server_url", lambda: "http://127.0.0.1:7777")
+    assert cmd(b, "server_status") == {"running": True, "url": "http://127.0.0.1:7777"}
+    monkeypatch.setattr("tsunagi.app.server_url", lambda: None)
+    assert cmd(b, "server_status") == {"running": False, "url": None}
+
+
+def test_bridge_save_applies_and_stays_open(monkeypatch):
     saved = []
-    monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings",
-                        lambda mw, cfg, disable_ankiconnect: saved.append((cfg, disable_ankiconnect)))
     b, events = bridge()
+
+    def save_settings(mw, cfg, disable_ankiconnect):
+        saved.append((cfg, disable_ankiconnect))
+        mw.addonManager.cfg = cfg  # what writing the config does
+    monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings", save_settings)
     draft = draft_of(fresh())
     draft["apps"] = [{"name": "Phone", "key": "p" * 32, "role": "read_only"}]
-    assert cmd(b, "save", draft) == {"ok": True}
+    res = cmd(b, "save", draft)
+    assert res["ok"] and res["state"]["apps"][0]["name"] == "Phone"  # the page's new baseline
     assert saved[0][0]["apps"][0]["name"] == "Phone" and saved[0][1] is False
-    assert events == [("close", True)] and b.restart is False
+    assert events == []  # stays open; no server-level change, so no restart
+    assert cmd(b, "save", {**draft, "close": True}) == {"ok": True}  # the X/Esc prompt's Save
+    assert events == ["close"]
+
+
+def test_bridge_save_restarts_the_server_for_server_keys(monkeypatch):
+    monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings", lambda *a, **k: None)
+    b, events = bridge()
+    draft = draft_of(fresh())
+    draft["values"]["log_level"] = "debug"
+    assert cmd(b, "save", draft)["ok"]
+    assert events == [("restart", True)]
 
 
 def test_bridge_save_errors_keep_the_page_open(monkeypatch):
@@ -184,7 +242,10 @@ def test_bridge_save_errors_keep_the_page_open(monkeypatch):
                         lambda *a, **k: pytest.fail("must not save"))
     b, events = bridge()
     draft = {**draft_of(fresh()), "no_key_remote_role": "everything"}
-    assert "errors" in cmd(b, "save", draft)
+    errors = cmd(b, "save", draft)["errors"]
+    # Each error says where to fix it, so the page can take the user there.
+    assert {"message": "Confirm that other devices may connect without a key.",
+            "page": "nokey", "field": "confirmRemote"} in errors
     assert events == []
 
 
@@ -213,3 +274,12 @@ def test_page_assets_are_inlined():
     assert "/*STYLE*/" not in html and "/*SCRIPT*/" not in html
     assert "pycmd(" in html and "--t-canvas" in html
     assert DEFAULTS["gates"]  # the page renders at least the server switches
+
+
+def test_server_field_errors_point_at_their_field():
+    cfg = fresh()
+    draft = draft_of(cfg)
+    draft["values"]["host"] = " "
+    draft["values"]["op_timeout_seconds"] = 0
+    _, _, errors = page.config_from_page(cfg, draft)
+    assert [(e.page, e.field) for e in errors] == [("server", "host"), ("server", "op_timeout_seconds")]

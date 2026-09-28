@@ -87,9 +87,9 @@ def list_actions(provider_id: str) -> ActionList:
                          "GET /v1/jobs/{id}. Its result is `{provider, action, result, "
                          "settled, backup}`: `settled` is false if the add-on's follow-up "
                          "work did not end within two minutes, `backup` names the Anki backup "
-                         "made before a destructive action. Actions cannot be aborted. Needs "
-                         "`addon:<provider>/<name>`, which the user approves in Tsunagi's "
-                         "settings; reads need read:addons. 409 if the add-on is unavailable "
+                         "made before a destructive action. Actions cannot be aborted. The user "
+                         "must enable the action in Tsunagi's settings, and the caller needs "
+                         "`addon:<provider>/<name>`; reads need only read:addons. 409 if the add-on is unavailable "
                          "or another job is running.",
              tags=["Add-ons"], operation_id="runAddonAction",
              openapi_extra=requires(ADDON))
@@ -103,9 +103,9 @@ def run_action(provider_id: str, name: str,
         raise HTTPException(status_code=409, detail=f"{provider.title} is unavailable: {unsupported}")
     caller = current_caller.get()
     state = actions.status(caller, provider, item)
-    if state == "needs_approval":
+    if state == "disabled":
         raise HTTPException(status_code=403, detail=(
-            f"{provider.title}'s action {name!r} is not approved; approve it in Tsunagi's settings"))
+            f"{provider.title}'s action {name!r} is disabled; enable it on the Add-ons page of Tsunagi's settings"))
     if state == "not_permitted":
         needed = "read:addons" if item.level == "read" else f"{ADDON}:{provider.id}/{name}"
         raise HTTPException(status_code=403, detail=denied_message(caller, needed))

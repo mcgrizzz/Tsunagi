@@ -237,9 +237,9 @@ def provide(registry: Registry) -> None:
                                   "description": "Dates as YYYY-MM-DD; an empty list clears them"}}},
             {"name": "reschedule", "title": "Reschedule cards", "level": "normal",
              "run": reschedule, "shows_ui": True,
-             "description": "Recompute due dates from FSRS for all cards or one deck. With "
-                            "`recent`, only cards reviewed in the last days (the add-on's "
-                            "setting, 7 by default).",
+             "description": "Recompute due dates from FSRS for all cards or one deck, or only "
+                            "for cards reviewed in the last days (the add-on's setting, 7 by "
+                            "default).",
              "params": {"deck": _DECK,
                         "recent": {"type": "boolean", "default": False,
                                    "description": "Only recently reviewed cards"}}},

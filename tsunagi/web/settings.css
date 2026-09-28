@@ -15,6 +15,8 @@
   --t-link: color-mix(in srgb, var(--t-accent) 72%, var(--t-fg));
   --t-danger: var(--accent-danger, #c62828);
   --t-warn-bg: color-mix(in srgb, var(--t-danger) 11%, transparent);
+  /* Toward the text colour, like --t-link, so it reads in both themes. */
+  --t-ok: color-mix(in srgb, var(--accent-success, #2e7d32) 70%, var(--t-fg));
   --t-radius: 8px;
 }
 
@@ -31,14 +33,6 @@ body { background: var(--t-canvas); color: var(--t-fg); font-size: 13.5px; line-
 }
 #nav button:hover { background: var(--t-soft); }
 #nav button[aria-current="true"] { background: var(--t-accent); color: var(--t-accent-fg); }
-/* Danger zone: global, irreversible-after-Save actions live apart from the pages. */
-#nav .danger-zone { border: 1px solid color-mix(in srgb, var(--t-danger) 55%, transparent); border-radius: 8px; padding: 8px; }
-#nav .danger-title { font-size: 12px; font-weight: 600; color: var(--t-danger); margin: 0 2px 6px; }
-#nav .danger-zone button {
-  justify-content: center; white-space: nowrap; background: transparent; color: var(--t-danger); font-size: 12px; font-weight: 600;
-  border: 1px solid var(--t-danger); border-radius: 6px; padding: 5px 6px;
-}
-#nav .danger-zone button:hover { background: var(--t-danger); color: #fff; }
 #nav .label { flex: 1; }
 #nav .icon { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6;
              stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
@@ -48,8 +42,9 @@ body { background: var(--t-canvas); color: var(--t-fg); font-size: 13.5px; line-
 
 /* Page */
 main { overflow-y: auto; padding: 16px 20px 24px; }
-.page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin: 0 0 12px; }
-.page-head > div:first-child { flex: 1; min-width: 0; }
+/* The title keeps a readable width; the actions wrap below it when both don't fit. */
+.page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 16px; margin: 0 0 12px; }
+.page-head > div:first-child { flex: 1 1 360px; min-width: 0; }
 .head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .head-actions:empty { display: none; }
 /* Page-state actions: one quiet style everywhere (Revert changes, Restore defaults). */
@@ -114,6 +109,15 @@ button.primary { background: var(--t-accent); border-color: var(--t-accent); col
 .table td.end { text-align: right; white-space: nowrap; }
 .table .help { margin-top: 1px; }
 #main .app-name { width: 150px; font-weight: 600; }
+/* Disclosure: a chevron that turns down when the row's detail is open. */
+#main button.disclosure {
+  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 6px; background: none; box-shadow: none; color: var(--t-muted); cursor: pointer;
+}
+#main button.disclosure:hover { background: var(--t-soft); color: var(--t-fg); }
+#main button.disclosure .icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+                                 stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+#main button.disclosure[aria-expanded="true"] .icon { transform: rotate(90deg); }
 .key-preview { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; margin-right: 4px; }
 .app-detail td { border-top: 0; padding-top: 0; }
 .detail { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; background: var(--t-canvas); }
@@ -137,9 +141,56 @@ button.primary { background: var(--t-accent); border-color: var(--t-accent); col
        border: 1px solid var(--t-border); color: var(--t-muted); margin-left: 6px; vertical-align: 1px; }
 .areas td { padding: 8px 12px; }
 .areas .area-box { width: 18px; padding-right: 0; }
+/* Fixed columns, so a nested list (add-on actions) cannot squeeze the descriptions. */
+.areas { table-layout: fixed; }
+.areas td.end { width: 130px; }
 .areas .parts td { border-top: 0; padding-top: 0; }
 .names { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
 .names .check { margin: 3px 0; font-size: 12.5px; }
+
+/* Add-ons: one card per add-on; behaviour all its actions share is said once
+   under the heading. */
+.rule { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--t-link); background: var(--t-card);
+        border-radius: 0 6px 6px 0; font-size: 12.5px; }
+.addon-head { display: flex; align-items: center; gap: 12px; padding: 10px 12px 0; }
+.addon-head h2 { margin: 0; flex: 1; min-width: 0; }
+.addon-status { padding: 0 12px 10px; border-bottom: 1px solid var(--t-soft); }
+.addon-head .count { white-space: nowrap; }
+.desc { color: var(--t-muted); font-size: 12.5px; margin-top: 2px; }
+/* Action table: approval, name and who can run it keep their columns on every
+   row; the add-on's own description wraps on the line below, full width. */
+.actions { table-layout: fixed; }
+.actions col.c-approve { width: 76px; }
+.actions th { background: var(--t-canvas); }
+.actions tr.action td { border-top: 1px solid var(--t-soft); padding-top: 8px; padding-bottom: 2px; vertical-align: top; }
+.actions tr.action-more td { border-top: 0; padding-top: 0; padding-bottom: 8px; }
+.actions td.approve { text-align: center; }
+.actions td.name { font-weight: 600; overflow-wrap: anywhere; }
+.actions td.name .tag { font-weight: 400; }
+.actions tr.destructive td:first-child { box-shadow: inset 3px 0 0 var(--t-danger); }
+.actions tr.section td { background: var(--t-canvas); font-size: 12px; font-weight: 600; color: var(--t-muted); padding: 6px 8px; }
+.action-desc { overflow-wrap: anywhere; }
+.action-desc .folded { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#main .action-desc button.link.fold { padding: 0; margin: 2px 0 0; min-width: 0; }
+.tag.danger { border-color: var(--t-danger); color: var(--t-danger); }
+.tag.ok { border-color: var(--t-link); color: var(--t-link); margin-left: 0; }
+.tag.off { margin-left: 0; }
+.warn-text { color: var(--t-danger); }
+/* Role editor: this role's permission (checkbox) beside the global approval (status). */
+.addon-parts + .addon-parts { margin-top: 10px; }
+.addon-parts .group { font-size: 12px; font-weight: 600; color: var(--t-muted); margin: 2px 0 4px; }
+.permits { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
+.permits td:first-child { width: 20px; }
+.permits td:nth-child(2) { width: 36%; }
+.permits-intro { margin: 0 0 6px; }
+.permits td { padding: 4px 6px 4px 0; border-top: 1px solid var(--t-soft); vertical-align: top; }
+.permits tr:first-child td { border-top: 0; }
+.permits .status { color: var(--t-muted); }
+.permits tr.unapproved label { color: var(--t-muted); }
+.permits label.destructive { color: var(--t-danger); }
+/* Where a role link or "Approve on Add-ons" lands. */
+@keyframes t-flash { from { background: color-mix(in srgb, var(--t-link) 22%, transparent); } to { background: transparent; } }
+.flash, .flash td { animation: t-flash 2.4s ease-out; }
 
 .warn { background: var(--t-warn-bg); border: 1px solid var(--t-danger); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; }
 .pending { border-top: 1px solid var(--t-soft); margin-top: 10px; padding-top: 10px; }
@@ -151,6 +202,19 @@ footer {
   border-top: 1px solid var(--t-soft); background: var(--t-card);
 }
 footer .spacer { flex: 1; }
+/* Server status: a turning ring while it runs, an empty circle when off. */
+.server { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; white-space: nowrap; }
+.server .indicator { width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; }
+.server.on .indicator { border: 2px solid color-mix(in srgb, var(--t-ok) 35%, transparent); border-top-color: var(--t-ok);
+                        animation: t-spin 1.1s linear infinite; }
+.server.off .indicator { border: 2px solid var(--t-muted); }
+.server.off { color: var(--t-muted); }
+@keyframes t-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .server.on .indicator { animation: none; border-color: var(--t-ok); } }
+/* Save and Cancel wait for a change, like the other disabled buttons. */
+footer button:disabled {
+  background: transparent; box-shadow: none; border: 1px dashed var(--t-border); color: var(--t-muted); opacity: 1; cursor: not-allowed;
+}
 #status { font-size: 12.5px; color: var(--t-fg); }
 #main button.link.done { color: var(--t-fg); font-weight: 600; }
 #errors { color: var(--t-danger); font-size: 12px; max-width: 60%; max-height: 44px; overflow-y: auto; }
@@ -162,4 +226,5 @@ footer .spacer { flex: 1; }
 .dialog ul { padding-left: 18px; margin: 6px 0 10px; }
 .dialog li { margin: 3px 0; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-.overlay button.danger-fill { background: var(--t-danger); border-color: var(--t-danger); color: #fff; }
+.dialog-actions .spacer { flex: 1; }
+.overlay button.primary { background: var(--t-accent); border-color: var(--t-accent); color: var(--t-accent-fg); }

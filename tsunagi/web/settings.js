@@ -7,6 +7,7 @@ const PAGES = [
   ["apps", "Apps & keys"],
   ["nokey", "Requests without a key"],
   ["web", "Websites & Anki pages"],
+  ["addons", "Add-ons"],
   ["roles", "Roles"],
   ["ankiconnect", "AnkiConnect"],
 ];
@@ -18,8 +19,10 @@ const ICONS = {
   apps: "M14.5 9.5a4 4 0 1 1-1.2-2.8M13.3 10.7 20 17.4V20h-2.6v-2h-2v-2h-2l-.7-.7",
   nokey: "M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M4 12h11M11 8l4 4-4 4",
   web: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z",
+  addons: "M5 8h3.5a2 2 0 1 1 3.5-1.5V8H19v4.5a2 2 0 1 0 0 4V20H5z",
   roles: "M4 5h16v14H4zM9 11a2 2 0 1 0 0-.01M6 16c.6-1.7 1.7-2.5 3-2.5s2.4.8 3 2.5M14 10h3M14 13h3",
   ankiconnect: "M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5",
+  chevron: "M9 6l6 6-6 6",
 };
 
 function icon(name) {
@@ -36,13 +39,14 @@ function icon(name) {
 
 let S = null;          // state from Python: fields, catalog, roles' defaults, defaults...
 let draft = null;      // what Save sends
-let saved = null;      // the draft as last saved, for "Revert changes on this page"
+let saved = null;      // the draft as last saved, for "Revert this page"
 let preImport = null;  // the draft before a staged AnkiConnect import
 let savedRemote = "none";
 let page = "server";
 let editing = null;    // role id open in the role editor, or null for the list
 let pending = null;    // staged AnkiConnect import summary
-let confirmAll = false;
+let closing = false;    // the "unsaved changes" prompt is open (X or Esc)
+let reportedDirty = false;
 const openApps = new Set();   // app rows showing their detail (full key, New key, Remove)
 const openAreas = new Set();
 
@@ -93,6 +97,7 @@ function draftFrom(state) {
     gates: Object.fromEntries(state.gates.map((g) => [g.key, g.on])),
     apps: state.apps.map((a) => ({ ...a })),
     roles: state.roles.map((r) => ({ id: r.id, name: r.name, grants: [...r.grants] })),
+    addon_enabled: { ...(state.addon_enabled || {}) },
     confirm_remote: false,
     pending_import: false,
   };
@@ -109,24 +114,31 @@ function load(state) {
   render();
 }
 
-function render() {
+// Sidebar dots, footer status and Save/Cancel: cheap, so it also runs on every
+// keystroke (see the input listener at the end), without rebuilding the page
+// and losing the field's focus.
+function renderChrome() {
   document.getElementById("nav").replaceChildren(
     ...PAGES.map(([id, title]) => h("button", { type: "button", "data-page": id,
       "aria-current": String(id === page), onclick: () => go(id) }, icon(id), h("span", { class: "label" }, title),
       changed(id) ? h("span", { class: "dot", title: "Unsaved changes" }, "•") : null)),
-    h("span", { class: "spacer" }),
-    h("div", { class: "danger-zone" },
-      h("div", { class: "danger-title" }, "Danger zone"),
-      h("button", { type: "button", id: "restoreAll", title: "Reset every page. You confirm first; nothing changes until Save.",
-                    onclick: () => { confirmAll = true; render(); } }, "Restore all defaults…")));
+  );
   const dirty = PAGES.filter(([id]) => changed(id)).length;
   document.getElementById("status").textContent = notice ||
     (dirty ? `Unsaved changes on ${dirty} page${dirty === 1 ? "" : "s"}` : "");
+  // Nothing to save or discard until something differs from what is saved.
+  document.getElementById("save").disabled = !dirty;
+  document.getElementById("cancel").disabled = !dirty;
+  if (!!dirty !== reportedDirty) { reportedDirty = !!dirty; call("dirty", reportedDirty); }
+}
+
+function render() {
+  renderChrome();
   const main = document.getElementById("main");
   const scroll = main.scrollTop;
   main.replaceChildren(...PAGE[page]().flat(Infinity).filter(Boolean));
   main.scrollTop = scroll;
-  document.getElementById("modal").replaceChildren(...(confirmAll ? [restoreAllDialog()] : []));
+  document.getElementById("modal").replaceChildren(...(closing ? [closeDialog()] : []));
 }
 
 // ---------- per-page revert and restore (both only change the draft) ----------
@@ -139,6 +151,7 @@ function sliceOf(p, d) {
   if (p === "nokey") return S.no_key_rows.map((r) => d[r.setting]);
   if (p === "web") return [d.values.cors_allowlist, d.gates];
   if (p === "roles") return d.roles;
+  if (p === "addons") return d.addon_enabled;
   return d.pending_import;
 }
 const changed = (p) => !same(sliceOf(p, draft), sliceOf(p, saved));
@@ -154,6 +167,20 @@ const REVERT = {
     const keep = d.roles.filter((r) => used.has(r.id) && !saved.roles.some((x) => x.id === r.id));
     d.roles = clone(saved.roles).concat(keep);
   },
+  addons: (d) => {
+    // Approving changed roles too (see setApproval); undo that for the
+    // actions whose approval goes back, and leave other role edits alone.
+    const before = d.addon_enabled;
+    d.addon_enabled = clone(saved.addon_enabled);
+    for (const key of new Set([...Object.keys(before), ...Object.keys(saved.addon_enabled)])) {
+      if (before[key] === saved.addon_enabled[key]) continue;
+      const name = addonName(key);
+      for (const r of d.roles) {
+        const had = (saved.roles.find((x) => x.id === r.id)?.grants || []).includes(name);
+        r.grants = r.grants.filter((g) => g !== name).concat(had ? [name] : []).sort();
+      }
+    }
+  },
   ankiconnect: (d) => {
     for (const k of ["port", "prefer_port", "enabled", "cors_allowlist"]) d.values[k] = preImport.values[k];
     d.apps = clone(preImport.apps);
@@ -167,18 +194,23 @@ const RESTORE = {
   nokey: (d) => { for (const r of S.defaults.no_key_rows) d[r.setting] = r.role; d.confirm_remote = false; },
   web: (d) => { d.values.cors_allowlist = S.defaults.values.cors_allowlist;
                 for (const g of S.defaults.gates) d.gates[g.key] = g.on; },
-  roles: (d) => { for (const r of d.roles) { const def = S.roles.find((x) => x.id === r.id)?.default;
-                                             if (def) { r.name = def.name; r.grants = [...def.grants]; } } },
+  addons: (d) => {
+    d.addon_enabled = {};
+    for (const r of d.roles) r.grants = r.grants.filter((g) => !g.startsWith("addon:"));
+  },
+  roles: (d) => { for (const r of d.roles) { const def = defaultOf(r, d);
+                                             if (def) { r.name = def.name; r.grants = def.grants; } } },
 };
 
 // Page-state actions share one look on every page, the role editor included.
-// Each shows only when it would change something; both wait for Save.
-function actionBar(revert, restore, ids) {
+// Each shows only when it would change something; both wait for Save. The
+// labels name their scope; the footer's Cancel covers every page.
+function actionBar(revert, restore, ids, what = "page") {
   return h("div", { class: "head-actions" },
     revert && h("button", { type: "button", class: "quiet", id: ids[0], onclick: () => { revert(); render(); },
-                            title: "Back to the last saved values of this page only" }, "Revert changes"),
+                            title: `Undo unsaved changes on this ${what} only. Other pages keep theirs.` }, `Revert this ${what}`),
     restore && h("button", { type: "button", class: "quiet", id: ids[1], onclick: () => { restore(); render(); },
-                             title: "Back to the defaults for this page only. Nothing changes until Save." }, "Restore defaults"));
+                             title: `Back to the defaults for this ${what} only. Nothing changes until Save.` }, `Restore this ${what}'s defaults`));
 }
 
 function pageActions(p) {
@@ -223,21 +255,133 @@ function row(label, control, help, forId) {
 
 const roleById = (id) => draft.roles.find((r) => r.id === id);
 const roleName = (id) => (roleById(id) || { name: id + " (missing)" }).name;
-const areaNames = (area) => area.names.map((n) => n.name);
+const areaNames = (area) => namesOf(area).map((n) => n.name);
 const sameGrants = (a, b) => [...a].sort().join() === [...b].sort().join();
 const sameRole = (a, b) => a.name === b.name && sameGrants(a.grants, b.grants);
 
+// ---------- add-on actions ----------
+
+const addonName = (key) => "addon:" + key;
+const allActions = () => S.providers.flatMap((p) => p.actions.map((a) => ({ ...a, provider: p.title })));
+const approved = (a, d = draft) => d.addon_enabled[a.key] === a.level;
+
+// A built-in role's defaults. Default also has every action approved as
+// normal, like the server's Settings.role, so approving keeps it unedited.
+function defaultOf(r, d = draft) {
+  const def = S.roles.find((x) => x.id === r.id)?.default;
+  if (!def) return null;
+  const extra = r.id !== "default" ? [] : Object.entries(d.addon_enabled)
+    .filter(([, level]) => level === "normal").map(([key]) => addonName(key));
+  return { name: def.name, grants: [...new Set(def.grants.concat(extra))].sort() };
+}
+
+// Approving a normal action also allows it for Default; destructive ones are
+// only in Everything until a role adds them. Withdrawing removes it everywhere.
+function setApproval(a, on) {
+  const name = addonName(a.key);
+  if (on) {
+    draft.addon_enabled[a.key] = a.level;
+    const dflt = roleById("default");
+    if (a.level === "normal" && dflt && !dflt.grants.includes(name)) dflt.grants = [...dflt.grants, name].sort();
+  } else {
+    delete draft.addon_enabled[a.key];
+    for (const r of draft.roles) r.grants = r.grants.filter((g) => g !== name);
+  }
+}
+
+// The role editor's parts of an area. For add-ons: the approved actions.
+function namesOf(area) {
+  if (area.area !== "addon") return area.names;
+  return allActions().filter((a) => a.level !== "read" && approved(a))
+    .map((a) => ({ name: addonName(a.key), label: a.title, group: a.provider, destructive: a.level === "destructive" }));
+}
+
+const allows = (r, name) => r.grants.includes(name) || r.grants.includes(name.split(":")[0]);
+const rowId = (a) => "act_" + a.key.replace("/", "__");
+const permId = (a) => "perm_" + addonName(a.key);
+
+// Role names as links to that role's add-on permissions, the action highlighted.
+// Add-on text can be any length: long descriptions start folded to two lines,
+// with a visible control for the rest. Nothing is cut without one.
+const LONG_DESCRIPTION = 200;
+const openDescriptions = new Set();
+function description(a) {
+  if (!a.description) return null;
+  const long = a.description.length > LONG_DESCRIPTION;
+  const open = openDescriptions.has(a.key);
+  return h("div", { class: "desc action-desc" },
+    h("div", { class: long && !open ? "folded" : null }, a.description),
+    long && link(open ? "Show less" : "Show full description",
+                 () => { open ? openDescriptions.delete(a.key) : openDescriptions.add(a.key); render(); },
+                 { "aria-expanded": String(open), class: "link fold" }));
+}
+
+// One action, two table rows: the switch and the name keep their places on
+// every row; the add-on's description wraps on the line below. Which roles may
+// run it is shown in Roles, not here.
+function actionRows(a, shared) {
+  const read = a.level === "read";
+  const on = read || approved(a);
+  const relabelled = !read && !approved(a) && a.key in draft.addon_enabled;
+  const id = "approve_" + a.key.replace("/", "__");
+  return [
+    h("tr", { class: "action " + a.level, id: rowId(a), "data-action": a.key },
+      h("td", { class: "approve" },
+        h("input", { type: "checkbox", id, checked: on, disabled: read, "aria-label": "Enable " + a.title,
+                     title: read ? "Reading is always enabled; the app's role decides" : null,
+                     onchange: (e) => { setApproval(a, e.target.checked); render(); } })),
+      h("td", { class: "name" }, h("label", { for: id }, a.title),
+        a.level === "destructive" && h("span", { class: "tag danger" }, "Destructive: backup first"),
+        !shared.ui && a.shows_ui && h("span", { class: "tag" }, "Shows windows here"))),
+    h("tr", { class: "action-more " + a.level }, h("td", {}), h("td", {},
+      description(a),
+      relabelled && h("div", { class: "desc warn-text" }, "The add-on changed this action since you enabled it. Enable it again."))),
+  ];
+}
+
+function providerCard(p) {
+  const acts = p.actions.filter((a) => a.level !== "read");
+  const reads = p.actions.filter((a) => a.level === "read");
+  const ready = acts.filter((a) => a.level === "normal" && !approved(a));
+  // Said once under the heading when every action shares it, not on each row.
+  const shared = { ui: acts.length > 0 && acts.every((a) => a.shows_ui),
+                   normal: acts.length > 0 && acts.every((a) => a.level === "normal") };
+  const notes = [shared.normal && `All ${acts.length} change your collection.`,
+                 shared.ui && "They show a progress window or message on this computer while running."].filter(Boolean);
+  const section = (label) => h("tr", { class: "section" }, h("td", { colspan: 2 }, label));
+  return h("section", { class: "card flush addon", "data-provider": p.id },
+    h("div", { class: "addon-head" },
+      h("h2", {}, p.title),
+      acts.length > 0 && h("span", { class: "muted small count" }, `${acts.filter((a) => approved(a)).length} of ${acts.length} enabled`),
+      ready.length > 0 && h("button", { type: "button", class: "quiet", "data-approve-all": p.id,
+        title: "Enable every action here except destructive ones, which you enable one by one.",
+        onclick: () => { ready.forEach((a) => setApproval(a, true)); render(); } }, "Enable all")),
+    h("div", { class: "addon-status desc" },
+      p.unsupported ? h("span", { class: "warn-text" }, "Unavailable: " + p.unsupported + ". Its actions cannot run.")
+                    : "Installed and loaded, so its actions can run.",
+      notes.length ? " " + notes.join(" ") : ""),
+    h("table", { class: "table actions" },
+      h("colgroup", {}, h("col", { class: "c-approve" }), h("col", {})),
+      h("thead", {}, h("tr", {}, h("th", {}, "Enabled"), h("th", {}, "Action"))),
+      h("tbody", {},
+        acts.map((a) => actionRows(a, shared)),
+        reads.length > 0 && [section("Reading data: always enabled"), reads.map((a) => actionRows(a, shared))])));
+}
+
 function areaState(role, area) {
-  if (role.grants.includes(area.area)) return { level: "all", count: area.names.length, some: [] };
+  if (role.grants.includes(area.area)) return { level: "all", count: namesOf(area).length, some: [], whole: true };
   const some = areaNames(area).filter((n) => role.grants.includes(n));
-  return { level: some.length ? "some" : "none", count: some.length, some };
+  // Add-ons: allowing every action enabled now is "all". It is not the whole
+  // area, which would also cover actions enabled later (Everything has that).
+  const all = area.area === "addon" && some.length > 0 && some.length === areaNames(area).length;
+  return { level: all ? "all" : some.length ? "some" : "none", count: some.length, some };
 }
 
 // One cell per area: filled = all of it, half = some, empty = none.
 function strip(role) {
   return h("span", { class: "strip", "aria-hidden": "true" }, S.catalog.map((area) => {
     const st = areaState(role, area);
-    const what = st.level === "all" ? "all" : st.level === "some" ? `${st.count} of ${area.names.length}` : "none";
+    const what = st.level === "all" ? "all" : st.level === "some" ? `${st.count} of ${namesOf(area).length}` : "none";
     return h("i", { class: st.level, title: `${area.label}: ${what}` });
   }));
 }
@@ -246,7 +390,7 @@ function summary(role) {
   const states = S.catalog.map((area) => [area, areaState(role, area)]);
   if (states.every(([, st]) => st.level === "all")) return "Everything";
   const parts = states.filter(([, st]) => st.level !== "none").map(([area, st]) =>
-    st.level === "all" ? area.short : `${area.short} (${st.count}/${area.names.length})`);
+    st.level === "all" ? area.short : `${area.short} (${st.count}/${namesOf(area).length})`);
   return parts.length ? parts.join(", ") : "Nothing";
 }
 
@@ -304,7 +448,9 @@ const PAGE = {
         h("td", {}, h("span", { class: "key-preview", title: "Key (More shows it in full)" },
                       app.key ? "••••" + app.key.slice(-4) : "no key"),
           link("Copy", (e) => copyKey(app.key, e.currentTarget), { title: "Copy the key" })),
-        h("td", { class: "end" }, link(open ? "Less" : "More", toggle, { "aria-expanded": String(open), class: "link more" })))];
+        h("td", { class: "end" }, h("button", { type: "button", class: "disclosure", onclick: toggle, "aria-expanded": String(open),
+          "aria-label": (open ? "Hide" : "Show") + " the key and actions for " + app.name,
+          title: open ? "Hide the key and actions" : "Show the key, New key and Remove" }, icon("chevron"))))];
       if (open) {
         out.push(h("tr", { class: "app-detail" }, h("td", { colspan: 4 },
           h("div", { class: "detail" },
@@ -312,7 +458,7 @@ const PAGE = {
             h("input", { type: "text", class: "key", "aria-label": "Key of " + app.name, spellcheck: "false",
                          value: app.key, oninput: (e) => { app.key = e.target.value; } }),
             h("button", { type: "button", title: "Replace with a new random key and copy it. The old key stops working after Save.",
-                          onclick: async () => { app.key = await call("new_key"); copyKey(app.key); notify("New key copied to the clipboard"); } }, "New key"),
+                          onclick: async () => { app.key = await call("new_key"); copyKey(app.key); notify("New key copied. It works once you save; until then the old key stays active."); } }, "New key"),
             h("span", { class: "spacer" }),
             h("button", { type: "button", class: "danger", "aria-label": "Remove " + app.name,
                           onclick: () => { draft.apps.splice(i, 1); openApps.clear(); render(); } }, "Remove app")))));
@@ -337,7 +483,7 @@ const PAGE = {
             draft.apps.push({ name: "New app " + n, key, role: "default" });
             openApps.add(draft.apps.length - 1);
             copyKey(key);
-            notify("New app added; its key is copied to the clipboard");
+            notify("New app added and its key copied. The key works once you save.");
           } }, "Add app"))),
     ];
   },
@@ -378,6 +524,21 @@ const PAGE = {
     ];
   },
 
+  addons() {
+    const known = new Set(allActions().map((a) => a.key));
+    const orphans = Object.keys(draft.addon_enabled).filter((k) => !known.has(k));
+    return [
+      header("Add-ons", "Actions your add-ons offer to apps."),
+      h("p", { class: "rule" }, "An action runs only if it is enabled here and the app's role allows it (Roles). " +
+        "Reading data is always enabled; the role decides."),
+      S.providers.length ? S.providers.map(providerCard)
+        : h("section", { class: "card" }, h("p", { class: "empty" }, "No add-on offers actions.")),
+      orphans.length > 0 && h("p", { class: "help", id: "orphanApprovals" },
+        `${orphans.length} enabled action${orphans.length === 1 ? " is" : "s are"} kept for add-ons that offer no actions right now ` +
+        "(not installed, or Tsunagi's server is off). Restore defaults clears them."),
+    ];
+  },
+
   roles() {
     if (editing && roleById(editing)) return roleEditor(roleById(editing));
     return [
@@ -386,8 +547,8 @@ const PAGE = {
         h("table", { class: "table roles" },
           h("thead", {}, h("tr", {}, h("th", {}, "Role"), h("th", {}, "Allows"), h("th", {}, "Used by"), h("th", {}))),
           h("tbody", {}, draft.roles.map((r) => {
-            const def = S.roles.find((x) => x.id === r.id)?.default;
-            const edited = def && (def.name !== r.name || !sameGrants(def.grants, r.grants));
+            const def = defaultOf(r);
+            const edited = def && !sameRole(def, r);
             const users = usersOf(r.id);
             return h("tr", { "data-role": r.id },
               h("td", {}, h("b", {}, r.name), def ? h("span", { class: "tag" }, edited ? "Built-in, edited" : "Built-in") : null),
@@ -438,7 +599,7 @@ const PAGE = {
 
 function roleEditor(r) {
   const locked = r.id === "none";
-  const def = S.roles.find((x) => x.id === r.id)?.default;
+  const def = defaultOf(r);
   const isDefault = def && sameRole(def, r);
   const savedRole = saved.roles.find((x) => x.id === r.id);
   const users = usersOf(r.id);
@@ -446,20 +607,26 @@ function roleEditor(r) {
   const rows = S.catalog.map((area) => {
     const names = areaNames(area);
     const st = areaState(r, area);
+    const addons = area.area === "addon";
     const box = h("input", { type: "checkbox", id: "area_" + area.area, checked: st.level === "all", disabled: locked,
-      onchange: (e) => setGrants(r.grants.filter((x) => x !== area.area && !names.includes(x)).concat(e.target.checked ? [area.area] : [])) });
+      onchange: (e) => setGrants(r.grants.filter((x) => x !== area.area && !names.includes(x))
+        .concat(!e.target.checked ? [] : area.area === "addon" ? names : [area.area])) });
     box.indeterminate = st.level === "some";
     const open = openAreas.has(area.area);
     const out = [h("tr", { class: "area" },
       h("td", { class: "area-box" }, box),
       h("td", {}, h("label", { for: "area_" + area.area }, h("b", {}, area.label)), h("div", { class: "help" }, area.description)),
       h("td", { class: "end" }, names.length
-        ? [h("span", { class: "muted small" }, st.level === "all" ? "all" : `${st.count} of ${names.length}`), " ",
+        ? [h("span", { class: "muted small" }, st.level !== "all" ? `${st.count} of ${names.length}`
+             : addons && st.whole ? "all, including ones enabled later" : "all"), " ",
            link(open ? "Done" : "Choose", () => { open ? openAreas.delete(area.area) : openAreas.add(area.area); render(); },
                 { "data-area": area.area, disabled: locked })]
+        : addons ? [h("span", { class: "muted small" }, "none enabled"), " ", link("Add-ons", () => go("addons"))]
         : null))];
-    if (open && names.length) {
-      out.push(h("tr", { class: "parts" }, h("td", {}), h("td", { colspan: 2 }, h("div", { class: "names" }, area.names.map((n) =>
+    if (open && addons) {
+      out.push(h("tr", { class: "parts" }, h("td", {}), h("td", { colspan: 2 }, addonParts(r, area, st, locked, setGrants))));
+    } else if (open && names.length) {
+      out.push(h("tr", { class: "parts" }, h("td", {}), h("td", { colspan: 2 }, h("div", { class: "names" }, namesOf(area).map((n) =>
         h("label", { class: "check" },
           h("input", { type: "checkbox", id: "perm_" + n.name, checked: st.level === "all" || st.some.includes(n.name), disabled: locked,
             onchange: (e) => {
@@ -480,7 +647,7 @@ function roleEditor(r) {
         h("p", { class: "lead" }, users.length ? ["Used by ", userLinks(users)] : "Not used by any app or source yet.")),
       actionBar(savedRole && !sameRole(savedRole, r) && (() => { r.name = savedRole.name; r.grants = [...savedRole.grants]; }),
                 def && !locked && !isDefault && (() => { r.name = def.name; r.grants = [...def.grants]; }),
-                ["revertRole", "resetRole"])),
+                ["revertRole", "resetRole"], "role")),
     h("section", { class: "card flush" },
       h("div", { class: "role-name" }, h("label", { for: "roleName" }, "Name"),
         h("input", { type: "text", id: "roleName", value: r.name, disabled: locked, oninput: (e) => { r.name = e.target.value; } })),
@@ -499,47 +666,120 @@ function roleEditor(r) {
   ];
 }
 
-function restoreAllDialog() {
-  const custom = draft.roles.filter((r) => !S.roles.find((x) => x.id === r.id)?.default).length;
-  const apps = draft.apps.length;
-  const items = [
-    "Server, limits and logging",
-    apps ? `Remove ${apps} app${apps === 1 ? "" : "s"} and ${apps === 1 ? "its key" : "their keys"}` : null,
-    "Requests without a key: this computer gets Default, other devices get No access",
-    "Allowed websites back to http://localhost; Anki's own pages off",
-    "Built-in roles back to their defaults" + (custom ? `; remove ${custom} custom role${custom === 1 ? "" : "s"}` : ""),
-  ].filter(Boolean);
-  return h("div", { class: "overlay", role: "dialog", "aria-modal": "true", "aria-labelledby": "restoreTitle" },
-    h("div", { class: "dialog" },
-      h("h2", { id: "restoreTitle" }, "Restore all defaults?"),
-      h("p", {}, "This resets every page, not just the one you're on:"),
-      h("ul", {}, items.map((t) => h("li", {}, t))),
-      h("p", { class: "help" }, "Nothing changes until you click Save. AnkiConnect import history is kept."),
-      h("div", { class: "dialog-actions" },
-        h("button", { type: "button", onclick: () => { confirmAll = false; render(); } }, "Keep my settings"),
-        h("button", { type: "button", class: "danger-fill", id: "confirmRestoreAll", onclick: () => {
-          draft = draftFrom(S.defaults);
-          pending = null; openApps.clear(); confirmAll = false; editing = null;
-          render();
-        } }, "Restore all defaults"))));
+// Every action by add-on, with the two steps apart: the checkbox is this
+// role's permission; the status says whether the action is approved, since
+// an action runs only when both are true.
+function addonParts(r, area, st, locked, setGrants) {
+  const names = areaNames(area);
+  const choose = (name, on) => {
+    let chosen = st.level === "all" ? names : st.some;
+    chosen = on ? chosen.concat([name]) : chosen.filter((x) => x !== name);
+    // By name, never collapsed into the whole area: that would also allow
+    // actions enabled later.
+    setGrants(r.grants.filter((x) => x !== area.area && !names.includes(x)).concat(chosen));
+  };
+  const intro = h("div", { class: "desc permits-intro" }, "Checked: this role allows the action. It runs only if " +
+    "the action is also enabled on the Add-ons page.");
+  return [intro, S.providers.map((p) => {
+    const acts = allActions().filter((a) => a.provider === p.title && a.level !== "read");
+    return acts.length > 0 && h("div", { class: "addon-parts" },
+      h("div", { class: "group" }, p.title),
+      h("table", { class: "permits" }, h("tbody", {}, acts.map((a) => {
+        const name = addonName(a.key);
+        const ok = approved(a);
+        const permits = allows(r, name);
+        const status = ok ? ["Enabled", permits ? "Runs for this role" : "Not for this role"]
+                          : ["Disabled", permits ? "Allowed here; runs once enabled" : "Won't run"];
+        return h("tr", { id: "row_" + permId(a), class: ok ? "" : "unapproved" },
+          h("td", { class: "area-box" },
+            h("input", { type: "checkbox", id: permId(a), checked: permits, disabled: locked || !ok || r.grants.includes(area.area),
+                         title: !ok ? "Enable it on the Add-ons page first" : r.grants.includes(area.area) ? "This role allows every enabled action" : null,
+                         onchange: (e) => choose(name, e.target.checked) })),
+          h("td", {}, h("label", { for: permId(a), class: a.level === "destructive" ? "destructive" : null }, a.title),
+            a.level === "destructive" && h("span", { class: "tag danger" }, "Destructive")),
+          h("td", { class: "status" }, h("span", { class: "tag " + (ok ? "ok" : "off") }, status[0]), " ", status[1],
+            !ok && [" ", link("Enable…", () => { go("addons"); const row = document.getElementById(rowId(a));
+                                                             if (row) { row.scrollIntoView({ block: "center" }); row.classList.add("flash"); } },
+                              { title: "Open this action on the Add-ons page" })]));
+      }))));
+  })];
 }
+
+// X or Esc with unsaved changes (Python calls askClose instead of closing).
+function closeDialog() {
+  const dirty = PAGES.filter(([id]) => changed(id)).map(([, title]) => title);
+  return h("div", { class: "overlay", role: "dialog", "aria-modal": "true", "aria-labelledby": "closeTitle" },
+    h("div", { class: "dialog" },
+      h("h2", { id: "closeTitle" }, "Save your changes?"),
+      h("p", {}, "You have unsaved changes on: " + dirty.join(", ") + "."),
+      h("div", { class: "dialog-actions" },
+        h("button", { type: "button", id: "keepEditing", onclick: () => { closing = false; render(); } }, "Keep editing"),
+        h("span", { class: "spacer" }),
+        h("button", { type: "button", id: "discardClose", onclick: () => call("close") }, "Discard"),
+        h("button", { type: "button", class: "primary", id: "saveClose", onclick: () => { closing = false; save(true); } }, "Save"))));
+}
+window.askClose = () => { closing = true; render(); document.getElementById("saveClose")?.focus(); };
 
 function showErrors(errors) {
   const box = document.getElementById("errors");
   box.hidden = !errors.length;
-  box.replaceChildren(h("ul", {}, errors.map((e) => h("li", {}, e))));
+  box.replaceChildren(h("ul", {}, errors.map((e) => h("li", {}, typeof e === "string" ? e : e.message))));
 }
 
-document.getElementById("save").addEventListener("click", async () => {
+// Neither Save nor Cancel closes the window; only X/Esc does (asking first
+// when there are unsaved changes, and that prompt's Save also closes).
+// Save validates every page. On a problem it goes to the page that has it,
+// with the field focused; otherwise the saved state is the new baseline.
+async function save(close = false) {
   showErrors([]);
-  const res = await call("save", draft);
-  if (res && res.errors) showErrors(res.errors);
-  else if (res && res.error) showErrors([res.error]);
+  const res = await call("save", { ...draft, close });
+  const errors = (res && res.errors) || (res && res.error ? [res.error] : []);
+  if (!errors.length) {
+    if (res && res.state) { load(res.state); discardDraft(); notify("Saved"); }
+    return;
+  }
+  showErrors(errors);
+  const first = errors.find((e) => e.page);
+  if (!first) return;
+  if (first.page !== page) go(first.page);
+  const el = first.field && document.getElementById(first.field);
+  if (el) { el.scrollIntoView({ block: "center" }); el.focus(); el.classList.add("flash"); }
+}
+
+// Cancel: throw away unsaved changes on every page (Revert this page is the
+// per-page version).
+function discardDraft() {
+  draft = draftFrom(S);
+  pending = null; preImport = null;
+  openApps.clear();
+  if (editing && !roleById(editing)) editing = null;
+  showErrors([]);
+}
+
+document.getElementById("save").addEventListener("click", () => save());
+// Fields update the draft in their own handlers; these run after them.
+for (const type of ["input", "change"]) {
+  document.getElementById("main").addEventListener(type, () => { if (S) renderChrome(); });
+}
+document.getElementById("cancel").addEventListener("click", () => {
+  discardDraft();
+  notify("Unsaved changes on every page discarded");
 });
-document.getElementById("cancel").addEventListener("click", () => call("cancel"));
+
+// Whether the server is up, polled: saving can restart it, Anki can stop it.
+async function pollServer() {
+  const st = await call("server_status");
+  const el = document.getElementById("server");
+  el.className = "server " + (st && st.running ? "on" : "off");
+  el.replaceChildren(h("span", { class: "indicator", "aria-hidden": "true" }),
+    ...(st && st.running ? ["Server running", h("span", { class: "muted" }, " on " + st.url.replace("http://", ""))]
+                         : ["Server off"]));
+}
 
 (function start() {
   // pycmd exists once Anki's web channel is ready.
   if (typeof pycmd !== "function") return setTimeout(start, 20);
   call("state").then((state) => { load(state); window.tsunagiReady = true; });
+  pollServer();
+  setInterval(pollServer, 2000);
 })();

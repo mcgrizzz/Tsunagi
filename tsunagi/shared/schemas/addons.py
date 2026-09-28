@@ -42,7 +42,7 @@ class ActionInfo(BaseModel):
     level: str = Field(description="read, normal or destructive (a backup is made before it runs)")
     params: Dict[str, ActionParam]
     shows_ui: bool = Field(description="Shows a progress window or message on the computer running Anki")
-    status: str = Field(description="allowed, needs_approval (approve it in Tsunagi's settings), "
+    status: str = Field(description="allowed, disabled (the user has not enabled it in Tsunagi's settings), "
                                     "not_permitted (the caller's role lacks it) or unsupported")
 
 

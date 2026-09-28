@@ -55,7 +55,7 @@ snake_case is a good choice.
 | --- | --- | --- |
 | `name` | yes | a-z, 0-9, _; unique within your provider |
 | `title` | no | the menu text; defaults to `name` |
-| `description` | no | one or two sentences for users approving it |
+| `description` | no | one or two sentences for users deciding whether to enable it |
 | `level` | yes | `read`, `normal` or `destructive` (below) |
 | `run` | yes | the function to call |
 | `params` | no | `{name: param}`; see below |
@@ -63,16 +63,16 @@ snake_case is a good choice.
 
 **Levels.**
 
-- `read` returns data (what a screen of yours shows). Apps may call it without
-  approval.
-- `normal` changes something. The user approves it once in Tsunagi's
-  settings before any app can run it.
-- `destructive` is hard to undo (deleting data, clearing history). It needs
-  approval and a role that allows it, and Tsunagi makes an Anki backup before
-  each run.
+- `read` returns data (what a screen of yours shows). It is always enabled;
+  only the app's role decides.
+- `normal` changes something. It is disabled until the user enables it in
+  Tsunagi's settings.
+- `destructive` is hard to undo (deleting data, clearing history). The user
+  must enable it and give a role access to it, and Tsunagi makes an Anki
+  backup before each run.
 
-If an update of your add-on changes an action's level, users approve it
-again. Nothing is widened silently.
+If an update of your add-on changes an action's level, it is disabled until
+the user enables it again. Nothing is widened silently.
 
 **`run`** is called on Anki's main thread with the validated parameters as
 keyword arguments. Parameters the app left out that have a `default` are
@@ -123,5 +123,5 @@ the same defaults and bounds as your dialogs.
   parameters).
 - Apps cannot abort an action once it runs.
 
-See [Configuration](../config.md) for approvals and roles, and
+See [Configuration](../config.md) for enabling actions and roles, and
 [Security model](security.md) for how actions are limited.

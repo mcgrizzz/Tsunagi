@@ -18,11 +18,11 @@ marked **verified** (checked against the code or with real requests) or
   Helper's rescheduling through a bundled provider; other add-ons register
   their own), which may bypass Anki's operations and change many cards at
   once. A registering add-on is already code running inside Anki, so its
-  labels are trusted. Each action runs only after the
-  user approves it (`addon_approvals`, only in the config file for now), and
-  only for roles that grant it. Approved `normal` actions join Default;
+  labels are trusted. Each action is disabled until the
+  user enables it (settings → Add-ons, stored as `addon_enabled`), and
+  runs only for roles that grant it. Enabled `normal` actions join Default;
   `destructive` ones are only in Everything and run after an Anki backup.
-  An add-on update that relabels an action puts it back to unapproved. A
+  An add-on update that relabels an action disables it again. A
   provider checks the add-on's entry points before calling them and reports
   "unsupported" rather than guessing (verified in tests and against FSRS
   Helper in a disposable profile).

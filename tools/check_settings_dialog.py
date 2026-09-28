@@ -1,8 +1,9 @@
 """Drive the real settings page (AnkiWebView + pycmd bridge) in a disposable Anki profile.
 
-Covers load, apps and no-key roles, the other-devices confirmation, a page's own
-restore, role edit and reset, the confirmed global restore, cancel, and the
-AnkiConnect import-and-handover path. --screenshot PATH also saves images
+Covers load, apps and no-key roles, the other-devices confirmation (Save going
+to the field that needs it), a page's own revert and restore, role edit and
+reset, add-on enabling and role grants, Save and Cancel keeping the window open,
+the unsaved-changes prompt on X/Esc, and the AnkiConnect import-and-handover path. --screenshot PATH also saves images
 (PATH-<name>.png), in light and dark themes.
 """
 import socket
@@ -14,13 +15,14 @@ from unittest.mock import patch
 
 from qt_smoke import aqt, run, until
 
-from tsunagi.adapters import settings_dialog, settings_page
+from tsunagi.adapters import addon_actions, settings_dialog, settings_page
 from tsunagi.adapters.config import ADDON_PACKAGE, _migrate
 from tsunagi.adapters.dialogs import ANKICONNECT_ID
 
 HELPERS = """
 window.$ = (s) => document.querySelector(s);
-window.setv = (s, v, ev) => { const e = $(s); e.value = v; e.dispatchEvent(new Event(ev || 'input')); };
+// Events bubble, as real typing and selecting do.
+window.setv = (s, v, ev) => { const e = $(s); e.value = v; e.dispatchEvent(new Event(ev || 'input', { bubbles: true })); };
 window.go = (id) => $('[data-page=' + id + ']').click();
 """
 
@@ -66,9 +68,19 @@ def shoot(app, dlg, path, name):
     dlg.grab().save(str(path.with_name(f"{path.stem}-{name}.png")))
 
 
-def save(app, dlg):
-    js(app, dlg, "$('#save').click()")
+def close(app, dlg):
+    if js(app, dlg, "!$('#cancel').disabled"):
+        js(app, dlg, "$('#cancel').click()")  # discards unsaved changes; stays open
+        assert dlg.isVisible() and js(app, dlg, "$('#cancel').disabled && $('#save').disabled")
+    dlg.reject()  # X/Esc: closes at once when nothing is unsaved
     until(app, lambda: not dlg.isVisible())
+
+
+def save(app, dlg):
+    js(app, dlg, "$('#save').click()")  # saves every page; stays open
+    until(app, lambda: js(app, dlg, "$('#status').textContent === 'Saved'"))
+    assert dlg.isVisible() and js(app, dlg, "$('#save').disabled && $('#cancel').disabled")
+    close(app, dlg)
 
 
 def check(app, screenshot):
@@ -85,19 +97,39 @@ def check(app, screenshot):
         # Load and render every page.
         dlg = open_page(app)
         assert js(app, dlg, "$('#version').textContent").startswith("Tsunagi ")
-        assert js(app, dlg, "$('footer #restoreAll') === null && $('#nav #restoreAll') !== null")
-        for page in ("server", "apps", "nokey", "web", "roles", "ankiconnect"):
+        assert js(app, dlg, "$('#restoreAll') === null")  # no global reset
+        assert js(app, dlg, "$('#save').disabled && $('#cancel').disabled")  # nothing to save or discard
+        until(app, lambda: js(app, dlg, "$('#server').textContent") == "Server off")  # not started here
+        for page in ("server", "apps", "nokey", "web", "addons", "roles", "ankiconnect"):
             js(app, dlg, f"go('{page}')")
             assert js(app, dlg, "$('main h1') !== null")
             if screenshot:
                 shoot(app, dlg, screenshot, page)
         print("PASS: page loads and renders every page", flush=True)
 
+        # Typing in a field enables Save and Cancel and marks the page, and the
+        # field keeps its focus; checkboxes too.
+        js(app, dlg, "go('server'); $('#host').focus(); setv('#host', '127.0.0.2')")
+        assert js(app, dlg, "!$('#save').disabled && !$('#cancel').disabled && $('[data-page=server] .dot') !== null")
+        assert js(app, dlg, "document.activeElement.id") == "host"
+        js(app, dlg, "setv('#host', '127.0.0.1')")
+        assert js(app, dlg, "$('#save').disabled && $('[data-page=server] .dot') === null")
+        js(app, dlg, "$('#enabled').click()")
+        assert js(app, dlg, "!$('#save').disabled")
+        js(app, dlg, "$('#enabled').click()")
+        assert js(app, dlg, "$('#save').disabled")
+        print("PASS: typing or ticking enables Save at once", flush=True)
+
         # An app with a new key in Read-only; keyless local requests closed.
         js(app, dlg, "go('apps'); $('#addApp').click()")
         until(app, lambda: js(app, dlg, "document.querySelectorAll('.app').length === 1"))
         assert js(app, dlg, "$('.app-detail .key') !== null")  # a new app opens with its key shown
-        assert "copied" in js(app, dlg, "$('#status').textContent")
+        assert js(app, dlg, "!$('#save').disabled")
+        assert "works once you save" in js(app, dlg, "$('#status').textContent")
+        js(app, dlg, "$('.app button.disclosure').click()")
+        assert js(app, dlg, "$('.app-detail') === null && $('.app button.disclosure').getAttribute('aria-expanded') === 'false'")
+        js(app, dlg, "$('.app button.disclosure').click()")
+        assert js(app, dlg, "$('.app-detail') !== null")
         js(app, dlg, "[...document.querySelectorAll('.app button.link')].find((b) => b.textContent === 'Copy').click()")
         assert js(app, dlg, "[...document.querySelectorAll('.app button.link')].some((b) => b.textContent === 'Copied')")
         js(app, dlg, "setv('.app .app-name', 'Phone'); setv('.app select', 'read_only', 'change')")
@@ -117,10 +149,13 @@ def check(app, screenshot):
         js(app, dlg, "go('nokey'); setv('#no_key_remote_role', 'read_only', 'change')")
         if screenshot:
             shoot(app, dlg, screenshot, "nokey-confirm")
-        js(app, dlg, "$('#save').click()")
+        # Save from another page: it stays open and goes to the field that needs attention.
+        js(app, dlg, "go('server'); $('#save').click()")
         until(app, lambda: js(app, dlg, "!$('#errors').hidden"))
         assert "Confirm that other devices" in js(app, dlg, "$('#errors').textContent")
         assert dlg.isVisible() and store["cfg"]["no_key_remote_role"] == "none"
+        assert js(app, dlg, "$('[data-page=nokey]').getAttribute('aria-current') === 'true'")
+        assert js(app, dlg, "document.activeElement.id") == "confirmRemote"
         assert js(app, dlg, "$('[data-page=nokey] .dot') !== null && $('#revertPage') !== null")
         js(app, dlg, "go('server'); setv('#host', '0.0.0.0'); go('nokey'); $('#revertPage').click()")
         # Revert brings back this page's saved values only; the Server edit stays.
@@ -153,19 +188,119 @@ def check(app, screenshot):
         assert store["cfg"]["roles"] == {}
         print("PASS: role edit and reset", flush=True)
 
-        # Restore all defaults asks first; Cancel then changes nothing.
+        # Add-ons: approve on the Add-ons page; Default follows, destructive
+        # actions only in Everything; withdrawing takes it out of every role.
+        addon_actions.Registry().provide("check_addon", "Check Add-on", actions=[
+            {"name": "apply", "title": "Apply it", "level": "normal", "run": print, "shows_ui": True},
+            {"name": "later", "title": "Later", "level": "normal", "run": print},
+            {"name": "wipe", "title": "Wipe history", "level": "destructive", "run": print},
+            {"name": "peek", "title": "Peek", "level": "read", "run": print}])
+        # Add-on text is not ours: long names and descriptions, several add-ons.
+        long_text = ("Rebuilds every filtered deck in the collection, one after another, then re-sorts the "
+                     "cards in each by the options that deck was created with. ") * 6
+        addon_actions.Registry().provide("long_addon", "An Add-on With A Rather Long Name For Testing Layout",
+                                         actions=[
+            {"name": "rebuild", "level": "normal", "run": print, "description": long_text,
+             "title": "Rebuild all filtered decks and re-sort them by their original search order options"},
+            {"name": "purge", "title": "Purge", "level": "destructive", "run": print, "shows_ui": True,
+             "description": "Deletes review history older than a year."},
+            {"name": "stats", "title": "Statistics for every deck including subdecks and filtered decks",
+             "level": "read", "run": print, "description": long_text}])
+        addon_actions.Registry().provide("other_addon", "Other Add-on", actions=[
+            {"name": "tidy", "title": "Tidy", "level": "normal", "run": print}])
+        byid = "document.getElementById"
+        try:
+            dlg = open_page(app)
+            js(app, dlg, "go('addons')")
+            assert "Unavailable: FSRS Helper" in js(app, dlg, "$('[data-provider=fsrs_helper]').textContent")
+            card = js(app, dlg, "$('[data-provider=check_addon]').textContent")
+            assert "0 of 3 enabled" in card and "Can run it" not in card
+            if screenshot:
+                shoot(app, dlg, screenshot, "addons-disabled")
+            js(app, dlg, "$('[data-approve-all=check_addon]').click()")
+            assert js(app, dlg, f"{byid}('approve_check_addon__wipe').checked") is False
+            js(app, dlg, f"{byid}('approve_check_addon__wipe').click()")
+            text = js(app, dlg, "$('[data-provider=check_addon]').textContent")
+            assert "3 of 3 enabled" in text
+            # Reads are always enabled: checked and locked.
+            assert js(app, dlg, f"{byid}('approve_check_addon__peek').checked && {byid}('approve_check_addon__peek').disabled")
+            # Long descriptions start folded, with a visible control for the full text.
+            long_row = "document.querySelector('[data-provider=long_addon] .action-desc')"
+            assert js(app, dlg, f"{long_row}.querySelector('.folded') !== null")
+            if screenshot:
+                js(app, dlg, "$('[data-provider=long_addon]').scrollIntoView()")
+                shoot(app, dlg, screenshot, "addons-long")
+            js(app, dlg, f"{long_row}.querySelector('button.fold').click()")
+            assert js(app, dlg, f"{long_row}.querySelector('.folded') === null")
+            if screenshot:
+                js(app, dlg, "$('[data-provider=long_addon]').scrollIntoView()")
+                shoot(app, dlg, screenshot, "addons-long-open")
+            js(app, dlg, "$('main').scrollTop = 0")
+            if screenshot:
+                shoot(app, dlg, screenshot, "addons")
+            js(app, dlg, "go('roles'); $('[data-edit=default]').click(); $('[data-area=addon]').click()")
+            assert js(app, dlg, f"{byid}('perm_addon:check_addon/apply').checked") is True
+            assert js(app, dlg, f"{byid}('perm_addon:check_addon/wipe').checked") is False
+            # Allowing every enabled action by name shows a full check, but it is not
+            # the whole area: actions enabled later are not allowed by it.
+            js(app, dlg, f"{byid}('perm_addon:check_addon/wipe').click()")
+            assert js(app, dlg, "$('#area_addon').checked && !$('#area_addon').indeterminate")
+            assert js(app, dlg, "draft.roles.find((r) => r.id === 'default').grants.includes('addon')") is False
+            js(app, dlg, f"{byid}('perm_addon:check_addon/wipe').click()")
+            assert js(app, dlg, "$('#area_addon').indeterminate")
+            assert js(app, dlg, "$('#resetRole') === null")  # approving left Default at its defaults
+            if screenshot:
+                js(app, dlg, "$('[data-area=addon]').scrollIntoView()")
+                shoot(app, dlg, screenshot, "role-addons")
+            save(app, dlg)
+            assert store["cfg"]["addon_enabled"] == {"check_addon/apply": "normal", "check_addon/later": "normal",
+                                                      "check_addon/wipe": "destructive"}
+            assert store["cfg"]["roles"] == {}
+            dlg = open_page(app)
+            js(app, dlg, f"go('addons'); {byid}('approve_check_addon__later').click()")
+            js(app, dlg, "go('roles'); $('[data-edit=default]').click(); $('[data-area=addon]').click()")
+            assert js(app, dlg, f"{byid}('perm_addon:check_addon/later').disabled") is True
+            assert "Disabled" in js(app, dlg, f"{byid}('row_perm_addon:check_addon/later').textContent")
+            js(app, dlg, "go('addons'); $('#revertPage').click()")
+            assert js(app, dlg, f"{byid}('approve_check_addon__later').checked") is True
+            js(app, dlg, "go('roles')")
+            assert "Built-in, edited" not in js(app, dlg, "$('[data-role=default]').textContent")
+            close(app, dlg)
+        finally:
+            for pid in ("check_addon", "long_addon", "other_addon"):
+                addon_actions.PROVIDERS.pop(pid, None)
+        print("PASS: add-on approvals, Default's grants and revert", flush=True)
+
+        # X / Esc: closes at once when clean; with unsaved changes it asks
+        # Save / Discard / Keep editing.
         before = dict(store["cfg"])
         dlg = open_page(app)
-        js(app, dlg, "$('#restoreAll').click()")
-        assert "Remove 1 app" in js(app, dlg, "$('.dialog').textContent")
+        dlg.reject()
+        until(app, lambda: not dlg.isVisible())
+        dlg = open_page(app)
+        js(app, dlg, "go('nokey'); setv('#no_key_local_role', 'default', 'change')")
+        until(app, lambda: dlg.tsunagi_bridge.dirty)
+        dlg.reject()
+        until(app, lambda: js(app, dlg, "$('.dialog') !== null"))
+        assert dlg.isVisible() and "Requests without a key" in js(app, dlg, "$('.dialog').textContent")
         if screenshot:
-            shoot(app, dlg, screenshot, "restore-all")
-        js(app, dlg, "$('#confirmRestoreAll').click()")
-        until(app, lambda: js(app, dlg, "go('apps'); $('.app') === null && $('.dialog') === null"))
-        js(app, dlg, "$('#cancel').click()")
+            shoot(app, dlg, screenshot, "close-prompt")
+        js(app, dlg, "$('#keepEditing').click()")
+        assert js(app, dlg, "$('.dialog') === null") and dlg.isVisible()
+        dlg.reject()
+        until(app, lambda: js(app, dlg, "$('.dialog') !== null"))
+        js(app, dlg, "$('#discardClose').click()")
         until(app, lambda: not dlg.isVisible())
         assert store["cfg"] == before
-        print("PASS: restore all defaults confirms; cancel keeps settings", flush=True)
+        dlg = open_page(app)
+        js(app, dlg, "go('nokey'); setv('#no_key_local_role', 'default', 'change')")
+        until(app, lambda: dlg.tsunagi_bridge.dirty)
+        dlg.reject()
+        until(app, lambda: js(app, dlg, "$('.dialog') !== null"))
+        js(app, dlg, "$('#saveClose').click()")
+        until(app, lambda: not dlg.isVisible())
+        assert store["cfg"]["no_key_local_role"] == "default"
+        print("PASS: X/Esc closes when clean, asks Save / Discard / Keep editing when not", flush=True)
 
         # AnkiConnect import: stage, save, hand the port over.
         server, timer = ProbeServer(), aqt.qt.QTimer()
@@ -185,6 +320,7 @@ def check(app, screenshot):
                 until(app, lambda: js(app, dlg, "$('#pendingImport') !== null"))
                 assert str(server.port) in js(app, dlg, "$('#pendingImport').textContent")
                 save(app, dlg)
+                until(app, lambda: restarts)
         finally:
             sys.modules.pop(ANKICONNECT_ID, None)
             timer.stop()
@@ -200,12 +336,16 @@ def check(app, screenshot):
             from aqt.theme import Theme
 
             aqt.mw.set_theme(Theme.DARK)
+            with patch("tsunagi.app.server_url", lambda: "http://127.0.0.1:7777"):
+                dlg = open_page(app)
+                until(app, lambda: js(app, dlg, "$('#server').textContent") == "Server running on 127.0.0.1:7777")
+                shoot(app, dlg, screenshot, "dark-running")
+                close(app, dlg)
             dlg = open_page(app)
-            for page in ("apps", "roles"):
+            for page in ("apps", "addons", "roles"):
                 js(app, dlg, f"go('{page}')")
                 shoot(app, dlg, screenshot, "dark-" + page)
-            js(app, dlg, "$('#cancel').click()")
-            until(app, lambda: not dlg.isVisible())
+            close(app, dlg)
 
 
 if __name__ == "__main__":

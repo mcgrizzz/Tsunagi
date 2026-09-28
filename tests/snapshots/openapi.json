@@ -29,7 +29,7 @@
             "type": "boolean"
           },
           "status": {
-            "description": "allowed, needs_approval (approve it in Tsunagi's settings), not_permitted (the caller's role lacks it) or unsupported",
+            "description": "allowed, disabled (the user has not enabled it in Tsunagi's settings), not_permitted (the caller's role lacks it) or unsupported",
             "title": "Status",
             "type": "string"
           },
@@ -2738,7 +2738,7 @@
     },
     "/v1/addons/{provider_id}/actions/{name}:run": {
       "post": {
-        "description": "The body holds the action's parameters. A read answers 200 with its data. Any other action answers 202 with a job; poll GET /v1/jobs/{id}. Its result is `{provider, action, result, settled, backup}`: `settled` is false if the add-on's follow-up work did not end within two minutes, `backup` names the Anki backup made before a destructive action. Actions cannot be aborted. Needs `addon:<provider>/<name>`, which the user approves in Tsunagi's settings; reads need read:addons. 409 if the add-on is unavailable or another job is running.",
+        "description": "The body holds the action's parameters. A read answers 200 with its data. Any other action answers 202 with a job; poll GET /v1/jobs/{id}. Its result is `{provider, action, result, settled, backup}`: `settled` is false if the add-on's follow-up work did not end within two minutes, `backup` names the Anki backup made before a destructive action. Actions cannot be aborted. The user must enable the action in Tsunagi's settings, and the caller needs `addon:<provider>/<name>`; reads need only read:addons. 409 if the add-on is unavailable or another job is running.",
         "operationId": "runAddonAction",
         "parameters": [
           {

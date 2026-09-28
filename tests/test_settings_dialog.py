@@ -21,7 +21,7 @@ HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_
                # edited by the settings page's own sections (settings_page.py)
                "apps", "no_key_local_role", "no_key_remote_role", "roles",
                # approved on the settings page's Add-ons section (backlog 2b-P)
-               "addon_approvals"}
+               "addon_enabled"}
 
 
 class TestFieldSpec:

@@ -15,7 +15,7 @@ docs/addon_providers.md. Tsunagi's own providers (adapters/providers/) use
 the same `provide`.
 
 Permissions: a read needs read:addons. Any other item needs the user's
-approval at its current level (config `addon_approvals`) and a grant of
+approval at its current level (config `addon_enabled`) and a grant of
 `addon:<provider>/<item>` or the whole `addon` area.
 """
 from __future__ import annotations
@@ -193,12 +193,12 @@ def find(provider_id: str, name: Optional[str] = None):
 
 
 def status(caller: Caller, provider: Provider, item: Item) -> str:
-    """allowed, needs_approval or not_permitted (unsupported is per provider)."""
+    """allowed, disabled or not_permitted (unsupported is per provider)."""
     if item.level == "read":
         return "allowed" if allows(caller.grants, "read:addons") else "not_permitted"
     key = f"{provider.id}/{item.name}"
-    if settings.addon_approvals().get(key) != item.level:
-        return "needs_approval"  # never approved, or relabelled since
+    if settings.addon_enabled().get(key) != item.level:
+        return "disabled"  # never enabled, or relabelled since
     return "allowed" if allows(caller.grants, f"{ADDON}:{key}") else "not_permitted"
 
 

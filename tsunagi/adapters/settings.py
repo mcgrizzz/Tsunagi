@@ -101,11 +101,11 @@ class Settings:
         grants = spec.get("grants")
         grants = frozenset(g for g in grants if is_grant(g)) if isinstance(grants, list) else frozenset()
         if role_id not in edited:
-            grants |= approved_defaults(role_id, self.get("addon_approvals"))
+            grants |= approved_defaults(role_id, self.get("addon_enabled"))
         return str(spec.get("name") or role_id), grants
 
-    def addon_approvals(self) -> Dict[str, str]:
-        approvals = self.get("addon_approvals")
+    def addon_enabled(self) -> Dict[str, str]:
+        approvals = self.get("addon_enabled")
         return {k: v for k, v in approvals.items() if isinstance(v, str)} if isinstance(approvals, dict) else {}
 
     def resolve_caller(self, key: Any, local: bool) -> Caller:

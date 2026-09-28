@@ -21,7 +21,7 @@ installed and enabled, and when settings were last imported. **Import AnkiConnec
 API key, port and allowed website origins into the form, and selects **Enable
 Tsunagi server**. Review the values and click **Save** to disable AnkiConnect, stop
 its current listener, and start Tsunagi on the imported port. **Cancel** leaves
-both addons unchanged. **Restore all defaults** also cancels a pending import-and-disable action.
+both addons unchanged, and so does **Revert this page** on the AnkiConnect page.
 The last-import date is saved with a successful import and remains visible after
 AnkiConnect is disabled or removed. Importing again updates that date; ordinary
 settings edits and restoring defaults preserve it. Older imports have no date
@@ -66,7 +66,7 @@ usual cause. On Windows, Anki is typically allowed on networks marked
   warning and does not start (no random fallback port).
 - `port: <n>`: force a specific port; startup fails if it's busy.
 
-### Apps and permissions: `apps`, `roles`, `no_key_local_role`, `no_key_remote_role`, `addon_approvals`
+### Apps and permissions: `apps`, `roles`, `no_key_local_role`, `no_key_remote_role`, `addon_enabled`
 
 Every request comes from an **app** or from one of two **No key** rows, and
 each has a **role** that decides what it may do. The defaults behave like
@@ -98,9 +98,9 @@ Built-in roles:
 
 | Role id | Name | Grants |
 | --- | --- | --- |
-| `default` | Default (like AnkiConnect) | `read`, `write`, `gui`, `sync`, `manage`, `events:changes`, approved `normal` add-on actions |
+| `default` | Default (like AnkiConnect) | `read`, `write`, `gui`, `sync`, `manage`, `events:changes`, enabled `normal` add-on actions |
 | `read_only` | Read-only | `read`, `events:changes` |
-| `everything` | Everything | every permission, including every approved add-on action |
+| `everything` | Everything | every permission, including every enabled add-on action |
 | `none` | No access | nothing |
 
 `roles` (default `{}`) adds your own roles or replaces a built-in one under
@@ -120,26 +120,28 @@ shows the permission it needs (`x-permission`).
 | `events` | `events:changes`, `events:reviews` | Which messages the event stream sends: changes to the collection, and each card you answer |
 | `local_files` | | Media uploads that name a file **on this computer** (`{"path": "C:/pictures/dog.png"}`), as AnkiConnect's `storeMediaFile` allows. Anything with it can make Anki read any file your account can read |
 | `memory_state` | | `POST /v1/cards:set-memory-state`: overwriting cards' FSRS memory state, desired retention and decay |
-| `addon` | `addon:<provider>/<action>` | Running add-on actions you approved (see below). The area covers every approved action; a name covers one |
+| `addon` | `addon:<provider>/<action>` | Running add-on actions you enabled (see below). The area covers every enabled action; a name covers one |
 
 **Add-on actions.** Tsunagi can run add-ons' actions for you: FSRS Helper's
 through a provider bundled with Tsunagi (`GET /v1/addons/fsrs_helper/actions`
 lists them), and any add-on that registers itself
 ([Add-on providers](docs/addon_providers.md)). Reading their data
-needs only `read:addons`. Every other action waits until you approve it:
-`addon_approvals` (default `{}`) maps `"<provider>/<action>"` to the level
-you approved, `normal` or `destructive`:
+needs only `read:addons`. Every other action is disabled until you enable
+it: `addon_enabled` (default `{}`) maps `"<provider>/<action>"` to the
+level it was enabled at, `normal` or `destructive`:
 
 ```json
-"addon_approvals": {"fsrs_helper/easy_days": "normal", "fsrs_helper/set_easy_dates": "normal"}
+"addon_enabled": {"fsrs_helper/easy_days": "normal", "fsrs_helper/set_easy_dates": "normal"}
 ```
 
-Approved `normal` actions are part of the Default role's defaults, so
+Enabled `normal` actions are part of the Default role's defaults, so
 resetting Default keeps them; a Default you have edited in `roles` lists
 them by name. `destructive` actions are only in Everything (or a role that
 names them), and Tsunagi makes an Anki backup before each run. If an
-add-on update relabels an action, it needs approval again. For now the
-approvals are edited here; the settings page does not show them yet.
+add-on update relabels an action, it is disabled until you enable it again.
+The settings page's **Add-ons** page enables and disables actions, and each
+role's **Run add-on actions** row chooses which enabled actions that role
+may run.
 
 Changes apply immediately. An open event stream closes with reason `auth`
 when its app's key or role changes, so the client reconnects with the new

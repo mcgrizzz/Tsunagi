@@ -123,7 +123,7 @@ def helper(tmp_path, monkeypatch, col, reset_settings):
     stub = Stub(mw, manager)
     stub.install(monkeypatch)
     stub.hooks = hooks
-    reset_settings.update(addon_approvals={f"fsrs_helper/{n}": "normal" for n in (
+    reset_settings.update(addon_enabled={f"fsrs_helper/{n}": "normal" for n in (
         "easy_days", "set_easy_dates", "reschedule", "schedule_break")})
     jobs.reset()
     yield stub
