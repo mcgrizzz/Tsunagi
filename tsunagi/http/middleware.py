@@ -9,6 +9,7 @@ overhead and streaming quirks.
 """
 from __future__ import annotations
 
+import time
 from ipaddress import ip_address
 from typing import Any
 from urllib.parse import urlsplit
@@ -17,6 +18,7 @@ from fastapi import HTTPException, Request
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
+from ..adapters import request_log
 from ..adapters.settings import is_loopback_host
 from ..shared.permissions import ADDON, PUBLIC, allows, current_caller, denied_message
 
@@ -59,6 +61,73 @@ def is_local_request(scope) -> bool:
     return hostname is not None and is_loopback_host(hostname)
 
 
+# Where RequestLogMiddleware puts the request's log entry, for the auth
+# middleware (app) and the AnkiConnect endpoint (action, error) to fill in.
+LOG_ENTRY = "tsunagi.log_entry"
+
+
+def provided_key(scope) -> Any:
+    """The key a v1 request sends: X-Api-Key, a Bearer token, or ?api_key= on /v1/events."""
+    headers = Headers(scope=scope)
+    provided = headers.get("x-api-key")
+    if provided is None:
+        auth = headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            provided = auth[7:].strip()
+    if provided is None and scope["path"] == "/v1/events":
+        # The event stream is consumed by browser EventSource, which -
+        # like the docs pages - cannot send custom headers. For this one
+        # path the key is also accepted as a query parameter.
+        from urllib.parse import parse_qs
+        values = parse_qs(scope.get("query_string", b"").decode()).get("api_key")
+        if values:
+            provided = values[0]
+    return provided
+
+
+class RequestLogMiddleware:
+    """
+    Outermost: records every request, including ones the Host, origin and key
+    checks refuse, in adapters.request_log. Never the query string (the event
+    stream accepts api_key there) or bodies. A request that never reached the
+    key check (refused earlier, or a path without one such as /v1/health) is
+    still listed under the app its key belongs to.
+    """
+
+    def __init__(self, app, settings):
+        self.app = app
+        self.settings = settings
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        headers = Headers(scope=scope)
+        entry = {"time": time.time(), "method": scope["method"], "path": scope["path"],
+                 "origin": headers.get("origin"), "local": is_local_request(scope),
+                 "app": None, "action": None, "error": None, "status": None, "ms": None}
+        scope[LOG_ENTRY] = entry
+        start = time.perf_counter()
+
+        async def send_logged(message):
+            if message["type"] == "http.response.start":
+                # Listed once the answer starts, so an event stream shows while open.
+                entry["status"] = message["status"]
+                if entry["app"] is None and scope["path"] != "/":  # "/" names it from the body
+                    entry["app"] = self.settings.resolve_caller(provided_key(scope), entry["local"]).name
+                request_log.add(entry)
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_logged)
+        except BaseException:
+            if entry["status"] is None:
+                entry["status"] = 500
+                request_log.add(entry)
+            raise
+        finally:
+            entry["ms"] = round((time.perf_counter() - start) * 1000, 1)
+
+
 class ApiKeyAuthMiddleware:
     """
     Resolves who is calling (an app by its key, else a "No key" row) and makes
@@ -76,21 +145,9 @@ class ApiKeyAuthMiddleware:
         if scope["method"] == "OPTIONS" or scope["path"] in AUTH_EXEMPT_PATHS:
             return await self.app(scope, receive, send)
 
-        headers = Headers(scope=scope)
-        provided = headers.get("x-api-key")
-        if provided is None:
-            auth = headers.get("authorization", "")
-            if auth.lower().startswith("bearer "):
-                provided = auth[7:].strip()
-        if provided is None and scope["path"] == "/v1/events":
-            # The event stream is consumed by browser EventSource, which -
-            # like the docs pages above - cannot send custom headers. For
-            # this one path the key is also accepted as a query parameter.
-            from urllib.parse import parse_qs
-            values = parse_qs(scope.get("query_string", b"").decode()).get("api_key")
-            if values:
-                provided = values[0]
-        caller = self.settings.resolve_caller(provided, is_local_request(scope))
+        caller = self.settings.resolve_caller(provided_key(scope), is_local_request(scope))
+        if LOG_ENTRY in scope:
+            scope[LOG_ENTRY]["app"] = caller.name
         if caller.key is None and not caller.grants:
             resp = JSONResponse({"detail": "Invalid or missing API key"}, status_code=401)
             return await resp(scope, receive, send)

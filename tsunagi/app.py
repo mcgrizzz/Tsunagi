@@ -22,8 +22,10 @@ from .http.compat.ankiconnect import (
 )
 from .http.middleware import (
     AUTH_EXEMPT_PATHS,
+    LOG_ENTRY,
     ApiKeyAuthMiddleware,
     DynamicCORSMiddleware,
+    RequestLogMiddleware,
     check_route_permission,
     is_local_request,
 )
@@ -148,10 +150,12 @@ app.include_router(addons_router)
 # AnkiBusyError / CollectionUnavailableError -> 503 with a reason
 register_exception_handlers(app, syncing=lambda: anki_collection.syncing)
 
-# Auth inner, CORS outermost (added last runs first) so auth 401s still carry
+# Auth inner, CORS outside it (added last runs first) so auth 401s still carry
 # CORS headers for allowed origins and disallowed origins never reach auth.
+# The request log wraps both, so it sees what they refuse too.
 app.add_middleware(ApiKeyAuthMiddleware, settings=settings)
 app.add_middleware(DynamicCORSMiddleware, settings=settings)
+app.add_middleware(RequestLogMiddleware, settings=settings)
 
 # Replacement for the disabled default /redoc (see the FastAPI() call): same
 # path (so AUTH_EXEMPT_PATHS still covers it), same page, working bundle.
@@ -227,6 +231,10 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
 
     # Only a schema-valid permission request bypasses the origin gate.
     action = body["action"] if error is None else ""
+    entry = request.scope.get(LOG_ENTRY)
+    if entry is not None and error is None:
+        entry["action"] = action
+        entry["app"] = settings.resolve_caller(body.get("key"), local).name
     if not origin_allowed_for(action, origin):
         # Same wire response AnkiConnect gives a disallowed origin
         from fastapi import Response
@@ -243,7 +251,10 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
         # Compatibility handlers already return JSON values. Encode once here
         # instead of having FastAPI recursively convert the full result again.
         # Keep large-response encoding off the event loop with the Anki work.
-        return JSONResponse(handle_ankiconnect_rpc(body, origin=origin, local=local))
+        result = handle_ankiconnect_rpc(body, origin=origin, local=local)
+        if entry is not None and isinstance(result, dict) and isinstance(result.get("error"), str):
+            entry["error"] = result["error"][:200]  # AnkiConnect errors come back as 200
+        return JSONResponse(result)
 
     return await run_in_threadpool(dispatch_response)
 

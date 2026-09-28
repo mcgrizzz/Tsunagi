@@ -10,6 +10,7 @@ const PAGES = [
   ["addons", "Add-ons"],
   ["roles", "Roles"],
   ["ankiconnect", "AnkiConnect"],
+  ["requests", "Recent requests"],
 ];
 
 // Sidebar icons: 24-unit stroke paths drawn in the text colour. They support
@@ -22,6 +23,7 @@ const ICONS = {
   addons: "M5 8h3.5a2 2 0 1 1 3.5-1.5V8H19v4.5a2 2 0 1 0 0 4V20H5z",
   roles: "M4 5h16v14H4zM9 11a2 2 0 1 0 0-.01M6 16c.6-1.7 1.7-2.5 3-2.5s2.4.8 3 2.5M14 10h3M14 13h3",
   ankiconnect: "M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5",
+  requests: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
   chevron: "M9 6l6 6-6 6",
 };
 
@@ -71,7 +73,10 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 const link = (label, onclick, attrs) => h("button", { type: "button", class: "link", onclick, ...attrs }, label);
-const go = (p, role) => { page = p; editing = role || null; render(); document.getElementById("main").scrollTop = 0; };
+const go = (p, role) => {
+  page = p; editing = role || null; render(); document.getElementById("main").scrollTop = 0;
+  if (p === "requests") refreshRequests();
+};
 const clone = (x) => JSON.parse(JSON.stringify(x));
 let notice = "";       // a short footer message, e.g. after a key is copied
 let noticeTimer = 0;
@@ -152,6 +157,7 @@ function sliceOf(p, d) {
   if (p === "web") return [d.values.cors_allowlist, d.gates];
   if (p === "roles") return d.roles;
   if (p === "addons") return d.addon_enabled;
+  if (p === "requests") return null;  // nothing to save
   return d.pending_import;
 }
 const changed = (p) => !same(sliceOf(p, draft), sliceOf(p, saved));
@@ -603,7 +609,100 @@ const PAGE = {
               } }, ac.imported ? "Import settings again" : "Import AnkiConnect settings"))),
     ];
   },
+
+  requests() {
+    return [
+      header("Recent requests", "Requests to Tsunagi since Anki started, including ones it refused, kept per client " +
+             "so a busy one cannot hide another. Memory only; keys and request contents are never recorded."),
+      h("div", { id: "requestsBody" }, requestsBody()),
+    ];
+  },
 };
+
+let requests = null;  // {clients, entries, per_client, max_shown} from the log, while that page is open
+const requestFilter = { client: "", failed: false, text: "" };
+
+const clockTime = (t) => new Date(t * 1000).toLocaleTimeString();
+const clientLabel = (id) => (requests.clients.find((c) => c.id === id) || { label: id.replace(/^\w+:/, "") }).label;
+
+function clientsCard() {
+  const pick = (id) => { requestFilter.client = requestFilter.client === id ? "" : id; refreshRequests(); };
+  return h("section", { class: "card flush" },
+    h("table", { class: "table clients" },
+      h("thead", {}, h("tr", {}, h("th", {}, "Client"), h("th", { class: "num" }, "Requests"),
+                        h("th", { class: "num" }, "Failed"), h("th", { class: "num" }, "Last seen"))),
+      h("tbody", {}, requests.clients.map((c) =>
+        h("tr", { class: "client" + (c.id === requestFilter.client ? " picked" : ""), "data-client": c.id },
+          h("td", {}, link(c.label, () => pick(c.id), { title: c.id === requestFilter.client ? "Show every client" : "Show only this client" }),
+            c.kind === "website" && h("span", { class: "tag" }, "website, no key"),
+            c.kind === "no_key" && h("span", { class: "tag" }, "no key")),
+          h("td", { class: "num" }, String(c.requests)),
+          h("td", { class: "num" + (c.failed ? " warn-text" : "") }, String(c.failed)),
+          h("td", { class: "num muted" }, clockTime(c.last)))))));
+}
+
+function requestFilters() {
+  return h("div", { class: "filters" },
+    h("select", { id: "requestClient", "aria-label": "Client",
+                  onchange: (e) => { requestFilter.client = e.target.value; refreshRequests(); } },
+      h("option", { value: "" }, "All clients"),
+      requests.clients.map((c) => h("option", { value: c.id, selected: c.id === requestFilter.client }, c.label))),
+    h("label", { class: "check" }, h("input", { type: "checkbox", id: "requestFailed", checked: requestFilter.failed,
+      onchange: (e) => { requestFilter.failed = e.target.checked; refreshRequests(); } }), " Failed only"),
+    h("input", { type: "search", id: "requestText", placeholder: "Search path, action, origin, error",
+                 value: requestFilter.text, oninput: (e) => { requestFilter.text = e.target.value; refreshRequests(); } }),
+    h("button", { type: "button", id: "clearRequests", class: "push-end", title: "Forget every request and total, for all clients", disabled: !requests.clients.length,
+                  onclick: async () => { await call("clear_requests"); requestFilter.client = ""; await refreshRequests(); } }, "Clear log"));
+}
+
+function requestRows() {
+  return requests.entries.map((e) => {
+    const what = e.action ? [e.action, h("span", { class: "tag" }, "AnkiConnect")] : [e.method + " " + e.path];
+    return [
+      h("tr", { class: "request" + (e.status >= 400 || e.error ? " failed" : "") },
+        h("td", { class: "muted nowrap" }, clockTime(e.time)),
+        h("td", {}, clientLabel(e.client)),
+        h("td", { class: "origin" }, e.origin || h("span", { class: "muted" }, "none")),
+        h("td", { class: "what" }, ...what),
+        h("td", { class: "num status" }, String(e.status)),
+        h("td", { class: "num muted" }, e.ms === null ? "open" : e.ms + " ms")),
+      e.error && h("tr", { class: "request-more" }, h("td", {}), h("td", { colspan: 5 }, h("div", { class: "desc warn-text" }, e.error))),
+    ];
+  });
+}
+
+function requestsBody() {
+  if (!requests) return [h("section", { class: "card" }, h("p", { class: "empty" }, "Loading…"))];
+  if (!requests.clients.length) return [h("section", { class: "card flush" }, h("p", { class: "empty" }, "No requests since Anki started."))];
+  const filtered = requestFilter.client || requestFilter.failed || requestFilter.text.trim();
+  return [
+    clientsCard(),
+    h("section", { class: "card flush" },
+      h("div", { class: "card-head" }, requestFilters()),
+      requests.entries.length
+        ? h("table", { class: "table requests" },
+            h("thead", {}, h("tr", {}, h("th", {}, "Time"), h("th", {}, "Client"), h("th", {}, "Origin"),
+                              h("th", {}, "Request"), h("th", { class: "num" }, "Status"), h("th", { class: "num" }, "Time taken"))),
+            h("tbody", {}, requestRows()))
+        : h("p", { class: "empty" }, filtered ? "No requests match these filters." : "No requests."),
+      h("p", { class: "help foot-note" }, `Each client keeps its last ${requests.per_client} requests; ` +
+        `up to ${requests.max_shown} are listed, newest first.`)),
+  ];
+}
+
+// The request log changes on its own, so its page refreshes while shown. Only
+// the part below the heading is replaced; the filter box keeps its focus.
+async function refreshRequests() {
+  requests = await call("requests", requestFilter);
+  if (page !== "requests" || closing) return;
+  const body = document.getElementById("requestsBody");
+  if (!body) return render();
+  const focused = document.activeElement && document.activeElement.id;
+  const caret = focused === "requestText" ? document.activeElement.selectionStart : null;
+  body.replaceChildren(...requestsBody().flat(Infinity).filter(Boolean));
+  const again = focused && document.getElementById(focused);
+  if (again) { again.focus(); if (caret !== null) again.setSelectionRange(caret, caret); }
+}
 
 function roleEditor(r) {
   const locked = r.id === "none";
@@ -789,5 +888,5 @@ async function pollServer() {
   if (typeof pycmd !== "function") return setTimeout(start, 20);
   call("state").then((state) => { load(state); window.tsunagiReady = true; });
   pollServer();
-  setInterval(pollServer, 2000);
+  setInterval(() => { pollServer(); if (page === "requests") refreshRequests(); }, 2000);
 })();

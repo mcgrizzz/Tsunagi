@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from qt_smoke import aqt, run, until
 
-from tsunagi.adapters import addon_actions, settings_dialog, settings_page
+from tsunagi.adapters import addon_actions, request_log, settings_dialog, settings_page
 from tsunagi.adapters.config import ADDON_PACKAGE, _migrate
 from tsunagi.adapters.dialogs import ANKICONNECT_ID
 
@@ -100,12 +100,49 @@ def check(app, screenshot):
         assert js(app, dlg, "$('#restoreAll') === null")  # no global reset
         assert js(app, dlg, "$('#save').disabled && $('#cancel').disabled")  # nothing to save or discard
         until(app, lambda: js(app, dlg, "$('#server').textContent") == "Server off")  # not started here
-        for page in ("server", "apps", "nokey", "web", "addons", "roles", "ankiconnect"):
+        request_log.clear()
+        now = time.time()
+        request_log.add({"time": now - 5, "method": "GET", "path": "/v1/decks", "origin": None, "local": True,
+                         "app": "Yomitan", "action": None, "error": None, "status": 200, "ms": 12.3})
+        request_log.add({"time": now, "method": "POST", "path": "/", "origin": "https://spam.example", "local": True,
+                         "app": "No key, this computer", "action": "requestPermission", "error": None,
+                         "status": 403, "ms": 0.4})
+        for page in ("server", "apps", "nokey", "web", "addons", "roles", "ankiconnect", "requests"):
             js(app, dlg, f"go('{page}')")
             assert js(app, dlg, "$('main h1') !== null")
+            if page == "requests":
+                until(app, lambda: js(app, dlg, "document.querySelectorAll('tr.request').length === 2"))
             if screenshot:
                 shoot(app, dlg, screenshot, page)
         print("PASS: page loads and renders every page", flush=True)
+
+        # Recent requests: one row per client, newest request first, failures
+        # marked, nothing to save; filters narrow the list; Clear empties it.
+        assert js(app, dlg, "document.querySelectorAll('tr.client').length === 2")
+        assert "requestPermission" in js(app, dlg, "$('tr.request .what').textContent")
+        assert js(app, dlg, "$('tr.request').classList.contains('failed')")
+        assert js(app, dlg, "$('#save').disabled && $('[data-page=requests] .dot') === null")
+        js(app, dlg, "$('tr.client[data-client=\"app:Yomitan\"] button.link').click()")
+        until(app, lambda: js(app, dlg, "document.querySelectorAll('tr.request').length === 1"))
+        assert js(app, dlg, "$('#requestClient').value") == "app:Yomitan"
+        js(app, dlg, "$('#requestClient').value = ''; $('#requestClient').dispatchEvent(new Event('change'))")
+        js(app, dlg, "$('#requestFailed').click()")
+        until(app, lambda: js(app, dlg, "document.querySelectorAll('tr.request').length === 1 "
+                                        "&& $('tr.request .what').textContent.includes('requestPermission')"))
+        js(app, dlg, "$('#requestFailed').click(); $('#requestText').focus(); setv('#requestText', 'decks')")
+        until(app, lambda: js(app, dlg, "document.querySelectorAll('tr.request').length === 1 "
+                                        "&& $('tr.request .what').textContent === 'GET /v1/decks'"))
+        js(app, dlg, "refreshRequests()")  # the 2 s refresh must not take the filter box's focus
+        until(app, lambda: js(app, dlg, "document.activeElement.id") == "requestText")
+        js(app, dlg, "setv('#requestText', 'nothing like this')")
+        until(app, lambda: "match these filters" in js(app, dlg, "$('#requestsBody').textContent"))
+        js(app, dlg, "setv('#requestText', '')")
+        if screenshot:
+            shoot(app, dlg, screenshot, "requests-filtered")
+        js(app, dlg, "$('#clearRequests').click()")
+        until(app, lambda: "No requests since Anki started" in js(app, dlg, "$('#requestsBody').textContent"))
+        assert request_log.clients() == []
+        print("PASS: recent requests per client, filters and clear", flush=True)
 
         # Typing in a field enables Save and Cancel and marks the page, and the
         # field keeps its focus; checkboxes too.

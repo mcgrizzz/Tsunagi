@@ -342,6 +342,20 @@ class SettingsBridge:
         self.dirty = bool(dirty)
         return True
 
+    def op_requests(self, arg: Any) -> Dict[str, Any]:
+        """Every client's totals, and the requests matching the page's filters."""
+        from . import request_log
+        f = arg if isinstance(arg, dict) else {}
+        return {"clients": request_log.clients(),
+                "entries": request_log.recent(f.get("client") or None, bool(f.get("failed")),
+                                              str(f.get("text") or "")),
+                "per_client": request_log.PER_CLIENT, "max_shown": request_log.MAX_SHOWN}
+
+    def op_clear_requests(self, _arg: Any) -> bool:
+        from . import request_log
+        request_log.clear()
+        return True
+
     def op_server_status(self, _arg: Any) -> Dict[str, Any]:
         from ..app import server_url
         url = server_url()

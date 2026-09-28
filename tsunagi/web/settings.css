@@ -80,7 +80,7 @@ h2 { font-size: 13.5px; margin: 0 0 8px; }
 .unit { display: inline-flex; align-items: center; gap: 4px; color: var(--t-muted); }
 
 /* Controls */
-input[type=text], input[type=password], input[type=number], select, textarea {
+input[type=text], input[type=search], input[type=password], input[type=number], select, textarea {
   font: inherit; color: var(--t-fg); background: var(--t-inset);
   border: 1px solid var(--t-border); border-radius: 6px; padding: 4px 7px; box-sizing: border-box;
 }
@@ -110,6 +110,20 @@ button.primary { background: var(--t-accent); border-color: var(--t-accent); col
 .table .help { margin-top: 1px; }
 #main .app-name { width: 150px; font-weight: 600; }
 .app td.approve { width: 1%; text-align: center; }
+.table .num { text-align: right; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+.requests td { font-size: 12.5px; }
+.requests td.origin, .requests td.what { word-break: break-all; }
+.requests tr.failed td.status { color: var(--t-danger); font-weight: 600; }
+.requests tr.request-more td { border-top: 0; padding-top: 0; }
+.card-head { padding: 10px 16px; border-bottom: 1px solid var(--t-soft); }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.filters select { width: auto; max-width: 220px; }
+.filters input[type=search] { flex: 1; min-width: 200px; max-width: 360px; }
+.filters .check { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.filters .push-end { margin-left: auto; }
+.clients tr.picked td { background: var(--t-soft); }
+.foot-note { padding: 8px 16px; margin: 0; max-width: none; border-top: 1px solid var(--t-soft); }
 .app.off td:not(.approve) { opacity: .55; }
 /* Disclosure: a chevron that turns down when the row's detail is open. */
 #main button.disclosure {

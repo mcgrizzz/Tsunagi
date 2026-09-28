@@ -306,3 +306,17 @@ def test_other_host_names_must_be_bare_host_names():
     draft["values"]["allowed_hosts"] = "pc.tailnet.ts.net\n\n pc.tailnet.ts.net "
     new_cfg, _, errors = page.config_from_page(cfg, draft)
     assert errors == [] and new_cfg["allowed_hosts"] == ["pc.tailnet.ts.net"]
+
+
+def test_bridge_reads_and_clears_the_request_log():
+    from tsunagi.adapters import request_log
+
+    request_log.clear()
+    request_log.add({"time": 1, "path": "/v1/decks", "app": "Yomitan", "status": 200})
+    request_log.add({"time": 2, "path": "/v1/notes", "app": "Yomitan", "status": 403})
+    b, _ = bridge()
+    res = cmd(b, "requests", {"client": "app:Yomitan", "failed": True, "text": ""})
+    assert [e["path"] for e in res["entries"]] == ["/v1/notes"]
+    assert [(c["label"], c["requests"], c["failed"]) for c in res["clients"]] == [("Yomitan", 2, 1)]
+    assert len(cmd(b, "requests")["entries"]) == 2  # no filters
+    assert cmd(b, "clear_requests") is True and request_log.clients() == []

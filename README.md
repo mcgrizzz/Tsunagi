@@ -119,15 +119,17 @@ Open **Tools → Tsunagi Settings** to change:
 | Page | Settings |
 | --- | --- |
 | **Server** | Server on/off, port, who can connect (host), limits, timeouts and logging. |
-| **Apps & keys** | Each tool's key and role. |
+| **Apps & keys** | Each tool's key and role, and a switch to turn it off. |
 | **Requests without a key** | The role for keyless requests from this computer and from other devices. |
 | **Websites & Anki pages** | Allowed website origins, and whether card templates may use the API. |
 | **Add-ons** | Which add-on actions (such as FSRS Helper's) apps may run. |
 | **Roles** | What each role allows, and who uses it. |
 | **AnkiConnect** | Import AnkiConnect's settings and take over its port. |
+| **Recent requests** | Requests since Anki started, per client (app, website or no key), with totals and filters, so you can see who is calling and what failed. Memory only; no keys or contents. |
 
 If a tool can't connect, check that Anki is open and both use the same port and
-key; the bottom of the settings window shows whether the server is running.
+key; the bottom of the settings window shows whether the server is running, and
+**Recent requests** shows whether the tool's requests arrive and why any were refused.
 On macOS, Tsunagi turns off App Nap while its server runs, so requests are
 answered promptly when Anki is in the background (Anki leaves this to add-ons). If
 Tsunagi says it did not start because another add-on loaded a different version
