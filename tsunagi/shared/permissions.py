@@ -80,6 +80,7 @@ class Caller:
     grants: FrozenSet[str]
     key: Optional[str]  # to resolve the same caller again (event streams)
     local: bool
+    enabled: bool = True  # False: an app turned off in settings, granted nothing
 
 
 # Set for each request by the auth middleware, and per action by the
@@ -100,5 +101,7 @@ def current_denial(permission: str) -> str:
 
 
 def denied_message(caller: Caller, permission: str) -> str:
+    if not caller.enabled:
+        return f"{caller.name} is turned off; turn it on under Apps & keys in Tsunagi's settings"
     return (f"{caller.name} has the role {caller.role_name!r}, which does not "
             f"allow {permission}; change it in Tsunagi's settings")

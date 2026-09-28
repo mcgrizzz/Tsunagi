@@ -113,7 +113,9 @@ class Settings:
         The app a key belongs to, else the "No key" row for where the request
         came from (`local`: this computer, see middleware.is_local_request).
         A key that matches no app counts as no key, as in AnkiConnect: it
-        gains nothing a keyless request would not get.
+        gains nothing a keyless request would not get. An app turned off
+        (`"enabled": false`) keeps its name but is granted nothing; it does
+        not fall back to a No key row.
         """
         match = None
         if isinstance(key, str) and key:
@@ -123,8 +125,10 @@ class Settings:
                 if (isinstance(app_key, str) and app_key
                         and secrets.compare_digest(key.encode(), app_key.encode())):
                     match = match or app
+        enabled = True
         if match is not None:
             name, role_id = str(match.get("name") or "App"), match.get("role")
+            enabled = match.get("enabled") is not False
         else:
             key = None
             name = NO_KEY_LOCAL if local else NO_KEY_REMOTE
@@ -132,7 +136,8 @@ class Settings:
             role_id = self.get(row, DEFAULTS[row])
         role_name, grants = self.role(role_id)
         return Caller(name=name, role=str(role_id), role_name=role_name,
-                      grants=grants, key=key, local=local)
+                      grants=grants if enabled else frozenset(), key=key, local=local,
+                      enabled=enabled)
 
     def add_cors_origin(self, origin: str) -> None:
         allowlist = list(self.get("cors_allowlist", []))

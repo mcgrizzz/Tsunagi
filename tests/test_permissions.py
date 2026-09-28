@@ -71,6 +71,18 @@ def test_read_only_app_reads_but_cannot_write_through_ankiconnect(client, col, r
     assert "Nope" not in col.decks.all_names()
 
 
+def test_an_app_turned_off_is_refused_and_does_not_fall_back_to_no_key(client, col, reset_settings):
+    # This computer's No key row stays Default, so falling back would let it in.
+    reset_settings.update(apps=[{"name": "Yomitan", "key": "yk", "role": "default", "enabled": False}])
+    resp = client.get("/v1/decks", headers={"X-Api-Key": "yk"})
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == (
+        "Yomitan is turned off; turn it on under Apps & keys in Tsunagi's settings")
+    denied = client.post("/", json={"action": "deckNames", "version": 6, "key": "yk"}).json()
+    assert denied["result"] is None and "Yomitan is turned off" in denied["error"]
+    assert client.get("/v1/decks").status_code == 200  # keyless callers are unaffected
+
+
 def test_undo_needs_all_of_write(client, reset_settings):
     reset_settings.update(roles={"notes": {"name": "Notes", "grants": ["write:notes", "gui"]}},
                           no_key_local_role="notes")

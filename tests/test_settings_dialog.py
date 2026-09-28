@@ -220,6 +220,8 @@ class TestAnkiConnectSettings:
         assert result["gates"] == original["gates"]
         assert original["cors_allowlist"] == ["http://existing"]
         assert {**original, **ankiconnect_import_changes(original, {})}["apps"] == [old_app]
+        off = {**old_app, "enabled": False}
+        assert ankiconnect_import_changes({"apps": [off]}, {"apiKey": "new"})["apps"] == [{**off, "key": "new"}]
 
     def test_saving_unrelated_settings_does_not_inspect_or_disable_ankiconnect(self, monkeypatch):
         from types import SimpleNamespace

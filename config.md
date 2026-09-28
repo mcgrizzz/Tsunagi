@@ -94,6 +94,10 @@ AnkiConnect allows; other devices need a key.
   `"key"` field on the AnkiConnect endpoint (`POST /`). On the settings page,
   **Apps & keys → Add app** creates one with a random 32-character key and
   copies it; **New key** replaces a key.
+  `"enabled": false` (the **On** box on that page) turns an app off without
+  losing its key or role: requests with its key get HTTP 403 (or the
+  AnkiConnect `error`) saying it is turned off. It does not fall back to a
+  No key row. Absent means on.
 - `no_key_local_role` (default `"default"`): the role for requests without a
   key from **this computer**, meaning the connection comes from a loopback
   address and the `Host` names one (`127.0.0.1`, `localhost`, `[::1]`). Set it

@@ -129,7 +129,7 @@ def page_state(cfg: Dict[str, Any], ankiconnect: Dict[str, Any]) -> Dict[str, An
         "gates": [{"key": k, "label": label, "tooltip": tip, "on": on}
                   for k, label, tip, on in gate_rows(cfg)],
         "apps": [{"name": str(a.get("name") or ""), "key": str(a.get("key") or ""),
-                  "role": str(a.get("role") or NO_ACCESS)}
+                  "role": str(a.get("role") or NO_ACCESS), "enabled": a.get("enabled") is not False}
                  for a in cfg.get("apps") or [] if isinstance(a, dict)],
         "no_key_rows": [{"setting": k, "label": label, "short": short, "help": help_text,
                          "role": str(cfg.get(k, DEFAULTS[k]))}
@@ -222,7 +222,9 @@ def config_from_page(cfg: Dict[str, Any], draft: Dict[str, Any]) -> Tuple[Dict[s
     if errors:
         return cfg, False, errors
     new_cfg, restart = config_from_form(cfg, values)
-    new_cfg["apps"] = [{"name": a["name"].strip(), "key": a["key"], "role": a["role"]}
+    # "enabled" is stored only when off, so apps that are on keep their old shape.
+    new_cfg["apps"] = [{"name": a["name"].strip(), "key": a["key"], "role": a["role"],
+                        **({} if a.get("enabled", True) else {"enabled": False})}
                        for a in draft["apps"]]
     for key, *_ in NO_KEY_ROWS:
         new_cfg[key] = draft[key]

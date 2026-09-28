@@ -109,6 +109,8 @@ button.primary { background: var(--t-accent); border-color: var(--t-accent); col
 .table td.end { text-align: right; white-space: nowrap; }
 .table .help { margin-top: 1px; }
 #main .app-name { width: 150px; font-weight: 600; }
+.app td.approve { width: 1%; text-align: center; }
+.app.off td:not(.approve) { opacity: .55; }
 /* Disclosure: a chevron that turns down when the row's detail is open. */
 #main button.disclosure {
   display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;

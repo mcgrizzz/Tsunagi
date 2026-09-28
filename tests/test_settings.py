@@ -96,6 +96,13 @@ class TestResolveCaller:
         caller = Settings(self.APPS).resolve_caller("nope", True)
         assert caller.key is None and caller.role == "default"
 
+    def test_an_app_turned_off_keeps_its_name_but_is_granted_nothing(self):
+        s = Settings({"apps": [{"name": "Yomitan", "key": "yk", "role": "default", "enabled": False}]})
+        caller = s.resolve_caller("yk", True)
+        assert (caller.name, caller.role, caller.key, caller.enabled) == ("Yomitan", "default", "yk", False)
+        assert caller.grants == frozenset()
+        assert s.resolve_caller("yk", True) != Settings(self.APPS).resolve_caller("yk", True)
+
     def test_unknown_role_grants_nothing(self):
         caller = Settings({"apps": [{"name": "X", "key": "k", "role": "gone"}]}).resolve_caller("k", True)
         assert caller.grants == frozenset()

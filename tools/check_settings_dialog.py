@@ -133,15 +133,19 @@ def check(app, screenshot):
         js(app, dlg, "[...document.querySelectorAll('.app button.link')].find((b) => b.textContent === 'Copy').click()")
         assert js(app, dlg, "[...document.querySelectorAll('.app button.link')].some((b) => b.textContent === 'Copied')")
         js(app, dlg, "setv('.app .app-name', 'Phone'); setv('.app select', 'read_only', 'change')")
+        assert js(app, dlg, "$('.app .app-on').checked")
+        js(app, dlg, "$('.app .app-on').click()")
+        assert js(app, dlg, "$('.app').classList.contains('off') && !$('.app .app-on').checked")
         if screenshot:
             shoot(app, dlg, screenshot, "apps-edited")
         js(app, dlg, "go('nokey'); setv('#no_key_local_role', 'none', 'change')")
         save(app, dlg)
         app_row = store["cfg"]["apps"][0]
         assert (app_row["name"], app_row["role"], len(app_row["key"])) == ("Phone", "read_only", 32)
+        assert app_row["enabled"] is False
         assert store["cfg"]["no_key_local_role"] == "none"
         assert restarts == []
-        print("PASS: apps and no-key roles save", flush=True)
+        print("PASS: apps (turned off) and no-key roles save", flush=True)
 
         # Other devices without a key need the confirmation box; the page's
         # own restore puts both sources back.

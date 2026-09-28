@@ -444,7 +444,12 @@ const PAGE = {
     const rows = draft.apps.map((app, i) => {
       const open = openApps.has(i);
       const toggle = () => { open ? openApps.delete(i) : openApps.add(i); render(); };
-      const out = [h("tr", { class: "app" },
+      const out = [h("tr", { class: app.enabled ? "app" : "app off" },
+        h("td", { class: "approve" }, h("input", { type: "checkbox", class: "app-on", checked: app.enabled,
+          "aria-label": "Turn " + app.name + " on", title: app.enabled
+            ? "On. Untick to turn this app off: requests with its key are refused until you turn it back on"
+            : "Off: requests with this key are refused. Tick to turn it back on",
+          onchange: (e) => { app.enabled = e.target.checked; render(); } })),
         h("td", {}, h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name,
                                  oninput: (e) => { app.name = e.target.value; } })),
         h("td", {}, roleSelect(app.role, (v) => { app.role = v; }, null, "Role of " + app.name)),
@@ -455,7 +460,7 @@ const PAGE = {
           "aria-label": (open ? "Hide" : "Show") + " the key and actions for " + app.name,
           title: open ? "Hide the key and actions" : "Show the key, New key and Remove" }, icon("chevron"))))];
       if (open) {
-        out.push(h("tr", { class: "app-detail" }, h("td", { colspan: 4 },
+        out.push(h("tr", { class: "app-detail" }, h("td", { colspan: 5 },
           h("div", { class: "detail" },
             h("label", { class: "detail-label" }, "Key"),
             h("input", { type: "text", class: "key", "aria-label": "Key of " + app.name, spellcheck: "false",
@@ -470,11 +475,11 @@ const PAGE = {
     });
     return [
       header("Apps & keys", "Give each tool its own key and role. Tools send the key as the X-Api-Key header, " +
-             "or as \"key\" in AnkiConnect requests."),
+             "or as \"key\" in AnkiConnect requests. Untick an app to turn it off without losing its key or role."),
       h("section", { class: "card flush" },
         draft.apps.length
           ? h("table", { class: "table" },
-              h("thead", {}, h("tr", {}, h("th", {}, "App"), h("th", {}, "Role"), h("th", {}, "Key"), h("th", {}))),
+              h("thead", {}, h("tr", {}, h("th", {}, "On"), h("th", {}, "App"), h("th", {}, "Role"), h("th", {}, "Key"), h("th", {}))),
               h("tbody", {}, rows))
           : h("p", { class: "empty" }, "No apps yet. Tools on this computer work without a key; add an app to give " +
               "one its own role, or to connect from another device."),
@@ -483,7 +488,7 @@ const PAGE = {
             const key = await call("new_key");
             let n = draft.apps.length + 1;
             while (draft.apps.some((a) => a.name === "New app " + n)) n++;
-            draft.apps.push({ name: "New app " + n, key, role: "default" });
+            draft.apps.push({ name: "New app " + n, key, role: "default", enabled: true });
             openApps.add(draft.apps.length - 1);
             copyKey(key);
             notify("New app added and its key copied. The key works once you save.");

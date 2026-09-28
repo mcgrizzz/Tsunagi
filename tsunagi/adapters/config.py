@@ -56,14 +56,14 @@ def default_app_key(cfg: dict) -> str:
 
 
 def with_default_app_key(cfg: dict, key: str) -> list:
-    """cfg's apps with DEFAULT_APP's key set (it keeps its role), or removed if empty."""
-    apps, role = [], "default"
+    """cfg's apps with DEFAULT_APP's key set (it keeps its role and on/off), or removed if empty."""
+    apps, kept = [], {"role": "default"}
     for app in cfg.get("apps") or []:
         if isinstance(app, dict) and app.get("name") == DEFAULT_APP:
-            role = app.get("role", role)
+            kept = {k: app[k] for k in ("role", "enabled") if k in app} or kept
         else:
             apps.append(app)
-    return [{"name": DEFAULT_APP, "key": key, "role": role}, *apps] if key else apps
+    return [{"name": DEFAULT_APP, "key": key, "role": "default", **kept}, *apps] if key else apps
 
 
 def _migrate(cfg: dict) -> Tuple[dict, bool]:

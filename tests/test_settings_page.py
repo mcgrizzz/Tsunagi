@@ -51,6 +51,18 @@ def test_apps_rows_and_roles_are_saved():
     assert new_cfg["roles"] == {"custom_1": {"name": "Tagger", "grants": ["read", "write:tags"]}}
 
 
+def test_turning_an_app_off_is_saved_and_shown():
+    cfg = fresh()
+    draft = draft_of(cfg)
+    draft["apps"] = [{"name": "On", "key": "a" * 32, "role": "default", "enabled": True},
+                     {"name": "Off", "key": "b" * 32, "role": "read_only", "enabled": False}]
+    new_cfg, _, errors = page.config_from_page(cfg, draft)
+    assert errors == []
+    assert new_cfg["apps"] == [{"name": "On", "key": "a" * 32, "role": "default"},
+                               {"name": "Off", "key": "b" * 32, "role": "read_only", "enabled": False}]
+    assert [a["enabled"] for a in page.page_state(new_cfg, {})["apps"]] == [True, False]
+
+
 def test_only_edited_built_ins_are_stored_and_reset_removes_them():
     cfg = fresh()
     draft = draft_of(cfg)
@@ -254,7 +266,7 @@ def test_bridge_stages_an_ankiconnect_import():
     b, _ = bridge(ankiconnect=ac)
     res = cmd(b, "import_ankiconnect", draft_of(fresh()))
     assert res["values"]["port"] == 8765
-    assert res["apps"] == [{"name": "AnkiConnect key", "key": "from-ac", "role": "default"}]
+    assert res["apps"] == [{"name": "AnkiConnect key", "key": "from-ac", "role": "default", "enabled": True}]
     assert res["pending"] == {"port": 8765, "key": "Copy from AnkiConnect", "origins": "1 new origin"}
 
 
