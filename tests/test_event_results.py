@@ -171,6 +171,19 @@ def test_api_answers_emit_review_with_the_new_card_state(col, subscription, reco
                                          "difficulty": card.memory_state.difficulty}
 
 
+def test_api_review_events_name_the_app_that_answered(col, subscription, recorded_ops, review_events):
+    from tsunagi.shared.permissions import current_caller
+    review_events.update(apps=[{"name": "Phone", "key": "k" * 32, "role": "everything"}])
+    first = new_note("one").cards[0]
+    token = broker.subscribe(types={"review"})
+    caller = current_caller.set(review_events.resolve_caller("k" * 32, False))
+    try:
+        cards.answer_cards([{"card_id": first, "ease": 3}])
+    finally:
+        current_caller.reset(caller)
+    assert [e.get("client") for e in broker.drain(token)] == ["Phone"]
+
+
 @pytest.mark.parametrize("write, tagged", [
     (lambda nids: tags.add_tags(nids, "verb"), False),
     (lambda nids: tags.remove_tags(nids, "verb"), True),

@@ -20,7 +20,7 @@ from collections import deque
 from typing import Any, Callable, Deque, Dict, FrozenSet, List, Optional
 from uuid import uuid4
 
-from ..shared.permissions import allows
+from ..shared.permissions import allows, current_caller
 
 MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 
@@ -356,7 +356,9 @@ def publish_review(card: Any, ease: int, *, origin: str = "ui", collection: Any 
     """An answered card. Anki reloads the card after answering, so its new
     state costs no extra read; fields match /v1/cards rows."""
     state = getattr(card, "memory_state", None)
+    caller = current_caller.get() if origin == "api" else None
     broker.publish("review", collection=collection, origin=origin,
+                   **({"client": caller.name} if caller else {}),
                    card_id=int(card.id), ease=int(ease), interval=int(card.ivl),
                    due=int(card.due), queue=int(card.queue),
                    memory_state=None if state is None else {

@@ -44,6 +44,10 @@ data: {"type":"notes.deleted","ids":[123]}
 Cards use the same names: `cards.created`, `cards.updated`, `cards.deleted`,
 `cards.stale`.
 
+Changes and card answers made through the API also carry `client`: the app
+whose key sent the request, or the No key row it fell in (for example `"client":
+"Phone"`). A dashboard can tell its own writes from another tool's.
+
 **Known IDs and an unknown change are alternatives for the same resource.**
 Deleting note 123 can produce `notes.deleted` and `cards.stale`, because its
 deleted card IDs aren't included. That operation won't also produce

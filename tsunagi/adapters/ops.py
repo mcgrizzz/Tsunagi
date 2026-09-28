@@ -249,7 +249,13 @@ def collection_op_run_async(
         def wrapped_op(col: Collection) -> Any:
             if col is not collection:
                 raise CollectionUnavailableError()
-            result = fn(col, *args, **kwargs)
+            # The request's caller, for what the op publishes itself (review
+            # events); the op thread does not inherit the request's context.
+            token = current_caller.set(caller)
+            try:
+                result = fn(col, *args, **kwargs)
+            finally:
+                current_caller.reset(token)
             if isinstance(result, ValueWithChanges) and result.event_changes:
                 # Capture on the collection thread, before Anki's success hook.
                 # Event decoration must never turn a successful write into a failure.
