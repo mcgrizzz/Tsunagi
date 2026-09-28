@@ -127,7 +127,9 @@ Open **Tools → Tsunagi Settings** to change:
 | **AnkiConnect** | Import AnkiConnect's settings and take over its port. |
 
 If a tool can't connect, check that Anki is open and both use the same port and
-key; the bottom of the settings window shows whether the server is running. If
+key; the bottom of the settings window shows whether the server is running.
+On macOS, Tsunagi turns off App Nap while its server runs, so requests are
+answered promptly when Anki is in the background (Anki leaves this to add-ons). If
 Tsunagi says it did not start because another add-on loaded a different version
 of a library it needs, disable the add-on it names (or update either one) and
 restart Anki. For a website access error, add its origin under **Websites & Anki pages**, including

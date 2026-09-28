@@ -1,7 +1,6 @@
 # tsunagi/app.py
 import json
 import threading
-import traceback
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -319,7 +318,7 @@ def _serve(server: Any, session_id: str) -> None:
     try:
         server.run()
     except Exception:
-        _log(f"[fatal] uvicorn crashed:\n{traceback.format_exc()}")
+        log.exception("The server crashed")
     finally:
         from .adapters.events import broker
         broker.begin_drain(session_id)
@@ -395,10 +394,11 @@ def start_server(mw) -> None:
         _SERVER_STATE.host = host
         _SERVER_STATE.started = True
         _log(f"listening on http://{host}:{port}")
+        _set_app_nap(allowed=False)
     except Exception as e:
         if session_id is not None:
             broker.begin_drain(session_id)
-        _log(f"[fatal] start_server failed:\n{traceback.format_exc()}")
+        log.exception("Server failed to start")
         msg = f"Tsunagi failed to start: {e}"
         try:
             from aqt.qt import QTimer
@@ -408,6 +408,22 @@ def start_server(mw) -> None:
             QTimer.singleShot(3000, lambda: tooltip(msg, period=8000))
         except Exception:
             pass  # headless / no Qt available
+
+def _set_app_nap(*, allowed: bool) -> None:
+    """
+    macOS App Nap throttles an app in the background, which stalls API
+    requests while Anki is not in front. Anki leaves App Nap on and lets
+    add-ons turn it off themselves (ankitects/anki#4460, closed so add-ons
+    like this one do it); Tsunagi does while its server runs. No-op off macOS
+    or without the helper; never fatal.
+    """
+    try:
+        from aqt._macos_helper import macos_helper
+        if macos_helper is not None:
+            (macos_helper.enable_appnap if allowed else macos_helper.disable_appnap)()
+    except Exception:
+        log.warning("Could not %s App Nap", "restore" if allowed else "turn off", exc_info=True)
+
 
 def server_url() -> Optional[str]:
     """Base URL if the server is up, else None."""
@@ -439,14 +455,15 @@ def stop_server(reason: str = "shutdown") -> bool:
         if st.thread is not None:
             st.thread.join(5)
             if st.thread.is_alive():
-                _log("server thread did not stop within 5s; abandoning (daemon)")
+                log.warning("Server thread did not stop within 5s; abandoning it (daemon)")
                 stopped = False
     except Exception:
-        _log(f"stop_server failed:\n{traceback.format_exc()}")
+        log.exception("Server shutdown failed")
         stopped = False
     finally:
         st.thread = None
         st.server = None
         st.port = None
         st.started = False
+        _set_app_nap(allowed=True)
     return stopped
