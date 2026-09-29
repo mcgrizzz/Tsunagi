@@ -6,7 +6,8 @@
 
 Windows only. Asks the running API to close Anki (AnkiConnect's
 guiExitAnki, which Tsunagi also answers; Tsunagi needs a key with the manage
-permission in TSUNAGI_BENCH_API_KEY), waits for Anki to exit, sets the two
+permission in TSUNAGI_BENCH_API_KEY, and an AnkiConnect with a key of its own
+needs it in ANKICONNECT_API_KEY), waits for Anki to exit, sets the two
 add-ons' "disabled" flags in their meta.json, starts Anki on the profile and
 waits until the chosen API answers. It never kills Anki: if Anki doesn't
 close, it stops and says so.
@@ -27,14 +28,21 @@ TSUNAGI = "tsunagi"
 PORTS = {"ankiconnect": 8765, "tsunagi": 7777}
 
 
-def ask(port, action, timeout=3.0):
-    """One AnkiConnect-style action; None when nothing answers."""
-    body = json.dumps({"action": action, "version": 6}).encode()
-    request = urllib.request.Request(f"http://127.0.0.1:{port}", data=body,
-                                     headers={"Content-Type": "application/json"})
-    key = os.environ.get("TSUNAGI_BENCH_API_KEY")
-    if key:
-        request.add_header("X-Api-Key", key)
+def ask(api, action, timeout=3.0):
+    """One AnkiConnect-style action to that API's port; None when nothing answers.
+
+    Each API gets only its own key: AnkiConnect reads it from the body and
+    refuses any key but its own, Tsunagi reads the X-Api-Key header.
+    """
+    payload = {"action": action, "version": 6}
+    headers = {"Content-Type": "application/json"}
+    key = os.environ.get("ANKICONNECT_API_KEY" if api == "ankiconnect" else "TSUNAGI_BENCH_API_KEY")
+    if key and api == "ankiconnect":
+        payload["key"] = key
+    elif key:
+        headers["X-Api-Key"] = key
+    request = urllib.request.Request(f"http://127.0.0.1:{PORTS[api]}",
+                                     data=json.dumps(payload).encode(), headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read() or b"null")
@@ -81,11 +89,12 @@ def main():
     if anki_running():
         print("Closing Anki...")
         # Anki can close before it answers, so judge by whether it exits.
-        for port in PORTS.values():
-            ask(port, "guiExitAnki")
+        for api in PORTS:
+            ask(api, "guiExitAnki")
         wait(lambda: not anki_running(), 120,
-             "Anki to close. A sync on close can take a while; Tsunagi also needs "
-             "TSUNAGI_BENCH_API_KEY set to a key with the manage permission. Or close Anki yourself and rerun")
+             "Anki to close. A sync on close can take a while. Closing needs Tsunagi's key "
+             "(TSUNAGI_BENCH_API_KEY, with the manage permission) or AnkiConnect's, if it has one "
+             "(ANKICONNECT_API_KEY). Or close Anki yourself and rerun")
 
     print(f"AnkiConnect {set_disabled(ANKICONNECT, args.api != 'ankiconnect')}, "
           f"Tsunagi {set_disabled(TSUNAGI, args.api != 'tsunagi')}")
@@ -99,7 +108,7 @@ def main():
                      | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
     port = PORTS[args.api]
     print(f"Starting Anki on {args.profile!r}, waiting for {args.api} on port {port}...")
-    wait(lambda: ask(port, "version", timeout=1.0) is not None, 120, f"{args.api} to answer on port {port}")
+    wait(lambda: ask(args.api, "version", timeout=1.0) is not None, 120, f"{args.api} to answer on port {port}")
     print(f"Ready: {args.api} on http://127.0.0.1:{port}")
 
 
