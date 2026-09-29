@@ -20,7 +20,7 @@ key in the add-on's saved configuration for reference.
 | Setting | Key | Default | |
 | --- | --- | --- | --- |
 | Run the Tsunagi server | `enabled` | on | |
-| Port | `port`, `prefer_port` | preferred port 7777 | If the port is busy, Tsunagi says so and doesn't start. It never picks another port. |
+| Port | `port`, `prefer_port` | 7777 | If the port is busy, Tsunagi says so and doesn't start. It never picks another port. The page sets both keys; a nonzero `port` wins. |
 | Host | `host` | `127.0.0.1` | This computer only. Any other address lets other devices connect; they need a key. |
 | Other host names | `allowed_hosts` | none | Names this computer is reached by through a proxy on it, such as Tailscale Serve. Bare names: no `http://`, no port. |
 | Log level | `log_level` | `warning` | |

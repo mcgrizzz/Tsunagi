@@ -421,20 +421,18 @@ const userLinks = (users) => users.map((u, i) => [i ? ", " : "", link(u.label, (
 
 const PAGE = {
   server() {
-    const fixed = draft.values.port !== 0;
-    const portKey = fixed ? "port" : "prefer_port";
+    // One port: a set `port` wins over `prefer_port`, and neither falls back to
+    // another port, so the page edits both together.
+    const port = draft.values.port || draft.values.prefer_port;
+    const setPort = (e) => { setNum(draft.values, "port")(e); setNum(draft.values, "prefer_port")(e); };
     return [
       header("Server", "Whether the API runs and where. Server changes restart it when you save."),
       h("section", { class: "card" },
         h("div", { class: "check" }, input(field("enabled")),
           h("label", { for: "enabled" }, h("b", {}, "Run the Tsunagi server"),
             h("span", { class: "help inline" }, " When off, the API does not start with Anki."))),
-        row("Port", h("span", { class: "inline-controls" },
-          h("select", { id: "portMode", onchange: (e) => { draft.values.port = e.target.value === "fixed" ? draft.values.prefer_port : 0; render(); } },
-            h("option", { value: "preferred", selected: !fixed }, "Preferred port"),
-            h("option", { value: "fixed", selected: fixed }, "Fixed port")),
-          h("input", { type: "number", id: portKey, min: 1, max: 65535, value: draft.values[portKey], oninput: setNum(draft.values, portKey) })),
-          "Must be free; Tsunagi does not pick another port.", "portMode"),
+        row("Port", h("input", { type: "number", id: "port", min: 1, max: 65535, value: port, oninput: setPort }),
+          "Must be free: if another program is using it, Tsunagi doesn't start.", "port"),
         row("Host", input(field("host")),
           "127.0.0.1: this computer only. Any other address lets other devices connect; they need a key (see Requests without a key).", "host"),
         row("Other host names", input(field("allowed_hosts")),

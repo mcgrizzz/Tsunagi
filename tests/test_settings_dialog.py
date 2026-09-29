@@ -175,7 +175,7 @@ class TestValidation:
     def test_out_of_range_int_is_an_error(self):
         values = form_values_from_config(DEFAULTS)
         values["prefer_port"] = 0
-        assert any("Preferred port" in e for e in validate_values(values))
+        assert "Port must be between 1 and 65535." in validate_values(values)
 
 
 class TestDocDrift:

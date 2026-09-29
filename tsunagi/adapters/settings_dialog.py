@@ -41,11 +41,12 @@ class Field(NamedTuple):
 FIELDS: Tuple[Field, ...] = (
     Field("enabled", "Connection", "bool", "Enable Tsunagi server", restart=True,
           tooltip="When off, the API server does not start with Anki."),
+    # One Port field on the page sets both; a nonzero `port` wins (config.md).
     Field("port", "Connection", "int", "Port", restart=True, minimum=0, maximum=65535,
-          tooltip="Fixed port to listen on. 0 uses the preferred port below."),
-    Field("prefer_port", "Connection", "int", "Preferred port", restart=True,
+          tooltip="The port to listen on. Startup fails loudly if it is busy."),
+    Field("prefer_port", "Connection", "int", "Port", restart=True,
           minimum=1, maximum=65535,
-          tooltip="Used when Port is 0. Startup fails loudly if it is busy."),
+          tooltip="The port to listen on. Startup fails loudly if it is busy."),
     Field("host", "Access", "text", "Host", restart=True,
           tooltip="Bind address. 127.0.0.1 keeps the API local-only."),
     Field("allowed_hosts", "Access", "cors_list", "Other host names",
