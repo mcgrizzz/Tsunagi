@@ -158,7 +158,7 @@ def test_answers_report_answered_cards_only(col, subscription, recorded_ops):
 def test_api_answers_emit_review_with_the_new_card_state(col, subscription, recorded_ops):
     col.set_config("fsrs", True)
     first, second = new_note("one").cards[0], new_note("two").cards[0]
-    token = broker.subscribe(types={"review"})
+    token = broker.subscribe(types={"cards.answered"})
     cards.answer_cards([{"card_id": first, "ease": 3}])
     compat.answer_cards_raw([{"cardId": second, "ease": 1}])
     events = broker.drain(token)
@@ -175,7 +175,7 @@ def test_api_review_events_name_the_app_that_answered(col, subscription, recorde
     from tsunagi.shared.permissions import current_caller
     review_events.update(apps=[{"name": "Phone", "key": "k" * 32, "role": "everything"}])
     first = new_note("one").cards[0]
-    token = broker.subscribe(types={"review"})
+    token = broker.subscribe(types={"cards.answered"})
     caller = current_caller.set(review_events.resolve_caller("k" * 32, False))
     try:
         cards.answer_cards([{"card_id": first, "ease": 3}])
@@ -230,7 +230,7 @@ def test_no_listeners_skips_event_factory(col, recorded_ops):
 
 def test_review_only_listener_skips_event_factory(col, recorded_ops):
     broker.start_session(col)
-    broker.subscribe(types={"review"})
+    broker.subscribe(types={"cards.answered"})
     try:
         assert ops.collection_op_call(lambda col: ops.ValueWithChanges(
             42, OpChanges(note=True),

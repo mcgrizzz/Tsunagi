@@ -45,7 +45,7 @@ GRANTS = (PERMISSIONS - {PUBLIC}) | {p.split(":", 1)[0] for p in PERMISSIONS - {
 NO_ACCESS = "none"
 BUILTIN_ROLES: Dict[str, Dict] = {
     # Everything any AnkiConnect client can do, so swapping it in just works.
-    "default": {"name": "Default (like AnkiConnect)",
+    "default": {"name": "Default",
                 "grants": ["read", "write", "gui", "sync", "manage", "events:changes"]},
     "read_only": {"name": "Read-only", "grants": ["read", "events:changes"]},
     "everything": {"name": "Everything", "grants": sorted(

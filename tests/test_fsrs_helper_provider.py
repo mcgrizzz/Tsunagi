@@ -123,7 +123,7 @@ def helper(tmp_path, monkeypatch, col, reset_settings):
     stub = Stub(mw, manager)
     stub.install(monkeypatch)
     stub.hooks = hooks
-    reset_settings.update(addon_enabled={f"fsrs_helper/{n}": "normal" for n in (
+    reset_settings.update(addon_enabled={f"fsrs_helper/{n}": "undoable" for n in (
         "easy_days", "set_easy_dates", "reschedule", "schedule_break")})
     jobs.reset()
     yield stub
@@ -150,10 +150,10 @@ def test_listed_on_its_addon_and_offers_five_items(client, helper):
     assert client.get(f"/v1/addons/{HELPER}").json()["provider"] == "fsrs_helper"
     body = client.get(BASE).json()
     assert body["unsupported"] is None
-    assert {i["name"]: i["level"] for i in body["items"]} == {
-        "easy_dates": "read", "easy_days": "normal", "set_easy_dates": "normal",
-        "reschedule": "normal", "schedule_break": "normal"}
-    assert all(i["shows_ui"] for i in body["items"] if i["level"] != "read")
+    assert {i["name"]: i["impact"] for i in body["items"]} == {
+        "easy_dates": "read", "easy_days": "undoable", "set_easy_dates": "undoable",
+        "reschedule": "undoable", "schedule_break": "undoable"}
+    assert all(i["shows_ui"] for i in body["items"] if i["impact"] != "read")
 
 
 def test_easy_dates_are_read_from_its_config(client, helper):

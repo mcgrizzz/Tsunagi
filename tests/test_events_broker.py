@@ -56,33 +56,33 @@ class TestBroker:
 
     def test_events_carry_a_timestamp(self, store):
         token = store.subscribe()
-        store.publish("review", card_id=1, ease=3)
+        store.publish("cards.answered", card_id=1, ease=3)
         assert store.drain(token)[0]["ts"] > 0
 
     def test_drain_empties_the_queue(self, store):
         token = store.subscribe()
-        store.publish("review", card_id=1, ease=3)
+        store.publish("cards.answered", card_id=1, ease=3)
         assert len(store.drain(token)) == 1
         assert store.drain(token) == []
 
     def test_subscriber_only_sees_events_after_subscribing(self, store):
-        store.publish("review", card_id=1, ease=3)
+        store.publish("cards.answered", card_id=1, ease=3)
         token = store.subscribe()
         assert store.drain(token) == []
 
     def test_overflow_discards_incomplete_backlog_and_reports_gap(self, store):
         token = store.subscribe()
         for i in range(MAX_QUEUED + 5):
-            store.publish("review", card_id=i, ease=1)
+            store.publish("cards.answered", card_id=i, ease=1)
         events = store.drain(token)
         assert events[0] == {**events[0], "type": "gap", "reason": "lagged"}
         assert len(events) == 1
         assert events[0]["discarded"] == MAX_QUEUED + 5
         gap_boundary = events[0]["after_seq"]
         # The lag was reported once; the next drain is clean.
-        store.publish("review", card_id=99, ease=1)
+        store.publish("cards.answered", card_id=99, ease=1)
         following = store.drain(token)
-        assert [e["type"] for e in following] == ["review"]
+        assert [e["type"] for e in following] == ["cards.answered"]
         assert following[0]["seq"] > gap_boundary
 
     def test_unsubscribe_stops_delivery(self, store):
@@ -277,7 +277,7 @@ class TestPublishHelpers:
         card = SimpleNamespace(id=1690000000000, ivl=4, due=120, queue=2, memory_state=None)
         publish_review(card, 3)
         event = broker.drain(token)[0]
-        assert event["type"] == "review" and event["origin"] == "ui"
+        assert event["type"] == "cards.answered" and event["origin"] == "ui"
         assert (event["card_id"], event["ease"], event["interval"], event["due"],
                 event["queue"], event["memory_state"]) == (1690000000000, 3, 4, 120, 2, None)
 
@@ -397,12 +397,12 @@ def test_flags_name_only_the_resources_whose_rows_changed():
 
 @pytest.mark.parametrize("grants, sent", [
     ({"read", "events:changes"}, ["notes.stale", "sync"]),
-    ({"events"}, ["notes.stale", "review", "sync"]),
+    ({"events"}, ["notes.stale", "cards.answered", "sync"]),
     ({"read"}, ["sync"]),
 ])
 def test_grants_decide_which_events_are_sent(grants, sent):
     token = broker.subscribe(grants=frozenset(grants))
     broker.publish("change", affected=["notes"])
-    broker.publish("review", card_id=1, ease=3)
+    broker.publish("cards.answered", card_id=1, ease=3)
     broker.publish("sync", phase="started")
     assert [e["type"] for e in broker.drain(token)] == sent

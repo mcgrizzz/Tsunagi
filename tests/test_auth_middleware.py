@@ -108,7 +108,7 @@ def test_through_tailscale_serve_a_keyless_phone_gets_no_access(client, reset_se
     assert client.get("/v1/capabilities", headers=serve).status_code == 401
     reset_settings.update(**{**key_required("phone-key", name="Phone"), "no_key_local_role": "default"})
     caller = client.get("/v1/capabilities", headers={**serve, "X-Api-Key": "phone-key"}).json()["caller"]
-    assert caller == {"name": "Phone", "role": "Default (like AnkiConnect)", "this_computer": False,
+    assert caller == {"name": "Phone", "role": "Default", "this_computer": False,
                       "host": "pc.tailnet.ts.net"}
 
 

@@ -56,11 +56,11 @@ class TestStream:
         assert parse_frames(resp.text)[-1] == ("close", {"reason": "timeout"})
 
     def test_events_arrive_with_id_lines_and_close_on_max(self, client):
-        publish_soon(("review", {"card_id": 42, "ease": 3}))
+        publish_soon(("cards.answered", {"card_id": 42, "ease": 3}))
         resp = client.get("/v1/events?max_events=1&timeout=5")
         frames = parse_frames(resp.text)
         assert frames[0][0] == "ready"
-        assert frames[1][0] == "review"
+        assert frames[1][0] == "cards.answered"
         assert frames[1][1]["card_id"] == 42
         assert frames[1][1]["ease"] == 3
         assert frames[-1] == ("close", {"reason": "max_events"})

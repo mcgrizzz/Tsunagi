@@ -223,19 +223,19 @@ def provide(registry: Registry) -> None:
     registry.provide(
         "fsrs_helper", "FSRS Helper", addon=ADDON_ID, available=_available, watch=_watch,
         actions=[
-            {"name": "easy_dates", "title": "Easy dates", "level": "read", "run": easy_dates,
+            {"name": "easy_dates", "title": "Easy dates", "impact": "read", "run": easy_dates,
              "description": "The dates set in FSRS Helper's Easy Days for specific dates."},
-            {"name": "easy_days", "title": "Apply easy days", "level": "normal", "run": easy_days,
+            {"name": "easy_days", "title": "Apply easy days", "impact": "undoable", "run": easy_days,
              "shows_ui": True,
              "description": "Reschedule cards due in the next 35 days so fewer land on "
                             "easy days. Applies to all decks."},
-            {"name": "set_easy_dates", "title": "Set easy dates", "level": "normal",
+            {"name": "set_easy_dates", "title": "Set easy dates", "impact": "undoable",
              "run": set_easy_dates, "shows_ui": True,
              "description": "Replace the easy dates, then reschedule the cards due on them, "
                             "like the add-on's Apply button. Past dates are dropped.",
              "params": {"dates": {"type": "dates", "required": True,
                                   "description": "Dates as YYYY-MM-DD; an empty list clears them"}}},
-            {"name": "reschedule", "title": "Reschedule cards", "level": "normal",
+            {"name": "reschedule", "title": "Reschedule cards", "impact": "undoable",
              "run": reschedule, "shows_ui": True,
              "description": "Recompute due dates from FSRS for all cards or one deck, or only "
                             "for cards reviewed in the last days (the add-on's setting, 7 by "
@@ -243,7 +243,7 @@ def provide(registry: Registry) -> None:
              "params": {"deck": _DECK,
                         "recent": {"type": "boolean", "default": False,
                                    "description": "Only recently reviewed cards"}}},
-            {"name": "schedule_break", "title": "Schedule a break", "level": "normal",
+            {"name": "schedule_break", "title": "Schedule a break", "impact": "undoable",
              "run": schedule_break, "shows_ui": True,
              "description": "Move reviews due during a break to the days after it. The "
                             "add-on's confirmation dialog is not shown.",

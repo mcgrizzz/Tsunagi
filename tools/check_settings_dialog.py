@@ -232,23 +232,23 @@ def check(app, screenshot):
         # Add-ons: approve on the Add-ons page; Default follows, destructive
         # actions only in Everything; withdrawing takes it out of every role.
         addon_actions.Registry().provide("check_addon", "Check Add-on", actions=[
-            {"name": "apply", "title": "Apply it", "level": "normal", "run": print, "shows_ui": True},
-            {"name": "later", "title": "Later", "level": "normal", "run": print},
-            {"name": "wipe", "title": "Wipe history", "level": "destructive", "run": print},
-            {"name": "peek", "title": "Peek", "level": "read", "run": print}])
+            {"name": "apply", "title": "Apply it", "impact": "undoable", "run": print, "shows_ui": True},
+            {"name": "later", "title": "Later", "impact": "undoable", "run": print},
+            {"name": "wipe", "title": "Wipe history", "impact": "destructive", "run": print, "backup": True},
+            {"name": "peek", "title": "Peek", "impact": "read", "run": print}])
         # Add-on text is not ours: long names and descriptions, several add-ons.
         long_text = ("Rebuilds every filtered deck in the collection, one after another, then re-sorts the "
                      "cards in each by the options that deck was created with. ") * 6
         addon_actions.Registry().provide("long_addon", "An Add-on With A Rather Long Name For Testing Layout",
                                          actions=[
-            {"name": "rebuild", "level": "normal", "run": print, "description": long_text,
+            {"name": "rebuild", "impact": "undoable", "run": print, "description": long_text,
              "title": "Rebuild all filtered decks and re-sort them by their original search order options"},
-            {"name": "purge", "title": "Purge", "level": "destructive", "run": print, "shows_ui": True,
+            {"name": "purge", "title": "Purge", "impact": "destructive", "run": print, "shows_ui": True,
              "description": "Deletes review history older than a year."},
             {"name": "stats", "title": "Statistics for every deck including subdecks and filtered decks",
-             "level": "read", "run": print, "description": long_text}])
+             "impact": "read", "run": print, "description": long_text}])
         addon_actions.Registry().provide("other_addon", "Other Add-on", actions=[
-            {"name": "tidy", "title": "Tidy", "level": "normal", "run": print}])
+            {"name": "tidy", "title": "Tidy", "impact": "undoable", "run": print}])
         byid = "document.getElementById"
         try:
             dlg = open_page(app)
@@ -294,7 +294,7 @@ def check(app, screenshot):
                 js(app, dlg, "$('[data-area=addon]').scrollIntoView()")
                 shoot(app, dlg, screenshot, "role-addons")
             save(app, dlg)
-            assert store["cfg"]["addon_enabled"] == {"check_addon/apply": "normal", "check_addon/later": "normal",
+            assert store["cfg"]["addon_enabled"] == {"check_addon/apply": "undoable", "check_addon/later": "undoable",
                                                       "check_addon/wipe": "destructive"}
             assert store["cfg"]["roles"] == {}
             dlg = open_page(app)

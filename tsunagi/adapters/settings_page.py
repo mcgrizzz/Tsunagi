@@ -51,7 +51,7 @@ AREAS: List[Tuple[str, str, str, str]] = [
     ("memory_state", "Rewrite FSRS memory state", "FSRS state",
      "Overwrite what FSRS knows about cards. A faulty tool could quietly damage your scheduling."),
     ("addon", "Run add-on actions", "Add-ons",
-     "Run the add-on actions enabled on the Add-ons page, including destructive ones (a backup is made first)."),
+     "Run the add-on actions enabled on the Add-ons page, including destructive ones."),
 ]
 NAMES: Dict[str, str] = {
     "notes": "Notes", "cards": "Cards", "decks": "Decks", "deck_configs": "Deck options",
@@ -90,7 +90,10 @@ def _role_default(rid: str, approvals: Any) -> Optional[Dict[str, Any]]:
 
 
 def _approvals(value: Any) -> Dict[str, str]:
-    return {k: v for k, v in value.items() if isinstance(v, str)} if isinstance(value, dict) else {}
+    # A value that is no longer an impact (such as an old "normal") is dropped,
+    # so the action shows as disabled rather than blocking Save.
+    ok = ("undoable", "destructive")
+    return {k: v for k, v in value.items() if v in ok} if isinstance(value, dict) else {}
 
 
 def _roles_for_page(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -106,7 +109,7 @@ def _roles_for_page(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
                      "grants": default["grants"] if rid not in custom and default else grants,
                      "builtin": default is not None,
                      # Without add-on approvals: the page adds its draft's own
-                     # (Default also has every approved normal action).
+                     # (Default also has every approved undoable action).
                      "default": _role_default(rid, {})})
     return rows
 
@@ -116,7 +119,7 @@ def providers_for_page() -> List[Dict[str, Any]]:
     from . import addon_actions, providers  # noqa: F401  (registers the bundled ones)
     return [{"id": p.id, "title": p.title, "unsupported": addon_actions.unavailable(p),
              "actions": [{"key": f"{p.id}/{i.name}", "title": i.title, "description": i.description,
-                          "level": i.level, "shows_ui": i.shows_ui} for i in p.items]}
+                          "impact": i.impact, "shows_ui": i.shows_ui, "backup": i.backup} for i in p.items]}
             for p in sorted(addon_actions.PROVIDERS.values(), key=lambda p: p.title.lower())]
 
 
@@ -205,8 +208,8 @@ def validate_access(cfg: Dict[str, Any], draft: Dict[str, Any]) -> List[str]:
     used = [a["role"] for a in draft["apps"]] + [draft[k] for k, *_ in NO_KEY_ROWS]
     for rid in sorted(set(used) - set(ids)):
         add(f"Role {rid!r} is in use but does not exist.", "apps")
-    for key, level in (draft.get("addon_enabled") or {}).items():
-        if not re.fullmatch(r"[a-z0-9_]+/[a-z0-9_]+", key) or level not in ("normal", "destructive"):
+    for key, impact in (draft.get("addon_enabled") or {}).items():
+        if not re.fullmatch(r"[a-z0-9_]+/[a-z0-9_]+", key) or impact not in ("undoable", "destructive"):
             add(f"Add-on setting {key!r} is not valid.", "addons")
     remote = draft["no_key_remote_role"]
     if (remote != NO_ACCESS and remote != cfg.get("no_key_remote_role", DEFAULTS["no_key_remote_role"])

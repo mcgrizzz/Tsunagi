@@ -269,26 +269,26 @@ const sameRole = (a, b) => a.name === b.name && sameGrants(a.grants, b.grants);
 
 const addonName = (key) => "addon:" + key;
 const allActions = () => S.providers.flatMap((p) => p.actions.map((a) => ({ ...a, provider: p.title })));
-const approved = (a, d = draft) => d.addon_enabled[a.key] === a.level;
+const approved = (a, d = draft) => d.addon_enabled[a.key] === a.impact;
 
 // A built-in role's defaults. Default also has every action approved as
-// normal, like the server's Settings.role, so approving keeps it unedited.
+// undoable, like the server's Settings.role, so approving keeps it unedited.
 function defaultOf(r, d = draft) {
   const def = S.roles.find((x) => x.id === r.id)?.default;
   if (!def) return null;
   const extra = r.id !== "default" ? [] : Object.entries(d.addon_enabled)
-    .filter(([, level]) => level === "normal").map(([key]) => addonName(key));
+    .filter(([, impact]) => impact === "undoable").map(([key]) => addonName(key));
   return { name: def.name, grants: [...new Set(def.grants.concat(extra))].sort() };
 }
 
-// Approving a normal action also allows it for Default; destructive ones are
+// Approving an undoable action also allows it for Default; destructive ones are
 // only in Everything until a role adds them. Withdrawing removes it everywhere.
 function setApproval(a, on) {
   const name = addonName(a.key);
   if (on) {
-    draft.addon_enabled[a.key] = a.level;
+    draft.addon_enabled[a.key] = a.impact;
     const dflt = roleById("default");
-    if (a.level === "normal" && dflt && !dflt.grants.includes(name)) dflt.grants = [...dflt.grants, name].sort();
+    if (a.impact === "undoable" && dflt && !dflt.grants.includes(name)) dflt.grants = [...dflt.grants, name].sort();
   } else {
     delete draft.addon_enabled[a.key];
     for (const r of draft.roles) r.grants = r.grants.filter((g) => g !== name);
@@ -298,8 +298,8 @@ function setApproval(a, on) {
 // The role editor's parts of an area. For add-ons: the approved actions.
 function namesOf(area) {
   if (area.area !== "addon") return area.names;
-  return allActions().filter((a) => a.level !== "read" && approved(a))
-    .map((a) => ({ name: addonName(a.key), label: a.title, group: a.provider, destructive: a.level === "destructive" }));
+  return allActions().filter((a) => a.impact !== "read" && approved(a))
+    .map((a) => ({ name: addonName(a.key), label: a.title, group: a.provider, destructive: a.impact === "destructive" }));
 }
 
 const allows = (r, name) => r.grants.includes(name) || r.grants.includes(name.split(":")[0]);
@@ -326,33 +326,34 @@ function description(a) {
 // every row; the add-on's description wraps on the line below. Which roles may
 // run it is shown in Roles, not here.
 function actionRows(a, shared) {
-  const read = a.level === "read";
+  const read = a.impact === "read";
   const on = read || approved(a);
   const relabelled = !read && !approved(a) && a.key in draft.addon_enabled;
   const id = "approve_" + a.key.replace("/", "__");
   return [
-    h("tr", { class: "action " + a.level, id: rowId(a), "data-action": a.key },
+    h("tr", { class: "action " + a.impact, id: rowId(a), "data-action": a.key },
       h("td", { class: "approve" },
         h("input", { type: "checkbox", id, checked: on, disabled: read, "aria-label": "Enable " + a.title,
                      title: read ? "Reading is always enabled; the app's role decides" : null,
                      onchange: (e) => { setApproval(a, e.target.checked); render(); } })),
       h("td", { class: "name" }, h("label", { for: id }, a.title),
-        a.level === "destructive" && h("span", { class: "tag danger" }, "Destructive: backup first"),
+        a.impact === "destructive" && h("span", { class: "tag danger" }, "Destructive"),
+        a.backup && h("span", { class: "tag" }, "Backs up first"),
         !shared.ui && a.shows_ui && h("span", { class: "tag" }, "Shows windows here"))),
-    h("tr", { class: "action-more " + a.level }, h("td", {}), h("td", {},
+    h("tr", { class: "action-more " + a.impact }, h("td", {}), h("td", {},
       description(a),
       relabelled && h("div", { class: "desc warn-text" }, "The add-on changed this action since you enabled it. Enable it again."))),
   ];
 }
 
 function providerCard(p) {
-  const acts = p.actions.filter((a) => a.level !== "read");
-  const reads = p.actions.filter((a) => a.level === "read");
-  const ready = acts.filter((a) => a.level === "normal" && !approved(a));
+  const acts = p.actions.filter((a) => a.impact !== "read");
+  const reads = p.actions.filter((a) => a.impact === "read");
+  const ready = acts.filter((a) => a.impact === "undoable" && !approved(a));
   // Said once under the heading when every action shares it, not on each row.
   const shared = { ui: acts.length > 0 && acts.every((a) => a.shows_ui),
-                   normal: acts.length > 0 && acts.every((a) => a.level === "normal") };
-  const notes = [shared.normal && `All ${acts.length} change your collection.`,
+                   undoable: acts.length > 0 && acts.every((a) => a.impact === "undoable") };
+  const notes = [shared.undoable && `All ${acts.length} change your collection.`,
                  shared.ui && "They show a progress window or message on this computer while running."].filter(Boolean);
   const section = (label) => h("tr", { class: "section" }, h("td", { colspan: 2 }, label));
   return h("section", { class: "card flush addon", "data-provider": p.id },
@@ -788,7 +789,7 @@ function addonParts(r, area, st, locked, setGrants) {
   const intro = h("div", { class: "desc permits-intro" }, "Checked: this role allows the action. It runs only if " +
     "the action is also enabled on the Add-ons page.");
   return [intro, S.providers.map((p) => {
-    const acts = allActions().filter((a) => a.provider === p.title && a.level !== "read");
+    const acts = allActions().filter((a) => a.provider === p.title && a.impact !== "read");
     return acts.length > 0 && h("div", { class: "addon-parts" },
       h("div", { class: "group" }, p.title),
       h("table", { class: "permits" }, h("tbody", {}, acts.map((a) => {
@@ -802,8 +803,8 @@ function addonParts(r, area, st, locked, setGrants) {
             h("input", { type: "checkbox", id: permId(a), checked: permits, disabled: locked || !ok || r.grants.includes(area.area),
                          title: !ok ? "Enable it on the Add-ons page first" : r.grants.includes(area.area) ? "This role allows every enabled action" : null,
                          onchange: (e) => choose(name, e.target.checked) })),
-          h("td", {}, h("label", { for: permId(a), class: a.level === "destructive" ? "destructive" : null }, a.title),
-            a.level === "destructive" && h("span", { class: "tag danger" }, "Destructive")),
+          h("td", {}, h("label", { for: permId(a), class: a.impact === "destructive" ? "destructive" : null }, a.title),
+            a.impact === "destructive" && h("span", { class: "tag danger" }, "Destructive")),
           h("td", { class: "status" }, h("span", { class: "tag " + (ok ? "ok" : "off") }, status[0]), " ", status[1],
             !ok && [" ", link("Enable…", () => { go("addons"); const row = document.getElementById(rowId(a));
                                                              if (row) { row.scrollIntoView({ block: "center" }); row.classList.add("flash"); } },

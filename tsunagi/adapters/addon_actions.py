@@ -15,13 +15,14 @@ docs/addon_providers.md. Tsunagi's own providers (adapters/providers/) use
 the same `provide`.
 
 Permissions: a read needs read:addons. Any other item needs the user's
-approval at its current level (config `addon_enabled`) and a grant of
+approval at its current impact (config `addon_enabled`) and a grant of
 `addon:<provider>/<item>` or the whole `addon` area.
 """
 from __future__ import annotations
 
 import datetime
 import logging
+import math
 import threading
 from concurrent.futures import Future
 from dataclasses import dataclass, field
@@ -37,8 +38,8 @@ from .settings import settings
 
 HOOK = "tsunagi.register"
 API_VERSION = 1
-LEVELS = ("read", "normal", "destructive")
-PARAM_TYPES = ("integer", "boolean", "string", "dates")
+IMPACTS = ("read", "undoable", "destructive")
+PARAM_TYPES = ("integer", "number", "boolean", "string", "dates")
 SETTLE_TIMEOUT = 120.0  # seconds to wait for an add-on's follow-up work
 _ID_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789_")
 
@@ -56,8 +57,8 @@ class Param:
     description: str = ""
     required: bool = False
     default: Any = None
-    min: Optional[int] = None
-    max: Optional[int] = None
+    min: Optional[float] = None  # integer and number
+    max: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -65,10 +66,11 @@ class Item:
     name: str
     title: str
     description: str
-    level: str
+    impact: str
     run: Callable[..., Any]  # main thread, validated params as keywords
     params: Dict[str, Param] = field(default_factory=dict)
     shows_ui: bool = False  # progress window or tooltip on the PC
+    backup: bool = False  # destructive only: back up the collection before each run
 
 
 @dataclass(frozen=True)
@@ -123,8 +125,10 @@ def _item(spec: Dict[str, Any]) -> Item:
     name = spec.get("name")
     if not isinstance(name, str) or not name or not set(name) <= _ID_CHARS:
         raise ValueError(f"action name {name!r} may only use a-z, 0-9 and _")
-    if spec.get("level") not in LEVELS:
-        raise ValueError(f"{name}: level must be one of {', '.join(LEVELS)}")
+    if spec.get("impact") not in IMPACTS:
+        raise ValueError(f"{name}: impact must be one of {', '.join(IMPACTS)}")
+    if spec.get("backup") and spec["impact"] != "destructive":
+        raise ValueError(f"{name}: backup is only for destructive actions")
     if not callable(spec.get("run")):
         raise ValueError(f"{name}: run must be callable")
     params = {}
@@ -136,7 +140,8 @@ def _item(spec: Dict[str, Any]) -> Item:
         except TypeError as exc:
             raise ValueError(f"{name}.{pname}: {exc}") from None
     return Item(name, str(spec.get("title") or name), str(spec.get("description") or ""),
-                spec["level"], spec["run"], params, bool(spec.get("shows_ui")))
+                spec["impact"], spec["run"], params, bool(spec.get("shows_ui")),
+                bool(spec.get("backup")))
 
 
 def collect() -> List[str]:
@@ -193,10 +198,10 @@ def find(provider_id: str, name: Optional[str] = None):
 
 def status(caller: Caller, provider: Provider, item: Item) -> str:
     """allowed, disabled or not_permitted (unsupported is per provider)."""
-    if item.level == "read":
+    if item.impact == "read":
         return "allowed" if allows(caller.grants, "read:addons") else "not_permitted"
     key = f"{provider.id}/{item.name}"
-    if settings.addon_enabled().get(key) != item.level:
+    if settings.addon_enabled().get(key) != item.impact:
         return "disabled"  # never enabled, or relabelled since
     return "allowed" if allows(caller.grants, f"{ADDON}:{key}") else "not_permitted"
 
@@ -226,6 +231,12 @@ def _check(name: str, param: Param, value: Any) -> Any:
     if param.type == "integer":
         if isinstance(value, bool) or not isinstance(value, int):
             raise ValidationError(f"{name} must be an integer")
+        if (param.min is not None and value < param.min) or (param.max is not None and value > param.max):
+            raise ValidationError(f"{name} must be between {param.min} and {param.max}")
+        return value
+    if param.type == "number":
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValidationError(f"{name} must be a number")
         if (param.min is not None and value < param.min) or (param.max is not None and value > param.max):
             raise ValidationError(f"{name} must be between {param.min} and {param.max}")
         return value
@@ -263,7 +274,7 @@ def _work(job_id: str, provider: Provider, item: Item, params: Dict[str, Any]) -
     waiter = None
     ran = False
     try:
-        backup = _backup() if item.level == "destructive" else None
+        backup = _backup() if item.backup else None
 
         def start():
             nonlocal waiter, ran
@@ -303,7 +314,7 @@ def _redraw() -> None:
 
 
 def _backup() -> Dict[str, str]:
-    """Anki backup before a destructive item; the action does not run without one.
+    """Anki backup before an item that asks for one; the action does not run without it.
     The backend names no file, so report the newest one (also right when the
     backend skipped the backup because nothing changed since the last)."""
     from aqt import mw

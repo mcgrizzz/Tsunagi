@@ -40,7 +40,7 @@ def test_overflow_preserves_boundary_and_uses_session_on_gap():
     session = broker.start_session(object())
     token = broker.subscribe()
     for i in range(MAX_QUEUED + 1):
-        broker.publish("review", card_id=i, ease=3)
+        broker.publish("cards.answered", card_id=i, ease=3)
     assert broker.ready(token)["after_seq"] == 0
     event, = broker.drain(token)
     assert event["type"] == "gap"
@@ -56,7 +56,7 @@ def test_reconnect_reuses_session_but_restart_permanently_closes_old_tokens():
     broker.unsubscribe(old)
     old = broker.subscribe()
     assert broker.ready(old)["session_id"] == old_session
-    broker.publish("review", card_id=1, ease=3)
+    broker.publish("cards.answered", card_id=1, ease=3)
     broker.begin_drain()
     new_session = broker.start_session(collection)
     new = broker.subscribe()
@@ -65,7 +65,7 @@ def test_reconnect_reuses_session_but_restart_permanently_closes_old_tokens():
     broker.begin_drain(old_session)  # old server thread finally exits
     assert not broker.is_draining(new)
     assert broker.is_draining(old)
-    broker.publish("review", card_id=2, ease=3)
+    broker.publish("cards.answered", card_id=2, ease=3)
     assert broker.drain(old) == []
     assert broker.ready(old) is None
     assert broker.drain(new)[0]["card_id"] == 2
@@ -110,14 +110,14 @@ def test_suspended_generator_discards_remaining_batch(transition, reset_settings
         ready_frame = await gen.__anext__()
         assert "event: ready\n" in ready_frame
         assert "\nid:" not in ready_frame
-        broker.publish("review", card_id=1, ease=3)
-        broker.publish("review", card_id=2, ease=3)
+        broker.publish("cards.answered", card_id=1, ease=3)
+        broker.publish("cards.answered", card_id=2, ease=3)
         first = await gen.__anext__()
         assert '"card_id":1' in first
         if transition == "restart":
             broker.begin_drain()
             broker.start_session(object())
-            broker.publish("review", card_id=3, ease=3)
+            broker.publish("cards.answered", card_id=3, ease=3)
             reason = "shutdown"
         else:
             reset_settings.update(no_key_local_role="read_only")

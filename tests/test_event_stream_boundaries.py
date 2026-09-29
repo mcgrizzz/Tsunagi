@@ -52,7 +52,7 @@ def test_notes_client_receives_queued_changes_after_ready(event_broker):
             assert change["anki"] == {"changes": ["note"]}
 
             event_broker.publish("sync", phase="finished")
-            event_broker.publish("review", card_id=1, ease=3)
+            event_broker.publish("cards.answered", card_id=1, ease=3)
             event_broker.publish("change", affected=["config"])
             event_broker.publish("reset")
             name, broad, _ = await next_event(stream)
@@ -67,7 +67,7 @@ def test_notes_client_receives_queued_changes_after_ready(event_broker):
 
 
 @pytest.mark.parametrize("type_,payload", [
-    ("review", {"card_id": 42, "ease": 3}),
+    ("cards.answered", {"card_id": 42, "ease": 3}),
     ("sync", {"phase": "finished"}),
 ])
 def test_action_only_clients_get_ready_without_data_notifications(event_broker, type_, payload):
@@ -107,7 +107,7 @@ def test_resources_filter_each_named_change(event_broker):
     asyncio.run(consume())
 
 
-@pytest.mark.parametrize("types", ["change", "review", "change,review"])
+@pytest.mark.parametrize("types", ["change", "cards.answered", "change,cards.answered"])
 def test_gap_reports_lost_messages_without_a_synthetic_data_change(event_broker, types):
     wants_data = "change" in types
 
@@ -119,7 +119,7 @@ def test_gap_reports_lost_messages_without_a_synthetic_data_change(event_broker,
             if wants_data:
                 event_broker.publish("change", affected=["notes"])
             else:
-                event_broker.publish("review", card_id=42, ease=3)
+                event_broker.publish("cards.answered", card_id=42, ease=3)
         name, gap, frame = await next_event(stream)
         assert name == "gap"
         assert gap["reason"] == "lagged"
@@ -135,9 +135,9 @@ def test_gap_reports_lost_messages_without_a_synthetic_data_change(event_broker,
             assert name == "notes.updated"
             assert update["ids"] == [99]
         else:
-            event_broker.publish("review", card_id=99, ease=4)
+            event_broker.publish("cards.answered", card_id=99, ease=4)
             name, update, _ = await next_event(stream)
-            assert name == "review"
+            assert name == "cards.answered"
             assert update["card_id"] == 99
         assert update["seq"] > gap["after_seq"]
         assert (await next_event(stream))[:2] == ("close", {"reason": "max_events"})
@@ -169,7 +169,7 @@ def test_gap_cannot_resume_a_closed_connection(event_broker, reset_settings, tra
     asyncio.run(consume())
 
 
-@pytest.mark.parametrize("types", ["review", "sync", "review,sync", "cards.updated"])
+@pytest.mark.parametrize("types", ["cards.answered", "sync", "cards.answered,sync", "cards.updated"])
 def test_resource_filter_cannot_silently_do_nothing(client, event_broker, types):
     response = client.get("/v1/events", params={"types": types, "resources": "notes"})
     assert response.status_code == 422

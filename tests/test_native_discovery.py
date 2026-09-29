@@ -82,5 +82,5 @@ def test_import_restrictions_are_in_the_same_report(client):
 
 def test_capabilities_say_who_the_caller_was_taken_to_be(client):
     caller = client.get("/v1/capabilities").json()["caller"]
-    assert caller == {"name": "No key, this computer", "role": "Default (like AnkiConnect)",
+    assert caller == {"name": "No key, this computer", "role": "Default",
                       "this_computer": True, "host": "127.0.0.1"}

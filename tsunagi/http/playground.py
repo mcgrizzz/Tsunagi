@@ -88,9 +88,10 @@ to inspect.
 ### Check feature support and job status
 
 `GET /v1/capabilities` reports all native operations in one place. Each operation
-has a `status`: `available`, `disabled` in settings, or `unsupported` by this Anki
-version. Conditional options carry the same status, plus a reason and the setting
-that controls them. AnkiConnect actions remain separate at `GET /actions`.
+has a `status`: `available`, `disabled` for your app (its role lacks the
+permission, or the app is turned off), or `unsupported` by this Anki version.
+Conditional options carry the same status, plus a reason and the permission or
+setting that controls them. AnkiConnect actions remain separate at `GET /actions`.
 
 Look up an operation by method and path, such as
 `operations["POST /v1/cards:set-memory-state"]`. FSRS scheduling appears under

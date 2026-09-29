@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 
 class AddonInfo(BaseModel):
@@ -27,21 +27,23 @@ class AddonList(BaseModel):
 
 
 class ActionParam(BaseModel):
-    type: str = Field(description="integer, boolean or dates (a list of YYYY-MM-DD)")
+    type: str = Field(description="integer, number, boolean, string or dates (a list of YYYY-MM-DD)")
     description: str
     required: bool
     default: Any = None
-    min: Optional[int] = None
-    max: Optional[int] = None
+    min: Optional[Union[StrictInt, float]] = None
+    max: Optional[Union[StrictInt, float]] = None
 
 
 class ActionInfo(BaseModel):
     name: str
     title: str
     description: str
-    level: str = Field(description="read, normal or destructive (a backup is made before it runs)")
+    impact: str = Field(description="How much running it by mistake could matter: read (changes nothing), "
+                        "undoable (can be put back), or destructive (can't)")
     params: Dict[str, ActionParam]
     shows_ui: bool = Field(description="Shows a progress window or message on the computer running Anki")
+    backup: bool = Field(False, description="Tsunagi backs up the collection before each run (destructive actions that change it outside undo)")
     status: str = Field(description="allowed, disabled (the user has not enabled it in Tsunagi's settings), "
                                     "not_permitted (the caller's role lacks it) or unsupported")
 

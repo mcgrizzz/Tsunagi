@@ -22,11 +22,11 @@ NO_KEY_LOCAL = "No key, this computer"
 NO_KEY_REMOTE = "No key, other devices"
 
 def approved_defaults(role_id: Any, approvals: Any) -> frozenset:
-    """Add-on grants a built-in role has by default: approved normal items are
+    """Add-on grants a built-in role has by default: approved undoable items are
     part of Default's defaults, so "Reset to default" keeps them (2b-P)."""
     if role_id != "default" or not isinstance(approvals, dict):
         return frozenset()
-    return frozenset(f"{ADDON}:{item}" for item, level in approvals.items() if level == "normal")
+    return frozenset(f"{ADDON}:{item}" for item, impact in approvals.items() if impact == "undoable")
 
 
 def is_loopback_host(host: Any) -> bool:

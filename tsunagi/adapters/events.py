@@ -32,7 +32,7 @@ DATA_EVENT_TYPES = (frozenset(f"{resource}.stale" for resource in CHANGE_RESOURC
                     | frozenset(f"{resource}.{kind}" for resource in ("notes", "cards")
                                 for kind in ("created", "updated", "deleted"))
                     | {"reviews.created", "decks.counts"})
-EVENT_TYPES = DATA_EVENT_TYPES | {"change", "review", "sync"}
+EVENT_TYPES = DATA_EVENT_TYPES | {"change", "cards.answered", "sync"}
 
 
 def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
@@ -168,7 +168,7 @@ class EventBroker:
         return any(sub.accepts(type) for sub in subs)
 
     def has_change_subscribers(self) -> bool:
-        """Avoid preparing changed IDs for review/sync-only listeners."""
+        """Avoid preparing changed IDs for answer/sync-only listeners."""
         with self._lock:
             return any(sub.types is None or "change" in sub.types
                        or bool(sub.types & DATA_EVENT_TYPES)
@@ -244,7 +244,7 @@ class EventBroker:
 
 def event_permitted(grants: FrozenSet[str], type: str) -> bool:
     """Review events need events:reviews, data events events:changes."""
-    if type == "review" or type.startswith("reviews."):
+    if type == "cards.answered" or type.startswith("reviews."):
         return allows(grants, "events:reviews")
     return type not in DATA_EVENT_TYPES or allows(grants, "events:changes")
 
@@ -357,7 +357,7 @@ def publish_review(card: Any, ease: int, *, origin: str = "ui", collection: Any 
     state costs no extra read; fields match /v1/cards rows."""
     state = getattr(card, "memory_state", None)
     caller = current_caller.get() if origin == "api" else None
-    broker.publish("review", collection=collection, origin=origin,
+    broker.publish("cards.answered", collection=collection, origin=origin,
                    **({"client": caller.name} if caller else {}),
                    card_id=int(card.id), ease=int(ease), interval=int(card.ivl),
                    due=int(card.due), queue=int(card.queue),

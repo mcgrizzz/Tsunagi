@@ -53,9 +53,9 @@ def get_one(addon_id: str = _ID) -> AddonInfo:
 
 def _item_info(caller, provider, item, unsupported) -> ActionInfo:
     return ActionInfo(
-        name=item.name, title=item.title, description=item.description, level=item.level,
+        name=item.name, title=item.title, description=item.description, impact=item.impact,
         params={k: ActionParam(**vars(p)) for k, p in item.params.items()},
-        shows_ui=item.shows_ui,
+        shows_ui=item.shows_ui, backup=item.backup,
         status="unsupported" if unsupported else actions.status(caller, provider, item))
 
 
@@ -107,10 +107,10 @@ def run_action(provider_id: str, name: str,
         raise HTTPException(status_code=403, detail=(
             f"{provider.title}'s action {name!r} is disabled; enable it on the Add-ons page of Tsunagi's settings"))
     if state == "not_permitted":
-        needed = "read:addons" if item.level == "read" else f"{ADDON}:{provider.id}/{name}"
+        needed = "read:addons" if item.impact == "read" else f"{ADDON}:{provider.id}/{name}"
         raise HTTPException(status_code=403, detail=denied_message(caller, needed))
     params = actions.validate(item, body)
-    if item.level == "read":
+    if item.impact == "read":
         return ActionResult(result=actions.read(item, params), stats=_stats(start))
     job_id = actions.submit(provider, item, params)
     current = jobs.snapshot(job_id) or {"status": "queued"}

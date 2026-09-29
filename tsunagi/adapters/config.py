@@ -17,8 +17,8 @@ DEFAULTS = {
     "no_key_local_role": "default",
     "no_key_remote_role": "none",
     "roles": {},
-    # Add-on items the user approved, with the level approved:
-    # {"fsrs_helper/easy_days": "normal"} (backlog 2b-P).
+    # Add-on items the user approved, with the impact approved:
+    # {"fsrs_helper/easy_days": "undoable"} (backlog 2b-P).
     "addon_enabled": {},
     # AnkiConnect's default. The "http://localhost" entry also covers
     # 127.0.0.1 origins and browser extensions (see Settings.is_origin_allowed).

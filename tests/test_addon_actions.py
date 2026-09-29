@@ -53,14 +53,14 @@ class FakeAddon:
         actions.PROVIDERS.pop("fake", None)  # re-provide after a relabel
         registry.provide("fake", "Fake Helper", addon="1234",
                          available=lambda: self.reason, watch=self.watch, actions=[
-            {"name": "dates", "title": "Easy dates", "level": "read",
+            {"name": "dates", "title": "Easy dates", "impact": "read",
              "run": lambda: ["2026-10-01"]},
-            {"name": "apply", "title": "Apply", "level": self.relabel or "normal",
+            {"name": "apply", "title": "Apply", "impact": self.relabel or "undoable",
              "run": self.apply, "shows_ui": True,
              "params": {"days": {"type": "integer", "min": 1, "max": 60, "default": 3},
                         "deep": {"type": "boolean"}}},
-            {"name": "later", "title": "Later", "level": "normal", "run": later},
-            {"name": "wipe", "title": "Wipe", "level": "destructive", "run": self.wipe},
+            {"name": "later", "title": "Later", "impact": "undoable", "run": later},
+            {"name": "wipe", "title": "Wipe", "impact": "destructive", "run": self.wipe, "backup": True},
         ])
 
 
@@ -116,8 +116,8 @@ def test_reads_are_allowed_and_actions_wait_for_approval(client, fake):
     assert fake.calls == []
 
 
-def test_approved_normal_items_join_default_but_destructive_only_everything(client, fake, reset_settings):
-    approve(reset_settings, apply="normal", wipe="destructive")
+def test_approved_undoable_items_join_default_but_destructive_only_everything(client, fake, reset_settings):
+    approve(reset_settings, apply="undoable", wipe="destructive")
     assert statuses(client)["apply"] == "allowed"
     assert statuses(client)["wipe"] == "not_permitted"
     resp = run(client, "wipe")
@@ -127,7 +127,7 @@ def test_approved_normal_items_join_default_but_destructive_only_everything(clie
 
 
 def test_default_keeps_approved_items_as_its_defaults_until_edited(reset_settings):
-    approve(reset_settings, apply="normal", wipe="destructive")
+    approve(reset_settings, apply="undoable", wipe="destructive")
     assert "addon:fake/apply" in reset_settings.role("default")[1]
     assert "addon:fake/wipe" not in reset_settings.role("default")[1]
     reset_settings.update(roles={"default": {"name": "Default", "grants": ["read"]}})
@@ -137,7 +137,7 @@ def test_default_keeps_approved_items_as_its_defaults_until_edited(reset_setting
 
 
 def test_a_relabelled_item_is_disabled_again(client, fake, reset_settings):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     fake.relabel = "destructive"
     fake.provide(Registry())
     reset_settings.update(no_key_local_role="everything")
@@ -145,7 +145,7 @@ def test_a_relabelled_item_is_disabled_again(client, fake, reset_settings):
 
 
 def test_read_only_role_reads_but_cannot_run(client, fake, reset_settings):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     reset_settings.update(**key_required("ro", role="read_only", name="Dashboard"))
     headers = {"X-Api-Key": "ro"}
     assert statuses(client, headers=headers)["apply"] == "not_permitted"
@@ -157,7 +157,7 @@ def test_read_only_role_reads_but_cannot_run(client, fake, reset_settings):
 
 
 def test_action_runs_as_a_job_with_its_result(client, fake, reset_settings):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     resp = run(client, "apply", {"days": 5, "deep": True})
     assert resp.status_code == 202
     job_id = resp.json()["job_id"]
@@ -173,20 +173,20 @@ def test_action_runs_as_a_job_with_its_result(client, fake, reset_settings):
 
 
 def test_defaults_fill_missing_params_and_futures_are_awaited(client, fake, reset_settings):
-    approve(reset_settings, apply="normal", later="normal")
+    approve(reset_settings, apply="undoable", later="undoable")
     assert finished(run(client, "apply").json()["job_id"])["result"]["result"] == {"cards": 3}
     assert finished(run(client, "later").json()["job_id"])["result"]["result"] == {"cards": 7}
 
 
 def test_unsettled_follow_up_work_is_reported(client, fake, reset_settings):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     fake.settles = False
     snap = finished(run(client, "apply").json()["job_id"])
     assert snap["status"] == "done" and snap["result"]["settled"] is False
 
 
 def test_refusal_fails_the_job_and_releases_the_watch(client, fake, reset_settings):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     fake.refuse = True
     snap = finished(run(client, "apply").json()["job_id"])
     assert (snap["status"], snap["error"]) == ("failed", "FSRS is off")
@@ -200,14 +200,14 @@ def test_refusal_fails_the_job_and_releases_the_watch(client, fake, reset_settin
     ({"deep": "yes"}, "deep must be true or false"),
 ])
 def test_bad_params_are_refused_before_anything_runs(client, fake, reset_settings, body, message):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     resp = run(client, "apply", body)
     assert resp.status_code == 400 and resp.json()["detail"] == message
     assert fake.calls == []
 
 
 def test_dates_param_is_checked_and_normalised():
-    item = Item("x", "X", "", "normal", lambda dates: None,
+    item = Item("x", "X", "", "undoable", lambda dates: None,
                 params={"dates": Param("dates", required=True)})
     assert actions.validate(item, {"dates": ["2026-10-02", "2026-10-01", "2026-10-02"]}) == {
         "dates": ["2026-10-01", "2026-10-02"]}
@@ -218,7 +218,7 @@ def test_dates_param_is_checked_and_normalised():
 
 
 def test_unsupported_provider_lists_why_and_refuses_to_run(client, fake, reset_settings):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     fake.reason = "FSRS Helper is not installed"
     body = client.get(BASE).json()
     assert body["unsupported"] == "FSRS Helper is not installed" and body["items"] == []
@@ -232,7 +232,7 @@ def test_unknown_provider_or_action_is_404(client, fake):
 
 
 def test_busy_job_slot_is_409_and_actions_cannot_be_aborted(client, fake, reset_settings):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     busy = jobs.create("compute_params")
     assert run(client, "apply").status_code == 409
     jobs.fail(busy.id, "done with it")
@@ -255,6 +255,22 @@ def test_destructive_action_makes_a_backup_first(client, col, fake, reset_settin
     backups = list(folder.glob("*.colpkg"))
     assert len(backups) == 1 and snap["result"]["backup"] == {"path": str(backups[0])}
     assert fake.calls == ["watch", "wipe"]
+
+
+def test_a_destructive_action_without_backup_runs_without_one(client, col, reset_settings, monkeypatch):
+    monkeypatch.setattr(actions, "PROVIDERS", {})
+    monkeypatch.setattr(actions, "_backup", lambda: pytest.fail("no backup was asked for"))
+    ran = []
+    Registry().provide("solo", "Solo", addon="1234", actions=[
+        {"name": "reset", "impact": "destructive", "run": lambda: ran.append(1) or {"ok": True}}])
+    reset_settings.update(addon_enabled={"solo/reset": "destructive"}, no_key_local_role="everything")
+    snap = finished(client.post("/v1/addons/solo/actions/reset:run").json()["job_id"])
+    assert snap["status"] == "done" and snap["result"]["backup"] is None and ran == [1]
+
+
+def test_backup_is_only_for_destructive_actions():
+    with pytest.raises(ValueError, match="backup is only for destructive"):
+        Registry().provide("x", "X", [{"name": "a", "impact": "undoable", "run": run_it, "backup": True}])
 
 
 def test_no_backup_means_the_destructive_action_does_not_run(client, col, fake, reset_settings,
@@ -309,14 +325,14 @@ def run_it():
 
 @pytest.mark.parametrize("args, message", [
     (("Bad-Id", "X", []), "may only use a-z"),
-    (("x", "X", [{"name": "a", "level": "huge", "run": run_it}]), "level must be one of"),
-    (("x", "X", [{"name": "a", "level": "normal", "run": 5}]), "run must be callable"),
-    (("x", "X", [{"name": "a", "level": "normal", "run": run_it,
+    (("x", "X", [{"name": "a", "impact": "huge", "run": run_it}]), "impact must be one of"),
+    (("x", "X", [{"name": "a", "impact": "undoable", "run": 5}]), "run must be callable"),
+    (("x", "X", [{"name": "a", "impact": "undoable", "run": run_it,
                   "params": {"p": {"type": "float"}}}]), "type must be one of"),
-    (("x", "X", [{"name": "a", "level": "normal", "run": run_it,
+    (("x", "X", [{"name": "a", "impact": "undoable", "run": run_it,
                   "params": {"p": {"type": "string", "colour": "red"}}}]), "a.p:"),
-    (("x", "X", [{"name": "a", "level": "read", "run": run_it},
-                 {"name": "a", "level": "read", "run": run_it}]), "same name"),
+    (("x", "X", [{"name": "a", "impact": "read", "run": run_it},
+                 {"name": "a", "impact": "read", "run": run_it}]), "same name"),
 ])
 def test_provide_refuses_a_bad_shape(monkeypatch, args, message):
     monkeypatch.setattr(actions, "PROVIDERS", {})
@@ -327,12 +343,21 @@ def test_provide_refuses_a_bad_shape(monkeypatch, args, message):
 
 def test_the_owning_add_on_is_where_run_is_defined(monkeypatch):
     monkeypatch.setattr(actions, "PROVIDERS", {})
-    Registry().provide("mine", "Mine", [{"name": "a", "level": "read", "run": run_it}])
+    Registry().provide("mine", "Mine", [{"name": "a", "impact": "read", "run": run_it}])
     assert actions.PROVIDERS["mine"].addon_id == __name__.split(".")[0]
 
 
+def test_number_params_accept_fractions_within_bounds():
+    item = Item("x", "X", "", "undoable", run_it, params={"r": Param("number", min=0.7, max=0.99)})
+    assert actions.validate(item, {"r": 0.9}) == {"r": 0.9}
+    for bad, message in ((True, "must be a number"), ("0.9", "must be a number"),
+                         (float("nan"), "must be a number"), (1.5, "between 0.7 and 0.99")):
+        with pytest.raises(actions.ValidationError, match=message):
+            actions.validate(item, {"r": bad})
+
+
 def test_string_params_are_checked():
-    item = Item("x", "X", "", "normal", run_it, params={"q": Param("string")})
+    item = Item("x", "X", "", "undoable", run_it, params={"q": Param("string")})
     assert actions.validate(item, {"q": "deck:Japanese"}) == {"q": "deck:Japanese"}
     with pytest.raises(actions.ValidationError, match="q must be a string"):
         actions.validate(item, {"q": 3})
@@ -342,17 +367,17 @@ def test_collect_calls_every_add_on_and_isolates_a_broken_one(monkeypatch):
     from anki import hooks
     monkeypatch.setitem(hooks._hooks, actions.HOOK, [])
     monkeypatch.setattr(actions, "PROVIDERS", {})
-    Registry(bundled=True).provide("ours", "Ours", [{"name": "a", "level": "read", "run": run_it}])
+    Registry(bundled=True).provide("ours", "Ours", [{"name": "a", "impact": "read", "run": run_it}])
 
     def good(registry):
         assert registry.version == actions.API_VERSION
-        registry.provide("good", "Good", [{"name": "a", "level": "read", "run": run_it}])
+        registry.provide("good", "Good", [{"name": "a", "impact": "read", "run": run_it}])
 
     def broken(registry):
         raise RuntimeError("oops")
 
     def late(registry):
-        registry.provide("late", "Late", [{"name": "a", "level": "read", "run": run_it}])
+        registry.provide("late", "Late", [{"name": "a", "impact": "read", "run": run_it}])
 
     for fn in (good, broken, late):
         hooks.addHook(actions.HOOK, fn)
@@ -372,7 +397,7 @@ def redraws(monkeypatch):
 
 
 def test_anki_redraws_after_an_action_even_when_it_fails(client, fake, reset_settings, redraws):
-    approve(reset_settings, apply="normal")
+    approve(reset_settings, apply="undoable")
     assert finished(run(client, "apply").json()["job_id"])["status"] == "done"
     fake.refuse = True  # the add-on refuses after it was called
     assert finished(run(client, "apply").json()["job_id"])["status"] == "failed"

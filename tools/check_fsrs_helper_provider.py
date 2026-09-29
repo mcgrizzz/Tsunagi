@@ -90,7 +90,7 @@ def check(app, screenshot):
         "def hello(name='you'):\n"
         "    return {'hello': name}\n"
         "addHook('tsunagi.register', lambda registry: registry.provide(\n"
-        "    'check_provider', 'Check Provider', actions=[{'name': 'hello', 'level': 'normal',\n"
+        "    'check_provider', 'Check Provider', actions=[{'name': 'hello', 'impact': 'undoable',\n"
         "    'run': hello, 'params': {'name': {'type': 'string'}}}]))\n")
     importlib.import_module(other.name)
     assert actions.collect() == []

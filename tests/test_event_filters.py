@@ -29,10 +29,10 @@ def test_independent_interests_share_event_ids_and_allow_sequence_gaps(event_bro
     all_events = subscribe(event_broker)
     notes = subscribe(event_broker, types={"change"}, resources={"notes"})
     cards = subscribe(event_broker, types={"change"}, resources={"cards"})
-    reviews = subscribe(event_broker, types={"review"})
+    reviews = subscribe(event_broker, types={"cards.answered"})
 
     event_broker.publish("change", affected=["notes", "cards"], targets={})
-    event_broker.publish("review", card_id=42, ease=3)
+    event_broker.publish("cards.answered", card_id=42, ease=3)
     event_broker.publish("change", affected=["config"])
     event_broker.publish("change", affected=["notes"])
 
@@ -60,9 +60,9 @@ def test_broad_unknown_and_related_changes_reach_note_clients(event_broker, payl
 def test_resource_interests_filter_changes_and_types_select_other_notifications(event_broker):
     token = subscribe(event_broker, resources={"notes"})
     event_broker.publish("change", affected=["config"])
-    event_broker.publish("review", card_id=42, ease=3)
+    event_broker.publish("cards.answered", card_id=42, ease=3)
     event_broker.publish("sync", phase="started")
-    assert [event["type"] for event in event_broker.drain(token)] == ["review", "sync"]
+    assert [event["type"] for event in event_broker.drain(token)] == ["cards.answered", "sync"]
 
     token = subscribe(event_broker, types={"sync"}, resources={"notes"})
     event_broker.publish("change", affected=["collection"])
@@ -76,7 +76,7 @@ def test_unrelated_traffic_cannot_overflow_filtered_queue(event_broker):
     filtered = subscribe(event_broker, types={"change"}, resources={"notes"})
     event_broker.publish("change", affected=["notes"], targets={"notes": [42]})
     for _ in range(MAX_QUEUED * 2):
-        event_broker.publish("review", card_id=9, ease=3)
+        event_broker.publish("cards.answered", card_id=9, ease=3)
         event_broker.publish("change", affected=["config"])
 
     kept = event_broker.drain(filtered)
@@ -87,9 +87,9 @@ def test_unrelated_traffic_cannot_overflow_filtered_queue(event_broker):
 
 
 def test_matching_traffic_overflow_reports_a_delivery_gap(event_broker):
-    token = subscribe(event_broker, types={"review"})
+    token = subscribe(event_broker, types={"cards.answered"})
     for _ in range(MAX_QUEUED + 1):
-        event_broker.publish("review", card_id=42, ease=3)
+        event_broker.publish("cards.answered", card_id=42, ease=3)
     assert event_broker.ready(token)["type"] == "ready"
     gap, = event_broker.drain(token)
     assert gap["type"] == "gap"
@@ -104,7 +104,7 @@ def test_filtered_subscriptions_do_not_cross_ready_or_session_boundaries(event_b
     event_broker.publish("change", origin="ui", action="notes.updated",
                          targets={"notes": [42]}, affected=["notes"],
                          anki={"changes": ["note", "note_text"]})
-    next_token = subscribe(event_broker, types={"review"})
+    next_token = subscribe(event_broker, types={"cards.answered"})
     prior, = event_broker.drain(token)
     assert event_broker.ready(next_token)["after_seq"] == prior["seq"]
     assert event_broker.drain(next_token) == []
@@ -135,7 +135,7 @@ def test_http_filters_parse_lists_and_count_only_delivered_events(client, event_
 
     def with_events(**kwargs):
         token = original(**kwargs)
-        event_broker.publish("review", card_id=42, ease=3)
+        event_broker.publish("cards.answered", card_id=42, ease=3)
         event_broker.publish("change", affected=["config"])
         event_broker.publish("change", affected=["notes"])
         event_broker.publish("change", affected=["cards"])
@@ -161,7 +161,7 @@ def test_http_filters_parse_lists_and_count_only_delivered_events(client, event_
 def test_filtered_streams_keep_close_controls(event_broker, reset_settings, reason):
     async def consume():
         response = http_events.stream_events(
-            timeout=None, max_events=None, types="review")
+            timeout=None, max_events=None, types="cards.answered")
         stream = response.body_iterator
         await stream.__anext__()  # connection comment
         if reason == "auth":
@@ -192,7 +192,7 @@ def test_exact_type_filter_runs_before_queueing(event_broker, type_):
     event_broker.publish("change", affected=["notes"], changes={"notes": {kind: [42]}})
     for _ in range(MAX_QUEUED + 1):
         event_broker.publish("change", affected=["notes", "cards"])
-        event_broker.publish("review", card_id=9, ease=3)
+        event_broker.publish("cards.answered", card_id=9, ease=3)
     event, = event_broker.drain(token)
     assert event["type"] == type_
     assert event["ids"] == [42]

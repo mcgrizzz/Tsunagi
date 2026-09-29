@@ -80,7 +80,7 @@ def test_only_edited_built_ins_are_stored_and_reset_removes_them():
 
 def test_add_on_grants_survive_an_unrelated_save():
     cfg = fresh()
-    cfg["addon_enabled"] = {"fsrs_helper/easy_days": "normal"}
+    cfg["addon_enabled"] = {"fsrs_helper/easy_days": "undoable"}
     cfg["roles"] = {"phone": {"name": "Phone", "grants": ["addon:fsrs_helper/easy_days", "read"]}}
     new_cfg, _, errors = page.config_from_page(cfg, draft_of(cfg))
     assert errors == [] and new_cfg == cfg
@@ -88,7 +88,7 @@ def test_add_on_grants_survive_an_unrelated_save():
 
 def test_default_shows_its_approved_add_on_actions_and_keeps_them_when_edited():
     cfg = fresh()
-    cfg["addon_enabled"] = {"fsrs_helper/easy_days": "normal", "fsrs_helper/wipe": "destructive"}
+    cfg["addon_enabled"] = {"fsrs_helper/easy_days": "undoable", "fsrs_helper/wipe": "destructive"}
     state = page.page_state(cfg, {})
     row = next(g for g in state["roles"] if g["id"] == "default")
     assert "addon:fsrs_helper/easy_days" in row["grants"]
@@ -106,16 +106,16 @@ def test_default_shows_its_approved_add_on_actions_and_keeps_them_when_edited():
 def test_approvals_are_saved_and_default_stays_unedited():
     cfg = fresh()
     draft = draft_of(cfg)
-    draft["addon_enabled"] = {"fsrs_helper/easy_days": "normal"}
+    draft["addon_enabled"] = {"fsrs_helper/easy_days": "undoable"}
     default = next(g for g in draft["roles"] if g["id"] == "default")
     default["grants"].append("addon:fsrs_helper/easy_days")  # what approving does on the page
     new_cfg, _, errors = page.config_from_page(cfg, draft)
     assert errors == []
-    assert new_cfg["addon_enabled"] == {"fsrs_helper/easy_days": "normal"}
+    assert new_cfg["addon_enabled"] == {"fsrs_helper/easy_days": "undoable"}
     assert new_cfg["roles"] == {}  # Default is still at its defaults
 
 
-@pytest.mark.parametrize("approvals", [{"fsrs_helper/easy_days": "read"}, {"no slash": "normal"}])
+@pytest.mark.parametrize("approvals", [{"fsrs_helper/easy_days": "read"}, {"no slash": "undoable"}])
 def test_invalid_approvals_are_refused(approvals):
     cfg = fresh()
     draft = draft_of(cfg)
@@ -128,7 +128,7 @@ def test_the_page_lists_providers_and_their_actions():
     providers = {p["id"]: p for p in page.providers_for_page()}
     fsrs = providers["fsrs_helper"]
     assert fsrs["unsupported"]  # no FSRS Helper in the headless suite
-    assert {a["key"]: a["level"] for a in fsrs["actions"]}["fsrs_helper/easy_dates"] == "read"
+    assert {a["key"]: a["impact"] for a in fsrs["actions"]}["fsrs_helper/easy_dates"] == "read"
 
 
 @pytest.mark.parametrize("change, message", [
@@ -320,3 +320,10 @@ def test_bridge_reads_and_clears_the_request_log():
     assert [(c["label"], c["requests"], c["failed"]) for c in res["clients"]] == [("Yomitan", 2, 1)]
     assert len(cmd(b, "requests")["entries"]) == 2  # no filters
     assert cmd(b, "clear_requests") is True and request_log.clients() == []
+
+
+def test_saved_approvals_with_an_old_impact_show_disabled_and_do_not_block_save():
+    cfg = {**fresh(), "addon_enabled": {"fsrs_helper/easy_days": "normal", "fsrs_helper/reschedule": "undoable"}}
+    assert page.page_state(cfg, {})["addon_enabled"] == {"fsrs_helper/reschedule": "undoable"}
+    new_cfg, _, errors = page.config_from_page(cfg, draft_of(cfg))
+    assert errors == [] and new_cfg["addon_enabled"] == {"fsrs_helper/reschedule": "undoable"}
