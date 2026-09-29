@@ -57,7 +57,7 @@ def server(col, reset_settings, monkeypatch):
 def run(url, implementation, tmp_path):
     report = {"workloads": []}
     args = SimpleNamespace(url=url, profile="Bench", implementation=implementation,
-                           workloads=["mine_session", "client_settings"], repeats=1,
+                           workloads=["mine_session", "client_settings", "sync_notes_batch"], repeats=1,
                            api_key_env="TSUNAGI_TEST_NO_KEY", output=tmp_path / f"{implementation}.json")
     asyncio.run(bw.run(args, report))
     assert report["completed"] and not any(report["leftovers"].values())
@@ -66,7 +66,7 @@ def run(url, implementation, tmp_path):
 
 def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp_path):
     native, shim = run(server, "native", tmp_path), run(server, "shim", tmp_path)
-    for name in ("mine_session", "client_settings"):
+    for name in ("mine_session", "client_settings", "sync_notes_batch"):
         assert native[name]["consistent_result"] and shim[name]["consistent_result"]
         assert native[name]["trials"][1].get("part_sha256") == shim[name]["trials"][1].get("part_sha256")
         assert native[name]["trials"][1]["result_sha256"] == shim[name]["trials"][1]["result_sha256"]
@@ -76,3 +76,8 @@ def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp
     assert shim["mine_session"]["trials"][1]["requests"] == 80
     assert (native["client_settings"]["trials"][1]["requests"],
             shim["client_settings"]["trials"][1]["requests"]) == (3, 3)
+    # A 20-note file: deck check, media, notes through /v1; one multi through AnkiConnect.
+    assert (native["sync_notes_batch"]["trials"][1]["requests"],
+            shim["sync_notes_batch"]["trials"][1]["requests"]) == (3, 1)
+    outcomes = native["sync_notes_batch"]["result_sample"]["outcomes"]
+    assert outcomes == ["added"] * 15 + ["duplicate"] * 3 + ["empty", "rejected"]

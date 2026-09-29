@@ -19,8 +19,8 @@ profile:
 
 - **[Real client workloads](#real-client-workloads):** ten goals taken from
   real AnkiConnect clients, measured on **2026-09-29**.
-- **[Complete tasks](#complete-tasks):** two whole things a user does in
-  Yomitan, measured on **2026-09-29**.
+- **[Complete tasks](#complete-tasks):** three whole things a user does in
+  Yomitan and Obsidian_to_Anki, measured on **2026-09-29**.
 - **[Many clients at once](#many-clients-at-once):** a burst of simultaneous
   note-ID lookups. AnkiConnect was measured on **2026-09-21**, the other two on
   **2026-09-23**.
@@ -114,8 +114,8 @@ clears it.
 
 ## Complete tasks
 
-Two things a user actually does, from start to finish, each written the way
-Yomitan does it for AnkiConnect and the way a Yomitan integration would for the
+Three things a user actually does, from start to finish, each written the way
+the client does it for AnkiConnect and the way an integration would for the
 Tsunagi API. Median of ten runs after a first run, in milliseconds, on the same
 profile as above.
 
@@ -123,6 +123,7 @@ profile as above.
 | --- | --- | ---: | ---: | ---: |
 | **Mine 10 new words:** ten lookups; each popup checks its own 3 to 5 entries for duplicates (some already saved), then the user adds one new word with audio, a picture and automatic suspension | [duplicates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L753), [suspend](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816) | 2,862 (80 requests, 18 KB) | 953 (80, 17 KB) | **323** (50, 18 KB) |
 | **Open Yomitan's Anki settings:** the deck list, the note types, and the selected note type's fields | [lists](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484), [fields](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170) | 92 (3, 4.7 KB) | **4.8** (3, 4.5 KB) | 5.1 (3, 4.7 KB) |
+| **Sync a note file (Obsidian_to_Anki):** 20 notes at once: 15 new (4 with a picture), 3 duplicates, one with an empty first field and one with a note type that doesn't exist | [sync request](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/files-manager.ts#L172-L232), [note options](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/setting-to-data.ts#L18-L26) | 164 (1, 1.3 KB) | 135 (1, 1.2 KB) | **78** (3, 2.1 KB) |
 
 **How to read it:**
 
@@ -134,9 +135,17 @@ profile as above.
   suspend).
 - **Settings:** all three ask for the deck names, the note type names, and
   then only the selected note type's fields.
-- **Same answers:** both tasks gave identical results through all three APIs:
-  the same duplicates and matching notes, and the same notes, tags, suspended
-  cards and media.
+- **Note file:** Obsidian_to_Anki sends the whole sync as one `multi` request:
+  a deck creation and an `addNote` per note, then the pictures. The Tsunagi
+  API takes three requests (check the deck exists, upload the pictures, add
+  the 20 notes) and is still the fastest. Each note succeeds or fails on its
+  own in every API, and a word that appears twice in the file is added once.
+  The workload sends the pictures' bytes, where Obsidian_to_Anki sends file
+  paths (reading a file needs the local-files permission), and leaves out the
+  tag list and edits the same request carries.
+- **Same answers:** all three tasks gave identical results through all three
+  APIs: the same duplicates and matching notes, the same outcome for every
+  note in the file, and the same notes, tags, suspended cards and media.
 
 ## Many clients at once
 
@@ -248,7 +257,10 @@ python tools/benchmark_workloads.py \
 ```
 
 Repeat with `--implementation shim`, then with AnkiConnect enabled instead of
-Tsunagi and `--implementation upstream --url http://127.0.0.1:8765`.
+Tsunagi and `--implementation upstream --url http://127.0.0.1:8765`. On
+Windows, `python tools/bench_switch.py ankiconnect --profile "YOUR TEST PROFILE"`
+closes Anki, turns AnkiConnect on and Tsunagi off, starts Anki again and waits
+until AnkiConnect answers; `bench_switch.py tsunagi` switches back.
 `--workloads` runs a subset, and `--repeats` sets the number of timed runs.
 The runner writes to the profile; use a testing profile.
 

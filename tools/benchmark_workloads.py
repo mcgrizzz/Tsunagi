@@ -540,9 +540,103 @@ class ReviewHistoryAll(Workload):
         return review_rows((await c.rest("GET", "/v1/reviews", search="deck:*", select=REVIEW_FIELDS))["items"])
 
 
+class SyncNotesBatch(Workload):
+    name = "sync_notes_batch"
+    source = ("Obsidian_to_Anki: syncing a file of 20 notes in one request (files-manager.ts requests_1): "
+              "new notes, some with a picture, duplicates, and notes Anki rejects")
+    writes = True
+    PICTURES = 4
+
+    def notes(self, trial):
+        """The file's notes, in order, with the picture names they use (index -> media)."""
+        word = lambda i: f"tsunagibatch{i}"
+        rows = [word(i) for i in range(15)]
+        rows += ["tsunagibatch-dup0", "tsunagibatch-dup1",   # saved before, by setup
+                 word(5),                                     # the same card twice in the file
+                 "",                                          # an empty first field
+                 "tsunagibatch-missing-type"]                 # a note type that doesn't exist
+        pictures = {i: media(f"batch{i}", trial, 48 * 1024) for i in range(self.PICTURES)}
+        notes = []
+        for i, term in enumerate(rows):
+            fields = {TERM_FIELD: term, "Sentence": f"{term or 'no word'} from a note file"}
+            if i in pictures:
+                fields["Picture"] = f'<img src="{pictures[i][0]}">'
+            notes.append({"deckName": DECK, "modelName": "Tsunagi Missing Type" if i == 19 else MODEL,
+                          "fields": fields, "tags": [TAG],
+                          "options": {"allowDuplicate": False, "duplicateScope": "deck"}})
+        return notes, pictures
+
+    async def setup(self, c, ctx, trial):
+        for term in ("tsunagibatch-dup0", "tsunagibatch-dup1"):
+            await c.action("addNote", note={"deckName": DECK, "modelName": MODEL, "tags": [TAG],
+                                            "fields": {TERM_FIELD: term, "Sentence": "saved before"}})
+        ctx["created"], ctx["media"] = [], []
+
+    @staticmethod
+    def outcome(error):
+        if error is None:
+            return "added"
+        text = str(error).lower()
+        return "duplicate" if "duplicate" in text else "empty" if "empty" in text else "rejected"
+
+    async def ankiconnect(self, c, ctx, trial):
+        notes, pictures = self.notes(trial)
+        results = await c.action("multi", actions=[
+            {"action": "multi", "params": {"actions": [
+                {"action": "createDeck", "params": {"deck": n["deckName"]}} for n in notes]}},
+            {"action": "multi", "params": {"actions": [
+                {"action": "addNote", "params": {"note": n}} for n in notes]}},
+            {"action": "multi", "params": {"actions": [
+                {"action": "storeMediaFile", "params": {"filename": name, "data": base64.b64encode(data).decode()}}
+                for name, data in pictures.values()]}}])
+        unwrap = lambda r: r["result"] if isinstance(r, dict) and "result" in r else r
+        ctx["media"] = [unwrap(r) for r in unwrap(results[2])]
+        ctx["outcomes"] = [self.outcome(r.get("error") if isinstance(r, dict) else None)
+                           for r in unwrap(results[1])]
+
+    async def tsunagi(self, c, ctx, trial):
+        notes, pictures = self.notes(trial)
+        # The deck exists already here; a client creates it only when it's missing.
+        decks = sorted({n["deckName"] for n in notes})
+        found = (await c.rest("GET", "/v1/decks", where=f"name in {json.dumps(decks)}", select="name"))["items"]
+        for name in set(decks) - set(found):
+            await c.rest("POST", "/v1/decks", {"name": name})
+        stored = (await c.rest("POST", "/v1/media", [
+            {"filename": name, "data": base64.b64encode(data).decode()} for name, data in pictures.values()]))
+        names = [item["filename"] for item in sorted(stored["created"], key=lambda x: x["index"])]
+        ctx["media"] = names
+        # Stored names can differ from the requested ones: point the notes at them.
+        renamed = {requested: name for (requested, _), name in zip(pictures.values(), names)}
+        for n in notes:
+            if "Picture" in n["fields"]:
+                for requested, name in renamed.items():
+                    n["fields"]["Picture"] = n["fields"]["Picture"].replace(requested, name)
+        # The Tsunagi API takes the duplicate options on the note itself.
+        answer = await c.rest("POST", "/v1/notes", [{**{k: v for k, v in n.items() if k != "options"}, **n["options"]}
+                                                    for n in notes])
+        failures = {f["index"]: f"{f['code']} {f.get('message', '')}" for f in answer["failed"]}
+        ctx["outcomes"] = [self.outcome(failures.get(i)) for i in range(len(notes))]
+
+    async def verify(self, c, ctx, trial):
+        ids = await c.action("findNotes", query=BENCH_SEARCH)
+        ctx["created"] = ids   # the cleanup removes setup's notes too
+        added = {}
+        for n in await c.action("notesInfo", notes=ids):
+            fields = {k: v for k, v in fields_of(n).items() if v}
+            if fields.get("Sentence") != "saved before":
+                added[fields[TERM_FIELD]] = {"fields": fields, "tags": sorted(n["tags"])}
+        stored = {name: await c.action("retrieveMediaFile", filename=name) for name in ctx["media"]}
+        return placeholders({"outcomes": ctx["outcomes"], "added": added,
+                             "media": {name: hashlib.sha256(base64.b64decode(data)).hexdigest()
+                                       for name, data in stored.items()}}, ctx["media"])
+
+    async def cleanup(self, c, ctx, trial):
+        await delete_created(c, ctx)
+
+
 WORKLOADS = [LookupDuplicates(), LookupDuplicatesAllModels(), MineWithMedia(), UpdateLastMined(), KnownWordsSnapshot(),
              MinedWordsCache(), ChangePoll(), NoteTypeFields(), ReviewHistory(), ReviewHistoryAll(),
-             MineSession(), ClientSettings()]
+             MineSession(), ClientSettings(), SyncNotesBatch()]
 
 
 async def delete_created(c, ctx):
