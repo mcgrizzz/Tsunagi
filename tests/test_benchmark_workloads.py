@@ -57,7 +57,7 @@ def server(col, reset_settings, monkeypatch):
 def run(url, implementation, tmp_path):
     report = {"workloads": []}
     args = SimpleNamespace(url=url, profile="Bench", implementation=implementation,
-                           workloads=["mine_session", "client_settings", "sync_notes_batch"], repeats=1,
+                           workloads=["mine_session", "client_settings", "sync_notes_batch", "first_page_cards"], repeats=1,
                            api_key_env="TSUNAGI_TEST_NO_KEY", output=tmp_path / f"{implementation}.json")
     asyncio.run(bw.run(args, report))
     assert report["completed"] and not any(report["leftovers"].values())
@@ -66,7 +66,7 @@ def run(url, implementation, tmp_path):
 
 def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp_path):
     native, shim = run(server, "native", tmp_path), run(server, "shim", tmp_path)
-    for name in ("mine_session", "client_settings", "sync_notes_batch"):
+    for name in ("mine_session", "client_settings", "sync_notes_batch", "first_page_cards"):
         assert native[name]["consistent_result"] and shim[name]["consistent_result"]
         assert native[name]["trials"][1].get("part_sha256") == shim[name]["trials"][1].get("part_sha256")
         assert native[name]["trials"][1]["result_sha256"] == shim[name]["trials"][1]["result_sha256"]
@@ -79,5 +79,10 @@ def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp
     # A 20-note file: deck check, media, notes through /v1; one multi through AnkiConnect.
     assert (native["sync_notes_batch"]["trials"][1]["requests"],
             shim["sync_notes_batch"]["trials"][1]["requests"]) == (3, 1)
+    # The first 10 new cards and the total: the page, then every ID, in both.
+    assert (native["first_page_cards"]["trials"][1]["requests"],
+            shim["first_page_cards"]["trials"][1]["requests"]) == (2, 2)
+    page = native["first_page_cards"]["result_sample"]
+    assert page["total"] == 13 and len(page["cards"]) == 10 and page["cards"][0]["front"] == "word0"
     outcomes = native["sync_notes_batch"]["result_sample"]["outcomes"]
     assert outcomes == ["added"] * 15 + ["duplicate"] * 3 + ["empty", "rejected"]

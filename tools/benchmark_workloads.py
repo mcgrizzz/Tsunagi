@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import statistics
 import sys
 import time
@@ -634,9 +635,52 @@ class SyncNotesBatch(Workload):
         await delete_created(c, ctx)
 
 
+def clean_html(html):
+    """anki-mcp-server's cleanHtml (anki.utils.ts): the card text it hands the assistant."""
+    text = re.sub(r"<(style|script)\b[^>]*>[\s\S]*?</\1>", "", html or "", flags=re.I)
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
+    text = re.sub(r"</(?:div|p)>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]*>", "", text)
+    for entity, char in (("&nbsp;", " "), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'),
+                         ("&#39;", "'"), ("&amp;", "&")):
+        text = text.replace(entity, char)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r" *\n *", "\n", text)
+    return re.sub(r"\n{2,}", "\n", text).strip()
+
+
+class FirstPageCards(Workload):
+    name = "first_page_cards"
+    source = ("anki-mcp-server: an assistant asks for new cards (get-cards.tool.ts get_cards, "
+              "the default 10): every matching card's ID for the total, then details for the first 10")
+    query = "-is:suspended is:new"
+    limit = 10
+
+    @staticmethod
+    def card(card_id, question, deck, model, due, interval, factor):
+        return {"cardId": card_id, "front": clean_html(question), "deckName": deck, "modelName": model,
+                "due": due or 0, "interval": interval or 0, "factor": factor or 2500}
+
+    async def ankiconnect(self, c, ctx, trial):
+        ids = await c.action("findCards", query=self.query)
+        info = await c.action("cardsInfo", cards=ids[:self.limit])
+        return {"total": len(ids), "cards": [
+            self.card(i["cardId"], i["question"], i["deckName"], i["modelName"], i["due"], i["interval"],
+                      i["factor"]) for i in info]}
+
+    async def tsunagi(self, c, ctx, trial):
+        page = (await c.rest("GET", "/v1/cards", search=self.query, limit=self.limit,
+                             select="id,question,deck_name,model_name,due,interval,factor"))["items"]
+        # The tool also reports how many cards matched.
+        ids = (await c.rest("GET", "/v1/cards", search=self.query, select="id"))["items"]
+        return {"total": len(ids), "cards": [
+            self.card(r["id"], r["question"], r["deck_name"], r["model_name"], r["due"], r["interval"],
+                      r["factor"]) for r in page]}
+
+
 WORKLOADS = [LookupDuplicates(), LookupDuplicatesAllModels(), MineWithMedia(), UpdateLastMined(), KnownWordsSnapshot(),
              MinedWordsCache(), ChangePoll(), NoteTypeFields(), ReviewHistory(), ReviewHistoryAll(),
-             MineSession(), ClientSettings(), SyncNotesBatch()]
+             MineSession(), ClientSettings(), SyncNotesBatch(), FirstPageCards()]
 
 
 async def delete_created(c, ctx):

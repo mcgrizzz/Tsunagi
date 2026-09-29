@@ -16,7 +16,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -90,15 +89,14 @@ def main():
 
     print(f"AnkiConnect {set_disabled(ANKICONNECT, args.api != 'ankiconnect')}, "
           f"Tsunagi {set_disabled(TSUNAGI, args.api != 'tsunagi')}")
-    # Anki's console output (add-on warnings, tracebacks) goes to a log file,
-    # not this terminal, and Ctrl+C here doesn't reach Anki.
-    log = Path(tempfile.gettempdir()) / "anki-bench-console.log"
-    with open(log, "w", encoding="utf-8") as out:
-        subprocess.Popen([str(args.anki_exe), "-p", args.profile], stdin=subprocess.DEVNULL,
-                         stdout=out, stderr=subprocess.STDOUT, close_fds=True,
-                         creationflags=getattr(subprocess, "DETACHED_PROCESS", 0)
-                         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-    print(f"Anki's console output: {log}")
+    # Anki writes its console output (add-on warnings, tracebacks) to the
+    # console of whatever started it. Start it through a short-lived cmd with a
+    # hidden console of its own, so none of it lands in this terminal and
+    # Ctrl+C here doesn't reach Anki.
+    subprocess.Popen(["cmd", "/c", "start", "", str(args.anki_exe), "-p", args.profile],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     close_fds=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                     | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
     port = PORTS[args.api]
     print(f"Starting Anki on {args.profile!r}, waiting for {args.api} on port {port}...")
     wait(lambda: ask(port, "version", timeout=1.0) is not None, 120, f"{args.api} to answer on port {port}")
