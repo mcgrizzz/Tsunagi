@@ -18,9 +18,11 @@ the lockfile does, and copying ~1 MB every iteration is wasted work. Pass
 
 This does NOT install the add-on. Install the built .ankiaddon once through
 Anki so lib/shared and meta.json exist; after that this keeps the source in
-sync.
+sync. It also names the copy "Tsunagi (dev)" in Anki's add-on list, so it
+can't be mistaken for an AnkiWeb install next to it.
 """
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -104,7 +106,24 @@ def source_stamp() -> tuple:
     return count, newest
 
 
+DEV_NAME = "Tsunagi (dev)"
+
+
+def name_dev_copy(dest: Path, verbose: bool = True) -> None:
+    """Anki lists an add-on by meta.json's "name"; only that key changes."""
+    meta_path = dest / "meta.json"
+    if not meta_path.is_file():
+        return
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    if meta.get("name") != DEV_NAME:
+        meta["name"] = DEV_NAME
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        if verbose:
+            print(f"   meta.json name -> {DEV_NAME} (Anki shows it after a restart)")
+
+
 def sync(dest: Path, full: bool, verbose: bool = True) -> None:
+    name_dev_copy(dest, verbose)
     count = copy_tree(ROOT / SOURCE_TREE, dest / SOURCE_TREE)
     if verbose:
         print(f"   {SOURCE_TREE}/  ({count} modules)")
