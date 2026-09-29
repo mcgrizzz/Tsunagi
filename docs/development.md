@@ -155,7 +155,9 @@ The [Release workflow](../.github/workflows/release.yml):
 5. makes a **draft GitHub release** with generated notes, the `.ankiaddon` and
    its checksum. Review it and publish when ready.
 
-- Uploading to AnkiWeb is a separate step with the same `.ankiaddon`.
+- Uploading to AnkiWeb is a separate step with the same `.ankiaddon`. Paste the
+  listing from [ankiweb.md](ankiweb.md) into the upload form, updated first if
+  the release changes what it says.
 - To retry, rerun the workflow or run **Release** on the existing tag
   (`gh workflow run release.yml --ref v0.1.0`). Reruns update a draft's files
   and never touch a published release.
