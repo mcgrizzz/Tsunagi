@@ -207,6 +207,35 @@ else:
     _settings_action.triggered.connect(_open_settings)
     mw.form.menuTools.addAction(_settings_action)
 
+    # Turning Tsunagi off in Tools -> Add-ons takes effect only at restart;
+    # offer to stop the server now (and restart it if turned back on).
+    def _server_running() -> bool:
+        from .tsunagi.app import server_url
+        return server_url() is not None
+
+    def _stop_now() -> None:
+        from aqt.utils import tooltip
+
+        from .tsunagi.app import stop_server
+        stop_server("shutdown")
+        tooltip("Tsunagi's server stopped.")
+
+    def _start_again() -> None:
+        from .tsunagi.app import start_server
+        start_server(mw)
+
+    try:
+        from .tsunagi.adapters.addon_toggle import (
+            ServerSwitch,
+            ask_to_stop,
+            watch_own_toggle,
+        )
+        watch_own_toggle(mw.addonManager, __name__, ServerSwitch(
+            running=_server_running, ask_to_stop=lambda: ask_to_stop(mw.app.activeWindow() or mw),
+            stop=_stop_now, start=_start_again))
+    except Exception:
+        log.exception("Couldn't watch Tsunagi's add-on switch")
+
 
 _watch_timer = None
 _watch_stamp = None
