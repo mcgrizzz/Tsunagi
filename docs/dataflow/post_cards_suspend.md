@@ -1,5 +1,10 @@
 # `POST /v1/cards:suspend` — a mutation's full life
 
+> [!NOTE]
+> Written before the per-route permission checks and the request log were
+> added (late September 2026). Some function names and steps have changed
+> since; the code is authoritative.
+
 A write touches everything the reads don't: the undo stack, Anki's open
 windows, and the event stream. Same request, three audiences.
 

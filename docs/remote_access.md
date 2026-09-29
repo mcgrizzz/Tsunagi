@@ -27,10 +27,11 @@ own devices to it. Nothing is opened on your router or the public internet.
 4. In Tsunagi's settings, go to **Server → Other host names**, enter that
    name without `https://` (`pc.tailnet.ts.net`), and Save. Until then
    Tsunagi refuses requests through Serve with "Disallowed Host header".
-5. In **Apps & keys**, add an app for your phone and give it a role. Default
-   can do everything AnkiConnect can; a role of your own can allow only Sync
-   and the add-on actions you want. Save; the key is copied when you add
-   the app.
+5. In **Apps & keys**, click **Add app**, name it after your phone and
+   Save. It gets the Default role, which can do everything AnkiConnect can;
+   the key is copied when you add the app.
+6. To run add-on actions such as FSRS Helper's easy days, enable them on the
+   **Add-ons** page and Save.
 
 ## Check it
 
@@ -53,8 +54,11 @@ curl -X POST https://pc.tailnet.ts.net/v1/collection:sync -H "X-Api-Key: <key>"
 curl -X POST https://pc.tailnet.ts.net/v1/addons/fsrs_helper/actions/easy_days:run -H "X-Api-Key: <key>"
 ```
 
-A sync or add-on action that takes longer than a moment answers 202 with a
-job; poll `GET /v1/jobs/{id}` until it is done. Android's HTTP Shortcuts and
+A sync answers with its result, or with 202 and a job if it takes longer
+than the operation timeout (15 seconds by default). An add-on action always
+answers 202 and a job. Poll `GET /v1/jobs/{id}` until it is done. A sync
+answers 409 when Anki needs a full upload or download (click Sync in Anki
+once to choose) and 502 when AnkiWeb can't be reached. Android's HTTP Shortcuts and
 iOS Shortcuts can send these requests with a header.
 
 Anki must be running with your profile open.
@@ -65,8 +69,9 @@ Anki must be running with your profile open.
 tailscale serve --https=443 off
 ```
 
-You can also remove the name from **Other host names**, and remove or rename
-the phone's app to invalidate its key.
+You can also remove the name from **Other host names**. To stop the phone's
+key from working, untick the app's **On** box, click **New key**, or remove
+the app on **Apps & keys**.
 
 ## Other ways, and what not to do
 

@@ -1,56 +1,66 @@
 # API reference and playground
 
-Open Tsunagi's base URL (by default `http://127.0.0.1:7777/`) to use the
-[Scalar API reference](https://scalar.com/products/api-references/integrations/html-js).
-It reads the running server's `/openapi.json`, so endpoint navigation, parameter
-and body schemas, response schemas and client code examples follow the API.
+While Anki is running, open **<http://127.0.0.1:7777/>** (your port, if you
+changed it). It's an interactive reference of every endpoint, built from the
+running server, where you can send real requests.
 
-Select an endpoint in the sidebar or search for it. Choose **Test Request** to
-open the console, edit query parameters or a JSON body, and send the request.
-The console shows the actual response and HTTP status. Requests go directly to
-the host and port of the page. Begin with a health check or a notes query with a
-small limit. Write operations change the current Anki collection.
+## Try a request
 
-If an API key is configured, enter it in Scalar's **Authentication** control.
-Tsunagi API endpoints accept either `X-API-Key` or a Bearer token. Credentials are not
-persisted across page reloads. The public health route does not require a key;
-AnkiConnect RPC at `POST /` uses the `key` field in its JSON body.
+1. Pick an endpoint in the sidebar, or search for it.
+2. Click **Test Request**, fill in the parameters or JSON body, and send it.
+3. The actual response and HTTP status appear below.
 
-The overview explains notes, cards, models, queries, pagination and capabilities.
-Swagger remains at `/docs`, ReDoc at `/redoc`, and the schema at `/openapi.json`.
-The Scalar browser bundle is pinned to version 1.68.0 and loaded from jsDelivr;
-it requires internet access unless already cached. If it cannot load, reference
-links remain visible. No Scalar proxy is configured; AI features and telemetry
-are disabled.
+A health check or a notes query with a small `limit` is a good first try.
+Requests that change things change your real collection.
 
-## Choosing a page size
+## Keys
 
-Collection queries and media listings return **all matches when `limit` is
-omitted**, with `next_cursor: null`. For example, `/v1/cards?select=id,note_id`
-returns those fields for every card.
+- If your app has a key, enter it under **Authentication** (as `X-Api-Key` or
+  a Bearer token). It isn't kept after the page reloads.
+- `GET /v1/health` needs no key. AnkiConnect requests (`POST /`) take the key
+  as `"key"` in the JSON body.
+- **401** means Tsunagi found no usable key. **403** means the request isn't
+  allowed; the response says why (except for AnkiConnect requests from a
+  website that isn't allowed, which get an empty 403, as in AnkiConnect).
 
-Supply a positive `limit` to read a page at a time, such as
-`/v1/cards?select=id,note_id&limit=100`. If `next_cursor` is not `null`, keep the
-same query and pass it as `cursor` for the next page. Omitting `limit` on a
-continuation returns all remaining matches. There is no fixed upper cap on an
-explicit limit; zero and negative limits are rejected.
+## Other formats
 
-All-at-once reads use more memory per response. Pages let your app process the
-first results sooner. Neither mode keeps a cached collection snapshot.
+Swagger UI is at `/docs`, ReDoc at `/redoc`, and the raw schema at
+`/openapi.json`.
 
-## Browser verification
+The reference page loads its viewer ([Scalar](https://scalar.com), pinned to
+1.68.0) from jsDelivr, and Swagger UI and ReDoc load theirs from there too, so
+all three need internet access unless your browser has them cached. The raw
+schema at `/openapi.json` always works. Scalar's AI features and telemetry are
+turned off.
 
-The optional Chromium check exercises the real Scalar bundle with the
-application's generated schema and disposable responses: editable GET parameters,
-POST JSON bodies, authentication, response display, the current server address,
-credential reset, narrow layout and a blocked-CDN fallback.
+## Page size
 
-Install Playwright and Chromium in a separate Python environment, then run:
+Queries and media listings return **every match when `limit` is left out**,
+with `next_cursor: null`. `/v1/cards?select=id,note_id` returns those two fields
+for every card.
+
+To read a page at a time, add `limit`, such as
+`/v1/cards?select=id,note_id&limit=100`. While `next_cursor` isn't `null`, send
+the same query again with `cursor=<next_cursor>`. Leaving `limit` out on a
+follow-up returns everything that's left.
+
+- There's no upper limit; zero and negative limits are refused.
+- Everything at once uses more memory; pages let your app show the first
+  results sooner.
+- Nothing is cached between pages: each page reads the current collection.
+
+## Browser check (for contributors)
+
+An optional Chromium check drives the real viewer against the generated
+schema: parameters, JSON bodies, keys, responses, the server address, narrow
+windows and a blocked download of the viewer. Install Playwright and Chromium
+in a separate Python environment, then run:
 
 ```sh
 TSUNAGI_BROWSER_PYTHON=/path/to/browser-env/bin/python \
-  python -m pytest -q tests/test_compat_downloads.py tests/test_playground.py
+  python -m pytest -q tests/test_playground.py
 ```
 
-For an offline browser test, set `TSUNAGI_SCALAR_BUNDLE` to a downloaded copy of
-the pinned standalone bundle. The production page still loads the pinned CDN URL.
+To run it offline, set `TSUNAGI_SCALAR_BUNDLE` to a downloaded copy of the
+pinned viewer. The real page always loads the pinned version from jsDelivr.

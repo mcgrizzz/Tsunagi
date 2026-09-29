@@ -10,9 +10,9 @@
 | Notes | `POST /v1/notes` | `index`, `id` |
 | Media files | `POST /v1/media` | `index`, `filename`, `requested_filename`, `renamed`, `size` |
 
-`index` is the zero-based input position, or `0` for a single object. Keep your
-submitted inputs to match failures back to them. Successful items aren't rolled
-back because another input is rejected.
+`index` is the input's position (`0` for a single object), so you can match
+each result to what you sent. One rejected input doesn't stop the others from
+being saved.
 
 ## Save notes
 
@@ -52,22 +52,17 @@ second is a duplicate of the first. HTTP **200** returns:
 }
 ```
 
-For a successful single-note request, `created` has one entry with `index: 0`,
-and `failed` is empty. The response doesn't repeat your note contents or search
-for existing duplicate IDs.
+**Need the new cards too?** Add `?include=cards` and each created note lists
+its card IDs (`"cards": [1789200000001]`), so you can act on the cards (suspend
+them, set a due date) without searching for them first.
 
-**Need the generated card IDs too?** Use **`POST /v1/notes?include=cards`**.
-Each successful entry then includes `cards: [1789200000001]`. This uses Anki's
-direct card-ID lookup and avoids a separate card search. Leave `include` out
-when you only need the note IDs.
-
-Notes are checked and saved in input order. `allowDuplicate` defaults to `false`;
-set it to `true` on an input to permit duplicates, including earlier notes in the
-same batch.
+Notes are saved in input order. `allowDuplicate` defaults to `false`; set it to
+`true` on an input to allow a duplicate, including of an earlier note in the
+same request.
 
 By default, a duplicate is a note of the **same note type** with the same first
-field, anywhere in the collection; this is Anki's own check. The same options
-AnkiConnect clients send change that:
+field, anywhere in the collection; this is Anki's own check. To check only
+within a deck, or across all note types, add AnkiConnect's duplicate options:
 
 ```json
 {
@@ -89,10 +84,6 @@ as in AnkiConnect, and `duplicate_note_ids` lists exactly those notes. Empty
 and missing-cloze checks are still Anki's. An unknown `deckName` is reported as
 an invalid input, and other `duplicateScope` values return 422, instead of
 either being silently ignored.
-
-One undo step removes all successful additions in the request,
-without undoing earlier work. A request that creates nothing leaves undo history
-unchanged.
 
 ## Create, or add to the note you already have
 
@@ -120,8 +111,8 @@ find the existing note and how to merge into it:
   `*` and `_` are literal).
 - **No match:** the note is created, exactly as `POST /v1/notes` would.
 - **One match:** it is updated. Its cards stay in their decks.
-- **Several matches:** the item fails with code `ambiguous`, naming the notes;
-  nothing changes for it.
+- **Several matches:** the item fails with code `ambiguous`, and its message
+  lists the matching note IDs. None of them is changed.
 
 Field rules, per field or for all others with `"*"`:
 
@@ -135,16 +126,51 @@ Field rules, per field or for all others with `"*"`:
 Fields the request doesn't send are never touched. `tags` is `union` (add the
 request's tags, default), `replace` or `keep`.
 
-The response has `created` and `updated` arrays (each updated note lists
-`fields_changed` and `tags_changed`; repeating the same request changes
-nothing), plus `failed` as for creation. `include=cards` adds card IDs. All
-successful writes form one undo step.
+If a note with that `Expression` already exists, the response is:
+
+```json
+{
+  "created": [],
+  "updated": [
+    {"index": 0, "id": 1789200000000, "fields_changed": ["Sentence"], "tags_changed": true}
+  ],
+  "failed": []
+}
+```
+
+Its sentence was appended, its audio kept (it wasn't empty) and the tag added.
+Sending the same request again changes nothing: `fields_changed` is empty and
+`tags_changed` is false. `?include=cards` works here too.
 
 ## Check without saving
 
-Use **`POST /v1/notes:check`** with a body containing `{"notes": [...]}`.
-Each entry uses the same note fields as creation. The response reports
-`can_add`, `state` and any `duplicate_note_ids` for each input. Nothing is saved.
+**`POST /v1/notes:check`** answers "could I add these?" without saving
+anything. Send the notes you would create, inside `{"notes": [...]}`:
+
+```json
+{"notes": [
+  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}},
+  {"modelName": "Basic", "deckName": "Nope", "fields": {"Front": "猫", "Back": "cat"}}
+]}
+```
+
+If 犬 already exists and there is no deck called Nope:
+
+```json
+{"results": [
+  {"index": 0, "can_add": false, "state": "duplicate", "reason": "duplicate", "duplicate_note_ids": [1789200000000]},
+  {"index": 1, "can_add": false, "state": "invalid", "reason": "Unknown deck 'Nope'", "duplicate_note_ids": []}
+]}
+```
+
+`state` is one of:
+
+- `normal`: it can be added.
+- `duplicate`: a matching note exists; `duplicate_note_ids` lists it.
+- `empty`: the first field is empty.
+- `missing_cloze`: a cloze note without a cloze.
+- `invalid`: something else is wrong, such as an unknown note type or deck;
+  `reason` says what.
 
 **Only need validation?** Use
 **`POST /v1/notes:check?include_duplicate_ids=false`**. Anki still checks for
@@ -176,8 +202,13 @@ an array containing one small text file:
 }
 ```
 
-Each upload accepts exactly one source: base64 `data`, an HTTP(S) `url`, or a
-local `path` when that option is enabled in Tsunagi settings. Base64 uploads need
+Each upload takes exactly one source:
+
+- `data`: the file's contents, base64-encoded;
+- `url`: an `http` or `https` address Anki downloads;
+- `path`: a file on this computer. Off by default, because it lets an app read
+  any file you can; only apps with the Everything role may use it. Otherwise
+  that item fails as `invalid_media`. Base64 uploads need
 a `filename`; URL and path uploads can derive it from the source. The configured
 upload-size limit applies to each file.
 
@@ -204,24 +235,37 @@ const rejected = response.failed.map(failure => ({
 
 | Endpoint | Failure codes |
 | --- | --- |
-| Notes | `duplicate`, `invalid_note` (such as a missing deck), `anki_error` |
+| Notes | `duplicate`, `invalid_note` (such as a missing deck), `anki_error`, and for upsert `ambiguous` (several notes matched; the message lists them) |
 | Media | `invalid_media` (such as invalid base64 or a failed download), `source_error`, `storage_error` |
 
 Correct the reported problem and retry only those inputs. A single object uses
 the same failure format. An empty array returns empty `created` and `failed` arrays.
 
-Malformed request structure, such as a note missing `fields`, returns **422
-before any writes**. Authentication, an unavailable collection, or an unexpected
-server error are request-level errors instead. After a connection loss or
-request-level error, some writes may already have completed; reconcile the
-collection before retrying. Events are optional notifications, not a substitute
-for handling the request result.
+Some errors reject the whole request instead:
+
+- **422**: the request is malformed, such as a note without `fields`. Nothing
+  was written.
+- **401**: no usable key.
+- **403**: your app isn't allowed to create notes or upload media, or it is
+  turned off. The message says which.
+- **503**: Anki is busy, syncing or has no collection open (`reason` says
+  which). See the note on timeouts below.
+
+After a lost connection or an unexpected error, some writes may already have
+happened; check the collection before retrying.
+
+## Undo
+
+Each request is one step in Anki's **Edit → Undo**: undoing it removes the
+notes it created and reverts the notes it updated, and nothing else. A request
+that changes nothing adds no undo step. Media uploads can't be undone.
 
 An operation-timeout **503 does not cancel the write**. Work already queued in
 Anki may run after the response, and a running operation may finish later.
 Retrying immediately can create another note or repeat a media write. Check
-what was saved before retrying; do not treat a timeout as a `failed` result for
-every submitted input.
+what was saved before retrying, or send an `Idempotency-Key` (below) so a
+retry is safe. Do not treat a timeout as a `failed` result for every
+submitted input.
 
 ### Retry safely with an idempotency key
 
@@ -241,8 +285,13 @@ curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" -d '{.
   write (503 again if it still isn't done).
 - The same key with a different body is refused (400). Use a new key for a new
   request.
-- Keys belong to the app that sent them and are kept for ten minutes. A first
-  attempt that failed with an error is forgotten, so its retry runs again.
+- Keys belong to the app and route that sent them and are kept for ten
+  minutes. A first attempt that failed with an error is forgotten, so its
+  retry runs again.
+- A 200 response is recorded even when some items are in `failed`. To retry
+  just those items with corrected input, send a new request with a new key.
+- `POST /v1/notes:upsert` doesn't take a key: repeating an upsert updates the
+  same note and changes nothing more.
 
 ## How batching reduces repeated work
 

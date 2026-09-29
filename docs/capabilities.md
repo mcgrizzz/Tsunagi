@@ -11,16 +11,16 @@ Every operation, conditional option and collection feature uses the same status:
 
 | Status | Meaning |
 | --- | --- |
-| `available` | Supported and not disabled by a setting. |
-| `disabled` | Supported, but your app's role lacks the permission. `setting` names it. |
-| `unsupported` | This Anki version lacks the required support. Enabling a setting will not fix it. |
+| `available` | Your app is allowed to use it. |
+| `disabled` | Your app lacks permission (or is turned off). `setting` names the permission. |
+| `unsupported` | This Anki version can't do it. No setting will change that. |
 
 A disabled capability has these fields:
 
 ```json
 {
   "status": "disabled",
-  "reason": "No key, this computer has the role 'Default (like AnkiConnect)', which does not allow memory_state; change it in Tsunagi's settings",
+  "reason": "No key, this computer has the role 'Default', which does not allow memory_state; change it in Tsunagi's settings",
   "setting": "permissions.memory_state"
 }
 ```
@@ -28,11 +28,8 @@ A disabled capability has these fields:
 The report is for the app that asks: the same request with another key can
 show different statuses.
 
-Available entries have a null `reason`. A `setting` can still be present when
-its switch is enabled. Entries without a controlling setting use null.
-Availability describes support and configuration. A request can still fail because
-of invalid inputs, authentication, missing records, a busy collection, or the
-current GUI state. Discovery does not execute the operations it lists.
+`available` only means the operation can run for your app. The request itself
+can still fail, for example on invalid input or while Anki is busy.
 
 Every supported Anki version provides all FSRS operations and options, so they
 report as available. Tsunagi still checks that each backend method exists: if a
@@ -64,13 +61,12 @@ For example:
   including any options that this backend cannot accept.
 - `features.fsrs_scheduling` reports the collection's FSRS scheduling switch.
   `setting: "anki.fsrs"` refers to Anki's FSRS setting, not a Tsunagi permission.
-- `features["addon_actions.fsrs_helper"]` reports whether Tsunagi can drive
-  FSRS Helper: `unsupported` with a reason when it is missing, disabled, did
-  not load or is a version whose entry points changed. Whether the calling
-  app may run each action is in `GET /v1/addons/fsrs_helper/actions`
-  (`status` per action), so
-  `operations["POST /v1/addons/{provider_id}/actions/{name}:run"]` itself is
-  always available.
+- `features["addon_actions.<provider>"]` reports whether an add-on's actions
+  can run at all; `unsupported` has a reason, such as the add-on being
+  missing. Whether your app may run each action is in
+  `GET /v1/addons/<provider>/actions`, as a `status` per action: `allowed`,
+  `disabled` (not enabled in Tsunagi's settings), `not_permitted` (your app
+  isn't allowed) or `unsupported`.
 
 FSRS computations can run while FSRS scheduling is disabled. Their entries stay
 available in that case. The scheduling feature itself reports disabled. Clients
@@ -88,15 +84,14 @@ saved import choices; clients do not need it to discover unsupported options.
 curl "http://127.0.0.1:7777/v1/capabilities"
 ```
 
-Send your app's key, if it has one. Discovery requires an open collection and returns
-503 while no collection is available. Query it again after switching profiles
-or changing settings. It does not return API keys or the website allowlist.
+Send your app's key, if it has one. The report needs a profile open in Anki
+(503 otherwise). Ask again after switching profiles or changing settings.
 
 `GET /v1/health` stays a small, public liveness check, including when no collection
 is open. Its `collection` object gives the open `profile` and a `state`: `ready`,
 `syncing`, `closed` (no collection, e.g. during a full sync) or `busy` (Anki
-did not answer a trivial read within a second). A 503 body carries the same
-value as `reason`, so a client can say "Anki is syncing" rather than "request
+did not answer a trivial read within a second). Every 503 from any route
+carries the same value as `reason`, so a client can say "Anki is syncing" rather than "request
 failed". Both endpoints carry the same `versions` identifiers:
 
 | Field | Meaning |
@@ -107,11 +102,3 @@ failed". Both endpoints carry the same `versions` identifiers:
 
 Health's `version` field is a release-version alias. The AnkiConnect `version`
 action reports its own compatibility protocol version.
-
-## Earlier experimental clients
-
-The old FSRS-only response (`fsrs.supported`, `fsrs.enabled` and
-`fsrs.operations`) is replaced by the operation and feature entries above.
-Use each entry's `status` instead of the old `available` boolean. Read restricted
-options from `options` instead of `unsupported_options`. The response schema is
-published in `/openapi.json`.

@@ -1,5 +1,11 @@
 # Dataflow walkthroughs — request to Anki internals
 
+> [!NOTE]
+> Written before the per-route permission checks and the request log were
+> added (late September 2026). Some function names and steps have changed
+> since; the code is authoritative. [get_cards_filtered.md](get_cards_filtered.md) was
+> checked against the code on 2026-09-28.
+
 How a request travels from the HTTP socket to Anki's Rust backend and back:
 which threads it crosses, which planner tier serves it, and what each stage
 costs. Companion to [list_models.md](list_models.md), which traces the

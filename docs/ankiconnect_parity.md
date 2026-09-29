@@ -1,12 +1,12 @@
-# AnkiConnect parity
+# AnkiConnect compatibility
 
-The AnkiConnect Shim at `POST /` implements AnkiConnect's protocol.
-This file tracks every action AnkiConnect exposes and where Tsunagi stands.
-
-**Source of truth:** `git.sr.ht/~foosoft/anki-connect` at commit `de6e6e1b`
-(2025-12-03) — the *sourcehut* repository. The `FooSoft/anki-connect` mirror on
-GitHub is stale (2023) and disagrees with it. Counts here come from the
-`@util.api()` decorators in `plugin/__init__.py`, not from the README.
+Tsunagi answers AnkiConnect's protocol at `POST /`, so tools built for
+AnkiConnect, such as Yomitan and asbplayer, should generally work without
+changes beyond pointing them at Tsunagi's port (or importing AnkiConnect's
+settings so Tsunagi takes over its port). The
+[differences](#differences-you-might-notice) mostly concern less common
+actions and settings. This page lists every AnkiConnect action and how
+Tsunagi handles it.
 
 | | |
 | --- | --- |
@@ -15,55 +15,64 @@ GitHub is stale (2023) and disagrees with it. Counts here come from the
 | Planned (M6) | **0** |
 | Out of scope | **0** |
 
-`GET /actions` returns the live list. `tests/test_parity_doc.py` checks this
-file against the registry in both directions, so an action that is registered
-but undocumented — or documented but unregistered — fails CI.
+## Differences you might notice
 
-The 2026-09-07 [history-based audit](archive/parity_history_audit.md) found and fixed
-optional-argument and deprecated-alias mismatches despite the 122/122 count.
-Action inventory is not proof of complete behavioral parity.
+- **Permissions.** Each action needs a permission from the caller's role
+  ([configuration](../config.md#roles)). Keyless requests from this computer
+  get the Default role, which allows everything AnkiConnect does except one
+  thing: **reading local files**. A media `path` (in `storeMediaFile`, or in
+  the media of `addNote`/`addNotes`) needs the `local_files` permission, which
+  only the Everything role has by default. AnkiConnect always allows it.
+- A key is checked for each action, including inside `multi`. A refused action
+  returns the usual `{"result": null, "error": "..."}` naming the app, its role
+  and what's missing.
+- **`requireApikey`** in the `requestPermission` answer is `true` when the
+  caller must send a key: requests without one, from where the caller is, get
+  No access.
+- **Anki's own pages.** Card templates and other add-ons' pages inside Anki
+  are refused unless you turn on **Allow card templates and add-on pages**.
+  AnkiConnect lets any card template use it.
+- **Raw review inserts** accept plain values, not SQL expressions.
 
-The [coverage plan](archive/shim_behavioral_coverage.md) and
-[execution matrix](archive/shim_coverage_matrix.md) record the historical audit work.
-The broad upstream comparisons and their shared fixtures are archived in Git at
-`3c8e2dd` (the `tests/test_upstream_*.py` files and `tests/upstream_support.py`).
-References to those tests in audit documents refer to that revision. Focused
-Tsunagi regressions and action-inventory checks remain in the maintained suite.
-Windows manual checks confirmed Browser/Add Cards restoration and field focus.
-When another app is active, Windows can leave them behind it and flash the
-taskbar. The import picker came forward, and cancellation left no lingering
-topmost behavior. These observations apply to the tested Windows setup;
-offscreen Qt results alone do not establish foreground behavior.
+Arguments and error messages match AnkiConnect wherever the compatibility
+tests cover them. Inputs or window states they don't cover may still differ.
 
-## Two discrepancies in upstream's own documentation
+## How this list is checked
+
+- **Source:** AnkiConnect's *sourcehut* repository
+  (`git.sr.ht/~foosoft/anki-connect`) at commit `de6e6e1b` (2025-12-03). The
+  `FooSoft/anki-connect` mirror on GitHub is stale (2023) and disagrees with
+  it. Counts come from the `@util.api()` decorators in `plugin/__init__.py`,
+  not the README.
+- `GET /actions` returns the live list, and `tests/test_parity_doc.py` fails CI
+  if an action is registered but not listed here, or listed but not
+  registered.
+- A full count isn't proof of identical behaviour: a
+  [history-based audit](archive/parity_history_audit.md) (2026-09-07) still
+  found and fixed optional-argument and deprecated-alias mismatches.
+- Older audit work: the [coverage plan](archive/shim_behavioral_coverage.md)
+  and [execution matrix](archive/shim_coverage_matrix.md). The broad upstream
+  comparison tests are archived in Git at `3c8e2dd`
+  (`tests/test_upstream_*.py`, `tests/upstream_support.py`).
+
+## Two discrepancies in AnkiConnect's own documentation
 
 **Six actions are undocumented.** `canAddNote`, `canAddNoteWithErrorDetail`,
-`deckNameFromId`, `modelNameFromId`, `guiReviewActive` and `guiSelectNote` are
-decorated with `@util.api()` and answer over the wire, but appear under no
-README heading. They are marked below.
+`deckNameFromId`, `modelNameFromId`, `guiReviewActive` and `guiSelectNote`
+answer over the wire but appear under no README heading. They are marked
+below.
 
 **`removeEmptyNotes` does not do what its name says.** The README promises
-"Removes all the empty notes for the current user", but the implementation
-removes note *types* that no note uses (`models.use_count(m) == 0 →
-models.remove(...)`). The most likely reading is that "empty note" is loose
-wording for "empty note type" rather than a bug, so Tsunagi reproduces the
-implemented behaviour. It destroys no content either way: `use_count == 0`
-means there are no notes to lose.
+"Removes all the empty notes for the current user", but the code removes note
+*types* that no note uses (`models.use_count(m) == 0 → models.remove(...)`).
+It's most likely loose wording rather than a bug, so Tsunagi follows
+AnkiConnect and removes unused note types, despite the name. No notes are
+lost, but each removed note type's fields, templates and styling are.
 
-## Status meanings
+## Status
 
-- **implemented** — answers over `POST /`, with parity tests for supported
-  behavior. This does not certify every optional argument, error string,
-  runtime version, or GUI state; manually verified actions are marked below.
-- **M6** — planned for the next milestone.
-- **out-of-scope** — deliberately not implemented; the reason is in the row.
-
-Known action-specific differences are listed below. The AnkiConnect Shim preserves raw
-argument and error behavior where covered by the compatibility regressions;
-Tsunagi API validation has its own contract. Local-file access is disabled by
-default, and raw review inserts accept scalar values rather than SQL expressions.
-Action inventory and historical test results do not promise every untested input
-or GUI state matches upstream.
+Every action is **implemented**: it answers over `POST /`, with tests for
+supported behaviour. Actions checked by hand only are marked.
 
 ### Card Actions
 

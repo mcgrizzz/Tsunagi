@@ -2,16 +2,10 @@
 
 [← Documentation](README.md)
 
-`GET /v1/events` keeps a connection open and sends messages describing what
-happened: **`notes.created`**, **`notes.updated`**, **`notes.deleted`**, and so on.
-Messages contain IDs. Your app decides whether it needs to fetch any contents.
+`GET /v1/events` keeps a connection open and tells your app when something in
+the collection changes, so it can update without polling.
 
-Changes made through the API are announced immediately. Changes made inside
-Anki (the Browser, the editor, the Add dialog, the reviewer) are announced
-about half a second after they stop; while you type, one message follows a
-two-second pause.
-
-## See the messages
+## Try it
 
 Start Anki, then run:
 
@@ -19,160 +13,177 @@ Start Anki, then run:
 curl -N 'http://127.0.0.1:7777/v1/events?resources=notes'
 ```
 
-Use your configured port if it isn't `7777`. After you edit **note 123 through
-the API**, a message looks like this (connection metadata omitted):
+Add a note in Anki (or through the API) and this arrives:
 
 ```text
-event: notes.updated
-data: {"type":"notes.updated","ids":[123]}
+event: ready
+data: {"type":"ready","session_id":"5f0c…","after_seq":0,"ts":1790000000000,"resources":["notes"]}
+
+event: notes.created
+id: 5f0c…:1
+data: {"type":"notes.created","ids":[1790000000123],"origin":"ui",…}
 ```
 
-Delete it, and the message is:
+`ready` means you're connected: load the data you show now. After that, each
+message names what changed and gives the IDs. Messages carry IDs, not
+contents; fetch what you need through the normal API.
 
-```text
-event: notes.deleted
-data: {"type":"notes.deleted","ids":[123]}
-```
+If your app has a key, add `-H 'X-Api-Key: <key>'`. Use your port if it isn't
+`7777`.
 
-| Message | What happened |
+## The messages
+
+| Message | Means |
 | --- | --- |
-| `notes.created` | New notes were added. `ids` identifies them. |
-| `notes.updated` | A note update completed. `ids` identifies the affected notes. |
-| `notes.deleted` | A deletion completed. These `ids` are now absent. |
-| `notes.stale` | Notes changed, but which ones isn't known. It has no `ids`: reload the notes you show. |
+| `notes.created` | These notes were added. |
+| `notes.updated` | These notes changed. |
+| `notes.deleted` | These notes are gone. |
+| `notes.stale` | Some notes changed, but Tsunagi can't say which (after an undo or a sync, for example): reload the notes you show. |
+| `cards.created`, `cards.updated`, `cards.deleted`, `cards.stale` | The same, for cards. |
+| `cards.answered` | A card was answered, in Anki or through the API: which card, the button, and the card's new interval, due date and memory state. |
+| `reviews.created` | Rows were added to the review history. Includes their IDs. |
+| `sync` | A sync started or finished. |
+| `decks.counts` | A deck's new, learning or review counts changed. |
+| `decks.stale`, `models.stale`, `tags.stale`, … | That kind of thing changed. |
 
-Cards use the same names: `cards.created`, `cards.updated`, `cards.deleted`,
-`cards.stale`.
-
-Changes and card answers made through the API also carry `client`: the app
-whose key sent the request, or the No key row it fell in (for example `"client":
-"Phone"`). A dashboard can tell its own writes from another tool's.
-
-**Known IDs and an unknown change are alternatives for the same resource.**
-Deleting note 123 can produce `notes.deleted` and `cards.stale`, because its
-deleted card IDs aren't included. That operation won't also produce
-`notes.stale`.
+One change can produce several messages. Deleting a note sends
+`notes.deleted` with its ID and `cards.stale`, because its cards went with it.
+Answering a card in Anki sends `cards.answered` for the card and
+`reviews.created` for the row it added to the review history. Setting a due
+date or forgetting a card also adds a row, so it sends `reviews.created` but
+not `cards.answered`.
 
 ## Choose what to receive
 
-| Interest | Query |
+| You want | Ask for |
 | --- | --- |
-| All note changes | `?resources=notes` |
-| All card changes | `?resources=cards` |
-| Both | `?resources=notes,cards` |
-| Only confirmed note deletions | `?types=notes.deleted` |
-| Note creations and updates | `?types=notes.created,notes.updated` |
-| Card answers, in Anki's reviewer or through either API, with the card's new interval, due, queue and FSRS memory state | `?types=review` |
-| Sync starting or finishing, from Anki's Sync button or either API | `?types=sync` |
-| Due counts for a deck list: new, learning and review cards per deck, sent when they move (answers, suspends, deck changes, syncs, day rollover) | `?types=decks.counts` |
+| Every change to notes | `?resources=notes` |
+| Notes and cards | `?resources=notes,cards` |
+| Only note deletions | `?types=notes.deleted` |
+| Card answers | `?types=cards.answered` |
+| Sync start and finish | `?types=sync` |
+| Due counts for a deck list | `?types=decks.counts` |
 
-Which kinds you receive depends on your app's role (config.md): change
-messages need `events:changes` (Default and Read-only have it), review
-messages need `events:reviews` (only Everything has it by default). A kind
-your role lacks is never sent; the `ready` message lists the resources you
-can receive. If your key or role changes, the stream closes with reason
-`auth`; reconnect to pick up the new permissions.
+To keep a list of notes up to date, use `resources=notes`. An exact type such
+as `types=notes.deleted` leaves out `notes.stale`, so it can miss a deletion
+Tsunagi couldn't give IDs for.
 
-Filters apply before messages enter your connection's queue. A client listening
-for note deletions won't queue reviews or card updates.
-
-Use `resources=notes` when maintaining a note list. An exact type filter such as
-`types=notes.deleted` excludes `notes.stale`, so it won't cover a deletion
-whose details Anki didn't report.
+Your app must be allowed to read the collection. Card answers (`cards.answered`,
+`reviews.created`) are only sent to apps allowed to see review activity; by
+default that is the Everything role.
 
 ## React in your app
 
-The event describes the change; the handler decides what to do with it. Here,
-`notesById` is a JavaScript Map, and the helper functions load notes and draw them:
+Keeping a note list current takes one listener per message. `loadAll`,
+`loadNotes` and `removeNotes` are your app's own functions: they call
+`/v1/notes` and update what you show.
 
 ```js
 const events = new EventSource("http://127.0.0.1:7777/v1/events?resources=notes");
+const ids = (message) => JSON.parse(message.data).ids;
 
-for (const type of ["notes.created", "notes.updated"]) {
-    events.addEventListener(type, ({data}) => {
-        fetchNotesById(JSON.parse(data).ids);
-    });
-}
-
-events.addEventListener("notes.deleted", ({data}) => {
-    for (const id of JSON.parse(data).ids) notesById.delete(id);
-    drawNotes();
-});
-
-events.addEventListener("notes.stale", () => reloadNoteList());
-events.addEventListener("ready", () => reloadNoteList());
-events.addEventListener("gap", () => reloadNoteList());
+events.addEventListener("ready", () => loadAll());          // connected: load your list
+events.addEventListener("notes.created", (m) => loadNotes(ids(m)));
+events.addEventListener("notes.updated", (m) => loadNotes(ids(m)));
+events.addEventListener("notes.deleted", (m) => removeNotes(ids(m)));
+events.addEventListener("notes.stale", () => loadAll());    // changed, but not which
+events.addEventListener("gap", () => loadAll());            // messages were missed
 ```
 
-`fetchNotesById` requests `/v1/notes` with `where=id in [123]`, follows any
-returned pages, and updates the Map and display. Use `select` to choose the
-fields needed. If an ID no longer exists by the time you read it, remove it
-from the Map.
+`loadNotes` asks for just those notes:
+`GET /v1/notes?where=id in [123,456]&select=id,fields,tags`. If your app has a
+key, add `&api_key=<key>` to the events URL; a browser `EventSource` can't send
+headers. It also reconnects by itself, and `ready` then reloads the list.
 
-`ready` means the subscription is active. `gap` means queued messages were lost.
-Neither says that a note changed. This example loads its list on connection and
-reloads it after a gap; a client that just reacts to actions may handle them
-differently. There is no separate `refresh` message.
+Two things to watch:
+
+- **Overlapping loads.** A message can arrive while a load is still running.
+  Let only the newest load update your list, so an older response doesn't
+  undo a newer one.
+- **Searches.** If your list is a search, a note can leave or join it without
+  a `notes.*` message you'd act on: an updated note may no longer have your
+  `tag:verb`, a renamed deck changes `deck:Japanese` results, and answering
+  cards changes `is:due`. Listen to each kind of thing your search names (for
+  example `resources=notes,decks`), and when in doubt run `loadAll()` instead
+  of `loadNotes(ids)`.
 
 <details>
-<summary>Which operations provide IDs?</summary>
+<summary>What every message contains</summary>
 
-| Operation | Event |
+```text
+event: notes.updated
+id: 5f0c…:42
+data: {"origin":"api","client":"Yomitan","anki":{"changes":["note","mtime","browser_table","note_text"],"label":"Update Note"},"type":"notes.updated","ids":[123],"seq":42,"session_id":"5f0c…","ts":1790000000000}
+```
+
+| Field | Meaning |
 | --- | --- |
-| Update a note through the Tsunagi API, or its fields through the AnkiConnect Shim | `notes.updated` |
-| Delete notes through either API | `notes.deleted` |
-| Create a note through either API | `notes.created`, and `cards.created` for its new cards |
-| Add or remove tags on given notes through either API | `notes.updated` |
-| Answer cards through either API | `cards.updated` for the cards answered |
-| Suspend, unsuspend, bury, unbury, forget, flag, move to a deck, set due date, set values or reposition cards through the Tsunagi API | `cards.updated` |
-| Changes made inside Anki | `notes.*` and `cards.*` with IDs, and `reviews.created` with review log IDs |
-| Undo, and rows Anki restores without a new modification time | `notes.stale`, `cards.stale`, or another affected resource's `.stale` |
+| `type` | The message name, also sent as `event:`. |
+| `ids` | The IDs that changed. Not on `.stale`. |
+| `origin` | `api` for changes made through either API, `ui` for changes made in Anki. |
+| `client` | For changes made through the API: the app that made them. A dashboard can tell its own writes from another tool's. |
+| `seq`, `session_id`, `ts` | Order, server session and time (milliseconds). The `id:` line is `session_id:seq`. |
+| `anki` | Anki's own description of the change. For debugging; don't rely on it. |
 
-Lists contain at most 1,000 IDs per resource. Larger sets produce `.stale`
-instead. Repositioning with `shift_existing` also moves other
-cards, so it produces `cards.stale`. No extra note or card contents are read to build events.
-Deletion batches can include IDs already absent; card-update batches can include
-cards already in the requested state. An operation that changes nothing sends
-no event.
+Other messages:
 
-Each message means that resource's own data changed. An operation can produce
-messages about several resources; other resources currently use `.stale`
-notifications, such as `decks.stale`.
+```text
+event: cards.answered
+data: {"origin":"ui","card_id":1700000000001,"ease":3,"interval":12,"due":20512,"queue":2,"memory_state":{"stability":14.2,"difficulty":5.1},"type":"cards.answered",…}
 
-Media/import coverage is incomplete. Changes other add-ons make without Anki's
-notification hooks are reported with the next change Anki does announce.
+event: sync
+data: {"phase":"started","type":"sync",…}
+
+event: decks.counts
+data: {"decks":[{"id":1,"new_count":20,"learn_count":3,"review_count":41,"total_in_deck":1280}],"type":"decks.counts",…}
+```
+
+`ease` is 1 Again, 2 Hard, 3 Good, 4 Easy. `memory_state` is `null` for cards
+FSRS hasn't scheduled. `sync` comes with `phase` `started`, then `finished`.
+`decks.counts` lists only the decks whose counts changed.
 
 </details>
 
 <details>
-<summary>Keeping displayed notes correct</summary>
+<summary>When messages arrive, and which changes give IDs</summary>
 
-**While editing in Anki:** edits are reported once typing pauses for two
-seconds, as `notes.updated` for the edited note.
+Changes made through the API are announced immediately. Changes made in Anki
+(the Browser, the editor, the Add dialog, the reviewer) are announced about
+half a second after they stop; while you type, once typing pauses for two
+seconds.
 
-**While loading:** if a change arrives during a request, schedule another load
-afterward. An older response must not overwrite newer data. Ignore unfinished
-requests from a closed connection. The example leaves this coordination to your
-app's helper functions.
+| Change | Message |
+| --- | --- |
+| Create notes through either API | `notes.created`, and `cards.created` for their cards |
+| `POST /v1/notes:upsert` | `notes.created` and `notes.updated`; new cards as `cards.stale` |
+| Update notes, or add or remove their tags, through either API | `notes.updated` |
+| Delete notes through either API | `notes.deleted` |
+| Answer, suspend, bury, flag, move, forget or reschedule cards through the API | `cards.updated` |
+| Changes made in Anki | `notes.*`, `cards.*` and `reviews.created`, with IDs |
+| Undo in Anki | `.stale` for what it touched (undo restores rows as they were, so they can't be found by what changed) |
+| A sync | `.stale` for everything (Anki reports that anything may have changed) |
+| More than 1,000 IDs from one operation | `.stale` |
 
-**While showing search results:** a search can change without its own resource
-changing. `deck:Japanese` results change when that deck is renamed, and `is:due`
-results change when cards are answered. Also listen to each resource your search
-names, for example `resources=notes,decks`, and repeat the search when one
-changes. If your list shows `tag:verb` and a note loses that tag, fetching the
-new contents isn't enough—you must also remove it from that list. Repeat the search if your app can't determine whether it still
-matches. Sorting, counts and page boundaries can change too.
-
-**After a disconnect:** missed messages aren't replayed. A new connection sends
-`ready`; load the relevant data again. A `gap` while connected means that
-connection fell behind and lost queued messages.
-
-**Profile switches:** the server stops while no profile is open. The stream
-ends with `close` reason `profile_closed`, and connections are refused until a
-profile opens again. Retry with a backoff. The next `ready` carries a new
-`session_id` for the new collection.
+An operation that changes nothing sends nothing. Changes other add-ons make
+without telling Anki are reported with the next change Anki does announce.
 
 </details>
 
-For API keys, combined filters, review ratings, connection-close reasons and all
-message fields, open **GET /v1/events** in the [interactive reference](playground.md).
+<details>
+<summary>Connection messages</summary>
+
+- `ready`: you're connected. Sent first on every connection.
+- `gap`: your connection fell behind and `discarded` messages were lost.
+  Reload what you show.
+- `close`: the server ended the stream. `reason` is `profile_closed` (the
+  profile was closed; reconnect with a backoff until one is open again),
+  `auth` (your key or permissions changed; reconnect), `shutdown`, or
+  `timeout` / `max_events` if you asked for a limit.
+
+Missed messages aren't replayed after a reconnect: load your data again on
+the new `ready`. A new `session_id` means a new server session.
+
+</details>
+
+The [interactive reference](playground.md) lists every filter and field under
+**GET /v1/events**.

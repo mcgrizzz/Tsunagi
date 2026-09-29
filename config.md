@@ -1,251 +1,227 @@
-# Tsunagi Configuration
+# Tsunagi settings
 
-The usual way to change these settings is the **settings page**: the Config
-button on the add-on, or Tools → Tsunagi Settings. It opens inside Anki and
-talks to Tsunagi directly, not through the API, so no API client, website or
-card template can read or change these settings. This page documents the
-underlying keys, which you can still edit as JSON in `meta.json` if you
-prefer.
+Open **Tools → Tsunagi Settings** (or the add-on's **Config** button). The
+settings page runs inside Anki and talks to Tsunagi directly, never through
+the API, so no app, website or card template can read or change it.
 
-Saving the settings page applies Tsunagi settings immediately: per-request keys
-(`apps`, `roles`, the `no_key_*` roles, `cors_allowlist`, the `media_*`
-limits and `gates`) are simply
-read live, and server-level keys (`enabled`, `host`, `port`, `prefer_port`,
-`log_level`, `op_timeout_seconds`) are applied by restarting the embedded
-server on the spot. If you edit `meta.json` as JSON instead, the server-level
-keys only take effect after restarting Anki (or switching profiles);
-`dev_watch_seconds` always needs an Anki restart.
+Each section below is one page of the settings window, with the setting's
+key in the add-on's saved configuration for reference.
 
-The **AnkiConnect** section shows whether the standard AnkiConnect addon is
-installed and enabled, and when settings were last imported. **Import AnkiConnect settings** stages its
-API key, port and allowed website origins into the form, and selects **Enable
-Tsunagi server**. Review the values and click **Save** to disable AnkiConnect, stop
-its current listener, and start Tsunagi on the imported port. **Cancel** leaves
-both addons unchanged, and so does **Revert this page** on the AnkiConnect page.
-The last-import date is saved with a successful import and remains visible after
-AnkiConnect is disabled or removed. Importing again updates that date; ordinary
-settings edits and restoring defaults preserve it. Older imports have no date
-record and are shown as unavailable history.
-The explicit takeover imports `webBindPort` (normally 8765) into both **Port**
-and **Preferred port**. Existing allowed origins, including unsaved form entries,
-are retained; imported origins are appended without duplicates. Optional capability
-gates are unchanged. The separate startup import-only offer keeps Tsunagi's port
-because that offer leaves AnkiConnect running. AnkiConnect's API key becomes the
-key of the app **AnkiConnect key**; an empty AnkiConnect key does not replace an
-existing one. The standard AnkiConnect timer and listener are stopped before Tsunagi restarts.
-If the selected port is still occupied, the handover is cancelled and the prior
-addon state is restored. An unsupported AnkiConnect runtime requires a manual
-disable and Anki restart before importing. Detection alone never disables it.
+- **Save** applies your changes and keeps the window open. Changes to the
+  server (on/off, port, host, log level, timeout) restart it right away.
+- **Cancel** discards unsaved changes on every page.
+- Closing the window with unsaved changes asks first. Each page can also undo
+  its own changes or restore its defaults.
 
-### `enabled`
-Set to `false` to stop Tsunagi from starting its server.
+## Server
 
-### `host`
-Address the server binds to. Keep the default `127.0.0.1` (loopback only)
-unless you know exactly what exposing Anki on your network means.
+![The Server page](docs/images/settings-server.png)
 
-Any address other than loopback (for example `0.0.0.0` to use Tsunagi from
-your phone) lets other devices on your network connect. They get **No
-access** unless they send an app's key (see below), because
-`no_key_remote_role` is `none` by default.
+| Setting | Key | Default | |
+| --- | --- | --- | --- |
+| Run the Tsunagi server | `enabled` | on | |
+| Port | `port`, `prefer_port` | preferred port 7777 | If the port is busy, Tsunagi says so and doesn't start. It never picks another port. |
+| Host | `host` | `127.0.0.1` | This computer only. Any other address lets other devices connect; they need a key. |
+| Other host names | `allowed_hosts` | none | Names this computer is reached by through a proxy on it, such as Tailscale Serve. Bare names: no `http://`, no port. |
+| Log level | `log_level` | `warning` | |
+| Operation timeout | `op_timeout_seconds` | 15 s | How long a request waits for a busy Anki before answering 503. |
+| Max upload size | `media_max_bytes` | 64 MiB | For each media file, however it's sent. |
+| Download timeout | `media_fetch_timeout_seconds` | 30 s | For media downloaded from a URL. |
 
-Requests must name a loopback address (`localhost`, a loopback IP, or `[::1]`),
-the configured host, or, when bound beyond loopback, any plain IP address such
-as this computer's LAN address in their `Host` header. Other names receive
-HTTP 403, even when their browser origin is allowed; this blocks DNS
-rebinding, which always uses a domain name. Forwarded-host headers do not
-override this check. Names listed in `allowed_hosts` are also accepted.
+<details>
+<summary>More about the server settings</summary>
 
-If another device still cannot connect, the operating system's firewall is the
-usual cause. On Windows, Anki is typically allowed on networks marked
-**Private** and blocked on **Public** ones: mark your home network as Private
-(Settings → Network & internet → your network → Network profile type).
+- **Host names.** A request must be addressed to `localhost`, a loopback
+  address, the configured host, a name under **Other host names**, or (with a
+  network host) a plain IP address. Anything else gets 403. This stops DNS
+  rebinding, where a website's domain points at your computer.
+- **Other devices can't connect?** The firewall is the usual cause. On Windows,
+  mark your home network as **Private** (Settings → Network & internet → your
+  network → Network profile type).
+- **Proxies.** A request forwarded by a proxy (it carries
+  `Tailscale-User-Login`, `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host`
+  or `X-Real-IP`) never counts as this computer, so without a key it gets the
+  role for other devices.
+- **Timeouts.** Every 503 says why in `reason`: `busy`, `syncing` or `closed`
+  (no profile open); `GET /v1/health` reports the same as `collection.state`.
+  A timeout doesn't cancel the work: a write can still finish after the 503.
+  Send an `Idempotency-Key` when creating notes or media so a retry is safe
+  ([Creating notes](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/creating_notes.md)).
+  A sync that takes longer answers 202 with a job to poll instead.
+- **Logs** go to Anki's log folder for this add-on, `logs/addons/` in Anki's
+  data folder (for example `%APPDATA%\Anki2\logs\addons\` on Windows). They
+  rotate daily and are kept for ten days. Attach them to a bug report.
 
-### `allowed_hosts`
-Host names this computer is reached by through a proxy running on it, such as
-Tailscale Serve (`["pc.tailnet.ts.net"]`; default `[]`). The `Host` check
-above also accepts them. Bare names only: no `http://`, no port. In the
-settings page: **Server → Other host names**. Applies immediately.
+</details>
 
-Tailscale Serve passes the name the phone used as `Host` (checked live), so
-until its name is listed here Tsunagi answers 403 "Disallowed Host header".
-A request that a proxy forwarded never counts as **this computer**, even with
-a loopback `Host`: Tsunagi looks for `Tailscale-User-Login` (Serve always adds
-it and removes any a client sends) and the usual `Forwarded`, `X-Forwarded-For`,
-`X-Forwarded-Host` and `X-Real-IP` headers. So keyless requests through Serve
-get `no_key_remote_role` (**No access** by default). See
-[Remote access](docs/remote_access.md).
+## Apps & keys
 
-### `port` / `prefer_port`
-- `port: 0` (default): use `prefer_port` (7777). If it's busy, Tsunagi shows a
-  warning and does not start (no random fallback port).
-- `port: <n>`: force a specific port; startup fails if it's busy.
+![The Apps & keys page](docs/images/settings-apps.png)
 
-### Apps and permissions: `apps`, `roles`, `no_key_local_role`, `no_key_remote_role`, `addon_enabled`
+Give each tool its own key and role. **Add app** creates a random key and
+copies it; **New key** replaces one; untick **On** to turn an app off without
+losing its key or role.
 
-Every request comes from an **app** or from one of two **No key** rows, and
-each has a **role** that decides what it may do. The defaults behave like
-AnkiConnect: programs on this computer need no key and can do everything
-AnkiConnect allows; other devices need a key.
+A tool sends its key:
 
-- `apps` (default `[]`): `[{"name": "Yomitan", "key": "...", "role": "default"}]`.
-  An app sends its key as `X-Api-Key: <key>` or `Authorization: Bearer <key>`
-  on `/v1/...`, as `?api_key=<key>` on `/v1/events` only, or as the top-level
-  `"key"` field on the AnkiConnect endpoint (`POST /`). On the settings page,
-  **Apps & keys → Add app** creates one with a random 32-character key and
-  copies it; **New key** replaces a key.
-  `"enabled": false` (the **On** box on that page) turns an app off without
-  losing its key or role: requests with its key get HTTP 403 (or the
-  AnkiConnect `error`) saying it is turned off. It does not fall back to a
-  No key row. Absent means on.
-- `no_key_local_role` (default `"default"`): the role for requests without a
-  key from **this computer**, meaning the connection comes from a loopback
-  address and the `Host` names one (`127.0.0.1`, `localhost`, `[::1]`). Set it
-  to `"none"` to make every local program use a key.
-- `no_key_remote_role` (default `"none"`): the role for requests without a
-  key from anywhere else, including through a local proxy such as Tailscale
-  Serve. Anything other than `"none"` lets anyone who can reach the port use
-  that role without a key.
-- A key that matches no app counts as no key, as in AnkiConnect.
-- A request without a key whose role is `none` gets HTTP 401 (`/v1/...`) or
-  `"valid api key must be provided"` (`POST /`). A request whose role lacks
-  what the route needs gets HTTP 403 naming the app, the role and the
-  missing permission, or the same text as the AnkiConnect `error`.
-- The docs pages (`/docs`, `/openapi.json`) and `/v1/health` need no key.
+- as the `X-Api-Key` header, or `Authorization: Bearer <key>`;
+- as `"key"` in AnkiConnect requests;
+- as `?api_key=<key>` on `/v1/events` only (browsers can't send headers there).
 
-Built-in roles:
-
-| Role id | Name | Grants |
-| --- | --- | --- |
-| `default` | Default (like AnkiConnect) | `read`, `write`, `gui`, `sync`, `manage`, `events:changes`, enabled `normal` add-on actions |
-| `read_only` | Read-only | `read`, `events:changes` |
-| `everything` | Everything | every permission, including every enabled add-on action |
-| `none` | No access | nothing |
-
-`roles` (default `{}`) adds your own roles or replaces a built-in one under
-the same id: `{"tagger": {"name": "Tagger", "grants": ["read", "write:tags"]}}`.
-An app whose role does not exist gets nothing.
-
-A grant is a whole area or one name in it. Each route in the API reference
-shows the permission it needs (`x-permission`).
-
-| Area | Names | What it covers |
-| --- | --- | --- |
-| `read` | `read:notes`, `read:cards`, `read:decks`, `read:deck_configs`, `read:models`, `read:tags`, `read:reviews`, `read:media`, `read:collection`, `read:addons` | Reading anything, FSRS computations, jobs, capabilities, the event stream |
-| `write` | `write:notes`, `write:cards`, `write:decks`, `write:deck_configs`, `write:models`, `write:tags`, `write:reviews`, `write:media` | Adding, changing and deleting. Tagging notes is `write:tags`. Undo needs the whole `write` area |
-| `gui` | | Opening and driving Anki's windows on this computer |
-| `sync` | | Syncing with AnkiWeb |
-| `manage` | | Import, export, check database, reload, switch profile, close Anki |
-| `events` | `events:changes`, `events:reviews` | Which messages the event stream sends: changes to the collection, and each card you answer |
-| `local_files` | | Media uploads that name a file **on this computer** (`{"path": "C:/pictures/dog.png"}`), as AnkiConnect's `storeMediaFile` allows. Anything with it can make Anki read any file your account can read |
-| `memory_state` | | `POST /v1/cards:set-memory-state`: overwriting cards' FSRS memory state, desired retention and decay |
-| `addon` | `addon:<provider>/<action>` | Running add-on actions you enabled (see below). The area covers every enabled action; a name covers one |
-
-**Add-on actions.** Tsunagi can run add-ons' actions for you: FSRS Helper's
-through a provider bundled with Tsunagi (`GET /v1/addons/fsrs_helper/actions`
-lists them), and any add-on that registers itself
-([Add-on providers](docs/addon_providers.md)). Reading their data
-needs only `read:addons`. Every other action is disabled until you enable
-it: `addon_enabled` (default `{}`) maps `"<provider>/<action>"` to the
-level it was enabled at, `normal` or `destructive`:
+Saved as `apps`:
 
 ```json
-"addon_enabled": {"fsrs_helper/easy_days": "normal", "fsrs_helper/set_easy_dates": "normal"}
+"apps": [{"name": "Yomitan", "key": "…", "role": "default"},
+         {"name": "Old script", "key": "…", "role": "default", "enabled": false}]
 ```
 
-Enabled `normal` actions are part of the Default role's defaults, so
-resetting Default keeps them; a Default you have edited in `roles` lists
-them by name. `destructive` actions are only in Everything (or a role that
-names them), and Tsunagi makes an Anki backup before each run. If an
-add-on update relabels an action, it is disabled until you enable it again.
-The settings page's **Add-ons** page enables and disables actions, and each
-role's **Run add-on actions** row chooses which enabled actions that role
-may run.
+- A turned-off app's requests are refused with 403, saying it's turned off.
+- A key that matches no app counts as no key, as in AnkiConnect.
 
-Changes apply immediately. An open event stream closes with reason `auth`
-when its app's key or role changes, so the client reconnects with the new
-permissions.
+## Requests without a key
 
-### `cors_allowlist`
-Origins allowed to call Tsunagi from a browser. Requests from other origins
-get a 403; requests without an `Origin` header (curl, scripts, desktop apps)
-are unaffected.
+![The Requests without a key page](docs/images/settings-nokey.png)
 
-The default `"http://localhost"` behaves exactly as it does in AnkiConnect:
-besides `http://localhost` itself, it also allows `127.0.0.1` origins and
-**all browser extensions** (`chrome-extension://`, `moz-extension://`,
-`safari-web-extension://`). That's what lets extensions like Yomitan connect
-with no setup. Remove it to require every extension to be listed explicitly.
+| From | Key | Default role |
+| --- | --- | --- |
+| Programs on this computer | `no_key_local_role` | Default (everything AnkiConnect allows) |
+| Other devices | `no_key_remote_role` | No access |
 
-Add website origins as full origins (e.g. `"https://example.com"`); `"*"`
-allows everything. Entries are also added automatically when you click **Yes**
-on the permission dialog (shown when a client calls the AnkiConnect
-`requestPermission` action). Remove an entry to revoke access.
+- **This computer** means the connection comes from this computer and is
+  addressed to `127.0.0.1`, `localhost` or `[::1]`, with no proxy in between.
+- Set this computer to **No access** to make every tool use a key.
+- Anything other than **No access** for other devices lets anyone who can
+  reach the port in without a key; the page asks you to confirm.
+- A request without a key whose role is No access gets 401 (AnkiConnect:
+  `"valid api key must be provided"`).
 
-### `ankiconnect_ignore_origins`
-Default: `[]`. Website origins whose AnkiConnect permission requests should be
-denied without another prompt. Choosing **No** with **Ignore further requests**
-checked adds a nonempty origin to this list. Closing the dialog or denying an
-empty origin does not add an entry. Choosing **Yes** grants access and adds the
-origin to `cors_allowlist`, regardless of the checkbox.
+## Websites & Anki pages
 
-Remove an entry from this list in the add-on configuration to allow it to ask
-again. The list suppresses permission prompts; it does not revoke an existing
-allowlist grant. Changes apply immediately.
+![The Websites & Anki pages page](docs/images/settings-web.png)
 
-### `log_level`
-Uvicorn log level (`critical`, `error`, `warning`, `info`, `debug`). Tsunagi's
-own messages (start and stop, errors with their tracebacks) are logged at
-`info`, or at `debug` when this is `debug`.
+**Allowed website origins** (`cors_allowlist`) decides which web pages may
+call Tsunagi from a browser. Tools outside a browser aren't affected.
 
-Both go to Anki's log file for this add-on, `logs/addons/<add-on folder>/`,
-inside Anki's data folder (for example `%APPDATA%\Anki2\logs\addons\` on
-Windows). It rotates daily and keeps ten days. Attach it to a bug report.
+- The default `http://localhost` works as in AnkiConnect: it also allows
+  `127.0.0.1` pages and **every browser extension**, which is why Yomitan
+  works with no setup. Remove it to list extensions one by one.
+- Add a site as `https://app.asbplayer.dev` (with any port); `*` allows everything.
+- Clicking **Yes** on an AnkiConnect permission request adds the site here.
+  Remove it to take access away.
 
-### `op_timeout_seconds`
-How long a request may wait for Anki (busy, syncing, etc.) before returning
-HTTP 503 instead of hanging. Every 503 body has a `reason`: `busy`, `syncing`
-or `closed` (no collection open). `GET /v1/health` reports the same value as
-`collection.state`, or `ready`.
+**Allow card templates and add-on pages** (`gates.anki_page_scripts`, off)
+lets JavaScript inside Anki's own pages (your cards in the reviewer, other
+add-ons' pages) use the API. It's off because a shared deck's card template
+could otherwise read and change your collection while you study. These pages
+can't ask for access; this switch is the only way.
 
-A timeout stops the request from waiting; it does not cancel a queued or
-running operation. A write may still complete after the 503 response. Check
-the collection before retrying, since a retry can repeat the write, or send
-an `Idempotency-Key` when creating notes or media so a retry is safe (see
-[Create notes and upload media](docs/creating_notes.md)).
+## Add-ons
 
-### `media_max_bytes`
-Largest file accepted by a media upload (default 64 MiB). Applies to base64
-uploads, URL downloads, and local files alike.
+![The Add-ons page](docs/images/settings-addons.png)
 
-### `media_fetch_timeout_seconds`
-Timeout for downloading media from a URL (default 30).
+Actions other add-ons offer to apps
+([Add-on providers](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/addon_providers.md)).
+An action runs only if it's enabled here **and** the app is allowed to run
+it (see Roles).
 
-### `gates`
-Switches about the server itself rather than a caller. Read on every request,
-so saving toggles them without restarting Anki. (What callers may do moved to
-roles; older gate keys in a saved config are ignored.)
+- Reading an add-on's data doesn't need enabling.
+- Enabled actions you can undo join the Default role. Destructive ones (can't
+  be undone) join only Everything.
+- A destructive action marked **Backs up first** makes an Anki backup before
+  each run; the add-on decides which of its actions need one.
+- If an add-on update changes whether an action can be undone, it's disabled
+  until you enable it again.
 
-- `anki_page_scripts` — when `true`, JavaScript running inside Anki's own
-  pages (card templates in the reviewer and previewer, and other add-ons' web
-  pages) may use the API like any other local page. Off by default because a
-  shared deck's template could otherwise read and change your collection while
-  you review it. These pages cannot ask for access with `requestPermission`;
-  this switch is the only way to allow them.
+Saved as `addon_enabled`:
 
-### `dev_watch_seconds`
-**For working on Tsunagi itself.** When greater than zero, Anki polls the
-add-on's own source files that often and restarts the HTTP server when they
-change, so `python tools/dev_sync.py --watch` is the whole edit-test loop - no
-reinstall, no restart. Leave it at `0` unless you are editing the add-on: it
-costs a directory scan per interval and reloads on any file change.
+```json
+"addon_enabled": {"my_addon/do_thing": "undoable", "my_addon/clear_history": "destructive"}
+```
 
-Reloading swaps only Tsunagi's own modules. Changes to `__init__.py` or to the
-bundled libraries in `lib/` still need Anki restarted.
+## Roles
 
-### `ankiconnect_import_offered` / `ankiconnect_imported_at` / `config_version`
-Internal bookkeeping - don't edit. (`ankiconnect_import_offered` records that
-the one-time "import settings from AnkiConnect" dialog was shown; set it back
-to `false` to be offered again.) `ankiconnect_imported_at` records the last saved
-import as a UTC ISO timestamp, or `null` when no record exists. The prompt flag
-does not prove an import happened: declining the prompt also sets it.
+![The Roles page](docs/images/settings-roles.png)
+
+A role is what an app may do. Four are built in; you can edit them (and reset
+them) or make your own.
+
+| Role | Allows |
+| --- | --- |
+| Default | Everything AnkiConnect allows: reading and changing the collection, Anki's windows, sync, import/export and profiles, change events, enabled add-on actions |
+| Read-only | Reading, and change events |
+| Everything | All of it, including local files, FSRS memory state, review events and destructive add-on actions |
+| No access | Nothing |
+
+A request its role doesn't allow gets 403 naming the app, the role and what's
+missing. Changes apply at once; an app's open event stream closes (reason
+`auth`) so it reconnects with its new permissions.
+
+<details>
+<summary>Every permission</summary>
+
+A role grants whole areas or single permissions in them. Each route in the
+API reference shows the one it needs (`x-permission`).
+
+| Area | Single permissions | Covers |
+| --- | --- | --- |
+| `read` | `read:notes`, `read:cards`, `read:decks`, `read:deck_configs`, `read:models`, `read:tags`, `read:reviews`, `read:media`, `read:collection`, `read:addons` | Reading, FSRS computations, jobs, capabilities, the event stream |
+| `write` | `write:notes`, `write:cards`, `write:decks`, `write:deck_configs`, `write:models`, `write:tags`, `write:reviews`, `write:media` | Adding, changing, deleting. Undo needs all of `write` |
+| `gui` | | Opening and driving Anki's windows |
+| `sync` | | Syncing with AnkiWeb. 400: no sync account; 409: Anki needs a full sync (click Sync in Anki once) or another job is running; 502: AnkiWeb unreachable |
+| `manage` | | Import, export, check database, switch profile, close Anki |
+| `events` | `events:changes`, `events:reviews` | Change messages, and card-answer messages |
+| `local_files` | | Media uploads that name a file on this computer. Lets an app read any file you can |
+| `memory_state` | | Overwriting cards' FSRS memory state |
+| `addon` | `addon:<provider>/<action>` | Running enabled add-on actions |
+
+Saved as `roles`, only for roles you made or edited:
+
+```json
+"roles": {"tagger": {"name": "Tagger", "grants": ["read", "write:tags"]}}
+```
+
+An app whose role doesn't exist gets nothing.
+
+</details>
+
+## Recent requests
+
+![The Recent requests page](docs/images/settings-requests.png)
+
+Requests since Anki started, including refused ones, so you can see which tool
+is calling and why something failed.
+
+- Grouped by client: an app by name, otherwise the website, otherwise this
+  computer or other devices. Click a client to see only its requests.
+- Each client keeps its last 50 requests and running totals.
+- Filter by client, failures only, or text. **Clear log** empties it.
+- Kept in memory only. Never reachable through the API, and never records
+  keys or request contents.
+
+## AnkiConnect
+
+**Import AnkiConnect settings** fills in AnkiConnect's port, key and allowed
+websites for you to review. **Save** then turns AnkiConnect off and starts
+Tsunagi on its port, so your tools keep working unchanged.
+
+- AnkiConnect's key becomes the app **AnkiConnect key**. An empty key doesn't
+  replace one you have.
+- Websites are added to yours; none are removed.
+- If the port is still taken, nothing changes and AnkiConnect keeps running.
+- If Tsunagi can't turn this AnkiConnect version off itself, it says so:
+  disable AnkiConnect in **Tools → Add-ons**, restart Anki, then import.
+- The page shows when you last imported.
+
+## Settings without a field
+
+Edit these by hand: close Anki, open the add-on's folder (**Tools → Add-ons**,
+select Tsunagi, **View Files**) and change the `config` section of `meta.json`.
+
+- `ankiconnect_ignore_origins` (default none): websites whose AnkiConnect
+  permission requests are refused without asking. Choosing **No** with
+  **Ignore further requests** adds one. Remove it to let the site ask again.
+- `dev_watch_seconds` (default 0): for working on Tsunagi itself. Reloads the
+  server when the add-on's files change, every this many seconds.
+- `ankiconnect_import_offered`, `ankiconnect_imported_at`, `config_version`:
+  bookkeeping; don't edit. Set `ankiconnect_import_offered` to `false` to be
+  offered the AnkiConnect import again.

@@ -13,8 +13,8 @@ flashcard mining apps and scripts. Use it with **existing AnkiConnect tools**, o
 build apps with the **Tsunagi API** for collection queries, FSRS and change events.
 
 > [!NOTE]
-> Experimental. Supports **the current Anki desktop release and the one before
-> it** (26.08 and newer today); some features depend on your settings. Older Anki
+> Experimental. Supports **Anki 26.08 and 26.09** (the current desktop release
+> and the one before it); some features depend on your settings. Older Anki
 > keeps the last Tsunagi version that supported it.
 
 ## Why use Tsunagi?
@@ -31,6 +31,8 @@ goes beyond AnkiConnect's actions, including **access to Anki's FSRS tools**.
 | **FSRS access** | Compute and evaluate FSRS parameters, and simulate study workload through the Tsunagi API. |
 | **Undo in Anki** | Undo supported changes, such as note edits and card suspension, through the API or **Edit → Undo** (**Ctrl+Z** / **⌘Z**). Tsunagi uses Anki's collection operations so its windows update too. |
 | **Live change events** | React when notes or cards are created, updated or deleted, with affected IDs where available. See the [event guide](docs/events.md) for coverage. |
+| **Safer note creation** | Check for duplicates first, add to a note you already have instead of creating a second one, and retry after a timeout without saving twice. See [Creating notes](docs/creating_notes.md). |
+| **Control what each app can do** | Give each tool its own key and decide what it may do: only read, add notes, open Anki's windows, and more. Turn a tool off without deleting it. |
 | **Standard HTTP tooling** | Connect through FastAPI and Uvicorn, with validated requests, native HTTP status codes and an OpenAPI schema. Try Tsunagi API requests in the interactive reference. |
 
 Feature availability depends on your Anki version and settings. The
@@ -99,8 +101,9 @@ reviews also accept Anki browser search syntax to narrow your results.
 4. In your tool, set the Anki connection address to **`http://127.0.0.1:7777`**.
    If it asks for a port separately, enter **`7777`**.
 
-**Keep Anki open with your profile loaded.** If you change the port or give
-your tool a key under **Apps & keys**, use the same values in your tool.
+**Keep Anki open with your profile loaded.** Programs on this computer need no
+key. To limit what a tool can do, give it its own key under **Apps & keys**. If
+you change the port, use the same port in your tool.
 
 ## Move from AnkiConnect
 
@@ -122,20 +125,14 @@ Open **Tools → Tsunagi Settings** to change:
 | **Apps & keys** | Each tool's key and role, and a switch to turn it off. |
 | **Requests without a key** | The role for keyless requests from this computer and from other devices. |
 | **Websites & Anki pages** | Allowed website origins, and whether card templates may use the API. |
-| **Add-ons** | Which add-on actions (such as FSRS Helper's) apps may run. |
+| **Add-ons** | Which actions other add-ons offer that apps may run. |
 | **Roles** | What each role allows, and who uses it. |
 | **AnkiConnect** | Import AnkiConnect's settings and take over its port. |
 | **Recent requests** | Requests since Anki started, per client (app, website or no key), with totals and filters, so you can see who is calling and what failed. Memory only; no keys or contents. |
 
-If a tool can't connect, check that Anki is open and both use the same port and
-key; the bottom of the settings window shows whether the server is running, and
-**Recent requests** shows whether the tool's requests arrive and why any were refused.
-On macOS, Tsunagi turns off App Nap while its server runs, so requests are
-answered promptly when Anki is in the background (Anki leaves this to add-ons). If
-Tsunagi says it did not start because another add-on loaded a different version
-of a library it needs, disable the add-on it names (or update either one) and
-restart Anki. For a website access error, add its origin under **Websites & Anki pages**, including
-`http://` or `https://` and any port, without a page path.
+If a tool can't connect, check that Anki is open and the tool uses the same port
+and key. **Recent requests** shows whether its requests arrive and why any were
+refused.
 
 See the [configuration reference](config.md) for details. For unresolved problems,
 [open an issue](https://github.com/mcgrizzz/Tsunagi/issues) with your Anki version,
@@ -150,5 +147,9 @@ note content from examples.
 | **Build something with Tsunagi** | [Yomitan walkthrough](docs/api_recipes.md): its AnkiConnect requests and their Tsunagi API equivalents. |
 | **Browse every operation** | Open the [interactive reference](http://127.0.0.1:7777/) while Anki is running. [How to use it](docs/playground.md). |
 | **Check feature availability** | [API discovery](docs/capabilities.md): one report of available, disabled and unsupported operations. |
+| **Create notes and media** | [Creating notes](docs/creating_notes.md): check, add, add to an existing note, upload media, retry safely. |
+| **React to changes** | [Events](docs/events.md): a live stream of what changed in the collection. |
 | **Use an AnkiConnect client** | [Compatibility notes](docs/ankiconnect_parity.md). |
+| **Know what's protected** | [Security model](docs/security.md). |
+| **Offer my add-on's actions** | [Add-on providers](docs/addon_providers.md): let apps run your add-on's actions through Tsunagi. |
 | **Work on the add-on** | [Development guide](docs/development.md): build, test, sync and package releases. |

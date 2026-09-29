@@ -1,147 +1,120 @@
-# How Tsunagi shortens Yomitan's Anki workflow
+# How Tsunagi simplifies a Yomitan integration
 
 [← Documentation](README.md) · [Install Tsunagi](../README.md#install)
 
 You look up **食べる** in Yomitan. The popup needs to know whether you've saved it
 before, which note to open if you have, and which cards were created if you save
-it now. AnkiConnect can supply these answers, but some require a follow-up lookup.
+it now. AnkiConnect can answer all of that, but some answers take a follow-up
+request. The Tsunagi API returns related answers together, so an integration
+needs fewer requests and less code.
 
-**Tsunagi returns the related answers together.** Here are three places where that
-shortens the client code, and what changes in the Anki work behind each request.
+> Yomitan uses AnkiConnect today, which Tsunagi supports as it is. These
+> examples show what a future integration with the Tsunagi API could look like.
 
-| When Yomitan needs to… | Its current calls | With the Tsunagi API |
+| When Yomitan needs to… | AnkiConnect today | A future Tsunagi API integration |
 | --- | --- | --- |
 | Identify an existing duplicate | Check the note → search for its ID | **One check returns both** |
-| Save a note and suspend its cards | Save → find cards → suspend | **Save returns the card IDs** |
-| Show a note type's fields | Get model names → request fields | **Models arrive with their fields** |
+| Save a note and suspend its cards | Save → find cards → suspend | **The save returns the card IDs** |
+| Show a note type's fields | Get note type names → ask for the selected type's fields | **Note types come with their fields** |
 
-> These examples show how a Tsunagi API integration could work. Yomitan currently
-> uses AnkiConnect requests, which Tsunagi already supports through the AnkiConnect Shim.
-
-The flows below are pseudocode. AnkiConnect actions are sent to `POST /`;
-Tsunagi API paths are shown directly. `note` means the candidate in the
-format expected by that API, including the user's duplicate-check settings.
+The requests below are abbreviated: `{...note}` stands for the note in each
+API's format, including the user's duplicate settings. AnkiConnect actions are
+sent to `POST /`. Anki calls note types *models*, so that's the name in both
+APIs' requests.
 
 ## 1. Check a duplicate and get its ID in one request
 
-Suppose **食べる is already in Anki**. Yomitan needs to mark it as a duplicate and
-offer to open the saved note. A yes/no check can't supply that note's ID.
+食べる is **already in Anki**. Yomitan marks it as a duplicate and offers to
+open the saved note, so it needs that note's ID.
 
 ```text
 AnkiConnect:
-  canAddNotesWithErrorDetail({notes: [note]})
-                                 → cannot add; duplicate error text
-  findNotes(search_for_note)      → existing note IDs
+  canAddNotesWithErrorDetail({notes: [{...note}]})   → can't add: duplicate
+  findNotes("<search built from the note>")          → the existing note IDs
 
-Tsunagi:
-  POST /v1/notes:check {notes: [note]}
-                                 → state: "duplicate", duplicate_note_ids: [...]
+Tsunagi API:
+  POST /v1/notes:check {"notes": [{...note}]}
+      → state: "duplicate", duplicate_note_ids: [1789200000000]
 ```
 
-**The AnkiConnect response:** its check returns an error explaining that the
-note is a duplicate, but no matching IDs. Yomitan recognizes that error text,
-builds a search from the candidate, and asks Anki for the existing notes.
+AnkiConnect's check only says the note is a duplicate, so Yomitan has to build
+a search from it to find the existing note. For the whole flow, checking 20
+dictionary entries and listing the matches, the
+[benchmarks](benchmarks.md#real-client-workloads) measured 3.7 ms with the
+Tsunagi API (one request) against 154 ms with AnkiConnect (three requests).
 
-**What Tsunagi does with that work:**
+Within a request, Tsunagi also shares work between words. Each note names its
+note type and deck as text ("Kiku+", "Mining"), and Anki has to find those
+before it can check the note. When the words share a note type and deck,
+Tsunagi finds them once for the whole request instead of once per word.
 
-- **Return both answers.** `state` identifies the duplicate and
-  `duplicate_note_ids` supplies the IDs. The client can use the result directly.
-- **Share the setup.** For ten candidates using one note type and deck, Tsunagi
-  resolves that type once and that deck once. It reuses them across the batch.
+## 2. Save a note and suspend its cards
 
-Anki still validates each candidate and searches for duplicate IDs where needed.
-Those searches use its note-type ID and first field directly within the check;
-the client doesn't have to construct and send a second search request.
-
-## 2. Save a note without having to search for its new cards
-
-Now suppose you save a new word with **automatic suspension enabled**. Saving a
-note generates cards, and Yomitan needs their IDs before it can suspend them.
+You save a new word with **automatic suspension** on. Yomitan needs the new
+cards' IDs to suspend them.
 
 ```text
 AnkiConnect:
-  addNote(note)                  → note ID
-  findCards("nid:" + noteId)      → card IDs
-  suspend(cardIds)
+  addNote({...note})                  → note ID
+  findCards("nid:<note ID>")          → card IDs
+  suspend(<card IDs>)
 
-Tsunagi:
-  POST /v1/notes?include=cards   → note ID + card IDs
-  POST /v1/cards:suspend         ← those card IDs
+Tsunagi API:
+  POST /v1/notes?include=cards {...note}
+      → created: [{id: <note ID>, cards: [<card IDs>]}]
+  POST /v1/cards:suspend {"cardIds": [<card IDs>]}
 ```
 
-**The AnkiConnect response:** `addNote` returns only the note ID. Yomitan
-uses it to build a `nid:...` browser search, gets the card IDs, then suspends them.
+Saving and suspending goes from three requests to two; saving alone is one
+request in either API. `?include=cards` returns the new card IDs with the
+save, so there's nothing to search for. Check that `failed` is empty before
+using `created[0].cards`.
 
-**What Tsunagi returns together:** the new note ID and its card IDs, when requested
-with `include=cards`. The note ID is already known from the write. Anki's direct
-`card_ids_of_note()` method supplies the card IDs, with no saved-note reload or
-browser card search. [Event subscribers](events.md) also receive the new IDs.
+## 3. Show a note type's fields
 
-The client checks that `failed` is empty, takes `created[0].cards` from the save
-response and passes them to the suspend endpoint. **Three requests become two.** Saving without suspension is
-one request in either API; Tsunagi doesn't change that user setting.
-
-## 3. Get field names with the model list
-
-In Yomitan's settings, you select **Basic** and map dictionary content to its
-**Front** and **Back** fields. The picker needs both the model name and its fields.
+In Yomitan's settings, you pick the **Basic** note type and map dictionary
+content to its **Front** and **Back** fields.
 
 ```text
 AnkiConnect:
-  modelNames()                   → model names
-  modelFieldNames("Basic")       → ["Front", "Back"]
+  modelNames()                        → note type names
+  modelFieldNames("Basic")            → ["Front", "Back"]   (one request per selected type)
 
-Tsunagi:
+Tsunagi API:
   GET /v1/models?select=id,name,fields[].name
-                                 → models with their field names
+      → each note type with its field names
 ```
 
-**The AnkiConnect response:** the initial list contains names. Selecting
-Basic triggers `modelFieldNames("Basic")`; selecting another type needs its own
-field request. A client could prefetch these, but would still need an action per
-model and pair the results itself.
-
-**What Tsunagi keeps together:** Anki's model record already contains its fields.
-Tsunagi loads the records for the requested page and returns each model with its
-field names attached. **Selecting a loaded model needs no field request.**
-
-The planner also matches the work to the question. An `id,name` query uses
-`all_names_and_ids()` without loading full model definitions. Ask for fields and
-it loads the page's model records; `select` keeps unused templates and styling
-out of the response. For full field metadata, use `select=id,name,fields` on the
-same endpoint. Decks remain a separate query, and more pages mean more requests.
+Picking another note type needs no further request. Ask only for what you
+show: `select=id,name` skips loading full note types, and even with fields,
+templates and styling stay out of the response. Decks are a separate request
+in both APIs.
 
 <details>
-<summary>Also show how many notes use each type</summary>
+<summary>Also show how many notes use each note type</summary>
 
-A picker can label a type “Basic · 250 notes” without downloading those notes:
+A picker can label a type "Basic · 250 notes" without downloading those notes:
 
 ```text
 GET /v1/models?select=id,name,note_count
   → {items: [{id: 123, name: "Basic", note_count: 250}, ...], ...}
 ```
 
-`note_count` counts notes across all decks, including zero for an unused type.
-It does not count generated cards. Tsunagi gets names, IDs and counts together
-through Anki's `all_use_counts()` method. Queries asking only for names and IDs
-keep the cheaper path described above.
-
-You can filter with `where=note_count>0`, or request fields and counts together
-with `select=id,name,note_count,fields[].name`. Counts are read from the current
-collection on each request, so additions, deletions and undo are reflected.
-They are also included in full model queries, but may be null in mutation
-responses. Follow `next_cursor` for additional pages; the collection can change
-between page requests.
+- `note_count` counts notes (not cards) in all decks, and is 0 for an unused
+  type.
+- Filter with `where=note_count>0`, or ask for fields too with
+  `select=id,name,note_count,fields[].name`.
+- Counts are read fresh on every request, so new notes, deletions and undo
+  show up.
 
 </details>
 
 ## Try the endpoints
 
-Open the [interactive reference](http://127.0.0.1:7777/) with Anki running, using
-your configured port if different. Search for the Tsunagi API path above and use
-**Test Request**. Full request bodies and response schemas are available there. The
-[creation guide](creating_notes.md) shows single requests, batches and failures.
-Use a disposable profile when trying note creation or suspension.
+With Anki running, open the [interactive reference](playground.md), search for
+a path above and click **Test Request**; it has every request and response
+format. [Creating notes](creating_notes.md) covers single notes, batches and
+failures. Try creating and suspending in a throwaway profile.
 
 <details>
 <summary>Sources and comparison details</summary>
@@ -166,8 +139,7 @@ optional sync, connection checks and additional note/card details are omitted.
 A Tsunagi API client must preserve the user's settings and map the request formats;
 this is a comparison of selected flows, not a complete Yomitan port.
 
-The model example omits deck loading and shows a page of models. Follow
-`next_cursor` for additional pages. An AnkiConnect client can prefetch fields via
+The model example omits deck loading. An AnkiConnect client can prefetch fields via
 `multi`, but still needs a field-name action per model. The Tsunagi API's `select` trims
 the response; the model record itself is still loaded internally.
 

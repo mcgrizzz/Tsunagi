@@ -6,8 +6,10 @@ Notes for contributors on where the Tsunagi API spends time, what past
 optimizations measured, and how benchmark runs are recorded. For measurements
 on the real Anki desktop, see [API benchmarks](benchmarks.md).
 
-Everything here was measured on **2026-09-21** with Anki/aqt **26.09.2** and
-Python **3.13.9** on Linux, in the test harness unless stated otherwise.
+Harness figures were measured on **2026-09-21** with Anki/aqt **26.09.2** and
+Python **3.13.9** on Linux, unless a section gives another date or says it used
+the Windows desktop. They describe the code at the time; later changes (such as
+per-route permission checks and the request log) are not in them.
 
 ## What the test harness leaves out
 
@@ -41,8 +43,10 @@ the same data through every API.
 | 100 cards | 15.0 | 18.9 | 19.8 |
 | 10,000 cards | 714.5 | 1,090.0 | 1,299.2 |
 
-AnkiConnect is fastest here. Tsunagi validates every record against its
-response schema and encodes it as JSON, which costs time on large reads.
+AnkiConnect is fastest here. At the time of this run, Tsunagi validated every
+record against its response schema before encoding it as JSON, which cost time
+on large reads. Rows read from Anki's database have skipped that validation
+since 2026-09-23; see below.
 
 ### Creating notes
 
@@ -249,7 +253,7 @@ confirmed to fail on deliberately broken builders.
 Responses were compared byte for byte before and after, on deterministic
 harness collections, across 25 review, 17 note and 17 card query shapes plus
 paging, POST queries and the AnkiConnect Shim's related actions. Cards were also
-compared on Python 3.9 / Anki 23.10.
+compared on Python 3.9 / Anki 23.10 (both since dropped).
 
 Harness timings, median of three requests:
 
@@ -285,7 +289,7 @@ at all, and mined-card status got slower, so the slice size is unchanged.
 Timing one review request with slices of 10,000: Tsunagi's route took 418 ms of
 a 659 ms request, and its response was 18.8 MB against the AnkiConnect Shim's
 14.5 MB for `getReviewsOfCards`, because each review repeats its field names.
-The split between server work, transfer and parsing is not yet measured (R20).
+The split between server work, transfer and parsing is not yet measured.
 
 ## Membership filters
 
@@ -343,7 +347,8 @@ be added to other timings to predict desktop performance.
 
 ### Harness reports
 
-`dist/benchmarks/current-*.json` holds the current harness results.
+`dist/benchmarks/current-*.json` holds the harness results, written locally
+(`dist/` is not committed).
 `current-run-manifest.json` records the commands, run times and source hashes for
 all six groups, and confirms the source did not change during the run. A
 source-dirty flag also counts documentation edits.

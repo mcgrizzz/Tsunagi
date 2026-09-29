@@ -1,5 +1,10 @@
 # `GET /v1/cards?limit=50` — a keyset page
 
+> [!NOTE]
+> Written before the per-route permission checks and the request log were
+> added (late September 2026). Some function names and steps have changed
+> since; the code is authoritative.
+
 The bare listing: no search, no filter, no projection. The planner lands on
 the **scan tier with keyset ids** — two Anki round trips total, both
 proportional to the page, never to the collection.

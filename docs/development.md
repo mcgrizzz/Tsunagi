@@ -2,180 +2,179 @@
 
 [← Back to the README](../README.md) · [Yomitan walkthrough](api_recipes.md)
 
-Commands below run from the repository root. To build a client that uses Tsunagi,
-start with the API recipes instead.
+For working on the add-on itself. To build a tool that uses Tsunagi, start
+with the [Yomitan walkthrough](api_recipes.md) instead. Commands run from the
+repository root.
 
-## Environment and build
-
-Clone the repository with Git and enter its directory:
+## Set up
 
 ```sh
 git clone https://github.com/mcgrizzz/Tsunagi.git
 cd Tsunagi
-```
-
-Use a virtual environment from the repository root. This follows the CI setup:
-
-```sh
 python -m venv .venv
-. .venv/bin/activate
+. .venv/bin/activate                  # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 python -m pip install pytest ruff httpx anki
 python tools/build_addon.py
 ```
 
-On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell. Tsunagi
-supports the current Anki release and the one before it; to test the oldest, use
-Python 3.10 and install `anki==26.8.1` in place of `anki`. The repository’s
-[CI configuration](../.github/workflows/ci.yml) records its version matrix. CI also
-runs the [Qt checks](../.github/workflows/qt.yml) on the newest Anki. The
-[Anki watch](../.github/workflows/anki-watch.yml) runs daily: when PyPI has an Anki
-release, beta or RC it hasn't tested, it runs the suite and Qt checks against it and
-records the result as an `anki-watch` issue (closed if everything passed).
-
-The build vendors dependencies from [tools/requirements.lock.txt](../tools/requirements.lock.txt)
-into `lib/shared`, then packages the add-on into `dist`. It rebuilds `lib/` and
-replaces the archive for the current version after validation. Anki itself is a test
-dependency and is never bundled. After the wheel cache is populated,
-`python tools/build_addon.py --offline` builds using cached wheels.
+- `build_addon.py` puts the dependencies from
+  [tools/requirements.lock.txt](../tools/requirements.lock.txt) into
+  `lib/shared` and packages the add-on into `dist/`. Anki itself is only a
+  test dependency and is never bundled.
+- Once the wheels are cached, `python tools/build_addon.py --offline` builds
+  without downloading.
+- Tsunagi supports the current Anki release and the one before it. To test
+  the older one, use Python 3.10 and install `anki==26.8.1` instead of `anki`.
 
 ## Tests
-
-Build first so the tests can import the vendored runtime dependencies, then run:
 
 ```sh
 ruff check .
 python -m pytest -q
 ```
 
-`tests/snapshots/openapi.json` records the published API schema, so any contract
-change shows up as a diff in review. After an intended change, regenerate it with
-`TSUNAGI_UPDATE_OPENAPI=1 python -m pytest -q tests/test_openapi_snapshot.py` and
-commit the result.
-
-Backend tests use temporary Anki collections. Optional Qt checks need a separate
-interpreter with `aqt` and its Qt dependencies. For example, point the settings
-check at that interpreter:
+Backend tests use temporary Anki collections. The rest are optional. The Qt
+checks need a second environment with Anki's GUI package, as CI makes it:
 
 ```sh
-TSUNAGI_GUI_PYTHON=/path/to/qt-env/bin/python \
-  python -m pytest -q tests/test_settings_dialog_qt.py
+python -m venv .venv-qt
+. .venv-qt/bin/activate               # Windows PowerShell: .\.venv-qt\Scripts\Activate.ps1
+python -m pip install pytest httpx "aqt[qt6]"
 ```
 
-The Scalar browser check needs a separate environment with Playwright and Chromium:
+On Linux, Qt also needs some system libraries; the list CI installs is in
+[qt.yml](../.github/workflows/qt.yml). Run the Qt checks with this
+environment active.
 
-```sh
-python -m pip install playwright
-python -m playwright install chromium
-```
+| Check | Needs | Run |
+| --- | --- | --- |
+| Qt tests and real-Anki checks | a Python with `aqt` and Qt | `tools/qt_checks.sh` (offscreen, what CI runs) |
+| A single Qt check | the same | `python tools/check_add_cards.py`, etc. |
+| Browser check of the API reference | Playwright and Chromium in their own environment | `TSUNAGI_BROWSER_PYTHON=/path/to/python python -m pytest -q tests/test_playground.py` |
+| Media and FSRS Helper checks | a real Anki; FSRS Helper installed for the second | `python tools/check_media.py`, `python tools/check_fsrs_helper_provider.py` (by hand, not in CI) |
 
-Set `TSUNAGI_BROWSER_PYTHON` to that environment's Python executable. Set both
-`TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` when running the full suite to
-include the optional Qt and browser checks. Tests for behavior specific to another
-Anki version will still skip.
-
-`tools/check_browser_startup.py`, `tools/check_add_cards.py` and other targeted
-Qt checks can also run with the Qt interpreter. `tools/qt_checks.sh` runs the Qt
-tests and every targeted check, as CI does, with the `python` on your `PATH`.
-Set `TSUNAGI_STRICT_ANKI_NOTICES=1` to fail the suite on any deprecation notice
-Anki prints; notices are always listed at the end of the run. The shared Qt smoke harness creates
-a temporary profile. Use disposable profiles for development and GUI experiments.
-Offscreen checks do not establish Windows foreground-window behavior. Finish with
-the [manual release checks](manual_testing.md) for the desktop and real clients.
+- Set `TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` to include the Qt and
+  browser checks in a full `pytest` run. Tests for another Anki version still
+  skip.
+- Set `TSUNAGI_STRICT_ANKI_NOTICES=1` to fail on any deprecation notice Anki
+  prints. Notices are always listed at the end of the run.
+- **API contract.** `tests/snapshots/openapi.json` records the published
+  schema, so any change shows up as a diff. After an intended change,
+  regenerate it with
+  `TSUNAGI_UPDATE_OPENAPI=1 python -m pytest -q tests/test_openapi_snapshot.py`
+  and commit it.
+- **Screenshots.** After changing the settings page, regenerate the images in
+  `config.md` with `python tools/settings_screenshots.py` (Qt Python; writes
+  `docs/images/settings-*.png`).
+- Qt checks make a temporary profile; use throwaway profiles for your own
+  experiments too. Offscreen checks can't show how windows behave on Windows,
+  so finish with the [manual release checks](manual_testing.md).
 
 <details>
-<summary>Archived AnkiConnect parity checks</summary>
+<summary>AnkiConnect comparisons</summary>
 
-The broad AnkiConnect comparison suite is archived in Git at `3c8e2dd`:
-`tests/test_upstream_differential.py`, `tests/test_upstream_decks.py`,
-`tests/test_upstream_permissions.py` and `tests/upstream_support.py`. It established
-compatibility against pinned upstream code; routine tests retain focused Tsunagi
-regressions and action-inventory checks. For a specific renewed comparison, recover
-that revision in a separate checkout and set `TSUNAGI_ANKICONNECT_CHECKOUT` to the
-upstream checkout. The broad audit is not part of the maintained test suite.
+- To see whether upstream AnkiConnect gained or dropped actions, pull a local
+  checkout of it and run `python tools/check_parity.py`. The routine tests only
+  compare the [compatibility page](ankiconnect_parity.md) with Tsunagi's own
+  actions.
+- The broad comparison suite against upstream is archived in Git at `3c8e2dd`
+  (`tests/test_upstream_*.py`, `tests/upstream_support.py`). To run it again,
+  check out that revision separately and set `TSUNAGI_ANKICONNECT_CHECKOUT` to
+  an upstream checkout. It isn't part of the maintained suite.
+- Performance comparisons with AnkiConnect: [benchmarks](benchmarks.md).
+  Profiling and past optimizations: [performance notes](performance_notes.md).
 
 </details>
 
-For opt-in bulk performance comparisons against upstream AnkiConnect, see the
-[benchmark guide](benchmarks.md). These use disposable collections and stay outside
-the routine test suite.
+## CI
 
-Profiling findings and before/after measurements of individual optimizations are
-in [performance notes](performance_notes.md).
+- [ci.yml](../.github/workflows/ci.yml) runs the suite on both supported
+  Anki versions, the [Qt checks](../.github/workflows/qt.yml) on the newest,
+  and `pip-audit` on the bundled dependencies. Advisories that don't apply are
+  listed with their reason in `ci.yml`; any new one fails the build.
+- The [Anki watch](../.github/workflows/anki-watch.yml) runs daily. When PyPI
+  has an Anki release, beta or RC it hasn't tested, it runs the suite and Qt
+  checks against it and records the result as an `anki-watch` issue (closed if
+  everything passed).
 
-## Sync to a development installation
+## Try changes in Anki
 
-Install a built package first. To copy source changes into a chosen development
-add-on folder:
+Install a built package once, then copy your source changes into that add-on
+folder:
 
 ```sh
 python tools/dev_sync.py --dest /path/to/Anki2/addons21/tsunagi
 ```
 
-Add `--watch` to keep copying source edits, or `--full` after rebuilding dependencies
-to copy `lib/` too. Copying files and reloading the running add-on are separate steps:
-restart Anki, or use the development reload options documented in [config.md](../config.md).
-Changes to the root `__init__.py` or bundled dependencies require a full restart.
+- `--watch` keeps copying as you edit; `--full` also copies `lib/` after you
+  rebuild dependencies.
+- Copying doesn't reload the running add-on: restart Anki, or set
+  `dev_watch_seconds` ([settings without a field](../config.md#settings-without-a-field))
+  so Tsunagi reloads itself. Changes to the root `__init__.py` or to `lib/`
+  always need a restart.
+- Tsunagi logs to Anki's log folder for the add-on (`logs/addons/` in Anki's
+  data folder), not the console.
+- If another add-on has already loaded a different version of FastAPI,
+  Starlette, pydantic or uvicorn, Tsunagi refuses to start and names it.
+  `tools/check_vendor_clash.py` tests that in a real Anki.
 
 ## Package for AnkiWeb
 
-Keep the release version in `tools/version.py`, `tsunagi/shared/version.py` and
-`pyproject.toml` aligned, then run from the repository root:
-
-```sh
-python tools/build_addon.py
-```
-
-The script prints the upload path and creates two files:
+Keep the version the same in `tools/version.py`, `tsunagi/shared/version.py`
+and `pyproject.toml`, then run `python tools/build_addon.py`. It prints where
+it put:
 
 | File | Purpose |
 | --- | --- |
-| `dist/tsunagi-<version>.ankiaddon` | Upload this file to [AnkiWeb](https://ankiweb.net/shared/addons/). It also works with **Install from file**. |
-| `dist/tsunagi-<version>.ankiaddon.sha256` | SHA-256 checksum for verifying the package. |
+| `dist/tsunagi-<version>.ankiaddon` | Upload to [AnkiWeb](https://ankiweb.net/shared/addons/). Also works with **Install from file**. |
+| `dist/tsunagi-<version>.ankiaddon.sha256` | Checksum for verifying the package. |
 
-The package includes runtime code, assets, bundled dependencies and license notices.
-It excludes local `meta.json`, bytecode, development tools, tests and handoff docs.
-The script checks required files, JSON and ZIP integrity before replacing a previous
-package. It does not upload anything. Use `--offline` to reuse cached dependencies
-or `--refresh` to download them again; these options cannot be combined.
+- The package holds the add-on's code, assets, bundled dependencies, licence
+  notices, `README.md` and `config.md`. It leaves out your local `meta.json`,
+  bytecode, tools, tests and the `docs/` folder.
+- It checks the required files, JSON and ZIP before replacing an older
+  package, and never uploads anything.
+- `--offline` reuses cached dependencies; `--refresh` downloads them again.
+  Not both.
 
 ## GitHub releases
 
-To prepare a release on GitHub, commit matching versions in `tools/version.py`,
-`tsunagi/shared/version.py` and `pyproject.toml`, then push your changes. Open
-**Actions → Release → Run workflow**, select **main**, and run it. The workflow
-uses the declared version (for example, `0.1.0` becomes `v0.1.0`).
+Commit matching versions in the three files above and push. Then either:
 
-You can also start the [Release workflow](../.github/workflows/release.yml) by
-pushing a version tag yourself:
+- open **Actions → Release → Run workflow** on `main` (it uses the declared
+  version, so `0.1.0` becomes `v0.1.0`), or
+- push a tag yourself: `git tag -a v0.1.0 -m "Tsunagi 0.1.0" && git push origin v0.1.0`.
 
-```sh
-git tag -a v0.1.0 -m "Tsunagi 0.1.0"
-git push origin v0.1.0
-```
+The [Release workflow](../.github/workflows/release.yml):
 
-The workflow checks all three version declarations, runs the existing CI matrix
-on the oldest supported Anki and current Anki plus the Qt checks, then builds the package. A tag-triggered run also
-checks that the tag matches the declared version. After validation, a manual run
-creates the version tag at the exact commit it tested, if the tag doesn't exist. It
-creates a **draft GitHub release** with generated release notes, the `.ankiaddon`
-and its checksum attached. Review the draft and publish it when ready. AnkiWeb
-upload remains a separate step using the same `.ankiaddon` file.
+1. checks the three versions agree (and match the tag, if you pushed one);
+2. runs CI: the suite on both Anki versions, the Qt checks and the
+   dependency audit;
+3. builds the package;
+4. creates the tag at the tested commit if a manual run needs one;
+5. makes a **draft GitHub release** with generated notes, the `.ankiaddon` and
+   its checksum. Review it and publish when ready.
 
-To retry the same release, rerun its workflow or manually run **Release** against the existing tag
-(for example, `gh workflow run release.yml --ref v0.1.0`). Reruns update assets on
-an existing draft; published releases are left intact. An existing tag must point
-to the tested commit: running from a newer `main` commit requires a new version,
-not reusing the old tag. The workflow uses GitHub's
-built-in token, so no additional release secret is needed. The optional browser
-check remains separate from CI; run it [before tagging](#tests).
+- Uploading to AnkiWeb is a separate step with the same `.ankiaddon`.
+- To retry, rerun the workflow or run **Release** on the existing tag
+  (`gh workflow run release.yml --ref v0.1.0`). Reruns update a draft's files
+  and never touch a published release.
+- A tag must point at the commit that was tested. A newer `main` needs a new
+  version, not the old tag.
+- It uses GitHub's built-in token; no secret needed.
+- The browser check isn't part of CI; run it [before tagging](#tests).
 
 ## Code organization
 
-- `tsunagi/http/` contains the Tsunagi API routes, the AnkiConnect Shim and HTTP middleware.
-- `tsunagi/adapters/` integrates with Anki, including settings and operation dispatch.
-- `tsunagi/shared/` contains schemas and shared query/error handling.
-- `tools/` contains packaging, development sync and targeted checks.
+- `tsunagi/http/`: API routes, the AnkiConnect endpoint and the HTTP middleware.
+- `tsunagi/adapters/`: everything that talks to Anki, settings, and running
+  operations.
+- `tsunagi/web/`: the settings page, shown in a Qt dialog by
+  `adapters/settings_page.py`.
+- `tsunagi/shared/`: schemas, permissions, and shared query and error
+  handling.
+- `tools/`: packaging, development sync, checks and benchmarks.
 
-Prefer Anki’s public APIs. Keep unavoidable database access in the adapter layer,
-and account for the running Anki version. Use existing operation dispatch for
-threading and undo behavior; GUI work belongs on the Qt main thread.
+Prefer Anki's public APIs, and keep any direct database access in the adapter
+layer. Account for the running Anki version. Use the existing operation
+dispatch for threading and undo; GUI work belongs on Qt's main thread.

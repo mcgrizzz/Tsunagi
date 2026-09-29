@@ -23,7 +23,9 @@ profile:
   note-ID lookups. AnkiConnect was measured on **2026-09-21**, the other two on
   **2026-09-23**.
 
-The page is updated in place; it is a current snapshot, not a history.
+The numbers were measured with Tsunagi `main` as of 2026-09-23 (around
+`634baf3`). Later changes, such as the per-route permission checks and the
+request log, add a few microseconds per request and are not in them.
 
 ## Summary
 
@@ -33,14 +35,14 @@ The page is updated in place; it is a current snapshot, not a history.
   words and both review histories).
 - **The AnkiConnect Shim is faster than AnkiConnect on eight of ten goals**
   with the same requests, ties on one, and gives the same answers.
-- **Under load, both Tsunagi APIs answered every request.** AnkiConnect refused
-  most connections once 64 or more requests arrived at the same moment.
+- **Under load, both Tsunagi APIs answered every request.** AnkiConnect began
+  refusing connections at 64 simultaneous requests and refused most at 256.
 
 ## Real client workloads
 
 Each workload is one goal from a real AnkiConnect client's source code. For
-AnkiConnect and the AnkiConnect Shim it uses exactly the requests that client
-sends; for the Tsunagi API it uses the natural `/v1` requests for the same
+AnkiConnect and the AnkiConnect Shim it follows that client's request sequence,
+with the test-profile adjustments listed under **Simplifications** below; for the Tsunagi API it uses the natural `/v1` requests for the same
 goal. Each run records a fingerprint of the answer, and the fingerprints of the
 three APIs were compared.
 
@@ -148,8 +150,8 @@ of the three runs, in milliseconds.
 | 64 | 2,260 | 112 | 243 |
 | 256 | 2,597 | 371 | 858 |
 
-AnkiConnect's bursts at 64 and 256 take over two seconds, and most of their
-requests end in a refusal.
+AnkiConnect's bursts at 64 and 256 take over two seconds. About a third of its
+requests at 64 end in a refusal, and most at 256.
 
 ### How long a successful request waited
 
@@ -169,10 +171,11 @@ The Tsunagi API still plans the query and builds its response envelope, which
 the AnkiConnect Shim does not. Both use the IDs Anki's search returns without
 loading the notes, and every request reads fresh data.
 
-### Giving AnkiConnect more time does not help
+### A longer timeout doesn't stop AnkiConnect's refusals
 
 With a **30-second** limit instead of 5, a 256-request burst still left
-AnkiConnect with 154 / 768 answered and 614 refused. The AnkiConnect Shim and
+AnkiConnect with 154 / 768 answered (up from 145 with 5 seconds) and 614
+refused. The AnkiConnect Shim and
 the Tsunagi API each answered 768 / 768.
 
 Across both limits, the AnkiConnect Shim and the Tsunagi API each answered
@@ -206,13 +209,6 @@ test only checks that the server keeps working.
 The runner checks the profile name and the server's identity before testing.
 This benchmark does not cover write cancellation, media uploads, connection
 pooling, or sustained traffic over a long period.
-
-## Planned
-
-More client goals from the same survey: Yomitan's duplicate details
-(`notesInfo` and `cardsInfo` per duplicate), Obsidian_to_Anki's bulk `multi`
-sync, asbplayer's scheduling searches, and metadata reads. Also goals shaped
-around what the Tsunagi API does, measured the closest way AnkiConnect allows.
 
 ## Reproduce the benchmarks
 
@@ -254,7 +250,7 @@ environment; keys are not saved in reports.
 
 ## Raw reports
 
-Results are saved as JSON under `dist/benchmarks/`: `workloads-*.json` for the
+Results are saved locally as JSON under `dist/benchmarks/` (not committed): `workloads-*.json` for the
 client workloads and `live-connections-*.json` for the burst test. What they
 record is described in
 [performance notes](performance_notes.md#live-connection-reports).

@@ -1,5 +1,11 @@
 # list_models() — Dataflow
 
+> [!NOTE]
+> Written before the per-route permission checks and the request log were
+> added (late September 2026). Some function names and steps have changed
+> since; the code is authoritative. `GET /v1/models` now lists models with
+> `get_model_ids` and `get_models_by_ids`, not `list_models()`.
+
 ## A) Names & IDs (`service=23, method=8`)
 
 1. **Tsunagi** → `list_models()`
