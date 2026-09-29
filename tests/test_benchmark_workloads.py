@@ -58,7 +58,7 @@ def run(url, implementation, tmp_path):
     report = {"workloads": []}
     args = SimpleNamespace(url=url, profile="Bench", implementation=implementation,
                            workloads=["mine_session", "client_settings", "sync_notes_batch", "first_page_cards",
-                                      "known_words_snapshot"], repeats=1,
+                                      "known_words_snapshot", "mine_with_media"], repeats=1,
                            api_key_env="TSUNAGI_TEST_NO_KEY", output=tmp_path / f"{implementation}.json")
     asyncio.run(bw.run(args, report))
     assert report["completed"] and not any(report["leftovers"].values())
@@ -68,19 +68,24 @@ def run(url, implementation, tmp_path):
 def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp_path):
     native, shim = run(server, "native", tmp_path), run(server, "shim", tmp_path)
     for name in ("mine_session", "client_settings", "sync_notes_batch", "first_page_cards",
-                 "known_words_snapshot"):
+                 "known_words_snapshot", "mine_with_media"):
         assert native[name]["consistent_result"] and shim[name]["consistent_result"]
         assert native[name]["trials"][1].get("part_sha256") == shim[name]["trials"][1].get("part_sha256")
         assert native[name]["trials"][1]["result_sha256"] == shim[name]["trials"][1]["result_sha256"]
-    # 10 popups, one word added from each: the check + the duplicates' notes + 3
-    # through /v1; 3 for the check + 5 through AnkiConnect.
-    assert native["mine_session"]["trials"][1]["requests"] == 50
+    # 10 popups, one word added from each: the check + the duplicates' notes + 2
+    # (the note with its files, suspend) through /v1; 3 for the check + 5 through AnkiConnect.
+    assert native["mine_session"]["trials"][1]["requests"] == 40
     assert shim["mine_session"]["trials"][1]["requests"] == 80
     assert (native["client_settings"]["trials"][1]["requests"],
             shim["client_settings"]["trials"][1]["requests"]) == (3, 3)
-    # A 20-note file: deck check, media, notes through /v1; one multi through AnkiConnect.
+    # One mined note with audio and a picture: the note with its files through /v1;
+    # two media stores and the note through AnkiConnect.
+    assert (native["mine_with_media"]["trials"][1]["requests"],
+            shim["mine_with_media"]["trials"][1]["requests"]) == (1, 3)
+    # A 20-note file: deck check, then the notes with their pictures through /v1;
+    # one multi through AnkiConnect.
     assert (native["sync_notes_batch"]["trials"][1]["requests"],
-            shim["sync_notes_batch"]["trials"][1]["requests"]) == (3, 1)
+            shim["sync_notes_batch"]["trials"][1]["requests"]) == (2, 1)
     # The first 10 new cards and the total: the page, then every ID, in both.
     assert (native["first_page_cards"]["trials"][1]["requests"],
             shim["first_page_cards"]["trials"][1]["requests"]) == (2, 2)

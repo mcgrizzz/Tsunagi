@@ -36,8 +36,8 @@ request log, add a few microseconds per request and are not in it.
   by a wide margin: fewer requests, and only the fields the client uses. It is
   1.4 ms behind the Shim on an eighth, and slower on two large reads (both
   review histories).
-- **For a whole mining session, the Tsunagi API took 323 ms against
-  AnkiConnect's 2,862 ms,** in 50 requests instead of 80. Loading Yomitan's
+- **For a whole mining session, the Tsunagi API took 297 ms against
+  AnkiConnect's 2,862 ms,** in 40 requests instead of 80. Loading Yomitan's
   settings takes about 5 ms through either Tsunagi API.
 - **The AnkiConnect Shim is faster than AnkiConnect on seven of ten goals**
   with the same requests, even on one, and slower on two.
@@ -61,7 +61,7 @@ their review history and media. Lower is faster.
 | --- | --- | ---: | ---: | ---: |
 | **Yomitan:** check 20 dictionary entries for duplicates and list the matching notes | [check](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L683-L700), [IDs](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L308-L362) | 188 (3 requests) | 97 (3) | **5.7** (2) |
 | **Yomitan,** same check with "Check for duplicates across all models" on | [options](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/data/anki-note-builder.js#L118-L131) | 183 (3) | 117 (3) | **4.3** (1) |
-| **Yomitan:** add a mined note with an audio file and a picture | [add](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/display/display-anki.js#L924), [media](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L279-L290) | 89 (3) | 27 (3) | **25** (2) |
+| **Yomitan:** add a mined note with an audio file and a picture | [add](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/display/display-anki.js#L924), [media](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L279-L290) | 89 (3) | 27 (3) | **20** (1) |
 | **asbplayer:** attach a screenshot to the most recently added note | [find](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L549-L591), [update](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L730-L752) | 152 (5) | 21 (5) | **19** (3) |
 | **Yomine:** refresh known words: the term, reading and sentence of every note of the note types Yomine is set up for, plus each first card's latest interval | [notes](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L373-L392), [intervals](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L64-L95) | 1,171 (3, 84 MB) | 1,336 (3, 79 MB) | **617** (3, 8.9 MB) |
 | **asbplayer:** first build of the mined-words cache: notes, card details, suspension and study status | [notes and cards](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L426-L509), [status](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L575-L633), [batch sizes](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L8-L10) | 16,605 (434, 498 MB) | 10,589 (434, 468 MB) | **1,716** (8, 77 MB) |
@@ -126,25 +126,25 @@ profile as above.
 
 | Task | Client code | AnkiConnect | AnkiConnect Shim | Tsunagi API |
 | --- | --- | ---: | ---: | ---: |
-| **Mine 10 new words:** ten lookups; each popup checks its own 3 to 5 entries for duplicates (some already saved), then the user adds one new word with audio, a picture and automatic suspension | [duplicates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L753), [suspend](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816) | 2,862 (80 requests, 18 KB) | 953 (80, 17 KB) | **323** (50, 18 KB) |
+| **Mine 10 new words:** ten lookups; each popup checks its own 3 to 5 entries for duplicates (some already saved), then the user adds one new word with audio, a picture and automatic suspension | [duplicates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L753), [suspend](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816) | 2,862 (80 requests, 18 KB) | 953 (80, 17 KB) | **297** (40, 13 KB) |
 | **Open Yomitan's Anki settings:** the deck list, the note types, and the selected note type's fields | [lists](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484), [fields](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170) | 92 (3, 4.7 KB) | **4.8** (3, 4.5 KB) | 5.1 (3, 4.7 KB) |
-| **Sync a note file (Obsidian_to_Anki):** 20 notes at once: 15 new (4 with a picture), 3 duplicates, one with an empty first field and one with a note type that doesn't exist | [sync request](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/files-manager.ts#L172-L232), [note options](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/setting-to-data.ts#L18-L26) | 164 (1, 1.3 KB) | 135 (1, 1.2 KB) | **78** (3, 2.1 KB) |
+| **Sync a note file (Obsidian_to_Anki):** 20 notes at once: 15 new (4 with a picture), 3 duplicates, one with an empty first field and one with a note type that doesn't exist | [sync request](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/files-manager.ts#L172-L232), [note options](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/setting-to-data.ts#L18-L26) | 164 (1, 1.3 KB) | 135 (1, 1.2 KB) | **73** (2, 1.2 KB) |
 | **Show an assistant the first new cards (anki-mcp-server):** how many new cards there are in all decks, and the first 10 with their text, deck, note type and schedule | [get_cards](https://github.com/ankimcp/anki-mcp-server/blob/2b2f9892d14dffa7f4fdedd05c4bcea09a4f61f5/src/mcp/primitives/essential/tools/get-cards.tool.ts#L109-L177) | 61 (2, 687 KB) | 20.6 (2, 641 KB) | **19.5** (2, 252 KB) |
 
 **How to read it:**
 
 - **Mining:** each popup's duplicate check is 3 AnkiConnect requests (the
   check, then a search and a batch of searches to list the matching notes) and
-  2 Tsunagi API requests (the check, then the matching notes by first field). Each new word then takes 5 AnkiConnect requests (store the
-  audio, store the picture, add the note, find its cards, suspend them) and 3
-  Tsunagi API requests (both files at once, the note with its card IDs,
-  suspend).
+  2 Tsunagi API requests (the check, then the matching notes by first field).
+  Each new word then takes 5 AnkiConnect requests (store the audio, store the
+  picture, add the note, find its cards, suspend them) and 2 Tsunagi API
+  requests (the note with its files and card IDs, then suspend).
 - **Settings:** all three ask for the deck names, the note type names, and
   then only the selected note type's fields.
 - **Note file:** Obsidian_to_Anki sends the whole sync as one `multi` request:
   a deck creation and an `addNote` per note, then the pictures. The Tsunagi
-  API takes three requests (check the deck exists, upload the pictures, add
-  the 20 notes) and is still the fastest. Each note succeeds or fails on its
+  API takes two requests: check the deck exists, then add the 20 notes, each
+  with its picture. Each note succeeds or fails on its
   own in every API, and a word that appears twice in the file is added once.
   The workload sends the pictures' bytes, where Obsidian_to_Anki sends file
   paths (reading a file needs the local-files permission), and leaves out the

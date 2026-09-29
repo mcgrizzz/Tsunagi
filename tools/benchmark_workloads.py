@@ -90,6 +90,15 @@ def media(kind, trial, size):
     return f"{PREFIX}{RUN}_{trial}_{kind}.{'mp3' if kind == 'audio' else 'jpg'}", data
 
 
+def attach(note, kind, name, data, field):
+    """Send a file with a Tsunagi API note instead of uploading it first: the
+    field then gets the same reference the note would have held."""
+    note["fields"].pop(field, None)
+    note.setdefault(kind, []).append({"filename": name, "data": base64.b64encode(data).decode(),
+                                      "fields": [field]})
+    return note
+
+
 def placeholders(value, names):
     """Replace this trial's generated media names so results compare across trials."""
     text = json.dumps(value, ensure_ascii=False)
@@ -199,15 +208,13 @@ class MineWithMedia(Workload):
 
     async def tsunagi(self, c, ctx, trial):
         (audio, a), (image, i) = media("audio", trial, 48 * 1024), media("image", trial, 64 * 1024)
-        stored = await c.rest("POST", "/v1/media", [
-            {"filename": audio, "data": base64.b64encode(a).decode()},
-            {"filename": image, "data": base64.b64encode(i).decode()}])
-        names = [item["filename"] for item in sorted(stored["created"], key=lambda x: x["index"])]
-        note = self.note(*names)
+        # The files travel with the note; the names are unique, so Anki keeps them.
+        note = attach(attach(self.note(audio, image), "audio", audio, a, "ExpressionAudio"),
+                      "picture", image, i, "Picture")
         note["allowDuplicate"] = True
         created = await c.rest("POST", "/v1/notes", note)
         ctx["created"] = [item["id"] for item in created["created"]]
-        ctx["media"] = names
+        ctx["media"] = [audio, image]
 
     async def verify(self, c, ctx, trial):
         info = (await c.action("notesInfo", notes=ctx["created"]))[0]
@@ -476,12 +483,10 @@ class MineSession(Workload):
             if found[word]["duplicate"]:
                 continue
             (audio, a), (image, im) = media(f"audio{i}", trial, 48 * 1024), media(f"image{i}", trial, 64 * 1024)
-            stored = await c.rest("POST", "/v1/media", [
-                {"filename": audio, "data": base64.b64encode(a).decode()},
-                {"filename": image, "data": base64.b64encode(im).decode()}])
-            names = [item["filename"] for item in sorted(stored["created"], key=lambda x: x["index"])]
-            ctx["media"] += names
-            created = (await c.rest("POST", "/v1/notes?include=cards", self.note(word, *names)))["created"][0]
+            ctx["media"] += [audio, image]
+            note = attach(attach(self.note(word, audio, image), "audio", audio, a, "ExpressionAudio"),
+                          "picture", image, im, "Picture")
+            created = (await c.rest("POST", "/v1/notes?include=cards", note))["created"][0]
             ctx["created"].append(created["id"])
             await c.rest("POST", "/v1/cards:suspend", {"cardIds": created["cards"]})
 
@@ -620,16 +625,10 @@ class SyncNotesBatch(Workload):
         found = (await c.rest("GET", "/v1/decks", where=f"name in {json.dumps(decks)}", select="name"))["items"]
         for name in set(decks) - set(found):
             await c.rest("POST", "/v1/decks", {"name": name})
-        stored = (await c.rest("POST", "/v1/media", [
-            {"filename": name, "data": base64.b64encode(data).decode()} for name, data in pictures.values()]))
-        names = [item["filename"] for item in sorted(stored["created"], key=lambda x: x["index"])]
-        ctx["media"] = names
-        # Stored names can differ from the requested ones: point the notes at them.
-        renamed = {requested: name for (requested, _), name in zip(pictures.values(), names)}
-        for n in notes:
-            if "Picture" in n["fields"]:
-                for requested, name in renamed.items():
-                    n["fields"]["Picture"] = n["fields"]["Picture"].replace(requested, name)
+        # Each picture travels with its note.
+        for i, (name, data) in pictures.items():
+            attach(notes[i], "picture", name, data, "Picture")
+        ctx["media"] = [name for name, _ in pictures.values()]
         # The Tsunagi API takes the duplicate options on the note itself.
         answer = await c.rest("POST", "/v1/notes", [{**{k: v for k, v in n.items() if k != "options"}, **n["options"]}
                                                     for n in notes])
