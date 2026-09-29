@@ -13,7 +13,7 @@ needs fewer requests and less code.
 
 | When Yomitan needs to… | AnkiConnect today | A future Tsunagi API integration |
 | --- | --- | --- |
-| Identify an existing duplicate | Check the note → search for its ID | **One check returns both** |
+| Identify an existing duplicate | Check the note → search for its IDs | **The check returns the blocking IDs; an indexed lookup lists every matching note** |
 | Save a note and suspend its cards | Save → find cards → suspend | **The save returns the card IDs** |
 | Show a note type's fields | Get note type names → ask for the selected type's fields | **Note types come with their fields** |
 
@@ -22,7 +22,7 @@ API's format, including the user's duplicate settings. AnkiConnect actions are
 sent to `POST /`. Anki calls note types *models*, so that's the name in both
 APIs' requests.
 
-## 1. Check a duplicate and get its ID in one request
+## 1. Check a duplicate and find its notes
 
 食べる is **already in Anki**. Yomitan marks it as a duplicate and offers to
 open the saved note, so it needs that note's ID.
