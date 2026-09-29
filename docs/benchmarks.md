@@ -14,18 +14,21 @@ measurements, which run Anki's collection code without a window, the Qt
 main-thread handoff or an HTTP server, are developer profiling data. They are
 in [performance notes](performance_notes.md).
 
-There are two benchmarks, both on Anki **26.09.2** with the same testing
+There are three benchmarks, all on Anki **26.09.2** with the same testing
 profile:
 
 - **[Real client workloads](#real-client-workloads):** ten goals taken from
   real AnkiConnect clients, measured on **2026-09-23**.
+- **[Complete tasks](#complete-tasks):** two whole things a user does in
+  Yomitan, measured on **2026-09-28**.
 - **[Many clients at once](#many-clients-at-once):** a burst of simultaneous
   note-ID lookups. AnkiConnect was measured on **2026-09-21**, the other two on
   **2026-09-23**.
 
-The numbers were measured with Tsunagi `main` as of 2026-09-23 (around
-`634baf3`). Later changes, such as the per-route permission checks and the
-request log, add a few microseconds per request and are not in them.
+The client workloads and burst test were measured with Tsunagi `main` as of
+2026-09-23 (around `634baf3`). Later changes, such as the per-route permission
+checks and the request log, add a few microseconds per request and are not in
+them. The complete tasks were measured at `ac33e05`, which includes them.
 
 ## Summary
 
@@ -33,6 +36,10 @@ request log, add a few microseconds per request and are not in them.
   by a wide margin: fewer requests, and only the fields the client uses. It is
   within a millisecond on a seventh, and slower on three large reads (known
   words and both review histories).
+- **For a whole mining session, the Tsunagi API took 287 ms against
+  AnkiConnect's 1,732 ms,** in 31 requests instead of 53. Loading Yomitan's
+  settings is the exception: the Tsunagi API loads every note type's fields at
+  once and is slower than the Shim there.
 - **The AnkiConnect Shim is faster than AnkiConnect on eight of ten goals**
   with the same requests, ties on one, and gives the same answers.
 - **Under load, both Tsunagi APIs answered every request.** AnkiConnect began
@@ -114,6 +121,36 @@ after each trial, outside the timed part. The run refuses to start if any
 already exist, and checks at the end that the note count is unchanged. Anki
 moves deleted media to its media trash; **Tools → Check Media → Empty Trash**
 clears it.
+
+## Complete tasks
+
+Two things a user actually does, from start to finish, each written the way
+Yomitan does it for AnkiConnect and the way a Yomitan integration would for the
+Tsunagi API. Median of ten runs after a first run, in milliseconds, on the same
+profile as above.
+
+| Task | Client code | AnkiConnect | AnkiConnect Shim | Tsunagi API |
+| --- | --- | ---: | ---: | ---: |
+| **Mine 10 new words:** check 20 dictionary entries for duplicates (10 already saved), then add each new word as the user clicks it, with audio, a picture and automatic suspension | [duplicates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L753), [suspend](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816) | 1,732 (53 requests, 12 KB) | 424 (53, 12 KB) | **287** (31, 12 KB) |
+| **Open Yomitan's Anki settings:** the deck list, the note types, and the selected note type's fields | [lists](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484), [fields](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170) | 92 (3, 4.7 KB) | **4.3** (3, 4.5 KB) | 12 (2, 11 KB) |
+
+**How to read it:**
+
+- **Mining:** each new word takes 5 AnkiConnect requests (store the audio,
+  store the picture, add the note, find its cards, suspend them) and 3 Tsunagi
+  API requests (both files at once, the note with its card IDs, suspend). The
+  duplicate check is 3 requests against 1. Words are added one at a time in
+  both, as a user adds them.
+- **Settings:** the Tsunagi API asks for every note type with its fields in
+  one request, so switching to another note type needs nothing more. That
+  costs more data (11 KB against 4.5 KB) and time than the Shim's single field
+  request. A Tsunagi client that only shows one note type could ask for just
+  that one's fields, as the AnkiConnect flow does.
+- **Same answers:** the settings task gave identical results through all
+  three APIs. The mining task added identical notes, tags, suspended cards and
+  media; its duplicate check differs only in the known case under
+  [real client workloads](#real-client-workloads): a word saved under two note
+  types lists both notes through AnkiConnect and one through the Tsunagi API.
 
 ## Many clients at once
 

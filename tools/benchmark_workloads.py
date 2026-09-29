@@ -387,6 +387,84 @@ class NoteTypeFields(Workload):
         return {m["name"]: m["fields"] for m in models}
 
 
+class MineSession(Workload):
+    name = "mine_session"
+    source = ("Yomitan: a mining session. One duplicate check for 20 dictionary entries "
+              "(10 already saved, 10 new), then each new word added as the user clicks it, "
+              "with audio and a picture and automatic suspension on (backend.js)")
+    writes = True
+    new_words = [f"tsunagibench語{i}" for i in range(10)]
+
+    def words(self, ctx):
+        return ctx["existing_terms"] + self.new_words
+
+    def note(self, word, audio, image):
+        return {"deckName": DECK, "modelName": MODEL, "tags": [TAG],
+                "fields": {TERM_FIELD: word, "Sentence": f"{word} sentence",
+                           "ExpressionAudio": f"[sound:{audio}]", "Picture": f'<img src="{image}">'}}
+
+    async def ankiconnect(self, c, ctx, trial):
+        ctx["duplicates"] = await LookupDuplicates().ankiconnect(c, {"existing_terms": self.words(ctx)}, trial)
+        ctx["created"], ctx["media"] = [], []
+        for i, word in enumerate(w for w in self.words(ctx) if not ctx["duplicates"][w]["duplicate"]):
+            (audio, a), (image, im) = media(f"audio{i}", trial, 48 * 1024), media(f"image{i}", trial, 64 * 1024)
+            for name, data in ((audio, a), (image, im)):
+                await c.action("storeMediaFile", filename=name, data=base64.b64encode(data).decode())
+            ctx["media"] += [audio, image]
+            note = self.note(word, audio, image)
+            note["options"] = {"allowDuplicate": False}
+            note_id = await c.action("addNote", note=note)
+            ctx["created"].append(note_id)
+            await c.action("suspend", cards=await c.action("findCards", query=f"nid:{note_id}"))
+
+    async def tsunagi(self, c, ctx, trial):
+        ctx["duplicates"] = await LookupDuplicates().tsunagi(c, {"existing_terms": self.words(ctx)}, trial)
+        ctx["created"], ctx["media"] = [], []
+        for i, word in enumerate(w for w in self.words(ctx) if not ctx["duplicates"][w]["duplicate"]):
+            (audio, a), (image, im) = media(f"audio{i}", trial, 48 * 1024), media(f"image{i}", trial, 64 * 1024)
+            stored = await c.rest("POST", "/v1/media", [
+                {"filename": audio, "data": base64.b64encode(a).decode()},
+                {"filename": image, "data": base64.b64encode(im).decode()}])
+            names = [item["filename"] for item in sorted(stored["created"], key=lambda x: x["index"])]
+            ctx["media"] += names
+            created = (await c.rest("POST", "/v1/notes?include=cards", self.note(word, *names)))["created"][0]
+            ctx["created"].append(created["id"])
+            await c.rest("POST", "/v1/cards:suspend", {"cardIds": created["cards"]})
+
+    async def verify(self, c, ctx, trial):
+        notes = await c.action("notesInfo", notes=ctx["created"]) if ctx["created"] else []
+        added = {}
+        for n in notes:
+            fields = {k: v for k, v in fields_of(n).items() if v}
+            added[fields[TERM_FIELD]] = {"fields": fields, "tags": n["tags"],
+                                         "suspended": await c.action("areSuspended", cards=n["cards"])}
+        stored = {name: await c.action("retrieveMediaFile", filename=name) for name in ctx["media"]}
+        return placeholders({"duplicates": ctx["duplicates"], "added": added,
+                             "media": {name: hashlib.sha256(base64.b64decode(data)).hexdigest()
+                                       for name, data in stored.items()}}, ctx["media"])
+
+    async def cleanup(self, c, ctx, trial):
+        await delete_created(c, ctx)
+
+
+class ClientSettings(Workload):
+    name = "client_settings"
+    source = ("Yomitan: opening its Anki settings (anki-controller.js): the deck list, the note "
+              "type list, and the fields of the selected note type")
+
+    async def ankiconnect(self, c, ctx, trial):
+        decks = await c.action("deckNames")
+        models = await c.action("modelNames")
+        fields = await c.action("modelFieldNames", modelName=MODEL)
+        return {"decks": sorted(decks), "models": sorted(models), "fields": fields}
+
+    async def tsunagi(self, c, ctx, trial):
+        decks = (await c.rest("GET", "/v1/decks", select="name"))["items"]
+        models = (await c.rest("GET", "/v1/models", select="name,fields[].name"))["items"]
+        return {"decks": sorted(decks), "models": sorted(m["name"] for m in models),
+                "fields": next(m["fields"] for m in models if m["name"] == MODEL)}
+
+
 REVIEW_FIELDS = "id,card_id,ease,interval,last_interval,factor,time_ms,type"
 
 
@@ -428,7 +506,8 @@ class ReviewHistoryAll(Workload):
 
 
 WORKLOADS = [LookupDuplicates(), LookupDuplicatesAllModels(), MineWithMedia(), UpdateLastMined(), KnownWordsSnapshot(),
-             MinedWordsCache(), ChangePoll(), NoteTypeFields(), ReviewHistory(), ReviewHistoryAll()]
+             MinedWordsCache(), ChangePoll(), NoteTypeFields(), ReviewHistory(), ReviewHistoryAll(),
+             MineSession(), ClientSettings()]
 
 
 async def delete_created(c, ctx):
@@ -484,8 +563,11 @@ async def run(args, report):
                 if workload.writes:
                     result = await workload.verify(c, ctx, trial)
                     await workload.cleanup(c, ctx, trial)
+                parts = ({key: digest(value) for key, value in result.items()}
+                         if isinstance(result, dict) and len(result) <= 5 else None)
                 entry["trials"].append({"trial": trial, "elapsed_ms": elapsed, "requests": requests,
-                                        "response_bytes": size, "result_sha256": digest(result)})
+                                        "response_bytes": size, "result_sha256": digest(result),
+                                        **({"part_sha256": parts} if parts else {})})
                 if trial == 0:
                     entry["result_sample"] = result if len(json.dumps(result)) < 4000 else None
             timed = [t["elapsed_ms"] for t in entry["trials"][1:]]
@@ -497,7 +579,8 @@ async def run(args, report):
                   f"{entry['trials'][1]['requests']} requests, "
                   f"{entry['trials'][1]['response_bytes']:,} bytes, "
                   f"result {entry['trials'][1]['result_sha256'][:12]}"
-                  f"{'' if entry['consistent_result'] else ' (VARIED)'}", flush=True)
+                  + "".join(f", {k} {v[:8]}" for k, v in entry["trials"][1].get("part_sha256", {}).items())
+                  + ("" if entry["consistent_result"] else " (VARIED)"), flush=True)
     finally:
         await delete_created(c, ctx)
         await c.action("deleteDecks", decks=[DECK], cardsToo=True)

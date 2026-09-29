@@ -88,7 +88,8 @@ jobs:
           ignore=(
             # starlette form parsing (CVE-2026-54283): Tsunagi parses no forms and
             # python-multipart is not vendored. Backlog 7.5. The fixes for this and
-            # the ones below need starlette 1.x, which needs pydantic 2.
+            # the ones below are in starlette 1.x; the bundled FastAPI 0.125.0 requires
+            # starlette<0.51, and later FastAPI releases require pydantic 2.
             PYSEC-2026-249
             # starlette request.url rebuilt from Host/path (CVE-2026-48710, CVE-2026-54282):
             # auth and routing read scope["path"]; the Host header is validated first.
