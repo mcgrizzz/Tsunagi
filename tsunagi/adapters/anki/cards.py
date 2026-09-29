@@ -621,6 +621,7 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
     out: List[bool] = []
     answered: List[int] = []
     changes: Any = None
+    reviews_before = last_review_id(col)
     for entry in answers:
         try:
             card = col.get_card(int(entry["card_id"]))
@@ -636,9 +637,22 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
         out.append(True)
         answered.append(int(card.id))
         publish_review(card, int(entry["ease"]), origin="api", collection=col)
-    return (ValueWithChanges(out, changes,
-                             event_changes=lambda: {"cards": {"updated": answered}})
-            if changes is not None else out)
+    if changes is None:
+        return out
+    reviews = reviews_since(col, reviews_before)
+    return ValueWithChanges(out, changes, event_changes=lambda: {
+        "cards": {"updated": answered}, "reviews": {"created": reviews}})
+
+
+def last_review_id(col: Collection) -> int:
+    """The newest review-log ID (a millisecond timestamp), 0 for none."""
+    return int(col.db.scalar("select coalesce(max(id), 0) from revlog"))
+
+
+def reviews_since(col: Collection, before: int) -> List[int]:
+    """Review-log rows added since last_review_id: inside one collection
+    operation, the rows its answers wrote."""
+    return [int(r) for r in col.db.list("select id from revlog where id > ? order by id", before)]
 
 
 @as_collection_op(event_details=lambda card_id, values: {

@@ -73,6 +73,20 @@ def test_rows_the_api_reported_are_not_repeated(scan):
     assert events["notes.deleted"] == [doomed.id]  # the API op did not announce it
 
 
+def test_review_rows_an_api_answer_reported_are_not_repeated(scan):
+    col, kept, _, _, flush = scan
+    card = col.get_card(kept.card_ids()[0])
+    card.start_timer()
+    col.sched.answerCard(card, 3)
+    rid = col.db.scalar("select max(id) from revlog")
+    op = ApiOp(collection=col)
+    op.changes = {"cards": {"updated": [card.id]}, "reviews": {"created": [rid]}}
+    dispatch_op(OpChanges(card=True), op)
+    assert flush()["reviews.created"] == [rid]    # the answer's own event
+    dispatch_op(OpChanges(tag=True), object())    # a later Anki-side change scans
+    assert "reviews.created" not in flush()
+
+
 def test_undo_restoring_old_rows_falls_back_to_stale(scan):
     col, kept, _, _, flush = scan
     kept["Back"] = "undo me"

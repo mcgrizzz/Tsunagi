@@ -554,10 +554,13 @@ def answer_cards_raw(col, answers):
     from anki.collection import OpChanges
     from anki.errors import NotFoundError
 
+    from .cards import last_review_id, reviews_since
+
     changes = OpChanges()
     saved = False
     answered = []
     result = []
+    reviews_before = last_review_id(col)
     try:
         for answer in answers:
             try:
@@ -577,9 +580,11 @@ def answer_cards_raw(col, answers):
         value = (result, None)
     except Exception as exc:
         value = (None, str(exc))
-    return (ValueWithChanges(value, changes,
-                             event_changes=lambda: {"cards": {"updated": answered}})
-            if saved else value)
+    if not saved:
+        return value
+    reviews = reviews_since(col, reviews_before)
+    return ValueWithChanges(value, changes, event_changes=lambda: {
+        "cards": {"updated": answered}, "reviews": {"created": reviews}})
 
 
 @as_query_op

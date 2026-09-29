@@ -48,8 +48,8 @@ If your app has a key, add `-H 'X-Api-Key: <key>'`. Use your port if it isn't
 
 One change can produce several messages. Deleting a note sends
 `notes.deleted` with its ID and `cards.stale`, because its cards went with it.
-Answering a card in Anki sends `cards.answered` for the card and
-`reviews.created` for the row it added to the review history. Setting a due
+Answering a card, in Anki or through either API, sends `cards.answered` for the
+card and `reviews.created` for the row it added to the review history. Setting a due
 date or forgetting a card also adds a row, so it sends `reviews.created` but
 not `cards.answered`.
 
@@ -158,7 +158,8 @@ seconds.
 | `POST /v1/notes:upsert` | `notes.created` and `notes.updated`; new cards as `cards.stale` |
 | Update notes, or add or remove their tags, through either API | `notes.updated` |
 | Delete notes through either API | `notes.deleted` |
-| Answer, suspend, bury, flag, move, forget or reschedule cards through the API | `cards.updated` |
+| Answer cards through either API | `cards.updated`, and `reviews.created` for the rows it added |
+| Suspend, bury, flag, move, forget or reschedule cards through the API | `cards.updated` |
 | Changes made in Anki | `notes.*`, `cards.*` and `reviews.created`, with IDs |
 | Undo in Anki | `.stale` for what it touched (undo restores rows as they were, so they can't be found by what changed) |
 | A sync | `.stale` for everything (Anki reports that anything may have changed) |

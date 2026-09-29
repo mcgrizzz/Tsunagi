@@ -155,6 +155,18 @@ def test_answers_report_answered_cards_only(col, subscription, recorded_ops):
     assert event["cards.updated"]["ids"] == [card_id]
 
 
+def test_api_answers_report_their_review_rows_right_away(col, subscription, recorded_ops):
+    first, second = new_note("one").cards[0], new_note("two").cards[0]
+    rows = lambda cid: col.db.list("select id from revlog where cid = ? order by id", cid)
+    cards.answer_cards([{"card_id": first, "ease": 3}])
+    event = emit_last(recorded_ops, subscription, ("cards", "reviews"))
+    assert event["reviews.created"]["ids"] == rows(first)
+    assert event["reviews.created"]["origin"] == "api"
+    compat.answer_cards_raw([{"cardId": second, "ease": 1}, {"cardId": 123, "ease": 3}])
+    event = emit_last(recorded_ops, subscription, ("cards", "reviews"))
+    assert event["reviews.created"]["ids"] == rows(second)
+
+
 def test_api_answers_emit_review_with_the_new_card_state(col, subscription, recorded_ops):
     col.set_config("fsrs", True)
     first, second = new_note("one").cards[0], new_note("two").cards[0]
