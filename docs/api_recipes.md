@@ -38,9 +38,25 @@ Tsunagi API:
 ```
 
 AnkiConnect's check only says the note is a duplicate, so Yomitan has to build
-a search from it to find the existing note. For the whole flow, checking 20
-dictionary entries and listing the matches, the
-[benchmarks](benchmarks.md#real-client-workloads) measured 3.7 ms with the
+a search from it to find the existing note.
+
+The check's IDs are the notes that make it a duplicate. With Yomitan's default
+settings, those are notes of the same note type, but Yomitan lists every note
+with the word, whatever its note type: after you move from one note type to a
+newer one, it shows both. For that list, look the duplicates up by their first
+field:
+
+```text
+GET /v1/notes?where=first_field in ["食べる"]&select=id,first_field
+    → items: [{id: 1789200000000, first_field: "食べる"}, ...]
+```
+
+This uses the same index as Anki's duplicate check, so it doesn't read every
+note. With "Check for duplicates across all models" on, the check's IDs
+already cover every note type.
+
+For the whole flow, checking 20 dictionary entries and listing the matches,
+the [benchmarks](benchmarks.md#real-client-workloads) measured 3.7 ms with the
 Tsunagi API (one request) against 154 ms with AnkiConnect (three requests).
 
 Within a request, Tsunagi also shares work between words. Each note names its

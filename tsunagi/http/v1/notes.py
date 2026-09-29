@@ -10,6 +10,7 @@ from ...adapters.anki.notes import (
     check_notes,
     delete_notes,
     find_note_ids,
+    get_notes_by_first_fields,
     get_notes_by_ids,
     page_note_ids,
     patch_note,
@@ -39,6 +40,13 @@ caps = SourceCaps(
             path=("id",),
             fetch_values=get_notes_by_ids,
             coerce=lambda v: int(v) if isinstance(v, (int, str)) and str(v).isdigit() else None
+        ),
+        # Anki's first-field checksum index: "notes for these words" without
+        # reading every note.
+        IndexSpec(
+            path=("first_field",),
+            fetch_values=get_notes_by_first_fields,
+            coerce=lambda v: v if isinstance(v, str) else None
         ),
     ],
     # No columns_fetchers: no backend route returns a cheaper subset of a note.

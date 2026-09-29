@@ -81,6 +81,7 @@ def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
         "mod": int(getattr(note, "mod", 0) or 0),
         "usn": int(getattr(note, "usn", 0) or 0),
         "tags": list(note.tags),
+        "first_field": note.fields[0] if note.fields else "",
         "fields": fields,
         "cards": cards,
     }
@@ -256,6 +257,25 @@ def get_notes_by_ids(col: Collection, ids: Sequence[int],
             raise
         out.append(_note_row(col, note, model_names, wants, cards_by_nid))
     return out
+
+
+@as_query_op
+def get_notes_by_first_fields(col: Collection, values: Sequence[Any],
+                              wants: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
+    """
+    Notes whose first field may equal one of `values`, from Anki's first-field
+    checksum index (the one its duplicate check uses) instead of reading every
+    note. The checksum ignores HTML, so this can return extra notes; the
+    route's `where` filter still compares the exact value.
+    """
+    from anki.utils import field_checksum
+
+    sums = sorted({field_checksum(str(v)) for v in values})
+    if not sums:
+        return []
+    # Checksums are ints we computed, so they can go straight into the query.
+    ids = col.db.list(f"select id from notes where csum in ({','.join(map(str, sums))}) order by id")
+    return get_notes_by_ids.__wrapped__(col, ids, wants)
 
 
 @as_query_op

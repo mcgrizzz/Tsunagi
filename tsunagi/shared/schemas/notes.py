@@ -36,6 +36,8 @@ class NoteInfo(BaseModel):
     mod: int = 0
     usn: int = 0
     tags: List[str] = Field(default_factory=list)
+    # The first field's value: what Anki's duplicate check compares.
+    first_field: str = ""
     # NOT aliased to "flds": on a note that's Anki's positional list of raw
     # strings, so the alias would describe something else entirely.
     fields: List[NoteField] = Field(default_factory=list)

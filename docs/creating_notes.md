@@ -182,6 +182,12 @@ The default still includes IDs, so a dictionary popup can check a word and get
 its existing note IDs in one request. A check reads the current collection;
 it doesn't reserve a note or guarantee a later save will succeed.
 
+**Want every note with the same word, in any note type?** Ask for notes by
+their first field, the field Anki compares for duplicates:
+**`GET /v1/notes?where=first_field in ["犬","猫"]&select=id,first_field`**.
+`first_field` is the first field's exact value, HTML included. Add
+`where=model_name=="Basic"` or other filters to narrow it.
+
 ## Upload files, then use their stored names
 
 Send one upload object or an array to **`POST /v1/media`**. For example, this is
