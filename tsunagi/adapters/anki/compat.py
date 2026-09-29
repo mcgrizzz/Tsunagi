@@ -489,6 +489,9 @@ def replace_in_models_raw(col, name, find, replacement, front=True, back=True, c
 @as_collection_op
 def reschedule_cards_raw(col, cards, action, days=None):
     """Let each upstream scheduling path interpret its raw inputs directly."""
+    from .cards import _logged, last_review_id
+
+    before = last_review_id(col)
     try:
         if action == "forget":
             changes = col.sched.schedule_cards_as_new(
@@ -502,7 +505,8 @@ def reschedule_cards_raw(col, cards, action, days=None):
             changes = col.sched.set_due_date(cards, days, config_key=None)
         else:
             raise ValueError(f"unknown scheduling action: {action}")
-        return ValueWithChanges(None, changes.changes if hasattr(changes, "changes") else changes)
+        return ValueWithChanges(None, changes.changes if hasattr(changes, "changes") else changes,
+                                event_changes=_logged(col, cards, before))
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 

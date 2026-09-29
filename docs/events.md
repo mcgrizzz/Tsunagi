@@ -159,7 +159,8 @@ seconds.
 | Update notes, or add or remove their tags, through either API | `notes.updated` |
 | Delete notes through either API | `notes.deleted` |
 | Answer cards through either API | `cards.updated`, and `reviews.created` for the rows it added |
-| Suspend, bury, flag, move, forget or reschedule cards through the API | `cards.updated` |
+| Forget cards or set their due date through either API | `cards.updated`, and `reviews.created` for the rows it added |
+| Suspend, bury, flag or move cards through the API | `cards.updated` |
 | Changes made in Anki | `notes.*`, `cards.*` and `reviews.created`, with IDs |
 | Undo in Anki | `.stale` for what it touched (undo restores rows as they were, so they can't be found by what changed) |
 | A sync | `.stale` for everything (Anki reports that anything may have changed) |

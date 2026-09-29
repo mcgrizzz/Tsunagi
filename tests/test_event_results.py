@@ -167,6 +167,24 @@ def test_api_answers_report_their_review_rows_right_away(col, subscription, reco
     assert event["reviews.created"]["ids"] == rows(second)
 
 
+@pytest.mark.parametrize("change", [
+    lambda cid: cards.forget_cards([cid]),
+    lambda cid: cards.set_due_date([cid], "3"),
+    lambda cid: compat.reschedule_cards_raw([cid], "forget"),
+    lambda cid: compat.reschedule_cards_raw([cid], "due", "3"),
+])
+def test_api_forget_and_due_dates_report_their_review_rows(col, subscription, recorded_ops, change):
+    card_id = new_note().cards[0]
+    cards.answer_cards([{"card_id": card_id, "ease": 3}])   # a review card to change
+    before = set(col.db.list("select id from revlog"))
+    change(card_id)
+    added = sorted(set(col.db.list("select id from revlog")) - before)
+    assert added   # Anki logs these changes in the review history
+    event = emit_last(recorded_ops, subscription, ("cards", "reviews"))
+    assert event["cards.updated"]["ids"] == [card_id]
+    assert (event["reviews.created"]["ids"], event["reviews.created"]["origin"]) == (added, "api")
+
+
 def test_api_answers_emit_review_with_the_new_card_state(col, subscription, recorded_ops):
     col.set_config("fsrs", True)
     first, second = new_note("one").cards[0], new_note("two").cards[0]

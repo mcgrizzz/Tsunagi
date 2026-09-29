@@ -434,9 +434,10 @@ def _forget(col: Collection, card_ids: Sequence[int], *,
 @as_collection_op(event_details=_ids_details)
 def forget_cards(col: Collection, card_ids: Sequence[int], *,
                  restore_position: bool = False, reset_counts: bool = False) -> int:
-    return ValueWithChanges(*_forget(
-        col, card_ids, restore_position=restore_position, reset_counts=reset_counts),
-                            event_changes=lambda: {"cards": {"updated": list(card_ids)}})
+    before = last_review_id(col)
+    affected, changes = _forget(col, card_ids, restore_position=restore_position,
+                                reset_counts=reset_counts)
+    return ValueWithChanges(affected, changes, event_changes=_logged(col, card_ids, before))
 
 
 def _set_due_date(col: Collection, card_ids: Sequence[int], days: str,
@@ -454,8 +455,9 @@ def _set_due_date(col: Collection, card_ids: Sequence[int], days: str,
 @as_collection_op(event_details=_ids_details)
 def set_due_date(col: Collection, card_ids: Sequence[int], days: str,
                  config_key: Optional[str] = None) -> int:
-    return ValueWithChanges(*_set_due_date(col, card_ids, days, config_key),
-                            event_changes=lambda: {"cards": {"updated": list(card_ids)}})
+    before = last_review_id(col)
+    affected, changes = _set_due_date(col, card_ids, days, config_key)
+    return ValueWithChanges(affected, changes, event_changes=_logged(col, card_ids, before))
 
 
 def _resolve_change_deck(col: Collection, deck_id: Optional[int],
@@ -647,6 +649,13 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
 def last_review_id(col: Collection) -> int:
     """The newest review-log ID (a millisecond timestamp), 0 for none."""
     return int(col.db.scalar("select coalesce(max(id), 0) from revlog"))
+
+
+def _logged(col: Collection, card_ids: Sequence[int], before: int) -> Any:
+    """Event changes for a card change Anki logs in the review history
+    (forget, due date): the cards, and the review rows it added."""
+    cards_changed, reviews = [int(c) for c in card_ids], reviews_since(col, before)
+    return lambda: {"cards": {"updated": cards_changed}, "reviews": {"created": reviews}}
 
 
 def reviews_since(col: Collection, before: int) -> List[int]:
