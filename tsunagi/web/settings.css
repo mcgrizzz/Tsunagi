@@ -17,6 +17,8 @@
   --t-warn-bg: color-mix(in srgb, var(--t-danger) 11%, transparent);
   /* Toward the text colour, like --t-link, so it reads in both themes. */
   --t-ok: color-mix(in srgb, var(--accent-success, #2e7d32) 70%, var(--t-fg));
+  /* Water blue for the server indicator, toward the text colour like --t-ok. */
+  --t-stream: color-mix(in srgb, #3a8fd9 78%, var(--t-fg));
   --t-radius: 8px;
 }
 
@@ -218,15 +220,30 @@ footer {
   border-top: 1px solid var(--t-soft); background: var(--t-card);
 }
 footer .spacer { flex: 1; }
-/* Server status: a turning ring while it runs, an empty circle when off. */
+/* The version sits above the server status, stacked, to leave the footer room for messages. */
+footer .about { display: flex; flex-direction: column; gap: 1px; margin-right: 8px; }
+#version { font-size: 12px; }
+/* Server status: a small river while it runs, three layers in depth (the near,
+   bottom one boldest and fastest). Off calms it: the waves ease flat and grey
+   while settings.js slows the flow to a stop; starting reverses both. */
 .server { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; white-space: nowrap; }
-.server .indicator { width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0; }
-.server.on .indicator { border: 2px solid color-mix(in srgb, var(--t-ok) 35%, transparent); border-top-color: var(--t-ok);
-                        animation: t-spin 1.1s linear infinite; }
-.server.off .indicator { border: 2px solid var(--t-muted); }
+.server .indicator { width: 22px; height: 12px; flex-shrink: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent); }
+.server .indicator path { fill: none; stroke: var(--t-stream); stroke-linecap: round; d: var(--wave);
+  transition: d 2.2s ease-in-out, stroke 2.2s ease-in-out; }
+.server .indicator .far { stroke-width: 0.9; opacity: 0.4; animation: t-flow8 3.6s linear infinite; }
+.server .indicator .mid { stroke-width: 1.15; opacity: 0.7; animation: t-flow10 2.1s linear infinite; }
+.server .indicator .near { stroke-width: 1.45; animation: t-flow12 1.2s linear infinite; }
+.server.off .indicator path { d: var(--flat); stroke: var(--t-muted); transition: d 2.4s ease-out, stroke 2.4s ease-out; }
+.server.instant .indicator path { transition: none; }
 .server.off { color: var(--t-muted); }
-@keyframes t-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .server.on .indicator { animation: none; border-color: var(--t-ok); } }
+@keyframes t-flow8 { to { transform: translateX(8px); } }
+@keyframes t-flow10 { to { transform: translateX(10px); } }
+@keyframes t-flow12 { to { transform: translateX(12px); } }
+@media (prefers-reduced-motion: reduce) {
+  .server .indicator path.far, .server .indicator path.mid, .server .indicator path.near { animation: none; transition: none; }
+}
 /* Save and Cancel wait for a change, like the other disabled buttons. */
 footer button:disabled {
   background: transparent; box-shadow: none; border: 1px dashed var(--t-border); color: var(--t-muted); opacity: 1; cursor: not-allowed;

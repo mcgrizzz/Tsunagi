@@ -874,14 +874,82 @@ document.getElementById("cancel").addEventListener("click", () => {
   notify("Unsaved changes on every page discarded");
 });
 
+// A wave from x=-len to past the indicator's right edge: shifting it by one
+// wavelength loops seamlessly. amp 0 draws the same commands flat, so the
+// browser can ease between the two shapes.
+function wave(y, amp, len) {
+  let d = `M${-len} ${y} q${len / 4} ${-amp} ${len / 2} 0`;
+  for (let x = -len / 2; x < 36; x += len / 2) d += ` t${len / 2} 0`;
+  return d;
+}
+
+// The server indicator: a small river seen in depth, the near (bottom) line
+// fastest. Built once, so stopping the server calms its waves to flat lines.
+function streamIndicator() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 22 12");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "indicator");
+  for (const [cls, y, amp, len] of [["far", 2.8, 1.2, 8], ["mid", 5.9, 1.8, 10], ["near", 9.2, 2.4, 12]]) {
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("class", cls);
+    path.setAttribute("d", wave(y, amp, len));
+    path.style.setProperty("--wave", `path("${wave(y, amp, len)}")`);
+    path.style.setProperty("--flat", `path("${wave(y, 0, len)}")`);
+    svg.append(path);
+  }
+  return svg;
+}
+
+// Ease the flow's speed to `to` (1 = full, 0 = paused) over `ms`, alongside
+// the waves' CSS transition: the river slows as it calms and picks up as it
+// rises. At 0 the animations pause, so a stopped server keeps nothing ticking.
+function easeFlow(svg, to, ms, ease) {
+  // Only the flow (CSS animations): the waves' shape and colour transitions
+  // must run their full course, or the river stops part-way to flat and grey.
+  const flows = svg.getAnimations({ subtree: true }).filter((a) => a.animationName);
+  if (!flows.length) return;   // reduced motion: there is no flow
+  cancelAnimationFrame(svg.flowFrame);
+  const from = flows[0].playState === "paused" ? 0 : flows[0].playbackRate;
+  if (!ms) {
+    flows.forEach((a) => { a.playbackRate = to || 1; if (to) a.play(); else a.pause(); });
+    return;
+  }
+  flows.forEach((a) => { a.playbackRate = from; a.play(); });
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / ms);
+    flows.forEach((a) => { a.playbackRate = from + (to - from) * ease(t); });
+    if (t < 1) svg.flowFrame = requestAnimationFrame(step);
+    else if (!to) flows.forEach((a) => a.pause());
+  };
+  svg.flowFrame = requestAnimationFrame(step);
+}
+const easeOut = (t) => 1 - (1 - t) ** 3;
+const easeInOut = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
 // Whether the server is up, polled: saving can restart it, Anki can stop it.
+let serverUrl;   // undefined until the first poll, then the URL or null
 async function pollServer() {
   const st = await call("server_status");
+  const url = st && st.running ? st.url : null;
+  if (url === serverUrl) return;
   const el = document.getElementById("server");
-  el.className = "server " + (st && st.running ? "on" : "off");
-  el.replaceChildren(h("span", { class: "indicator", "aria-hidden": "true" }),
-    ...(st && st.running ? ["Server running", h("span", { class: "muted" }, " on " + st.url.replace("http://", ""))]
-                         : ["Server off"]));
+  const first = serverUrl === undefined;
+  serverUrl = url;
+  if (first) el.replaceChildren(streamIndicator(), h("span"));
+  // The first state shows at once; later changes ease the waves and their
+  // flow up or down together (the durations match settings.css).
+  el.classList.toggle("instant", first);
+  el.classList.toggle("on", url !== null);
+  el.classList.toggle("off", url === null);
+  if (first) easeFlow(el.firstChild, url ? 1 : 0, 0);
+  else if (url) easeFlow(el.firstChild, 1, 2200, easeInOut);
+  else easeFlow(el.firstChild, 0, 2400, easeOut);
+  el.lastChild.replaceChildren(...(url ? ["Server running", h("span", { class: "muted" }, " on " + url.replace("http://", ""))]
+                                       : ["Server off"]));
+  if (first) requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("instant")));
 }
 
 (function start() {
