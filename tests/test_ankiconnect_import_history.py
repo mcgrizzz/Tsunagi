@@ -1,7 +1,6 @@
 """Saved import history is separate from both prompt and add-on enabled state."""
 
 import importlib
-import sys
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -12,32 +11,23 @@ from tsunagi.adapters.config import _migrate
 from tsunagi.adapters.settings import Settings
 
 
-@pytest.mark.parametrize("accepted", [True, False])
-def test_startup_offer_records_only_accepted_imports(monkeypatch, accepted):
+@pytest.mark.parametrize("offered,installed,opens", [(False, True, True), (True, True, False),
+                                                     (False, False, False)])
+def test_startup_offer_opens_the_takeover_once(monkeypatch, offered, installed, opens):
     import aqt
 
-    saved = []
-    settings = Settings({"cors_allowlist": ["http://existing"]}, persist=saved.append)
-    module = importlib.import_module("tsunagi.adapters.settings")
-    monkeypatch.setattr(module, "settings", settings)
+    from tsunagi.adapters import settings_page
+
+    saved, opened = [], []
+    settings = Settings({"ankiconnect_import_offered": offered}, persist=saved.append)
+    monkeypatch.setattr(importlib.import_module("tsunagi.adapters.settings"), "settings", settings)
     monkeypatch.setattr(aqt, "mw", SimpleNamespace(addonManager=SimpleNamespace(
-        getConfig=lambda _name: {"apiKey": "imported", "webCorsOriginList": ["http://imported"]},
-    )))
-    message_box = SimpleNamespace(
-        StandardButton=SimpleNamespace(Yes=1),
-        question=lambda *args: 1 if accepted else 0,
-    )
-    monkeypatch.setitem(sys.modules, "aqt.qt", SimpleNamespace(QMessageBox=message_box))
+        getConfig=lambda name: {"webBindPort": 8765} if installed else None)))
+    monkeypatch.setattr(settings_page, "open_settings", lambda mw, **kw: opened.append(kw))
     dialogs.offer_ankiconnect_import()
-    assert len(saved) == 1 and saved[0]["ankiconnect_import_offered"] is True
-    if accepted:
-        assert datetime.fromisoformat(saved[0]["ankiconnect_imported_at"]).utcoffset().total_seconds() == 0
-        assert saved[0]["apps"][0]["key"] == "imported"
-        assert saved[0]["cors_allowlist"] == ["http://existing", "http://imported"]
-    else:
-        assert not saved[0].get("ankiconnect_imported_at")
-    dialogs.offer_ankiconnect_import()
-    assert len(saved) == 1
+    assert opened == ([{"offer_takeover": True}] if opens else [])
+    # Remembered as soon as it is shown, whatever the answer.
+    assert bool(saved and saved[-1]["ankiconnect_import_offered"]) == opens
 
 
 def test_saved_reimport_updates_history_without_mutating_preview(monkeypatch):

@@ -107,13 +107,13 @@ you change the port, use the same port in your tool.
 
 ## Move from AnkiConnect
 
-1. Open **Tools → Tsunagi Settings → AnkiConnect**.
-2. Click **Import AnkiConnect settings**.
-3. Review the values under **Ready to import**, then click **Save**.
+The first time Tsunagi starts with AnkiConnect installed, it offers to take
+over. **Take over** copies AnkiConnect's port and API key, **adds its allowed
+websites to your list**, turns AnkiConnect off and runs Tsunagi in its place.
+Your tools keep using the same address and key.
 
-The importer copies the port and API key, and **adds allowed websites to your
-existing list**. Saving disables AnkiConnect and stops its server before Tsunagi
-takes over the port. Your tools can keep using the imported address and key.
+To do it later, open **Tools → Tsunagi Settings** and click **Take over from
+AnkiConnect…** on the **Server** page.
 
 ## Settings and help
 
@@ -121,13 +121,12 @@ Open **Tools → Tsunagi Settings** to change:
 
 | Page | Settings |
 | --- | --- |
-| **Server** | Server on/off, port, who can connect (host), limits, timeouts and logging. |
+| **Server** | Server on/off, port, who can connect (host), limits, timeouts and logging. Taking over from AnkiConnect. |
 | **Apps & keys** | Each tool's key and role, and a switch to turn it off. |
 | **Requests without a key** | The role for keyless requests from this computer and from other devices. |
 | **Websites & Anki pages** | Allowed website origins, and whether card templates may use the API. |
 | **Add-ons** | Which actions other add-ons offer that apps may run. |
 | **Roles** | What each role allows, and who uses it. |
-| **AnkiConnect** | Import AnkiConnect's settings and take over its port. |
 | **Recent requests** | Requests since Anki started, per client (app, website or no key), with totals and filters, so you can see who is calling and what failed. Memory only; no keys or contents. |
 
 If a tool can't connect, check that Anki is open and the tool uses the same port

@@ -54,6 +54,23 @@ key in the add-on's saved configuration for reference.
 
 </details>
 
+### AnkiConnect
+
+When AnkiConnect is installed, the Server page shows whether it's on, with
+**Take over from AnkiConnect…** until Tsunagi has taken over. The first time
+Tsunagi starts with AnkiConnect installed, the settings window opens with the
+same offer. It lists what will change; **Take over** then copies AnkiConnect's
+port, key and allowed websites, turns AnkiConnect off and restarts Tsunagi on
+that port, so your tools keep working unchanged.
+
+- AnkiConnect's key becomes the app **AnkiConnect key**. An empty key doesn't
+  replace one you have.
+- Websites are added to yours; none are removed.
+- If the port is still taken, nothing changes and AnkiConnect keeps running.
+- If Tsunagi can't turn this AnkiConnect version off itself, it says so:
+  disable AnkiConnect in **Tools → Add-ons**, restart Anki, then take over.
+- The button waits until other changes on the page are saved or discarded.
+
 ## Apps & keys
 
 ![The Apps & keys page](docs/images/settings-apps.png)
@@ -198,20 +215,6 @@ is calling and why something failed.
 - Kept in memory only. Never reachable through the API, and never records
   keys or request contents.
 
-## AnkiConnect
-
-**Import AnkiConnect settings** fills in AnkiConnect's port, key and allowed
-websites for you to review. **Save** then turns AnkiConnect off and starts
-Tsunagi on its port, so your tools keep working unchanged.
-
-- AnkiConnect's key becomes the app **AnkiConnect key**. An empty key doesn't
-  replace one you have.
-- Websites are added to yours; none are removed.
-- If the port is still taken, nothing changes and AnkiConnect keeps running.
-- If Tsunagi can't turn this AnkiConnect version off itself, it says so:
-  disable AnkiConnect in **Tools → Add-ons**, restart Anki, then import.
-- The page shows when you last imported.
-
 ## Settings without a field
 
 Edit these by hand: close Anki, open the add-on's folder (**Tools → Add-ons**,
@@ -224,4 +227,4 @@ select Tsunagi, **View Files**) and change the `config` section of `meta.json`.
   server when the add-on's files change, every this many seconds.
 - `ankiconnect_import_offered`, `ankiconnect_imported_at`, `config_version`:
   bookkeeping; don't edit. Set `ankiconnect_import_offered` to `false` to be
-  offered the AnkiConnect import again.
+  asked again, at the next start, whether to take over from AnkiConnect.

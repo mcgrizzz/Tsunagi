@@ -9,7 +9,6 @@ const PAGES = [
   ["web", "Websites & Anki pages"],
   ["addons", "Add-ons"],
   ["roles", "Roles"],
-  ["ankiconnect", "AnkiConnect"],
   ["requests", "Recent requests"],
 ];
 
@@ -22,9 +21,9 @@ const ICONS = {
   web: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z",
   addons: "M5 8h3.5a2 2 0 1 1 3.5-1.5V8H19v4.5a2 2 0 1 0 0 4V20H5z",
   roles: "M4 5h16v14H4zM9 11a2 2 0 1 0 0-.01M6 16c.6-1.7 1.7-2.5 3-2.5s2.4.8 3 2.5M14 10h3M14 13h3",
-  ankiconnect: "M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5",
   requests: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
   chevron: "M9 6l6 6-6 6",
+  done: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12.5l2.7 2.7L16 9.8",
 };
 
 function icon(name) {
@@ -42,11 +41,10 @@ function icon(name) {
 let S = null;          // state from Python: fields, catalog, roles' defaults, defaults...
 let draft = null;      // what Save sends
 let saved = null;      // the draft as last saved, for "Revert this page"
-let preImport = null;  // the draft before a staged AnkiConnect import
 let savedRemote = "none";
 let page = "server";
 let editing = null;    // role id open in the role editor, or null for the list
-let pending = null;    // staged AnkiConnect import summary
+let takeover = null;   // the AnkiConnect takeover dialog: {startup, preview, busy, done}
 let closing = false;    // the "unsaved changes" prompt is open (X or Esc)
 let reportedDirty = false;
 const openApps = new Set();   // app rows showing their detail (full key, New key, Remove)
@@ -104,7 +102,6 @@ function draftFrom(state) {
     roles: state.roles.map((r) => ({ id: r.id, name: r.name, grants: [...r.grants] })),
     addon_enabled: { ...(state.addon_enabled || {}) },
     confirm_remote: false,
-    pending_import: false,
   };
   for (const row of state.no_key_rows) d[row.setting] = row.role;
   return d;
@@ -117,6 +114,7 @@ function load(state) {
   savedRemote = draft.no_key_remote_role;
   document.getElementById("version").textContent = "Tsunagi " + state.version;
   render();
+  if (state.offer_takeover) openTakeover(true);
 }
 
 // Sidebar dots, footer status and Save/Cancel: cheap, so it also runs on every
@@ -143,7 +141,7 @@ function render() {
   const scroll = main.scrollTop;
   main.replaceChildren(...PAGE[page]().flat(Infinity).filter(Boolean));
   main.scrollTop = scroll;
-  document.getElementById("modal").replaceChildren(...(closing ? [closeDialog()] : []));
+  document.getElementById("modal").replaceChildren(...(closing ? [closeDialog()] : takeover ? [takeoverDialog()] : []));
 }
 
 // ---------- per-page revert and restore (both only change the draft) ----------
@@ -157,8 +155,7 @@ function sliceOf(p, d) {
   if (p === "web") return [d.values.cors_allowlist, d.gates];
   if (p === "roles") return d.roles;
   if (p === "addons") return d.addon_enabled;
-  if (p === "requests") return null;  // nothing to save
-  return d.pending_import;
+  return null;  // requests: nothing to save
 }
 const changed = (p) => !same(sliceOf(p, draft), sliceOf(p, saved));
 
@@ -186,12 +183,6 @@ const REVERT = {
         r.grants = r.grants.filter((g) => g !== name).concat(had ? [name] : []).sort();
       }
     }
-  },
-  ankiconnect: (d) => {
-    for (const k of ["port", "prefer_port", "enabled", "cors_allowlist"]) d.values[k] = preImport.values[k];
-    d.apps = clone(preImport.apps);
-    d.pending_import = false;
-    pending = null;
   },
 };
 
@@ -437,7 +428,8 @@ const PAGE = {
           "127.0.0.1: this computer only. Any other address lets other devices connect; they need a key (see Requests without a key).", "host"),
         row("Other host names", input(field("allowed_hosts")),
           "Names this computer is reached by through a proxy on it, such as Tailscale Serve (pc.tailnet.ts.net). " +
-          "One per line, without http:// or a port. Requests through a proxy count as other devices.", "allowed_hosts")),
+          "One per line, without http:// or a port. Requests through a proxy count as other devices.", "allowed_hosts"),
+        S.ankiconnect.installed && ankiConnectRow()),
       h("section", { class: "card" },
         h("h2", {}, "Limits and logging"),
         h("div", { class: "grid4" }, S.fields.filter((f) => f.section === "Advanced").map((f) =>
@@ -577,35 +569,6 @@ const PAGE = {
             draft.roles.push({ id: "custom_" + n, name: "New role " + n, grants: ["read"] });
             go("roles", "custom_" + n);
           } }, "New role"))),
-    ];
-  },
-
-  ankiconnect() {
-    const ac = S.ankiconnect;
-    const status = !ac.installed ? "Not installed" : ac.enabled ? "Installed and enabled" : "Installed, disabled";
-    return [
-      header("AnkiConnect", "Tsunagi answers AnkiConnect requests, so tools built for it keep working."),
-      h("section", { class: "card" },
-        row("Add-on", h("span", { id: "ankiconnectStatus" }, status)),
-        row("Last import", ac.history),
-        pending
-          ? h("div", { id: "pendingImport", class: "pending" },
-              h("h2", {}, "Ready to import"),
-              row("Port", String(pending.port)), row("Key", pending.key), row("Website origins", pending.origins),
-              h("p", { class: "help" }, ac.enabled ? "Save to apply these settings and disable AnkiConnect." : "Save to apply these settings."))
-          : h("div", { class: "import" },
-              h("p", { class: "help" }, !ac.config_available ? "No AnkiConnect settings to import."
-                : "Copies its port and key (as the app \"AnkiConnect key\") and merges its website origins. Nothing changes until Save."),
-              h("button", { type: "button", id: "importAnkiConnect", disabled: !ac.config_available, onclick: async () => {
-                const res = await call("import_ankiconnect", draft);
-                if (res.error) return showErrors([res.error]);
-                preImport = clone(draft);
-                draft.values = res.values;
-                draft.apps = res.apps;
-                draft.pending_import = true;
-                pending = res.pending;
-                render();
-              } }, ac.imported ? "Import settings again" : "Import AnkiConnect settings"))),
     ];
   },
 
@@ -811,6 +774,92 @@ function addonParts(r, area, st, locked, setGrants) {
   })];
 }
 
+// ---------- taking over from AnkiConnect ----------
+
+// Server page: AnkiConnect's state and the way to take over from it. The
+// takeover saves at once, so it waits until nothing else is unsaved.
+function ankiConnectRow() {
+  const ac = S.ankiconnect;
+  const dirty = PAGES.some(([id]) => changed(id));
+  const why = !ac.config_available ? "AnkiConnect has no settings to import."
+    : dirty ? "Save or discard your changes first." : null;
+  const tookOver = !ac.enabled && ac.imported;
+  // Nothing left to do once Tsunagi runs in its place: one sentence, no link or help.
+  if (tookOver) return row("AnkiConnect", h("span", { id: "ankiconnectStatus" }, `Turned off. Tsunagi took over on ${ac.history}.`));
+  return row("AnkiConnect", [
+    h("span", { id: "ankiconnectStatus" }, ac.enabled ? "Turned on" : "Turned off"), " ",
+    link("Take over from AnkiConnect…", () => openTakeover(false), { id: "takeoverOpen", disabled: !!why, title: why })],
+    "Tsunagi can run in AnkiConnect's place, on its port, so apps built for AnkiConnect keep working.");
+}
+
+async function openTakeover(startup) {
+  if (!startup && PAGES.some(([id]) => changed(id))) return showErrors(["Save or discard your changes first."]);
+  const preview = await call("takeover_preview");
+  if (preview.error) return showErrors([preview.error]);
+  takeover = { startup, preview, busy: false, done: false };
+  render();
+  document.getElementById("takeoverYes")?.focus();
+}
+
+// Not now / Done: at first start the window only opened for this, so it closes.
+function endTakeover() {
+  const startup = takeover.startup;
+  takeover = null;
+  if (startup) call("close"); else render();
+}
+
+async function applyTakeover() {
+  takeover.busy = true;
+  render();
+  const res = await call("takeover");
+  if (res.error) { takeover = null; render(); return showErrors([res.error]); }
+  takeover.done = true;
+  load(res.state);
+  document.getElementById("takeoverDone")?.focus();
+}
+
+// Label/value rows, like the settings page's own rows: what the takeover changes, or changed.
+const facts = (rows) => h("dl", { class: "facts" }, rows.map(([label, value, muted]) =>
+  [h("dt", {}, label), h("dd", { class: muted ? "muted" : null }, value)]));
+
+function takeoverDialog() {
+  const p = takeover.preview;
+  const dialog = (...kids) => h("div", { class: "overlay", role: "dialog", "aria-modal": "true", "aria-labelledby": "takeoverTitle" },
+    h("div", { class: "dialog takeover" }, ...kids));
+  if (takeover.done) {
+    return dialog(
+      h("div", { class: "title" }, icon("done"), h("h2", { id: "takeoverTitle" }, "Tsunagi is now running in place of AnkiConnect")),
+      h("p", { class: "lead" }, "Apps that used AnkiConnect keep working without changes."),
+      facts([["Port", String(p.port)], ["AnkiConnect", "Turned off"]]),
+      h("p", { class: "next" }, link("Recent requests", () => { takeover = null; go("requests"); }, { id: "takeoverRequests" }),
+        " shows which apps connect, and anything refused."),
+      h("div", { class: "dialog-actions" },
+        takeover.startup && h("button", { type: "button", id: "takeoverSettings", onclick: () => { takeover = null; render(); } }, "Open settings"),
+        h("span", { class: "spacer" }),
+        h("button", { type: "button", class: "primary", id: "takeoverDone", onclick: endTakeover }, "Done")));
+  }
+  const MAX_SITES = 4;
+  const sites = p.new_origins.length;
+  const siteList = p.new_origins.slice(0, MAX_SITES).map((o) => h("div", {}, o))
+    .concat(sites > MAX_SITES ? [h("div", { class: "muted" }, `and ${sites - MAX_SITES} more`)] : []);
+  return dialog(
+    h("h2", { id: "takeoverTitle" }, "Take over from AnkiConnect?"),
+    h("p", { class: "lead" }, (takeover.startup ? "AnkiConnect is installed. " : "") +
+      "Tsunagi can run in its place, so apps that use AnkiConnect keep working without changes."),
+    facts([
+      ["Port", p.port_from !== p.port ? [String(p.port_from), h("span", { class: "muted" }, " → "), String(p.port)] : String(p.port)],
+      p.key === "new" ? ["API key", "Added as the app “AnkiConnect key”"]
+        : p.key === "same" ? ["API key", "Already imported", true] : ["API key", "None: AnkiConnect has no key", true],
+      sites ? ["Websites", [h("div", {}, `${sites} added`), ...siteList]] : ["Websites", "Nothing new to add", true],
+      ["AnkiConnect", p.enabled ? "Turned off and its server stopped" : "Already turned off", !p.enabled],
+    ]),
+    h("div", { class: "dialog-actions" },
+      h("span", { class: "spacer" }),
+      h("button", { type: "button", id: "takeoverNo", disabled: takeover.busy, onclick: endTakeover }, "Not now"),
+      h("button", { type: "button", class: "primary", id: "takeoverYes", disabled: takeover.busy, onclick: applyTakeover },
+        takeover.busy ? "Taking over…" : "Take over")));
+}
+
 // X or Esc with unsaved changes (Python calls askClose instead of closing).
 function closeDialog() {
   const dirty = PAGES.filter(([id]) => changed(id)).map(([, title]) => title);
@@ -856,7 +905,6 @@ async function save(close = false) {
 // per-page version).
 function discardDraft() {
   draft = draftFrom(S);
-  pending = null; preImport = null;
   openApps.clear();
   if (editing && !roleById(editing)) editing = null;
   showErrors([]);

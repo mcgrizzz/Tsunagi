@@ -69,8 +69,6 @@ h2 { font-size: 13.5px; margin: 0 0 8px; }
 .card { background: var(--t-card); border: 1px solid var(--t-soft); border-radius: var(--t-radius); padding: 12px 16px; margin: 0 0 12px; }
 .card.flush { padding: 0; overflow: hidden; }
 .card-foot { display: flex; align-items: center; gap: 4px; padding: 10px 16px; border-top: 1px solid var(--t-soft); }
-.import { border-top: 1px solid var(--t-soft); margin-top: 10px; padding-top: 10px; }
-.import .help { margin: 0 0 8px; }
 .empty { margin: 0; padding: 14px 16px; color: var(--t-muted); }
 .row { display: grid; grid-template-columns: 130px 1fr; gap: 4px 12px; align-items: baseline; margin: 8px 0; }
 .row > label { font-weight: 600; }
@@ -211,7 +209,6 @@ button.primary { background: var(--t-accent); border-color: var(--t-accent); col
 .flash, .flash td { animation: t-flash 2.4s ease-out; }
 
 .warn { background: var(--t-warn-bg); border: 1px solid var(--t-danger); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; }
-.pending { border-top: 1px solid var(--t-soft); margin-top: 10px; padding-top: 10px; }
 
 /* Footer and dialog */
 footer {
@@ -259,5 +256,18 @@ footer button:disabled {
 .dialog ul { padding-left: 18px; margin: 6px 0 10px; }
 .dialog li { margin: 3px 0; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+/* The AnkiConnect takeover: a lead line, then what changes as label/value rows. */
+.dialog.takeover { width: 480px; }
+.dialog.takeover h2 { margin: 0; line-height: 1.3; }
+.dialog.takeover .title { display: flex; gap: 10px; align-items: center; }
+.dialog.takeover .title .icon { width: 24px; height: 24px; flex-shrink: 0; fill: none; stroke: var(--t-ok); stroke-width: 1.8;
+                                stroke-linecap: round; stroke-linejoin: round; }
+.dialog.takeover .lead { color: var(--t-muted); margin: 6px 0 0; }
+.facts { display: grid; grid-template-columns: 104px 1fr; gap: 8px 14px; margin: 14px 0 0; padding: 12px 14px;
+         background: var(--t-canvas); border: 1px solid var(--t-soft); border-radius: var(--t-radius); }
+.facts dt { font-weight: 600; }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.dialog.takeover .next { margin: 12px 0 0; }
+.overlay .next button.link { padding: 0; }
 .dialog-actions .spacer { flex: 1; }
 .overlay button.primary { background: var(--t-accent); border-color: var(--t-accent); color: var(--t-accent-fg); }

@@ -3,7 +3,8 @@
 Covers load, apps and no-key roles, the other-devices confirmation (Save going
 to the field that needs it), a page's own revert and restore, role edit and
 reset, add-on enabling and role grants, Save and Cancel keeping the window open,
-the unsaved-changes prompt on X/Esc, and the AnkiConnect import-and-handover path. --screenshot PATH also saves images
+the unsaved-changes prompt on X/Esc, and taking over from AnkiConnect (the
+Server page's button, and the first-start window). --screenshot PATH also saves images
 (PATH-<name>.png), in light and dark themes.
 """
 import socket
@@ -18,6 +19,7 @@ from qt_smoke import aqt, run, until
 from tsunagi.adapters import addon_actions, request_log, settings_dialog, settings_page
 from tsunagi.adapters.config import ADDON_PACKAGE, _migrate
 from tsunagi.adapters.dialogs import ANKICONNECT_ID
+from tsunagi.adapters.settings import apply_config
 
 HELPERS = """
 window.$ = (s) => document.querySelector(s);
@@ -54,8 +56,8 @@ def js(app, dlg, code):
     return out[0]
 
 
-def open_page(app):
-    dlg = settings_page.make_dialog(aqt.mw)
+def open_page(app, **kw):
+    dlg = settings_page.make_dialog(aqt.mw, **kw)
     dlg.show()
     until(app, lambda: js(app, dlg, "window.tsunagiReady === true"))
     return dlg
@@ -107,7 +109,7 @@ def check(app, screenshot):
         request_log.add({"time": now, "method": "POST", "path": "/", "origin": "https://spam.example", "local": True,
                          "app": "No key, this computer", "action": "requestPermission", "error": None,
                          "status": 403, "ms": 0.4})
-        for page in ("server", "apps", "nokey", "web", "addons", "roles", "ankiconnect", "requests"):
+        for page in ("server", "apps", "nokey", "web", "addons", "roles", "requests"):
             js(app, dlg, f"go('{page}')")
             assert js(app, dlg, "$('main h1') !== null")
             if page == "requests":
@@ -343,35 +345,60 @@ def check(app, screenshot):
         assert store["cfg"]["no_key_local_role"] == "default"
         print("PASS: X/Esc closes when clean, asks Save / Discard / Keep editing when not", flush=True)
 
-        # AnkiConnect import: stage, save, hand the port over.
-        server, timer = ProbeServer(), aqt.qt.QTimer()
-        timer.start(60_000)
-        sys.modules[ANKICONNECT_ID] = SimpleNamespace(ac=SimpleNamespace(server=server, timer=timer))
-        toggled = []
-        ac_cfg = {"apiKey": "from-ankiconnect", "webBindPort": server.port,
-                  "webCorsOriginList": ["http://imported"]}
-        try:
-            with patch.object(manager, "allAddons", lambda: [ANKICONNECT_ID]), \
-                 patch.object(manager, "addon_meta", lambda name: SimpleNamespace(enabled=True)), \
-                 patch.object(manager, "toggleEnabled", lambda name, enable: toggled.append(enable)), \
-                 patch.object(manager, "getConfig",
-                              lambda name: store["cfg"] if name == ADDON_PACKAGE else ac_cfg):
-                dlg = open_page(app)
-                js(app, dlg, "go('ankiconnect'); $('#importAnkiConnect').click()")
-                until(app, lambda: js(app, dlg, "$('#pendingImport') !== null"))
-                assert str(server.port) in js(app, dlg, "$('#pendingImport').textContent")
-                save(app, dlg)
-                until(app, lambda: restarts)
-        finally:
-            sys.modules.pop(ANKICONNECT_ID, None)
-            timer.stop()
-        cfg = store["cfg"]
-        assert cfg["port"] == server.port and cfg["prefer_port"] == server.port
-        assert {"name": "AnkiConnect key", "key": "from-ankiconnect", "role": "default"} in cfg["apps"]
-        assert "http://imported" in cfg["cors_allowlist"] and cfg["ankiconnect_imported_at"]
-        assert toggled == [False] and server.sock is None and restarts == [True]
-        server.close()
-        print("PASS: AnkiConnect import hands over its port", flush=True)
+        # AnkiConnect takeover: the Server page's button, then the first-start window.
+        ac_cfg = {"apiKey": "from-ankiconnect", "webCorsOriginList": ["http://imported"]}
+        def take_over(startup):
+            apply_config(aqt.mw, _migrate({})[0], write=True)
+            restarts.clear()
+            server, timer = ProbeServer(), aqt.qt.QTimer()
+            timer.start(60_000)
+            sys.modules[ANKICONNECT_ID] = SimpleNamespace(ac=SimpleNamespace(server=server, timer=timer))
+            ac_cfg["webBindPort"] = server.port
+            toggled = []
+            name = "takeover-startup" if startup else "takeover"
+            try:
+                with patch.object(manager, "allAddons", lambda: [ANKICONNECT_ID]), \
+                     patch.object(manager, "addon_meta", lambda name: SimpleNamespace(enabled=True)), \
+                     patch.object(manager, "toggleEnabled", lambda name, enable: toggled.append(enable)), \
+                     patch.object(manager, "getConfig",
+                                  lambda name: store["cfg"] if name == ADDON_PACKAGE else ac_cfg):
+                    dlg = open_page(app, offer_takeover=startup)
+                    if not startup:
+                        assert js(app, dlg, "$('#ankiconnectStatus').textContent") == "Turned on"
+                        js(app, dlg, "$('#takeoverOpen').click()")
+                    until(app, lambda: js(app, dlg, "$('#takeoverYes') !== null"))
+                    text = js(app, dlg, "$('.dialog').textContent")
+                    assert f"Port7777 → {server.port}" in text and "Websites1 addedhttp://imported" in text, text
+                    if screenshot:
+                        shoot(app, dlg, screenshot, name)
+                    js(app, dlg, "$('#takeoverYes').click()")
+                    until(app, lambda: js(app, dlg, "$('#takeoverDone') !== null"))
+                    until(app, lambda: restarts)
+                    assert js(app, dlg, "$('#takeoverTitle').textContent") == \
+                        "Tsunagi is now running in place of AnkiConnect"
+                    assert js(app, dlg, "$('#takeoverSettings') !== null") == startup
+                    if screenshot:
+                        shoot(app, dlg, screenshot, name + "-done")
+                    js(app, dlg, "$('#takeoverDone').click()")
+                    if startup:  # the window only opened for the takeover
+                        until(app, lambda: not dlg.isVisible())
+                    else:
+                        until(app, lambda: js(app, dlg, "$('.dialog') === null"))
+                        assert "Turned on" in js(app, dlg, "$('#main').textContent")  # the fake stays on
+                        close(app, dlg)
+            finally:
+                sys.modules.pop(ANKICONNECT_ID, None)
+                timer.stop()
+            cfg = store["cfg"]
+            assert cfg["port"] == cfg["prefer_port"] == server.port and cfg["ankiconnect_imported_at"]
+            assert {"name": "AnkiConnect key", "key": "from-ankiconnect", "role": "default"} in cfg["apps"]
+            assert "http://imported" in cfg["cors_allowlist"]
+            assert toggled == [False] and server.sock is None and restarts == [True]
+            server.close()
+
+        take_over(startup=False)
+        take_over(startup=True)
+        print("PASS: taking over from AnkiConnect, from the Server page and on first start", flush=True)
 
         if screenshot:
             from aqt.theme import Theme

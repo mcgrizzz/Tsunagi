@@ -226,7 +226,7 @@ def test_bridge_save_applies_and_stays_open(monkeypatch):
     saved = []
     b, events = bridge()
 
-    def save_settings(mw, cfg, disable_ankiconnect):
+    def save_settings(mw, cfg, disable_ankiconnect=False):
         saved.append((cfg, disable_ankiconnect))
         mw.addonManager.cfg = cfg  # what writing the config does
     monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings", save_settings)
@@ -261,13 +261,42 @@ def test_bridge_save_errors_keep_the_page_open(monkeypatch):
     assert events == []
 
 
-def test_bridge_stages_an_ankiconnect_import():
+def test_bridge_previews_the_ankiconnect_takeover():
     ac = {"apiKey": "from-ac", "webBindPort": 8765, "webCorsOriginList": ["http://new"]}
     b, _ = bridge(ankiconnect=ac)
-    res = cmd(b, "import_ankiconnect", draft_of(fresh()))
-    assert res["values"]["port"] == 8765
-    assert res["apps"] == [{"name": "AnkiConnect key", "key": "from-ac", "role": "default", "enabled": True}]
-    assert res["pending"] == {"port": 8765, "key": "Copy from AnkiConnect", "origins": "1 new origin"}
+    assert cmd(b, "takeover_preview") == {"port_from": 7777, "port": 8765, "key": "new",
+                                          "new_origins": ["http://new"], "enabled": False}
+    assert cmd(bridge(ankiconnect={"webBindPort": 8765})[0], "takeover_preview")["key"] == "none"
+    assert "error" in cmd(bridge()[0], "takeover_preview")
+
+
+def test_bridge_takeover_hands_over_the_saved_config(monkeypatch):
+    handovers = []
+    monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings",
+                        lambda mw, cfg, **kw: handovers.append((cfg, kw)))
+    ac = {"apiKey": "from-ac", "webBindPort": 8765, "webCorsOriginList": ["http://new"]}
+    b, events = bridge(ankiconnect=ac)
+    res = cmd(b, "takeover")
+    [(cfg, kw)] = handovers
+    assert kw == {"disable_ankiconnect": True} and cfg["port"] == cfg["prefer_port"] == 8765
+    assert {"name": "AnkiConnect key", "key": "from-ac", "role": "default"} in cfg["apps"]
+    assert res["ok"] and res["state"]["values"] and events == [("restart", True)]
+
+
+def test_bridge_takeover_failure_is_reported(monkeypatch):
+    def fail(*a, **k):
+        raise ValueError("Port 8765 is still in use.")
+    monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings", fail)
+    b, events = bridge(ankiconnect={"webBindPort": 8765})
+    assert "Port 8765 is still in use." in cmd(b, "takeover")["error"]
+    assert events == []
+
+
+def test_state_offers_the_takeover_once():
+    mw = SimpleNamespace(addonManager=FakeManager(fresh()))
+    b = page.SettingsBridge(mw, restart=print, close=print, copy=print, offer_takeover=True)
+    assert cmd(b, "state")["offer_takeover"] is True
+    assert cmd(b, "state")["offer_takeover"] is False  # a Save reloads state; no second offer
 
 
 def test_state_carries_defaults_and_restoring_keeps_import_history():

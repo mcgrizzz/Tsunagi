@@ -250,8 +250,10 @@ class SettingsBridge:
     """Handles the page's pycmd("tsunagi:{op, arg}") calls; returns JSON values."""
 
     def __init__(self, mw: Any, *, restart: Callable[[bool], None],
-                 close: Callable[[], None], copy: Callable[[str], None]) -> None:
+                 close: Callable[[], None], copy: Callable[[str], None],
+                 offer_takeover: bool = False) -> None:
         self.mw = mw
+        self.offer_takeover = offer_takeover  # open with the AnkiConnect takeover (first start)
         self.restart = restart  # restart(enabled): apply server-level keys
         self.close = close      # close the window, no questions asked
         self.copy = copy
@@ -281,8 +283,9 @@ class SettingsBridge:
         # Defaults ride along for "Restore defaults" (per page and global);
         # saving applies the draft over the saved config, so import history
         # and other bookkeeping survive a restore.
+        offer, self.offer_takeover = self.offer_takeover, False  # once, not after a Save
         return {**page_state(self.saved(), status), "providers": providers_for_page(),
-                "defaults": page_state(_migrate({})[0], status)}
+                "defaults": page_state(_migrate({})[0], status), "offer_takeover": offer}
 
     def op_new_key(self, _arg: Any) -> str:
         return generate_api_key()
@@ -291,26 +294,39 @@ class SettingsBridge:
         self.copy(str(text))
         return True
 
-    def op_import_ankiconnect(self, draft: Dict[str, Any]) -> Dict[str, Any]:
-        """Stage AnkiConnect's key, port and origins into the page; Save applies."""
-        from .config import default_app_key
+    def _takeover_config(self) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        """(saved config, the same with AnkiConnect's key, websites and port, AnkiConnect's config)."""
         from .dialogs import ANKICONNECT_ID, ankiconnect_import_changes
 
         ac = self.mw.addonManager.getConfig(ANKICONNECT_ID)
         if ac is None:
-            return {"error": "No AnkiConnect settings are available to import."}
+            raise ValueError("No AnkiConnect settings are available to import.")
         base = self.saved()
-        current, _ = config_from_form(base, {**draft["values"], "gates": draft["gates"]})
-        current["apps"] = draft["apps"]
-        old_key, old_origins = default_app_key(current), set(current.get("cors_allowlist") or [])
-        current.update(ankiconnect_import_changes(current, ac, include_port=True))
-        state = page_state({**base, **current}, self._status())
-        added = len(set(current.get("cors_allowlist") or []) - old_origins)
-        return {"values": state["values"], "apps": state["apps"], "pending": {
-            "port": current["port"] or current["prefer_port"],
-            "key": "Unchanged" if default_app_key(current) == old_key else "Copy from AnkiConnect",
-            "origins": "No new origins" if not added else f"{added} new origin" + ("s" if added != 1 else ""),
-        }}
+        return base, {**base, **ankiconnect_import_changes(base, ac, include_port=True)}, ac
+
+    def op_takeover_preview(self, _arg: Any) -> Dict[str, Any]:
+        """What taking over from AnkiConnect would change, for the dialog."""
+        from .config import default_app_key
+
+        base, new, ac = self._takeover_config()
+        return {"port_from": base.get("port") or base.get("prefer_port"),
+                "port": new.get("port") or new.get("prefer_port"),
+                "key": "none" if not ac.get("apiKey") else
+                       "same" if default_app_key(new) == default_app_key(base) else "new",
+                "new_origins": [o for o in new["cors_allowlist"] if o not in base.get("cors_allowlist", [])],
+                "enabled": self._status()["enabled"]}
+
+    def op_takeover(self, _arg: Any) -> Dict[str, Any]:
+        """Apply the takeover at once over the saved config (the page has no
+        unsaved changes), then restart the server on AnkiConnect's port."""
+        from .settings_dialog import save_settings
+
+        try:
+            save_settings(self.mw, self._takeover_config()[1], disable_ankiconnect=True)
+        except Exception as exc:
+            return {"error": f"Could not take over from AnkiConnect: {exc}"}
+        self.restart(True)
+        return {"ok": True, "state": self.op_state(None)}
 
     def op_save(self, draft: Dict[str, Any]) -> Dict[str, Any]:
         """Save stays open and returns the saved state as the page's new
@@ -322,12 +338,11 @@ class SettingsBridge:
         if errors:
             return {"errors": [{"message": str(e), "page": getattr(e, "page", None),
                                 "field": getattr(e, "field", None)} for e in errors]}
-        pending = bool(draft.get("pending_import"))
         try:
-            save_settings(self.mw, new_cfg, disable_ankiconnect=pending)
+            save_settings(self.mw, new_cfg)
         except Exception as exc:
             return {"errors": [f"Could not save settings: {exc}"]}
-        if restart or pending:
+        if restart:
             self.restart(bool(new_cfg.get("enabled", True)))
         self.dirty = False
         if close:
@@ -365,11 +380,11 @@ class SettingsBridge:
         return {"running": url is not None, "url": url}
 
 
-def open_settings(mw: Any) -> None:
-    make_dialog(mw).exec()
+def open_settings(mw: Any, *, offer_takeover: bool = False) -> None:
+    make_dialog(mw, offer_takeover=offer_takeover).exec()
 
 
-def make_dialog(mw: Any) -> Any:
+def make_dialog(mw: Any, *, offer_takeover: bool = False) -> Any:
     """The settings dialog, not yet shown (tools/check_settings_dialog.py drives it)."""
     from aqt.qt import QApplication, QDialog, QTimer, QVBoxLayout
     from aqt.utils import disable_help_button, restoreGeom, saveGeom
@@ -405,7 +420,8 @@ def make_dialog(mw: Any) -> Any:
         QTimer.singleShot(0, dlg.accept)
 
     bridge = SettingsBridge(mw, restart=restart, close=close,
-                            copy=lambda text: QApplication.clipboard().setText(text))
+                            copy=lambda text: QApplication.clipboard().setText(text),
+                            offer_takeover=offer_takeover)
     dlg.tsunagi_bridge, dlg.tsunagi_web = bridge, web  # for the real-dialog check
     web.set_bridge_command(bridge.handle, dlg)
     web.stdHtml(_page_html(), context=dlg)
