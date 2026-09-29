@@ -148,9 +148,24 @@ class LookupDuplicates(Workload):
         body = {"notes": [{"deckName": "Mining", "modelName": MODEL, "fields": {TERM_FIELD: w},
                            **({"duplicateScopeOptions": self.options} if self.options else {})}
                           for w in words]}
-        results = (await c.rest("POST", "/v1/notes:check", body))["results"]
-        return {w: {"duplicate": r["state"] == "duplicate",
-                    "ids": sorted(r.get("duplicate_note_ids") or [])} for w, r in zip(words, results)}
+        if self.options.get("checkAllModels"):
+            # The check's scope already covers every note type: its IDs are the list.
+            results = (await c.rest("POST", "/v1/notes:check", body))["results"]
+            return {w: {"duplicate": r["state"] == "duplicate",
+                        "ids": sorted(r["duplicate_note_ids"])} for w, r in zip(words, results)}
+        # Yomitan decides "duplicate" within the note type but lists every note
+        # with the word, whatever its note type (its findNotes search above).
+        # So: the check without IDs, then the duplicates' notes by first field.
+        results = (await c.rest("POST", "/v1/notes:check", body, include_duplicate_ids="false"))["results"]
+        found = {w: {"duplicate": r["state"] == "duplicate", "ids": []} for w, r in zip(words, results)}
+        dup = [w for w in words if found[w]["duplicate"]]
+        if dup:
+            where = f"first_field in {json.dumps(dup, ensure_ascii=False)}"
+            for row in (await c.rest("GET", "/v1/notes", where=where, select="id,first_field"))["items"]:
+                found[row["first_field"]]["ids"].append(row["id"])
+            for w in dup:
+                found[w]["ids"].sort()
+        return found
 
 
 class LookupDuplicatesAllModels(LookupDuplicates):
@@ -387,16 +402,30 @@ class NoteTypeFields(Workload):
         return {m["name"]: m["fields"] for m in models}
 
 
+class PopupCheck(LookupDuplicates):
+    """The duplicate check for one popup's entries (ctx["entries"])."""
+
+    def candidates(self, ctx):
+        return ctx["entries"]
+
+
 class MineSession(Workload):
     name = "mine_session"
-    source = ("Yomitan: a mining session. One duplicate check for 20 dictionary entries "
-              "(10 already saved, 10 new), then each new word added as the user clicks it, "
-              "with audio and a picture and automatic suspension on (backend.js)")
+    source = ("Yomitan: a mining session. Ten lookups; each popup checks its own 3-5 entries "
+              "(already saved words, a word left unsaved, the word to mine), then the user adds "
+              "that word with audio and a picture and automatic suspension on (backend.js)")
     writes = True
     new_words = [f"tsunagibench語{i}" for i in range(10)]
 
-    def words(self, ctx):
-        return ctx["existing_terms"] + self.new_words
+    def popups(self, ctx):
+        """Each popup's entries: 1-3 saved words, one unsaved word, and the word to add."""
+        saved = ctx["existing_terms"]
+        out = []
+        for i, word in enumerate(self.new_words):
+            count = 1 + i % 3
+            out.append([saved[(2 * i + j) % len(saved)] for j in range(count)]
+                       + [f"tsunagibench未{i}", word])
+        return out
 
     def note(self, word, audio, image):
         return {"deckName": DECK, "modelName": MODEL, "tags": [TAG],
@@ -404,9 +433,12 @@ class MineSession(Workload):
                            "ExpressionAudio": f"[sound:{audio}]", "Picture": f'<img src="{image}">'}}
 
     async def ankiconnect(self, c, ctx, trial):
-        ctx["duplicates"] = await LookupDuplicates().ankiconnect(c, {"existing_terms": self.words(ctx)}, trial)
-        ctx["created"], ctx["media"] = [], []
-        for i, word in enumerate(w for w in self.words(ctx) if not ctx["duplicates"][w]["duplicate"]):
+        ctx["duplicates"], ctx["created"], ctx["media"] = [], [], []
+        for i, (entries, word) in enumerate(zip(self.popups(ctx), self.new_words)):
+            found = await PopupCheck().ankiconnect(c, {"entries": entries}, trial)
+            ctx["duplicates"].append(found)
+            if found[word]["duplicate"]:
+                continue
             (audio, a), (image, im) = media(f"audio{i}", trial, 48 * 1024), media(f"image{i}", trial, 64 * 1024)
             for name, data in ((audio, a), (image, im)):
                 await c.action("storeMediaFile", filename=name, data=base64.b64encode(data).decode())
@@ -418,9 +450,12 @@ class MineSession(Workload):
             await c.action("suspend", cards=await c.action("findCards", query=f"nid:{note_id}"))
 
     async def tsunagi(self, c, ctx, trial):
-        ctx["duplicates"] = await LookupDuplicates().tsunagi(c, {"existing_terms": self.words(ctx)}, trial)
-        ctx["created"], ctx["media"] = [], []
-        for i, word in enumerate(w for w in self.words(ctx) if not ctx["duplicates"][w]["duplicate"]):
+        ctx["duplicates"], ctx["created"], ctx["media"] = [], [], []
+        for i, (entries, word) in enumerate(zip(self.popups(ctx), self.new_words)):
+            found = await PopupCheck().tsunagi(c, {"entries": entries}, trial)
+            ctx["duplicates"].append(found)
+            if found[word]["duplicate"]:
+                continue
             (audio, a), (image, im) = media(f"audio{i}", trial, 48 * 1024), media(f"image{i}", trial, 64 * 1024)
             stored = await c.rest("POST", "/v1/media", [
                 {"filename": audio, "data": base64.b64encode(a).decode()},
@@ -460,9 +495,9 @@ class ClientSettings(Workload):
 
     async def tsunagi(self, c, ctx, trial):
         decks = (await c.rest("GET", "/v1/decks", select="name"))["items"]
-        models = (await c.rest("GET", "/v1/models", select="name,fields[].name"))["items"]
-        return {"decks": sorted(decks), "models": sorted(m["name"] for m in models),
-                "fields": next(m["fields"] for m in models if m["name"] == MODEL)}
+        models = (await c.rest("GET", "/v1/models", select="name"))["items"]
+        fields = (await c.rest("GET", "/v1/models", where=f'name=="{MODEL}"', select="fields[].name"))["items"]
+        return {"decks": sorted(decks), "models": sorted(models), "fields": fields[0]["fields"]}
 
 
 REVIEW_FIELDS = "id,card_id,ease,interval,last_interval,factor,time_ms,type"

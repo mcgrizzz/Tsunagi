@@ -23,18 +23,23 @@ def server(col, reset_settings, monkeypatch):
     from tsunagi.app import app
     monkeypatch.setattr(aqt.mw, "pm", SimpleNamespace(name="Bench"), raising=False)
     mm = col.models
-    model = mm.new(bw.MODEL)
-    for name in (bw.TERM_FIELD, "Sentence", "ExpressionAudio", "Picture"):
-        mm.add_field(model, mm.new_field(name))
-    template = mm.new_template("Card 1")
-    template["qfmt"], template["afmt"] = "{{Expression}}", "{{Sentence}}"
-    mm.add_template(model, template)
-    mm.add(model)
+    for model_name in (bw.MODEL, "Kiku"):   # the profile also has an older note type
+        model = mm.new(model_name)
+        for name in (bw.TERM_FIELD, "Sentence", "ExpressionAudio", "Picture"):
+            mm.add_field(model, mm.new_field(name))
+        template = mm.new_template("Card 1")
+        template["qfmt"], template["afmt"] = "{{Expression}}", "{{Sentence}}"
+        mm.add_template(model, template)
+        mm.add(model)
     model, mining = mm.by_name(bw.MODEL), col.decks.id("Mining")
     for i in range(12):
         note = col.new_note(model)
         note[bw.TERM_FIELD] = f"word{i}"
         col.add_note(note, mining)
+    # Saved under both note types, like よし: Yomitan lists both notes.
+    old = col.new_note(mm.by_name("Kiku"))
+    old[bw.TERM_FIELD] = "word3"
+    col.add_note(old, mining)
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
@@ -63,9 +68,11 @@ def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp
     native, shim = run(server, "native", tmp_path), run(server, "shim", tmp_path)
     for name in ("mine_session", "client_settings"):
         assert native[name]["consistent_result"] and shim[name]["consistent_result"]
+        assert native[name]["trials"][1].get("part_sha256") == shim[name]["trials"][1].get("part_sha256")
         assert native[name]["trials"][1]["result_sha256"] == shim[name]["trials"][1]["result_sha256"]
-    # 10 new words: 1 check + 3 each through /v1; 3 for the check + 5 each through AnkiConnect.
-    assert native["mine_session"]["trials"][1]["requests"] == 31
-    assert shim["mine_session"]["trials"][1]["requests"] == 53
+    # 10 popups, one word added from each: the check + the duplicates' notes + 3
+    # through /v1; 3 for the check + 5 through AnkiConnect.
+    assert native["mine_session"]["trials"][1]["requests"] == 50
+    assert shim["mine_session"]["trials"][1]["requests"] == 80
     assert (native["client_settings"]["trials"][1]["requests"],
-            shim["client_settings"]["trials"][1]["requests"]) == (2, 3)
+            shim["client_settings"]["trials"][1]["requests"]) == (3, 3)

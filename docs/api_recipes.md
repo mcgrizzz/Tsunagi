@@ -56,8 +56,9 @@ note. With "Check for duplicates across all models" on, the check's IDs
 already cover every note type.
 
 For the whole flow, checking 20 dictionary entries and listing the matches,
-the [benchmarks](benchmarks.md#real-client-workloads) measured 3.7 ms with the
-Tsunagi API (one request) against 154 ms with AnkiConnect (three requests).
+the [benchmarks](benchmarks.md#real-client-workloads) measured 5.7 ms with the
+Tsunagi API (the check, then the notes by first field) against 188 ms with
+AnkiConnect (three requests).
 
 Within a request, Tsunagi also shares work between words. Each note names its
 note type and deck as text ("Kiku+", "Mining"), and Anki has to find those

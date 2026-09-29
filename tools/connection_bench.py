@@ -98,8 +98,8 @@ async def exchange(endpoint, wire, timeout, validate=None, *, return_payload=Fal
         headers = dict(line.split(b":", 1) for line in lines)
         headers = {key.lower(): value.strip() for key, value in headers.items()}
         length = int(headers[b"content-length"])
-        if not 0 <= length <= 64 * 1024 * 1024 or b"transfer-encoding" in headers:
-            raise ValueError("Unexpected response framing or response larger than 64 MiB")
+        if not 0 <= length <= 256 * 1024 * 1024 or b"transfer-encoding" in headers:
+            raise ValueError("Unexpected response framing or response larger than 256 MiB")
         result["stage"] = "body"
         body = await reader.readexactly(length)
         result["response_bytes"] += len(body)
