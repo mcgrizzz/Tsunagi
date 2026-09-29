@@ -11,6 +11,8 @@ from tsunagi.shared.selecting import _build_spec, parse_select_csv, project_scal
     "id:same,fields[].name:same", "fields[].name:same,id:same",
     "fields[].(name:same,ord:same)", "fields[].読み:readings",
     "missing[].name,id,fields[].missing",
+    'fields[name in ["Front"]]', 'fields[name in ["Front","Back"]].ord',
+    'fields[ord in [0]].(name,ord)', 'fields[name in [""]].name:empty',
 ])
 @pytest.mark.parametrize("values", [
     [], [{"name": "Front", "ord": 0, "読み": "よみ"}, {"name": "Back", "ord": 1}],

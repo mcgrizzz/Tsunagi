@@ -48,10 +48,19 @@ class TestParseSelect:
             )
         ]
 
+    def test_element_filter(self):
+        assert parse_select_csv('fields[name in ["Front", "Sentence Audio"]].value:v') == [
+            SelectArrayPluck(base=("fields",), child=("value",), as_name="v",
+                             where=("name", frozenset({"Front", "Sentence Audio"})))
+        ]
+        assert parse_select_csv("fields[ord in [0, -1]].(name,ord)")[0].where == ("ord", frozenset({0, -1}))
+
     def test_empty_returns_no_nodes(self):
         assert parse_select_csv("") == []
 
-    @pytest.mark.parametrize("bad", ["fields[", "id,,name", "fields[].(name", "1abc"])
+    @pytest.mark.parametrize("bad", ["fields[", "id,,name", "fields[].(name", "1abc",
+                                     "fields[name in []]", 'fields[name in ["a"]', "fields[name in [a]]",
+                                     'fields[name == "a"]', 'fields[name in ["a"]]x'])
     def test_malformed_raises(self, bad):
         with pytest.raises(SelectParseError):
             parse_select_csv(bad)

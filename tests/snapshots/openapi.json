@@ -3118,12 +3118,12 @@
         "operationId": "listCards",
         "parameters": [
           {
-            "description": "Comma-separated fields to return",
+            "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
             "in": "query",
             "name": "select",
             "required": false,
             "schema": {
-              "description": "Comma-separated fields to return",
+              "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
               "title": "Select",
               "type": "string"
             }
@@ -4281,12 +4281,12 @@
         "operationId": "listDeck_Configs",
         "parameters": [
           {
-            "description": "Comma-separated fields to return",
+            "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
             "in": "query",
             "name": "select",
             "required": false,
             "schema": {
-              "description": "Comma-separated fields to return",
+              "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
               "title": "Select",
               "type": "string"
             }
@@ -4621,12 +4621,12 @@
         "operationId": "listDecks",
         "parameters": [
           {
-            "description": "Comma-separated fields to return",
+            "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
             "in": "query",
             "name": "select",
             "required": false,
             "schema": {
-              "description": "Comma-separated fields to return",
+              "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
               "title": "Select",
               "type": "string"
             }
@@ -6437,12 +6437,12 @@
         "operationId": "listModels",
         "parameters": [
           {
-            "description": "Comma-separated fields to return",
+            "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
             "in": "query",
             "name": "select",
             "required": false,
             "schema": {
-              "description": "Comma-separated fields to return",
+              "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
               "title": "Select",
               "type": "string"
             }
@@ -7380,12 +7380,12 @@
         "operationId": "listNotes",
         "parameters": [
           {
-            "description": "Comma-separated fields to return",
+            "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
             "in": "query",
             "name": "select",
             "required": false,
             "schema": {
-              "description": "Comma-separated fields to return",
+              "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
               "title": "Select",
               "type": "string"
             }
@@ -7989,12 +7989,12 @@
         "operationId": "listReviews",
         "parameters": [
           {
-            "description": "Comma-separated fields to return",
+            "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
             "in": "query",
             "name": "select",
             "required": false,
             "schema": {
-              "description": "Comma-separated fields to return",
+              "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
               "title": "Select",
               "type": "string"
             }

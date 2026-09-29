@@ -409,7 +409,10 @@ def create_resource_routes(
         openapi_extra=read_permission,
     )
     def _get(
-        select: Optional[str] = Query(default=None, description="Comma-separated fields to return"),
+        select: Optional[str] = Query(default=None, description=(
+            "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every "
+            "element, `fields[].name` one property of each, `fields[].(name,value)` several, and "
+            "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.")),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
         shape: Optional[str]  = Query(default="auto", description="Response shape: auto, object, or scalar"),

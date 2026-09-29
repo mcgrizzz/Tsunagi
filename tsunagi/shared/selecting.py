@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import (
     Any,
     Dict,
+    FrozenSet,
     List,
     Mapping,
     Optional,
@@ -30,6 +32,7 @@ _SCALAR_TYPES = get_args(Scalar)
 # GRAMMAR NOTES
 # - ":" = alias (rename output key):  name:alias, arr[]:alias, arr[].child:alias
 # - "[]" = iterate array; "." = pluck a child; "(...)" = multi-pluck per element
+# - "[key in [...]]" = iterate only the elements whose key is one of the values
 # - Multi-pluck aliasing:
 #     • per-item inside () → (name:nm, ord:ix)
 #     • optional group alias after () → arr[].(...):group_alias
@@ -39,6 +42,7 @@ _SCALAR_TYPES = get_args(Scalar)
 #   flds[]                    # copy list
 #   flds[].name:labels        # pluck one field with alias
 #   flds[].(name:nm,ord:ix):fields  # multi-pluck with per-item + group alias
+#   fields[name in ["Front","Back"]]  # only the elements named Front or Back
 
 _SELECT_GRAMMAR = r"""
 start: sel ("," sel)*
@@ -51,10 +55,14 @@ start: sel ("," sel)*
 # Scalars
 scalar: NAME alias?                              -> scalar
 
-# Arrays
-arr_copy : NAME ARR alias?                       -> arr_copy
-arr_child: NAME ARR DOT NAME alias?              -> arr_child
-arr_multi: NAME ARR DOT LP group_items RP alias? -> arr_multi
+# Arrays: "[]" for every element, or a filter for some of them
+arr_copy : NAME brack alias?                       -> arr_copy
+arr_child: NAME brack DOT NAME alias?              -> arr_child
+arr_multi: NAME brack DOT LP group_items RP alias? -> arr_multi
+?brack   : ARR | filter
+filter   : "[" NAME "in" "[" value ("," value)* "]" "]"
+value    : ESCAPED_STRING -> string
+         | SIGNED_INT     -> integer
 
 # Common pieces
 group_items: group_item ("," group_item)*
@@ -69,6 +77,8 @@ RP   : ")"
 // Unicode-aware: Anki field names are routinely non-ASCII (select=単語)
 NAME : /[^\W\d]\w*/
 
+%import common.ESCAPED_STRING
+%import common.SIGNED_INT
 %import common.WS
 %ignore WS
 """
@@ -78,11 +88,15 @@ class SelectScalar:
     path: Tuple[str, ...]
     as_name: Optional[str] = None
 
+# (key, allowed values): keep only the array elements whose key is one of them.
+ElementFilter = Tuple[str, FrozenSet[Scalar]]
+
 @dataclass(frozen=True, **DATACLASS_SLOTS)
 class SelectArrayPluck:
     base: Tuple[str, ...]                      # ("flds",)
     child: Optional[Tuple[str, ...]] = None    # None or ("name",)
     as_name: Optional[str] = None
+    where: Optional[ElementFilter] = None
 
 @dataclass(frozen=True, **DATACLASS_SLOTS)
 class SelectArrayMulti:
@@ -90,13 +104,14 @@ class SelectArrayMulti:
     # tuple of (path, alias), where path is a tuple[str, ...]
     children: Tuple[Tuple[Tuple[str, ...], Optional[str]], ...]
     as_name: Optional[str] = None
+    where: Optional[ElementFilter] = None
 
 SelectNode = Union[SelectScalar, SelectArrayPluck, SelectArrayMulti]
 
 @v_args(inline=True)
 class _SelectTransformer(Transformer):
 
-    def ARR(self, _): return Discard
+    def ARR(self, _): return None   # every element: no filter
     def DOT(self, _): return Discard
     def LP(self, _):  return Discard
     def RP(self, _):  return Discard
@@ -117,13 +132,22 @@ class _SelectTransformer(Transformer):
         return SelectScalar(path=(name,), as_name=alias)
 
     # arrays
-    def arr_copy(self, base_tok, alias_tok=None):
-        return SelectArrayPluck(base=(str(base_tok),), child=None,
-                                as_name=(str(alias_tok) if alias_tok else None))
+    def string(self, tok):
+        return json.loads(tok)
 
-    def arr_child(self, base_tok, child_tok, alias_tok=None):
+    def integer(self, tok):
+        return int(tok)
+
+    def filter(self, key_tok, *values):
+        return (str(key_tok), frozenset(values))
+
+    def arr_copy(self, base_tok, where, alias_tok=None):
+        return SelectArrayPluck(base=(str(base_tok),), child=None,
+                                as_name=(str(alias_tok) if alias_tok else None), where=where)
+
+    def arr_child(self, base_tok, where, child_tok, alias_tok=None):
         return SelectArrayPluck(base=(str(base_tok),), child=(str(child_tok),),
-                                as_name=(str(alias_tok) if alias_tok else None))
+                                as_name=(str(alias_tok) if alias_tok else None), where=where)
 
     def group_item(self, name_tok, alias_tok=None):
         return ((str(name_tok),), (str(alias_tok) if alias_tok else None))
@@ -131,9 +155,9 @@ class _SelectTransformer(Transformer):
     def group_items(self, first, *rest):
         return (first, *rest)  # tuple, not list
 
-    def arr_multi(self, base_tok, items, alias_tok=None):
+    def arr_multi(self, base_tok, where, items, alias_tok=None):
         return SelectArrayMulti(base=(str(base_tok),), children=tuple(items),
-                                as_name=(str(alias_tok) if alias_tok else None))
+                                as_name=(str(alias_tok) if alias_tok else None), where=where)
 
 _parser = Lark(_SELECT_GRAMMAR, parser="lalr", maybe_placeholders=False)
 
@@ -166,6 +190,7 @@ def parse_select_csv(select_text: str) -> List[SelectNode]:
             f"  - flds[].name (pluck field from array)\n"
             f"  - flds[].(name,ord) (multi-pluck)\n"
             f"  - flds[].(name:label,ord:index) (with aliases)\n"
+            f"  - fields[name in [\"Front\",\"Back\"]] (only some elements)\n"
             f"  - name:displayName (field alias)"
         ) from None
     except Exception as e:
@@ -182,6 +207,20 @@ def _as_iterable_list(base_path: Tuple[str, ...]):
     base = Coalesce(base_path, default=[])
     return Coalesce(base, default=[T])
 
+def _kept(values: List[Any], where: Optional[ElementFilter]) -> List[Any]:
+    """The elements a filter keeps: mappings whose key holds one of its values.
+    Anything but a list passes through, as it does for "[]"."""
+    if where is None or not isinstance(values, (list, tuple)):
+        return values
+    key, allowed = where
+
+    def keep(value: Any) -> bool:
+        try:
+            return isinstance(value, Mapping) and value.get(key) in allowed
+        except TypeError:   # a list or dict under the key matches nothing
+            return False
+    return [v for v in values if keep(v)]
+
 # ---------- Cache directly on Tuple[SelectNode, ...] ----------
 
 @lru_cache(maxsize=128)
@@ -196,6 +235,8 @@ def _build_spec(nodes: Tuple[SelectNode, ...]) -> Dict[str, object]:
         elif isinstance(n, SelectArrayPluck):
             alias = n.as_name or n.base[-1]
             safe = _as_iterable_list(tuple(n.base))
+            if n.where is not None:
+                safe = (safe, lambda values, where=n.where: _kept(values, where))
             if n.child is None:
                 spec[alias] = safe
             else:
@@ -204,6 +245,8 @@ def _build_spec(nodes: Tuple[SelectNode, ...]) -> Dict[str, object]:
         elif isinstance(n, SelectArrayMulti):
             alias = n.as_name or n.base[-1]
             safe = _as_iterable_list(tuple(n.base))
+            if n.where is not None:
+                safe = (safe, lambda values, where=n.where: _kept(values, where))
             elem_spec = { (a or p[-1]): Coalesce(tuple(p), default=None)
                           for (p, a) in n.children }
             spec[alias] = (safe, [elem_spec])
@@ -226,6 +269,8 @@ def selection_include(nodes: Sequence[SelectNode]) -> Dict[str, Any]:
             paths = [node.child] if node.child is not None else []
         else:
             paths = [path for path, _ in node.children]
+        if node.where is not None and paths:
+            paths.append((node.where[0],))   # the filter reads its key too
         if len(node.base) != 1 or not paths or any(len(path) != 1 for path in paths):
             include[base] = True
         else:
@@ -251,6 +296,7 @@ def _project_simple(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Opti
         values = obj.get(node.base[0], [])
         if not isinstance(values, list):
             return None
+        values = _kept(values, node.where)
         alias = node.as_name or node.base[0]
         if isinstance(node, SelectArrayPluck) and node.child is None:
             result[alias] = values
