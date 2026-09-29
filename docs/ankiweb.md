@@ -43,8 +43,8 @@ Supports: [ 26.08.0 ] - [ 26.09.0 ]
 
 ## Description
 
-Markdown and basic HTML. The screenshot is linked from `main` on GitHub, so it
-shows once the image is pushed, and follows later screenshot updates.
+Markdown and basic HTML. AnkiWeb joins lines into one paragraph, so separate
+the links with blank lines.
 
 ```markdown
 Tsunagi (繋ぎ, “connection”) connects Anki Desktop to dictionary tools, mining apps and scripts. Existing **AnkiConnect** tools work as they are, and the **Tsunagi API** gives new apps more to work with.
@@ -58,13 +58,13 @@ Tsunagi (繋ぎ, “connection”) connects Anki Desktop to dictionary tools, mi
 * Undo changes made through the API with **Edit → Undo**
 * Try every request in the interactive API reference
 
-<img src="https://raw.githubusercontent.com/mcgrizzz/Tsunagi/main/docs/images/settings-apps.png" alt="Tsunagi's settings: each app with its own key and role" width="600">
-
 After installing, restart Anki and open **Tools → Tsunagi Settings**. Coming from AnkiConnect? Open the **AnkiConnect** page there and click **Import AnkiConnect settings**.
 
 > **Experimental.** Supports Anki 26.08 and 26.09. The Tsunagi API still changes quickly; the AnkiConnect side stays stable.
 
 [Documentation and source code](https://github.com/mcgrizzz/Tsunagi)
+
 [AnkiConnect compatibility](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/ankiconnect_parity.md)
+
 [Report a problem](https://github.com/mcgrizzz/Tsunagi/issues)
 ```
