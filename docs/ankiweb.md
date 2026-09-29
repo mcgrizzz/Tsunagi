@@ -15,10 +15,11 @@ Tsunagi - Modern API access to Anki
 
 ## Tags
 
-Optional, space-separated.
+Optional, space-separated. AnkiWeb keeps only the first 80 characters,
+spaces included.
 
 ```text
-ankiconnect api integration automation developer-tools mining
+ankiconnect api automation developer-tools mining yomitan language-learning
 ```
 
 ## Support page
@@ -42,7 +43,8 @@ Supports: [ 26.08.0 ] - [ 26.09.0 ]
 
 ## Description
 
-Markdown and basic HTML.
+Markdown and basic HTML. The screenshot is linked from `main` on GitHub, so it
+shows once the image is pushed, and follows later screenshot updates.
 
 ```markdown
 Tsunagi (繋ぎ, “connection”) connects Anki Desktop to dictionary tools, mining apps and scripts. Existing **AnkiConnect** tools work as they are, and the **Tsunagi API** gives new apps more to work with.
@@ -55,6 +57,8 @@ Tsunagi (繋ぎ, “connection”) connects Anki Desktop to dictionary tools, mi
 * Hear about changes to notes, cards and reviews instead of asking again and again
 * Undo changes made through the API with **Edit → Undo**
 * Try every request in the interactive API reference
+
+<img src="https://raw.githubusercontent.com/mcgrizzz/Tsunagi/main/docs/images/settings-apps.png" alt="Tsunagi's settings: each app with its own key and role" width="600">
 
 After installing, restart Anki and open **Tools → Tsunagi Settings**. Coming from AnkiConnect? Open the **AnkiConnect** page there and click **Import AnkiConnect settings**.
 
