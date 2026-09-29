@@ -32,10 +32,10 @@ request log, add a few microseconds per request and are not in it.
 
 ## Summary
 
-- **For the client goals, the Tsunagi API is fastest on six of ten,** often
+- **For the client goals, the Tsunagi API is fastest on seven of ten,** often
   by a wide margin: fewer requests, and only the fields the client uses. It is
-  1.4 ms behind the Shim on a seventh, and slower on three large reads (known
-  words and both review histories).
+  1.4 ms behind the Shim on an eighth, and slower on two large reads (both
+  review histories).
 - **For a whole mining session, the Tsunagi API took 323 ms against
   AnkiConnect's 2,862 ms,** in 50 requests instead of 80. Loading Yomitan's
   settings takes about 5 ms through either Tsunagi API.
@@ -63,7 +63,7 @@ their review history and media. Lower is faster.
 | **Yomitan,** same check with "Check for duplicates across all models" on | [options](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/data/anki-note-builder.js#L118-L131) | 183 (3) | 117 (3) | **4.3** (1) |
 | **Yomitan:** add a mined note with an audio file and a picture | [add](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/display/display-anki.js#L924), [media](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L279-L290) | 89 (3) | 27 (3) | **25** (2) |
 | **asbplayer:** attach a screenshot to the most recently added note | [find](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L549-L591), [update](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L730-L752) | 152 (5) | 21 (5) | **19** (3) |
-| **Yomine:** refresh known words: every note, plus each first card's latest interval | [notes](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L373-L392), [intervals](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L64-L95) | **1,264** (3, 84 MB) | 1,394 (3, 79 MB) | 2,058 (3, 96 MB) |
+| **Yomine:** refresh known words: the term, reading and sentence of every note of the note types Yomine is set up for, plus each first card's latest interval | [notes](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L373-L392), [intervals](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L64-L95) | 1,171 (3, 84 MB) | 1,336 (3, 79 MB) | **617** (3, 8.9 MB) |
 | **asbplayer:** first build of the mined-words cache: notes, card details, suspension and study status | [notes and cards](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L426-L509), [status](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L575-L633), [batch sizes](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L8-L10) | 16,605 (434, 498 MB) | 10,589 (434, 468 MB) | **1,716** (8, 77 MB) |
 | **asbplayer:** 10-second poll for edited or reviewed cards | [poll](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L353-L364) | 30 | **3.7** | 5.1 |
 | **Obsidian_to_Anki:** regenerate the note-type table (every note type's field names) | [names](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/settings.ts#L350-L356), [fields](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/main.ts#L62-L71) | 3,587 (114) | 148 (114) | **10** (1) |
@@ -83,8 +83,12 @@ says otherwise.
 - **AnkiConnect's small requests take about 30 ms each** even when the work is
   tiny, as in the change poll. That per-request delay is why its many-request
   goals are slow.
-- **The Tsunagi API is slower on three reads:** Yomine's known words and both
-  review histories. Its responses are larger for these, because each row
+- **Known words:** AnkiConnect returns every note with all its fields, and
+  Yomine keeps the three it needs from the note types it's set up for. The
+  Tsunagi API asks for only those note types and those three fields
+  (`select=fields[name in [...]]`), so its answer is a tenth of the size.
+- **The Tsunagi API is slower on two reads:** both review histories. Its
+  responses are larger for these, because each row
   repeats its field names: for one deck's reviews, about 19 MB against
   `cardReviews`' 9 MB of plain arrays. How much of the time difference that
   explains has not been measured; the AnkiConnect Shim sends the smallest
@@ -98,9 +102,10 @@ says otherwise.
   the Tsunagi API needs one request.
 - **Simplifications:** asbplayer's update searches only the benchmark deck
   instead of the whole collection, to keep the test profile safe, and skips an
-  optional Browser refresh. Yomine asks for intervals only for its mapped note
-  types; the workload asks for every note's first card. asbplayer's change
-  poll normally also filters by deck and word field.
+  optional Browser refresh. asbplayer's change poll normally also filters by
+  deck and word field. The known-words workload uses the owner's Yomine setup:
+  the Kiku and Kiku+ note types, with `Expression`, `ExpressionReading` and
+  `Sentence`.
 
 **Test setup:** Windows, client and Anki on the same machine, one API at a time
 with the other add-on disabled and Anki restarted between AnkiConnect and

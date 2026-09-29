@@ -266,33 +266,51 @@ class UpdateLastMined(Workload):
 
 class KnownWordsSnapshot(Workload):
     name = "known_words_snapshot"
-    source = "Yomine: known-word refresh (state.rs): every note, then the first card's latest interval"
+    source = ("Yomine: known-word refresh (state.rs get_total_vocab): the term, reading and sentence "
+              "of every note of a mapped note type, then its first card's latest interval")
+    # The owner's Yomine mapping: note type -> term, reading and sentence fields.
+    mapping = {"Kiku": (TERM_FIELD, "ExpressionReading", "Sentence"),
+               MODEL: (TERM_FIELD, "ExpressionReading", "Sentence")}
+
+    def vocab(self, notes):
+        """What Yomine reads from each mapped note; a term and a reading make it vocab."""
+        out = {}
+        for note_id, model, fields, cards in notes:
+            if model in self.mapping:
+                term, reading, sentence = (fields.get(name) for name in self.mapping[model])
+                is_vocab = cards and term is not None and reading is not None
+                out[str(note_id)] = {"term": term, "reading": reading, "sentence": sentence,
+                                     "card": cards[0] if is_vocab else None}
+        return out
 
     async def ankiconnect(self, c, ctx, trial):
         ids = await c.action("findNotes", query="deck:*")
         notes = await c.action("notesInfo", notes=ids)
-        firsts = [n["cards"][0] for n in notes if n["cards"]]
+        vocab = self.vocab((n["noteId"], n["modelName"], fields_of(n), n["cards"]) for n in notes)
+        firsts = [v["card"] for v in vocab.values() if v["card"] is not None]
         intervals = dict(zip(firsts, await c.action("getIntervals", cards=firsts)))
-        return {str(n["noteId"]): {"model": n["modelName"], "fields": fields_of(n),
-                                   "interval": intervals.get(n["cards"][0]) if n["cards"] else None}
-                for n in notes}
+        for v in vocab.values():
+            v["interval"] = intervals.get(v.pop("card"))
+        return vocab
 
     async def tsunagi(self, c, ctx, trial):
-        notes = (await c.rest("GET", "/v1/notes", search="deck:*",
-                              select="id,model_name,fields,cards"))["items"]
+        # Only the mapped note types, and only the fields Yomine reads from them.
+        types = " OR ".join(f'"note:{model}"' for model in self.mapping)
+        names = sorted({name for fields in self.mapping.values() for name in fields})
+        notes = (await c.rest("GET", "/v1/notes", search=f"deck:* ({types})",
+                              select=f"id,model_name,cards,fields[name in {json.dumps(names, ensure_ascii=False)}]"))["items"]
+        vocab = self.vocab((n["id"], n["model_name"], fields_of(n), n["cards"]) for n in notes)
         # getIntervals' meaning: 0 for a new card, else the latest review log interval.
-        new = set((await c.rest("GET", "/v1/cards", search="deck:* is:new", select="id"))["items"])
+        new = set((await c.rest("GET", "/v1/cards", search=f"deck:* ({types}) is:new", select="id"))["items"])
         latest = {}
-        for review in (await c.rest("GET", "/v1/reviews", search="deck:*",
+        for review in (await c.rest("GET", "/v1/reviews", search=f"deck:* ({types})",
                                     select="id,card_id,interval"))["items"]:
             if review["id"] >= latest.get(review["card_id"], (0, None))[0]:
                 latest[review["card_id"]] = (review["id"], review["interval"])
-
-        def interval(card):
-            return 0 if card in new else latest[card][1]
-        return {str(n["id"]): {"model": n["model_name"], "fields": fields_of(n),
-                               "interval": interval(n["cards"][0]) if n["cards"] else None}
-                for n in notes}
+        for v in vocab.values():
+            card = v.pop("card")
+            v["interval"] = None if card is None else 0 if card in new else latest[card][1]
+        return vocab
 
 
 class MinedWordsCache(Workload):
@@ -699,7 +717,10 @@ async def leftovers(c):
 
 async def run(args, report):
     endpoint = Endpoint.parse(args.url)
-    c = Client(endpoint, os.environ.get(args.api_key_env))
+    # AnkiConnect refuses any key but its own, including a key it doesn't have,
+    # so upstream runs send AnkiConnect's key, if one is set, never Tsunagi's.
+    key_env = "ANKICONNECT_API_KEY" if args.implementation == "upstream" else args.api_key_env
+    c = Client(endpoint, os.environ.get(key_env))
     if await c.action("getActiveProfile") != args.profile:
         raise RuntimeError(f"Expected testing profile {args.profile!r}")
     before = await leftovers(c)
@@ -780,7 +801,8 @@ def main():
     parser.add_argument("--implementation", required=True, choices=("upstream", "shim", "native"))
     parser.add_argument("--workloads", nargs="*", choices=[w.name for w in WORKLOADS])
     parser.add_argument("--repeats", type=int, default=10)
-    parser.add_argument("--api-key-env", default="TSUNAGI_BENCH_API_KEY")
+    parser.add_argument("--api-key-env", default="TSUNAGI_BENCH_API_KEY",
+                        help="Tsunagi key variable; upstream runs use ANKICONNECT_API_KEY, if set")
     parser.add_argument("--server-label", default="")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

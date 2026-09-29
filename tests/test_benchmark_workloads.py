@@ -25,7 +25,7 @@ def server(col, reset_settings, monkeypatch):
     mm = col.models
     for model_name in (bw.MODEL, "Kiku"):   # the profile also has an older note type
         model = mm.new(model_name)
-        for name in (bw.TERM_FIELD, "Sentence", "ExpressionAudio", "Picture"):
+        for name in (bw.TERM_FIELD, "ExpressionReading", "Sentence", "ExpressionAudio", "Picture"):
             mm.add_field(model, mm.new_field(name))
         template = mm.new_template("Card 1")
         template["qfmt"], template["afmt"] = "{{Expression}}", "{{Sentence}}"
@@ -57,7 +57,8 @@ def server(col, reset_settings, monkeypatch):
 def run(url, implementation, tmp_path):
     report = {"workloads": []}
     args = SimpleNamespace(url=url, profile="Bench", implementation=implementation,
-                           workloads=["mine_session", "client_settings", "sync_notes_batch", "first_page_cards"], repeats=1,
+                           workloads=["mine_session", "client_settings", "sync_notes_batch", "first_page_cards",
+                                      "known_words_snapshot"], repeats=1,
                            api_key_env="TSUNAGI_TEST_NO_KEY", output=tmp_path / f"{implementation}.json")
     asyncio.run(bw.run(args, report))
     assert report["completed"] and not any(report["leftovers"].values())
@@ -66,7 +67,8 @@ def run(url, implementation, tmp_path):
 
 def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp_path):
     native, shim = run(server, "native", tmp_path), run(server, "shim", tmp_path)
-    for name in ("mine_session", "client_settings", "sync_notes_batch", "first_page_cards"):
+    for name in ("mine_session", "client_settings", "sync_notes_batch", "first_page_cards",
+                 "known_words_snapshot"):
         assert native[name]["consistent_result"] and shim[name]["consistent_result"]
         assert native[name]["trials"][1].get("part_sha256") == shim[name]["trials"][1].get("part_sha256")
         assert native[name]["trials"][1]["result_sha256"] == shim[name]["trials"][1]["result_sha256"]
@@ -84,5 +86,8 @@ def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp
             shim["first_page_cards"]["trials"][1]["requests"]) == (2, 2)
     page = native["first_page_cards"]["result_sample"]
     assert page["total"] == 13 and len(page["cards"]) == 10 and page["cards"][0]["front"] == "word0"
+    # Yomine's vocab: both mapped note types, only the fields it reads.
+    vocab = native["known_words_snapshot"]["result_sample"]
+    assert len(vocab) == 13 and {v["term"] for v in vocab.values()} == {f"word{i}" for i in range(12)}
     outcomes = native["sync_notes_batch"]["result_sample"]["outcomes"]
     assert outcomes == ["added"] * 15 + ["duplicate"] * 3 + ["empty", "rejected"]

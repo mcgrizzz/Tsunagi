@@ -107,6 +107,7 @@ async def exchange(endpoint, wire, timeout, validate=None, *, return_payload=Fal
         payload = json.loads(body)
         if isinstance(payload, dict) and payload.get("error") is not None:
             result["outcome"] = "api_error"
+            result["error"] = str(payload["error"])[:300]
             return
         if validate:
             validate(payload)
