@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, StrictBool
 
 # ----------------- Response Schemas -----------------
 from .creation import CreationFailure, CreationResult
+from .media import MediaUpload
 
 
 class NoteField(BaseModel):
@@ -78,6 +79,15 @@ class DuplicateScopeOptions(BaseModel):
         description="Match notes of every note type, not just the candidate's.")
 
 
+class NoteAttachment(MediaUpload):
+    """A file stored with the note, as in AnkiConnect's addNote."""
+    fields: List[str] = Field(default_factory=list,
+                              description="Fields the file's reference is appended to; none stores it only.")
+
+
+Attachments = Optional[Union[List[NoteAttachment], NoteAttachment]]
+
+
 class NoteCreate(BaseModel):
     class Config:
         allow_population_by_field_name = True
@@ -103,6 +113,19 @@ class NoteCreate(BaseModel):
                      "check_all_models is used, notes match on the first field's checksum, "
                      "as in AnkiConnect."),
     )
+    # Stored with the note, with [sound:...] or <img src="..."> appended to
+    # their fields: one object or a list each, as in AnkiConnect.
+    audio: Attachments = None
+    video: Attachments = None
+    picture: Attachments = None
+
+    def attachments(self) -> List[tuple]:
+        """(kind, attachment) pairs, audio first, as AnkiConnect orders them."""
+        out = []
+        for kind in ("audio", "video", "picture"):
+            value = getattr(self, kind)
+            out += [(kind, a) for a in (value if isinstance(value, list) else [value] if value else [])]
+        return out
 
 
 class NotePatch(BaseModel):

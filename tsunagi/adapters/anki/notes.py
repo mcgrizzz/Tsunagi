@@ -329,10 +329,12 @@ def check_notes(col: Collection, candidates: List[NoteCreate], *,
 # ====================
 
 def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any], deck_id: int, *,
-                  include_duplicate_ids: bool = True) -> Any:
-    """Build and validate one native note against the current collection."""
+                  include_duplicate_ids: bool = True,
+                  field_values: Optional[Dict[str, str]] = None) -> Any:
+    """Build and validate one native note against the current collection.
+    field_values replaces req.fields (attachment references already added)."""
     note = col.new_note(nt)
-    _apply_fields(note, _fields_to_map(req.fields), nt["name"])
+    _apply_fields(note, _fields_to_map(req.fields) if field_values is None else field_values, nt["name"])
     note.tags = list(req.tags)
 
     state, scoped = _duplicate_state(col, note, req, deck_id)

@@ -1,5 +1,5 @@
 """Native note batches: shared setup, independent validation, one undo step."""
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from anki.collection import Collection, OpChanges
 
@@ -19,6 +19,7 @@ from ...shared.schemas.notes import (
     NoteUpsertResponse,
 )
 from ..ops import ValueWithChanges, as_collection_op
+from .media import write_media
 from .notes import (
     EMPTY,
     _apply_fields,
@@ -30,10 +31,39 @@ from .notes import (
     _resolve_notetype,
 )
 
+# A note's attachment, fetched on the request thread: (kind, filename, bytes, fields).
+Attachment = Tuple[str, str, bytes, List[str]]
+_MARKUP = {"audio": "[sound:{}]", "video": "[sound:{}]", "picture": '<img src="{}">'}
+
+
+def _with_references(values: Dict[str, str], files: List[Attachment]) -> Dict[str, str]:
+    """Field values with each file's reference appended to its fields, as AnkiConnect does."""
+    out = dict(values)
+    for kind, name, _data, fields in files:
+        for field in fields:
+            out[field] = out.get(field, "") + _MARKUP[kind].format(name)
+    return out
+
+
+def _store_attachments(col: Collection, note: Any, files: List[Attachment]) -> None:
+    """Store a checked note's files; a renamed file's references follow it."""
+    for kind, name, data, fields in files:
+        stored, _renamed = write_media(col, name, data)
+        if stored != name:
+            old, new = _MARKUP[kind].format(name), _MARKUP[kind].format(stored)
+            for field in fields:
+                note[field] = note[field].replace(old, new)
+
 
 @as_collection_op
 def create_notes(col: Collection, candidates: List[NoteCreate], *,
-                 include_cards: bool = False) -> NoteCreateResponse:
+                 include_cards: bool = False,
+                 attachments: Optional[Dict[int, List[Attachment]]] = None,
+                 attachment_errors: Optional[Dict[int, str]] = None) -> NoteCreateResponse:
+    """attachments/attachment_errors: by input index, fetched before this
+    operation (downloads stay outside it). A note's files are stored only once
+    the note has passed its checks, so a rejected note leaves no files."""
+    attachments, attachment_errors = attachments or {}, attachment_errors or {}
     created: List[NoteCreated] = []
     failed: List[CreationFailure] = []
     # These lookups live only inside this serialized collection operation.
@@ -41,6 +71,11 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
     target = None
     changes = OpChanges()
     for index, req in enumerate(candidates):
+        if index in attachment_errors:
+            failed.append(CreationFailure(index=index, code="invalid_attachment",
+                                          message=attachment_errors[index]))
+            continue
+        files = attachments.get(index, [])
         try:
             model_key = (req.model_id, req.model_name)
             if model_key not in models:
@@ -51,7 +86,10 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
             # Validate immediately before adding: earlier successes in this
             # batch must participate in duplicate checks too.
             note = _prepare_note(col, req, models[model_key], decks[deck_key],
-                                 include_duplicate_ids=False)
+                                 include_duplicate_ids=False,
+                                 field_values=_with_references(_fields_to_map(req.fields), files)
+                                 if files else None)
+            _store_attachments(col, note, files)
             step = col.add_note(note, decks[deck_key])
         except DuplicateNoteError:
             failed.append(CreationFailure(index=index, code="duplicate",
@@ -165,6 +203,12 @@ def upsert_notes(col: Collection, candidates: List[NoteUpsert], *,
             changes = col.merge_undo_entries(target_step)
 
     for index, req in enumerate(candidates):
+        if req.attachments():
+            out.failed.append(CreationFailure(
+                index=index, code="invalid_note",
+                message="upsert doesn't take attachments; upload them with POST /v1/media "
+                        "and put their names in the fields"))
+            continue
         try:
             model_key, deck_key = (req.model_id, req.model_name), (req.deck_id, req.deck_name)
             if model_key not in models:

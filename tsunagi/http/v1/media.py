@@ -100,7 +100,7 @@ def _fetch_url(url: str) -> bytes:
     return b"".join(chunks)
 
 
-def _resolve_upload(body: MediaUpload) -> tuple:
+def resolve_upload(body: MediaUpload) -> tuple:
     """(filename, data) from exactly one of data/path/url."""
     sources = [s for s in (body.data, body.path, body.url) if s is not None]
     if len(sources) != 1:
@@ -212,7 +212,7 @@ def store_media(
 ) -> Union[MediaCreateResponse, JSONResponse]:
     candidates = body if isinstance(body, list) else [body]
     if not idempotency_key:
-        return create_media(candidates, _resolve_upload)
+        return create_media(candidates, resolve_upload)
 
     def start(done, fail):
         # The whole upload runs on its own thread, with no deadline per chunk,
@@ -222,7 +222,7 @@ def store_media(
 
         def work():
             try:
-                done(create_media(candidates, _resolve_upload, timeout=FOREVER).dict())
+                done(create_media(candidates, resolve_upload, timeout=FOREVER).dict())
             except BaseException as exc:
                 fail(exc)
         threading.Thread(target=context.run, args=(work,), daemon=True).start()

@@ -188,15 +188,41 @@ their first field, the field Anki compares for duplicates:
 `first_field` is the first field's exact value, HTML included. Add
 `where=model_name=="Basic"` or other filters to narrow it.
 
-## Upload files, then use their stored names
+## Add files to your notes
 
-Send one upload object or an array to **`POST /v1/media`**. For example, this is
-an array containing one small text file:
+Send the files with the note: **`POST /v1/notes`** takes `audio`, `video` and
+`picture`, each one file or a list, as AnkiConnect's `addNote` does:
 
 ```json
-[
-  {"filename": "example.txt", "data": "aGVsbG8="}
-]
+{"modelName": "Basic", "deckName": "Default",
+ "fields": {"Front": "犬", "Back": "dog"},
+ "audio": {"url": "https://example.com/inu.mp3", "filename": "inu.mp3", "fields": ["Front"]},
+ "picture": {"data": "iVBORw0KGgo...", "filename": "inu.png", "fields": ["Back"]}}
+```
+
+Tsunagi stores each file and appends `[sound:inu.mp3]` or `<img src="inu.png">`
+to the fields you list; with no `fields`, the file is only stored. A note's
+files are stored only once the note passes its checks, so a rejected note (a
+duplicate, say) leaves no files behind. A file that can't be read or
+downloaded fails its note with `invalid_attachment`. Batches work the same way:
+each note in the array carries its own files.
+
+Each file takes exactly one source:
+
+- `data`: the file's contents, base64-encoded;
+- `url`: an `http` or `https` address Anki downloads;
+- `path`: a file on this computer. Off by default, because it lets an app read
+  any file you can; only apps with the Everything role may use it.
+
+Base64 files need a `filename`; URL and path files can derive it from the
+source. The configured upload-size limit applies to each file.
+
+**Many or large files, or one file for several notes?** Upload them first with
+**`POST /v1/media`** (one object or an array, same sources), then put the
+returned names in your fields:
+
+```json
+[{"filename": "example.txt", "data": "aGVsbG8="}]
 ```
 
 ```json
@@ -208,24 +234,13 @@ an array containing one small text file:
 }
 ```
 
-Each upload takes exactly one source:
+Use the returned `filename`: Anki renames a file when the requested name already
+holds different bytes. (Files sent with a note are renamed the same way, and
+their references follow.) Uploading first keeps each request small and sends a
+shared file once.
 
-- `data`: the file's contents, base64-encoded;
-- `url`: an `http` or `https` address Anki downloads;
-- `path`: a file on this computer. Off by default, because it lets an app read
-  any file you can; only apps with the Everything role may use it. Otherwise
-  that item fails as `invalid_media`. Base64 uploads need
-a `filename`; URL and path uploads can derive it from the source. The configured
-upload-size limit applies to each file.
-
-**Use the returned `filename`.** Anki can rename a file when the requested name
-already contains different bytes. Put the stored name in your note's
-`<img src="filename">` or `[sound:filename]` markup, then send the prepared notes
-to `/v1/notes`. This takes two requests for a batch: one for all uploads, one for
-all notes. Tsunagi API note bodies don't accept AnkiConnect's attachment envelope.
-
-Media uploads aren't undoable. Undoing note creation doesn't remove uploaded
-files, and a rejected note can leave its media unused.
+Stored files aren't part of undo: undoing note creation removes the notes, not
+their files.
 
 ## Handle failures
 

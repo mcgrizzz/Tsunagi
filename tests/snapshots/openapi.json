@@ -1528,6 +1528,37 @@
         "title": "MutationResult[Any]",
         "type": "object"
       },
+      "NoteAttachment": {
+        "description": "A file stored with the note, as in AnkiConnect's addNote.",
+        "properties": {
+          "data": {
+            "title": "Data",
+            "type": "string"
+          },
+          "fields": {
+            "description": "Fields the file's reference is appended to; none stores it only.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "title": "NoteAttachment",
+        "type": "object"
+      },
       "NoteCheckRequest": {
         "properties": {
           "notes": {
@@ -1608,6 +1639,20 @@
             "title": "Allowduplicate",
             "type": "boolean"
           },
+          "audio": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Audio"
+          },
           "deckId": {
             "title": "Deckid",
             "type": "integer"
@@ -1659,12 +1704,40 @@
             "title": "Modelname",
             "type": "string"
           },
+          "picture": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Picture"
+          },
           "tags": {
             "items": {
               "type": "string"
             },
             "title": "Tags",
             "type": "array"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Video"
           }
         },
         "required": [
@@ -1817,6 +1890,20 @@
             "title": "Allowduplicate",
             "type": "boolean"
           },
+          "audio": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Audio"
+          },
           "deckId": {
             "title": "Deckid",
             "type": "integer"
@@ -1874,12 +1961,40 @@
           "onMatch": {
             "$ref": "#/components/schemas/OnMatch"
           },
+          "picture": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Picture"
+          },
           "tags": {
             "items": {
               "type": "string"
             },
             "title": "Tags",
             "type": "array"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Video"
           }
         },
         "required": [
@@ -7488,7 +7603,7 @@
         "x-permission": "read:notes"
       },
       "post": {
-        "description": "Accepts one note object or an array. Always returns created and failed arrays, with zero-based input indexes (0 for a single object). Valid notes stay saved when another note is rejected. Inputs are processed in order and successful additions form one undo step. Malformed request bodies return 422 before writes. Add include=cards to return generated card IDs. Upload media separately and reference the stored filenames in fields.",
+        "description": "Accepts one note object or an array. Always returns created and failed arrays, with zero-based input indexes (0 for a single object). Valid notes stay saved when another note is rejected. Inputs are processed in order and successful additions form one undo step. Malformed request bodies return 422 before writes. Add include=cards to return generated card IDs. Files can come with each note in audio, video and picture, as in AnkiConnect: each is stored once its note passes its checks, and its reference is appended to the listed fields. For many or large files, or one file shared by several notes, upload them to /v1/media first instead.",
         "operationId": "createNotes",
         "parameters": [
           {

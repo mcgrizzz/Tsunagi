@@ -16,11 +16,12 @@ from ...adapters.anki.notes import (
     patch_note,
 )
 from ...adapters.ops import collection_op_run_async
-from ...shared.errors import handle_mutation_errors
+from ...shared.errors import ValidationError, handle_mutation_errors
 from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, MutationCaps, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
+from ...shared.schemas.media import sanitize_media_filename
 from ...shared.schemas.notes import (
     NoteCheckRequest,
     NoteCheckResponse,
@@ -30,6 +31,7 @@ from ...shared.schemas.notes import (
     NoteUpsertResponse,
 )
 from ...shared.schemas.wrappers import Paginated
+from .media import resolve_upload
 
 caps = SourceCaps(
     # No fetch_all on purpose: materializing every note must be unreachable.
@@ -129,6 +131,25 @@ def upsert(
     return upsert_notes(body if isinstance(body, list) else [body], include_cards=include == "cards")
 
 
+def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
+    """Each note's files, fetched here on the request thread (downloads stay
+    outside the collection operation); a note whose file can't be fetched
+    fails alone."""
+    attachments, errors = {}, {}
+    for index, req in enumerate(candidates):
+        try:
+            files = []
+            for kind, attachment in req.attachments():
+                name, data = resolve_upload(attachment)
+                sanitize_media_filename(name)   # a bad name fails before anything is stored
+                files.append((kind, name, data, list(attachment.fields)))
+            if files:
+                attachments[index] = files
+        except ValidationError as exc:
+            errors[index] = str(exc)
+    return {"attachments": attachments, "attachment_errors": errors}
+
+
 @router.post(
     "/v1/notes",
     openapi_extra=requires("write:notes"),
@@ -140,8 +161,10 @@ def upsert(
         "with zero-based input indexes (0 for a single object). Valid notes stay saved "
         "when another note is rejected. Inputs are processed in order and successful additions "
         "form one undo step. Malformed request bodies return 422 before writes. "
-        "Add include=cards to return generated card IDs. Upload media separately and reference "
-        "the stored filenames in fields."
+        "Add include=cards to return generated card IDs. Files can come with each note in "
+        "audio, video and picture, as in AnkiConnect: each is stored once its note passes its "
+        "checks, and its reference is appended to the listed fields. For many or large files, "
+        "or one file shared by several notes, upload them to /v1/media first instead."
     ),
     tags=["Notes"],
     operation_id="createNotes",
@@ -155,11 +178,12 @@ def create(
     candidates = body if isinstance(body, list) else [body]
     include_cards = include == "cards"
     if not idempotency_key:
-        return create_notes(candidates, include_cards=include_cards)
+        return create_notes(candidates, include_cards=include_cards, **_fetch_attachments(candidates))
 
     def start(done, fail):
         # Recorded when the write completes, even after this request's 503.
         collection_op_run_async(create_notes.__wrapped__, candidates, include_cards=include_cards,
+                                **_fetch_attachments(candidates),
                                 on_success=lambda r: done(r.dict(exclude_none=True)), on_failure=fail)
     response, replayed = idempotency.run(
         idempotency.scope("POST /v1/notes", idempotency_key),

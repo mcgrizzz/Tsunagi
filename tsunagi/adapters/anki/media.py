@@ -59,17 +59,22 @@ def resolve_media_path(col: Collection, filename: str) -> Optional[str]:
     return path if os.path.isfile(path) else None
 
 
-@as_query_op
-def store_media_bytes(col: Collection, filename: str, data: bytes) -> Tuple[str, bool]:
+def write_media(col: Collection, filename: str, data: bytes) -> Tuple[str, bool]:
     """
     Write bytes to the media folder. Returns (actual_filename, renamed) -
     Anki renames on a name collision with different content, and the caller
-    needs the real name to reference the file.
+    needs the real name to reference the file. A plain function, so a
+    collection operation (note attachments) can call it without nesting ops.
     """
     name = sanitize_media_filename(filename)
     _contained_path(col, name)
     stored = col.media.write_data(name, data)
     return stored, stored != name
+
+
+@as_query_op
+def store_media_bytes(col: Collection, filename: str, data: bytes) -> Tuple[str, bool]:
+    return write_media(col, filename, data)
 
 
 @as_query_op
