@@ -161,7 +161,8 @@ def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
         "with zero-based input indexes (0 for a single object). Valid notes stay saved "
         "when another note is rejected. Inputs are processed in order and successful additions "
         "form one undo step. Malformed request bodies return 422 before writes. "
-        "Add include=cards to return generated card IDs. Files can come with each note in "
+        "Add include=cards to return generated card IDs, and include_duplicate_ids=true for "
+        "the existing notes each duplicate matches (as POST /v1/notes:check reports them). Files can come with each note in "
         "audio, video and picture, as in AnkiConnect: each is stored once its note passes its "
         "checks, and its reference is appended to the listed fields. For many or large files, "
         "or one file shared by several notes, upload them to /v1/media first instead."
@@ -173,19 +174,23 @@ def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
 def create(
     body: Union[List[NoteCreate], NoteCreate] = Body(..., description="One note or an array of notes"),
     include: Optional[Literal["cards"]] = Query(default=None, description="Also return generated card IDs"),
+    include_duplicate_ids: bool = Query(default=False,
+                                        description="For duplicates, also look up the notes they match"),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", description=IDEMPOTENCY_HELP),
 ) -> Union[NoteCreateResponse, JSONResponse]:
     candidates = body if isinstance(body, list) else [body]
     include_cards = include == "cards"
     if not idempotency_key:
-        return create_notes(candidates, include_cards=include_cards, **_fetch_attachments(candidates))
+        return create_notes(candidates, include_cards=include_cards, include_duplicate_ids=include_duplicate_ids,
+                            **_fetch_attachments(candidates))
 
     def start(done, fail):
         # Recorded when the write completes, even after this request's 503.
         collection_op_run_async(create_notes.__wrapped__, candidates, include_cards=include_cards,
+                                include_duplicate_ids=include_duplicate_ids,
                                 **_fetch_attachments(candidates),
                                 on_success=lambda r: done(r.dict(exclude_none=True)), on_failure=fail)
     response, replayed = idempotency.run(
         idempotency.scope("POST /v1/notes", idempotency_key),
-        idempotency.fingerprint([c.dict() for c in candidates], include_cards), start)
+        idempotency.fingerprint([c.dict() for c in candidates], include_cards, include_duplicate_ids), start)
     return JSONResponse(response, headers={"Idempotent-Replayed": "true"} if replayed else None)

@@ -13,6 +13,7 @@ from ...shared.schemas.creation import CreationFailure
 from ...shared.schemas.notes import (
     NoteCreate,
     NoteCreated,
+    NoteCreateFailure,
     NoteCreateResponse,
     NoteUpdated,
     NoteUpsert,
@@ -58,22 +59,25 @@ def _store_attachments(col: Collection, note: Any, files: List[Attachment]) -> N
 @as_collection_op
 def create_notes(col: Collection, candidates: List[NoteCreate], *,
                  include_cards: bool = False,
+                 include_duplicate_ids: bool = False,
                  attachments: Optional[Dict[int, List[Attachment]]] = None,
                  attachment_errors: Optional[Dict[int, str]] = None) -> NoteCreateResponse:
     """attachments/attachment_errors: by input index, fetched before this
     operation (downloads stay outside it). A note's files are stored only once
-    the note has passed its checks, so a rejected note leaves no files."""
+    the note has passed its checks, so a rejected note leaves no files.
+    include_duplicate_ids: look up the notes each duplicate matches, as the
+    check does; off by default, as it costs a search per duplicate."""
     attachments, attachment_errors = attachments or {}, attachment_errors or {}
     created: List[NoteCreated] = []
-    failed: List[CreationFailure] = []
+    failed: List[NoteCreateFailure] = []
     # These lookups live only inside this serialized collection operation.
     models, decks = {}, {}
     target = None
     changes = OpChanges()
     for index, req in enumerate(candidates):
         if index in attachment_errors:
-            failed.append(CreationFailure(index=index, code="invalid_attachment",
-                                          message=attachment_errors[index]))
+            failed.append(NoteCreateFailure(index=index, code="invalid_attachment",
+                                            message=attachment_errors[index]))
             continue
         files = attachments.get(index, [])
         try:
@@ -86,22 +90,23 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
             # Validate immediately before adding: earlier successes in this
             # batch must participate in duplicate checks too.
             note = _prepare_note(col, req, models[model_key], decks[deck_key],
-                                 include_duplicate_ids=False,
+                                 include_duplicate_ids=include_duplicate_ids,
                                  field_values=_with_references(_fields_to_map(req.fields), files)
                                  if files else None)
             _store_attachments(col, note, files)
             step = col.add_note(note, decks[deck_key])
-        except DuplicateNoteError:
-            failed.append(CreationFailure(index=index, code="duplicate",
-                                            message="Note duplicates an existing note"))
+        except DuplicateNoteError as exc:
+            failed.append(NoteCreateFailure(index=index, code="duplicate",
+                                            message="Note duplicates an existing note",
+                                            duplicate_note_ids=exc.note_ids if include_duplicate_ids else None))
             continue
         except ValidationError as exc:
-            failed.append(CreationFailure(index=index, code="invalid_note", message=str(exc)))
+            failed.append(NoteCreateFailure(index=index, code="invalid_note", message=str(exc)))
             continue
         except Exception as exc:
             if type(exc).__name__ not in ANKI_CLIENT_ERRORS:
                 raise
-            failed.append(CreationFailure(index=index, code="anki_error",
+            failed.append(NoteCreateFailure(index=index, code="anki_error",
                                             message=anki_error_detail(exc)))
             continue
 

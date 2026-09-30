@@ -102,6 +102,21 @@ def test_duplicate_failure_does_not_search_for_existing_ids(client, col, monkeyp
                                   "message": "Note duplicates an existing note"}]
 
 
+def test_duplicate_ids_on_request(client, col):
+    existing = create(client, candidate("seen"))["created"][0]["id"]
+    response = client.post("/v1/notes", params={"include_duplicate_ids": "true"}, json=[
+        candidate("seen"), candidate("new"), candidate("new"), candidate("")])
+    result = response.json()
+    first_new = result["created"][0]["id"]
+    assert result["failed"] == [
+        {"index": 0, "code": "duplicate", "message": "Note duplicates an existing note",
+         "duplicate_note_ids": [existing]},
+        # A duplicate of a note added earlier in the same request.
+        {"index": 2, "code": "duplicate", "message": "Note duplicates an existing note",
+         "duplicate_note_ids": [first_new]},
+        {"index": 3, "code": "invalid_note", "message": "first field is empty"}]
+
+
 @pytest.mark.parametrize("as_array", [False, True])
 def test_one_note_has_the_same_envelope(client, as_array):
     note = candidate("single")

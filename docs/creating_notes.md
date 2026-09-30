@@ -56,6 +56,13 @@ second is a duplicate of the first. HTTP **200** returns:
 its card IDs (`"cards": [1789200000001]`), so you can act on the cards (suspend
 them, set a due date) without searching for them first.
 
+**Need the note a duplicate matches?** Add `?include_duplicate_ids=true` and
+each duplicate lists the notes it duplicates, the same ones `POST /v1/notes:check`
+reports. In the example above, the second note's failure becomes
+`{"index": 1, "code": "duplicate", "message": "Note duplicates an existing note", "duplicate_note_ids": [1789200000000]}`,
+so you can link to or update the existing note without searching for it. It
+costs a search for each duplicate, so it's off by default.
+
 Notes are saved in input order. `allowDuplicate` defaults to `false`; set it to
 `true` on an input to allow a duplicate, including of an earlier note in the
 same request.

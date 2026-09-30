@@ -175,8 +175,14 @@ class NoteCreated(BaseModel):
     cards: Optional[List[int]] = Field(default=None, description="Present when include=cards was requested.")
 
 
+class NoteCreateFailure(CreationFailure):
+    duplicate_note_ids: Optional[List[int]] = Field(
+        default=None,
+        description="For code 'duplicate', with include_duplicate_ids=true: the existing notes it duplicates.")
+
+
 class NoteCreateResponse(CreationResult[NoteCreated]):
-    pass
+    failed: List[NoteCreateFailure] = Field(default_factory=list)
 
 
 # ----------------- Upsert (backlog 7.1) -----------------

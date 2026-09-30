@@ -74,6 +74,12 @@ def test_creation_honors_the_scope(client, col, seeded):
     blocked = client.post("/v1/notes", json=note("犬", duplicateScopeOptions={"checkAllModels": True},
                                                model="Basic (and reversed card)", deck="A"))
     assert blocked.json()["failed"][0]["code"] == "duplicate"
+    # With the IDs asked for, the scope decides them, as the check reports them.
+    ids = client.post("/v1/notes", params={"include_duplicate_ids": "true"},
+                      json=note("犬", duplicateScopeOptions={"checkAllModels": True},
+                                model="Basic (and reversed card)", deck="A")).json()["failed"][0]
+    assert sorted(ids["duplicate_note_ids"]) == check(client, note("犬", duplicateScopeOptions={"checkAllModels": True},
+                                                          model="Basic (and reversed card)", deck="A"))[1]
     allowed = client.post("/v1/notes", json=note("犬", duplicateScope="deck", deck="B"))
     assert allowed.json()["created"]
 

@@ -1746,6 +1746,38 @@
         "title": "NoteCreate",
         "type": "object"
       },
+      "NoteCreateFailure": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "duplicate_note_ids": {
+            "description": "For code 'duplicate', with include_duplicate_ids=true: the existing notes it duplicates.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Duplicate Note Ids",
+            "type": "array"
+          },
+          "index": {
+            "description": "Zero-based position in the submitted array; 0 for one object.",
+            "title": "Index",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "code",
+          "message"
+        ],
+        "title": "NoteCreateFailure",
+        "type": "object"
+      },
       "NoteCreateResponse": {
         "properties": {
           "created": {
@@ -1757,7 +1789,7 @@
           },
           "failed": {
             "items": {
-              "$ref": "#/components/schemas/CreationFailure"
+              "$ref": "#/components/schemas/NoteCreateFailure"
             },
             "title": "Failed",
             "type": "array"
@@ -7603,7 +7635,7 @@
         "x-permission": "read:notes"
       },
       "post": {
-        "description": "Accepts one note object or an array. Always returns created and failed arrays, with zero-based input indexes (0 for a single object). Valid notes stay saved when another note is rejected. Inputs are processed in order and successful additions form one undo step. Malformed request bodies return 422 before writes. Add include=cards to return generated card IDs. Files can come with each note in audio, video and picture, as in AnkiConnect: each is stored once its note passes its checks, and its reference is appended to the listed fields. For many or large files, or one file shared by several notes, upload them to /v1/media first instead.",
+        "description": "Accepts one note object or an array. Always returns created and failed arrays, with zero-based input indexes (0 for a single object). Valid notes stay saved when another note is rejected. Inputs are processed in order and successful additions form one undo step. Malformed request bodies return 422 before writes. Add include=cards to return generated card IDs, and include_duplicate_ids=true for the existing notes each duplicate matches (as POST /v1/notes:check reports them). Files can come with each note in audio, video and picture, as in AnkiConnect: each is stored once its note passes its checks, and its reference is appended to the listed fields. For many or large files, or one file shared by several notes, upload them to /v1/media first instead.",
         "operationId": "createNotes",
         "parameters": [
           {
@@ -7618,6 +7650,18 @@
               ],
               "title": "Include",
               "type": "string"
+            }
+          },
+          {
+            "description": "For duplicates, also look up the notes they match",
+            "in": "query",
+            "name": "include_duplicate_ids",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "For duplicates, also look up the notes they match",
+              "title": "Include Duplicate Ids",
+              "type": "boolean"
             }
           },
           {
