@@ -1929,6 +1929,23 @@
         "title": "NoteIdRequest",
         "type": "object"
       },
+      "NoteIds": {
+        "description": "Body for the batch note verbs, as CardIds is for cards.",
+        "properties": {
+          "noteIds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Noteids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "noteIds"
+        ],
+        "title": "NoteIds",
+        "type": "object"
+      },
       "NoteUpdated": {
         "properties": {
           "cards": {
@@ -8117,6 +8134,57 @@
           "Notes"
         ],
         "x-permission": "read:notes"
+      }
+    },
+    "/v1/notes:delete": {
+      "post": {
+        "description": "Deletes the notes and their cards, as one undo step. A missing note is skipped; `affected` counts the notes deleted. Same `resource:verb` form as the card verbs.",
+        "operationId": "notesDelete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteIds"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulingResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete notes",
+        "tags": [
+          "Notes"
+        ],
+        "x-permission": "write:notes"
       }
     },
     "/v1/notes:upsert": {

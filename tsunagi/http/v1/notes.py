@@ -28,6 +28,7 @@ from ...shared.planning import (
     SourceCaps,
 )
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
+from ...shared.schemas.cards import SchedulingResult
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import sanitize_media_filename
 from ...shared.schemas.notes import (
@@ -35,6 +36,7 @@ from ...shared.schemas.notes import (
     NoteCheckResponse,
     NoteCreate,
     NoteCreateResponse,
+    NoteIds,
     NoteUpsert,
     NoteUpsertResponse,
 )
@@ -116,6 +118,26 @@ def check(
         "results": results,
         "stats": {"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
     }
+
+
+@router.post(
+    "/v1/notes:delete",
+    openapi_extra=requires("write:notes"),
+    response_model=SchedulingResult,
+    summary="Delete notes",
+    description=("Deletes the notes and their cards, as one undo step. A missing note is "
+                 "skipped; `affected` counts the notes deleted. Same `resource:verb` form "
+                 "as the card verbs."),
+    tags=["Notes"],
+    operation_id="notesDelete",
+)
+@handle_mutation_errors("delete")
+def delete(body: NoteIds = Body(...)) -> SchedulingResult:
+    start = time.perf_counter()
+    # No ids, no write: Anki would still record an empty undo step.
+    affected = delete_notes(body.note_ids) if body.note_ids else 0
+    return SchedulingResult(affected=affected,
+                            stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)})
 
 
 @router.post(

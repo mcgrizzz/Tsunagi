@@ -143,6 +143,14 @@ class NotePatch(BaseModel):
     model_name: Optional[str] = Field(alias="modelName", default=None)
 
 
+class NoteIds(BaseModel):
+    """Body for the batch note verbs, as CardIds is for cards."""
+    class Config:
+        allow_population_by_field_name = True
+
+    note_ids: List[int] = Field(alias="noteIds")
+
+
 # ----------------- Duplicate/empty check -----------------
 
 
