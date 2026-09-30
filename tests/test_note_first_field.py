@@ -38,7 +38,10 @@ def test_lookup_finds_every_note_type_and_only_exact_values(client):
 
 
 def test_lookup_uses_the_index_and_combines_with_other_filters(client):
-    assert make_plan("id", ['first_field in ["よし"]'], caps).mode == "index"
+    # Anki's checksum index, through the shared SQL layer.
+    assert make_plan("id", ['first_field in ["よし"]'], caps).mode == "sql"
+    from tsunagi.shared.sql_query import compile_where
+    assert compile_where(caps.sql, ['first_field in ["よし"]']).condition.startswith("(csum in")
     add(client, "よし")
     reversed_ = add(client, "よし", model="Basic (and reversed card)")
     response = client.get("/v1/notes", params=[

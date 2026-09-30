@@ -16,8 +16,10 @@ from ...shared.schemas.notes import (
     NoteInfo,
     NotePatch,
 )
+from ...shared.sql_query import Column, ColumnSource
 from ..event_results import note_result
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
+from .id_queries import select_ids
 
 # note.fields_check() states (anki.notes.NoteFieldsCheckResult)
 NORMAL, EMPTY, DUPLICATE, MISSING_CLOZE = 0, 1, 2, 3
@@ -257,6 +259,26 @@ def get_notes_by_ids(col: Collection, ids: Sequence[int],
             raise
         out.append(_note_row(col, note, model_names, wants, cards_by_nid))
     return out
+
+
+def _first_field_checksums(values: List[Any]) -> Optional[Tuple[str, List[Any]]]:
+    """first_field == or in: the notes whose first field has one of these
+    checksums, Anki's duplicate index. A superset: the checksum ignores HTML,
+    and the predicate still compares the exact value."""
+    from anki.utils import field_checksum
+
+    strings = [v for v in values if isinstance(v, str)]  # other values never match
+    if not strings:
+        return None
+    sums = sorted({field_checksum(v) for v in strings})
+    return "csum in (" + ",".join("?" for _ in sums) + ")", sums
+
+
+# Note fields that are columns, for the shared SQL layer; `first_field` narrows by checksum.
+NOTE_SQL = ColumnSource("notes", {
+    "id": Column("id", "int"), "guid": Column("guid", "text"), "model_id": Column("mid", "int"),
+    "mod": Column("mod", "int"), "usn": Column("usn", "int"),
+}, select_ids, {"first_field": _first_field_checksums})
 
 
 @as_query_op

@@ -18,6 +18,8 @@ from typing import (
 from .filtering import parse_where  # we'll read ops & tokens directly
 from .schemas.wrappers import Scalar
 from .selecting import selected_top_fields
+from .sql_query import ColumnSource, all_ids, compile_where, filter_ids
+from .sql_query import page_ids as sql_page_ids
 
 Row = Union[Mapping[str, Any], Any]
 
@@ -124,10 +126,13 @@ class SourceCaps:
     # Fields built by the same costly hydration step. Defer a group only when
     # the predicate does not already need that work (e.g. question and answer).
     expensive_groups: tuple[FrozenSet[str], ...] = ()
+    # Row fields that are table columns: where clauses SQL answers exactly go
+    # into the id query (sql_query.py). Needs `search` for hydration.
+    sql: Optional[ColumnSource] = None
 
 @dataclass
 class Plan:
-    mode: str                                  # 'search'|'scan'|'index'|'columns'|'full'
+    mode: str                                  # 'sql'|'search'|'scan'|'index'|'columns'|'full'
     fetch: Optional[FetchAllFn] = None         # materialize-everything tiers
     # Search/scan tiers: enumerate ids cheaply, then hydrate a page at a time.
     # The caller drives the loop because it owns `where` filtering.
@@ -236,12 +241,38 @@ def _search_rows(spec: SearchSpec, query: str) -> Optional[Callable[[Optional[Se
     return lambda wants: spec.rows(query, wants)
 
 
+def _sql_plan(caps: SourceCaps, where_params: Optional[List[str]],
+              search: Optional[str]) -> Optional[Plan]:
+    """
+    The search or scan tier with the where clauses SQL can answer built into
+    the id query, so only rows that can match are loaded. None when no clause
+    can be pushed: the other tiers then serve the query exactly as before.
+    The full predicate still runs on the rows (route_factory).
+    """
+    if caps.sql is None or caps.search is None or not where_params:
+        return None
+    compiled = compile_where(caps.sql, where_params)
+    if not compiled.pushed:
+        return None
+    source, spec = caps.sql, caps.search
+    hydrate = _search_hydrator(spec)
+    if search is not None and search.strip():
+        # Anki's search runs first, as in the search tier; SQL narrows its ids.
+        return Plan("sql", find_ids=lambda: filter_ids(source, compiled, spec.find_ids(search)),
+                    hydrate=hydrate)
+    return Plan("sql", find_ids=lambda: all_ids(source, compiled), hydrate=hydrate,
+                page_ids=lambda after, limit: sql_page_ids(source, compiled, after, limit))
+
+
 def make_plan(
     select_text: Optional[str],
     where_params: Optional[List[str]],
     caps: SourceCaps,
     search: Optional[str] = None,
 ) -> Plan:
+    plan = _sql_plan(caps, where_params, search)
+    if plan is not None:
+        return plan
     # 0) SEARCH FIRST — a correctness constraint, not a speed heuristic: the
     # other tiers can't evaluate Anki search syntax, so letting one of them win
     # would silently drop the search terms.

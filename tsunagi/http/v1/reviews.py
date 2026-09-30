@@ -5,6 +5,7 @@ from fastapi import Body
 
 from ...adapters.anki.reviews import (
     COLUMNS,
+    REVIEW_SQL,
     find_review_ids,
     get_reviews_by_ids,
     get_reviews_of_cards,
@@ -40,6 +41,8 @@ caps = SourceCaps(
     # Anki search has no keyset form.
     search=SearchSpec(find_ids=find_review_ids, hydrate=get_reviews_by_ids,
                       page_ids=page_review_ids, rows=search_review_rows),
+    # Every review field is a column: where clauses go into the id query (backlog 9.13).
+    sql=REVIEW_SQL,
     # No MutationCaps: the factory's CRUD shapes don't fit an append-only log.
     # The one write - raw row insertion for history imports, AnkiConnect's
     # insertReviews - is the hand-written POST below.

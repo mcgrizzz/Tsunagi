@@ -11,7 +11,9 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 
 from anki.collection import Collection
 
+from ...shared.sql_query import Column, ColumnSource
 from ..ops import as_collection_op, as_query_op
+from .id_queries import select_ids
 
 # Raw review rows are needed here: Anki's GetReviewLogs returns processed
 # statistics without all revlog columns (for example, usn). Keep that storage
@@ -21,6 +23,11 @@ COLUMNS = ("id", "cid", "usn", "ease", "ivl", "lastIvl", "factor", "time", "type
 _SELECT = "select " + ", ".join(COLUMNS) + " from revlog"
 # ReviewInfo's field names for COLUMNS, in the same order.
 _NAMES = ("id", "card_id", "usn", "ease", "interval", "last_interval", "factor", "time_ms", "type")
+
+
+# Every review field is an integer column: all of them can go into the id query.
+REVIEW_SQL = ColumnSource("revlog", {name: Column(column, "int") for column, name in zip(COLUMNS, _NAMES)},
+                          select_ids)
 
 
 def _row(values: Sequence[int], names: Sequence[str] = _NAMES) -> Dict[str, int]:

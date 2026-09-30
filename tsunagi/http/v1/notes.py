@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from ...adapters import idempotency
 from ...adapters.anki.note_batches import create_notes, upsert_notes
 from ...adapters.anki.notes import (
+    NOTE_SQL,
     check_notes,
     delete_notes,
     find_note_ids,
@@ -57,6 +58,9 @@ caps = SourceCaps(
     # A `search=` query still enumerates in full - Anki search has no keyset.
     search=SearchSpec(find_ids=find_note_ids, hydrate=get_notes_by_ids,
                       page_ids=page_note_ids, id_field="id"),
+    # where clauses on note columns, and first_field by checksum, go into the
+    # id query, with or without a search (backlog 9.13).
+    sql=NOTE_SQL,
     mutations=MutationCaps(
         patch=patch_note,
         delete=lambda nid: delete_notes([nid]) > 0,

@@ -25,8 +25,10 @@ from ...shared.schemas.cards import (
     SetEaseRequest,
     SetFlagRequest,
 )
+from ...shared.sql_query import Column, ColumnSource
 from ..events import publish_review
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
+from .id_queries import select_ids
 
 QUEUE_SUSPENDED = -1
 BURIED_QUEUES = (-2, -3)  # sibling-buried, manually buried
@@ -46,6 +48,11 @@ CARD_COLUMN_SQL = {
     "left": '"left"', "flags": "flags", "flag": "flags & 7",
     "suspended": "queue = -1", "buried": "queue in (-2, -3)",
 }
+
+# The same columns for the shared SQL layer: where clauses on them go into the id query.
+CARD_SQL = ColumnSource("cards", {
+    name: Column(expr, "bool" if name in ("suspended", "buried") else "int")
+    for name, expr in CARD_COLUMN_SQL.items()}, select_ids)
 
 
 def _deck_names(col: Collection) -> Dict[int, str]:
