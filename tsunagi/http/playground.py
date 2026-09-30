@@ -57,6 +57,24 @@ JavaScript or `"model_name in " + json.dumps(names)` in Python.
 Check each endpoint for its supported fields and filters. In the request
 console, enter parameter values directly; the client handles URL encoding.
 
+### Choosing rows: `search` or `where`
+
+Use `search` to choose cards and notes: it is Anki's own search, fast and with
+Anki's rules. Use `where` for what search can't do: exact values in the rows
+you get back, and resources Anki can't search, such as reviews and decks.
+
+- Notes of a note type: `search=note:Kiku`
+- Cards in a deck and its subdecks: `search=deck:Mining`
+- Suspended cards: `search=is:suspended`
+- Cards with an interval of 21 days or more: `search=prop:ivl>=21`
+- Notes edited in the last 2 days: `search=edited:2`
+- Notes edited since an exact moment: `search=edited:2&where=mod>=1790000000`
+  (the search narrows quickly; `where` makes it exact to the second)
+- Notes whose first field is a word: `where=first_field in ["食べる"]`, with
+  `search=deck:Mining` to look in one deck only
+- Reviews answered Again: `where=ease==1` on `/v1/reviews`; there, `search`
+  chooses the cards whose reviews you get
+
 ### GET parameters or a JSON body
 
 Many list endpoints also provide a **Query … (POST)** operation. Both forms
