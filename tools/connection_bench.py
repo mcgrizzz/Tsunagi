@@ -221,5 +221,6 @@ async def stalled_upload(endpoint, partial_wire, probe_wire, timeout, validate):
 
 def query_request(endpoint, native, query, api_key):
     if native:
-        return wire_request(endpoint, "/v1/notes?" + urlencode({"select": "id", "search": query}), api_key=api_key)
+        return wire_request(endpoint, "/v1/notes?" + urlencode({"select": "id", "shape": "scalar", "search": query}),
+                            api_key=api_key)
     return action_request(endpoint, "findNotes", {"query": query}, api_key)

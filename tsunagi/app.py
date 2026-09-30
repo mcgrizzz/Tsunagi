@@ -2,7 +2,7 @@
 import json
 import threading
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel, Field
@@ -28,6 +28,7 @@ from .http.middleware import (
     RequestLogMiddleware,
     check_route_permission,
     is_local_request,
+    provided_key,
 )
 from .http.playground import API_DESCRIPTION
 from .http.v1.addons import router as addons_router
@@ -129,6 +130,14 @@ def openapi_with_auth():
             for method, operation in operations.items():
                 if method in {"get", "post", "put", "patch", "delete", "head", "options"}:
                     operation["security"] = [{"ApiKey": []}, {"BearerAuth": []}]
+    # 422 bodies: `detail` is a string like every error's, and FastAPI's list
+    # of problems is in `errors` (register_exception_handlers).
+    validation = schema.get("components", {}).get("schemas", {}).get("HTTPValidationError")
+    if validation and "errors" not in validation["properties"]:  # FastAPI caches the schema
+        validation["properties"] = {
+            "detail": {"title": "Detail", "type": "string"},
+            "errors": {**validation["properties"]["detail"], "title": "Errors"}}
+        validation["required"] = ["detail", "errors"]
     return schema
 
 
@@ -285,6 +294,17 @@ class CollectionHealth(BaseModel):
         "A 503 body carries the same value as reason"))
 
 
+class HealthCaller(BaseModel):
+    app: str = Field(description=(
+        "The app the request's key belongs to, or the No key row it counts as (no key, or "
+        "a key that matches no app)"))
+    role: str = Field(description="The role that applies, by its display name")
+    enabled: bool = Field(description="False for an app turned off in settings: it is granted nothing")
+    key: Literal["valid", "unknown", "none"] = Field(description=(
+        "valid: the key belongs to `app`. unknown: a key was sent but matches no app, so it "
+        "counts as no key. none: no key was sent"))
+
+
 class Health(BaseModel):
     ok: bool = Field(description="Whether the server is running")
     server: str = Field(description="Server name")
@@ -292,6 +312,9 @@ class Health(BaseModel):
     versions: Versions
     port: int = Field(description="Port number the server is listening on")
     collection: CollectionHealth
+    caller: HealthCaller = Field(description=(
+        "Who this request counts as, and what became of its key (X-API-Key or a Bearer "
+        "token). Needs no profile open"))
 
 @dataclass
 class _ServerState:
@@ -307,14 +330,19 @@ _SERVER_STATE = _ServerState()
     "/v1/health",
     response_model=Health,
     summary="Check API health",
-    description="Verify the Tsunagi server is running and responsive",
+    description=("Verify the Tsunagi server is running and responsive. Public; `caller` says who "
+                 "the request counts as, so sending your key checks it."),
     tags=["Health"],
     operation_id="checkHealth",
     openapi_extra=requires(PUBLIC),
 )
-def health() -> Health:
+def health(request: Request) -> Health:
     """Get API health status including version, port and collection state."""
     from aqt import mw
+    sent = provided_key(request.scope)
+    who = settings.resolve_caller(sent, is_local_request(request.scope))
+    caller = HealthCaller(app=who.name, role=who.role_name, enabled=who.enabled,
+                          key="none" if not sent else "valid" if who.key is not None else "unknown")
     return Health(
         ok=True,
         server="tsunagi",
@@ -323,6 +351,7 @@ def health() -> Health:
         port=_SERVER_STATE.port or 0,
         collection=CollectionHealth(profile=mw.pm.name,
                                     state=anki_collection.collection_state()),
+        caller=caller,
     )
 
 def _serve(server: Any, session_id: str) -> None:

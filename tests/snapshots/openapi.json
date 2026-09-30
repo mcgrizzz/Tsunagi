@@ -1021,18 +1021,35 @@
       "HTTPValidationError": {
         "properties": {
           "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "errors": {
             "items": {
               "$ref": "#/components/schemas/ValidationError"
             },
-            "title": "Detail",
+            "title": "Errors",
             "type": "array"
           }
         },
+        "required": [
+          "detail",
+          "errors"
+        ],
         "title": "HTTPValidationError",
         "type": "object"
       },
       "Health": {
         "properties": {
+          "caller": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HealthCaller"
+              }
+            ],
+            "description": "Who this request counts as, and what became of its key (X-API-Key or a Bearer token). Needs no profile open",
+            "title": "Caller"
+          },
           "collection": {
             "$ref": "#/components/schemas/CollectionHealth"
           },
@@ -1066,9 +1083,47 @@
           "version",
           "versions",
           "port",
-          "collection"
+          "collection",
+          "caller"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "HealthCaller": {
+        "properties": {
+          "app": {
+            "description": "The app the request's key belongs to, or the No key row it counts as (no key, or a key that matches no app)",
+            "title": "App",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "False for an app turned off in settings: it is granted nothing",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "key": {
+            "description": "valid: the key belongs to `app`. unknown: a key was sent but matches no app, so it counts as no key. none: no key was sent",
+            "enum": [
+              "valid",
+              "unknown",
+              "none"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "role": {
+            "description": "The role that applies, by its display name",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "role",
+          "enabled",
+          "key"
+        ],
+        "title": "HealthCaller",
         "type": "object"
       },
       "ImportFileRequest": {
@@ -2282,7 +2337,11 @@
             "type": "string"
           },
           "shape": {
-            "default": "auto",
+            "default": "object",
+            "enum": [
+              "object",
+              "scalar"
+            ],
             "title": "Shape",
             "type": "string"
           },
@@ -2921,7 +2980,7 @@
     }
   },
   "info": {
-    "description": "## Overview\n\nTsunagi provides a REST API for your running Anki collection. Browse the endpoints\nin the sidebar, inspect their schemas and code examples, then choose **Test\nRequest** to edit parameters or a JSON body and send the request to Anki.\n\n## Authentication\n\nIf you configured an API key in Tsunagi settings, enter it in **Authentication**.\nNative endpoints accept `X-API-Key` or `Authorization: Bearer <key>`. Leave it blank\nwhen authentication is disabled. The health endpoint is public. AnkiConnect RPC\nuses its own `key` field in the JSON body.\n\n## Core concepts\n\n### Notes, cards and note types\n\nChoose the resource that owns the data you want to work with:\n\n**Notes** contain field values and tags. Use note endpoints to add or edit content.\n\n**Cards** contain scheduling and review state. Use card endpoints to inspect due\ndates or change scheduling.\n\n**Models** are Anki's note types: the field definitions and templates that control\ncard structure and appearance.\n\nA note can generate several cards. For example, a note type with forward and\nreverse templates creates two cards from the same field values. Edit the note\nto change their shared content; work with the cards to change their schedules.\n\n### Find the data you need\n\nFor notes, cards and reviews, `search` accepts the same query syntax as Anki's\nbrowser. Use `tag:verb` to find tagged content, or `deck:Japanese` to restrict a\nquery to a deck.\n\n- **`search`** matches an Anki browser query, such as `tag:verb`.\n- **`where`** filters resource fields. For models, `name~=Basic` matches names\n  containing “Basic”.\n- **`select`** chooses returned fields. Use `id` to return only IDs.\n- **`limit`** sets the page size, such as `10`.\n- **`cursor`** continues a query using the response's `next_cursor`.\n\nCheck each endpoint for its supported fields and filters. In the request\nconsole, enter parameter values directly; the client handles URL encoding.\n\n### GET parameters or a JSON body\n\nMany list endpoints also provide a **Query … (POST)** operation. Both forms\nperform the same query. For example, these requests find up to ten notes tagged\n`verb` and return their IDs:\n\n```http\nGET /v1/notes?search=tag%3Averb&select=id&limit=10\n```\n\nFor `POST /v1/notes/query`, enter this JSON body:\n\n```json\n{\n  \"search\": \"tag:verb\",\n  \"select\": \"id\",\n  \"limit\": 10\n}\n```\n\nUse the POST query form when a JSON body is easier to compose. **Create note**\nis a separate operation at `POST /v1/notes`.\n\n### Read the next page\n\nA paginated response has three parts:\n\n- **`items`** holds the results on this page, shaped by your query.\n- **`next_cursor`** is the token for the following page. A value of `null` means\n  there are no more results.\n- **`stats`** contains metadata about how the query was processed.\n\nTo continue, copy `next_cursor` into the next request's `cursor` parameter or\nJSON property. Keep the search, filters, field selection and page size the same.\nTreat the cursor as an opaque token: copy it as returned. Clear it when starting\na different query. A small `limit`, such as `10`, makes initial requests easier\nto inspect.\n\n### Check feature support and job status\n\n`GET /v1/capabilities` reports all native operations in one place. Each operation\nhas a `status`: `available`, `disabled` for your app (its role lacks the\npermission, or the app is turned off), or `unsupported` by this Anki version.\nConditional options carry the same status, plus a reason and the permission or\nsetting that controls them. AnkiConnect actions remain separate at `GET /actions`.\n\nLook up an operation by method and path, such as\n`operations[\"POST /v1/cards:set-memory-state\"]`. FSRS scheduling appears under\n`features.fsrs_scheduling`; computations that work while scheduling is off remain\navailable. See [native discovery](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/capabilities.md)\nfor the response layout.\n\nFor an operation that returns an asynchronous job, use its returned job ID to\npoll `GET /v1/jobs/{job_id}` for status and results.\n\n## Try a request\n\nStart with `GET /v1/health`, or **Notes → List notes** with `limit=10`.\nThe console sends real requests to your current Anki profile, including changes\nwhen you use a write operation.\n\n[Swagger](/docs) · [ReDoc](/redoc) · [OpenAPI JSON](/openapi.json)\n",
+    "description": "## Overview\n\nTsunagi provides a REST API for your running Anki collection. Browse the endpoints\nin the sidebar, inspect their schemas and code examples, then choose **Test\nRequest** to edit parameters or a JSON body and send the request to Anki.\n\n## Authentication\n\nIf you configured an API key in Tsunagi settings, enter it in **Authentication**.\nNative endpoints accept `X-API-Key` or `Authorization: Bearer <key>`. Leave it blank\nwhen authentication is disabled. The health endpoint is public. AnkiConnect RPC\nuses its own `key` field in the JSON body.\n\n## Core concepts\n\n### Notes, cards and note types\n\nChoose the resource that owns the data you want to work with:\n\n**Notes** contain field values and tags. Use note endpoints to add or edit content.\n\n**Cards** contain scheduling and review state. Use card endpoints to inspect due\ndates or change scheduling.\n\n**Models** are Anki's note types: the field definitions and templates that control\ncard structure and appearance.\n\nA note can generate several cards. For example, a note type with forward and\nreverse templates creates two cards from the same field values. Edit the note\nto change their shared content; work with the cards to change their schedules.\n\n### Find the data you need\n\nFor notes, cards and reviews, `search` accepts the same query syntax as Anki's\nbrowser. Use `tag:verb` to find tagged content, or `deck:Japanese` to restrict a\nquery to a deck.\n\n- **`search`** matches an Anki browser query, such as `tag:verb`.\n- **`where`** filters resource fields: `mod>1790000000`, `name~=Basic` (names\n  containing “Basic”), `model_name in [\"Kiku\",\"Kiku+\"]`. Several `where`\n  clauses must all match.\n- **`select`** chooses returned fields: `select=id,name` returns\n  `[{\"id\": 1, \"name\": \"Basic\"}, …]`, and `select=id` returns `[{\"id\": 1}, …]`.\n  Add `shape=scalar` to get one field's bare values instead: `[1, …]`.\n- **`limit`** sets the page size, such as `10`.\n- **`cursor`** continues a query using the response's `next_cursor`.\n\nA `where` clause is a field, an operator (`==`, `!=`, `~=`, `>`, `>=`, `<`, `<=`,\n`in`, `not in`) and a value. Numbers, `true`, `false` and `null` are written as\nin JSON. **Write text as a JSON string**, and a list as a JSON array, so any\nname is safe, including quotes and backslashes: build the value with your\nlanguage's JSON encoder, such as `\"model_name in \" + JSON.stringify(names)` in\nJavaScript or `\"model_name in \" + json.dumps(names)` in Python.\n\nCheck each endpoint for its supported fields and filters. In the request\nconsole, enter parameter values directly; the client handles URL encoding.\n\n### GET parameters or a JSON body\n\nMany list endpoints also provide a **Query … (POST)** operation. Both forms\nperform the same query. For example, these requests find up to ten notes tagged\n`verb` and return their IDs:\n\n```http\nGET /v1/notes?search=tag%3Averb&select=id&limit=10\n```\n\nFor `POST /v1/notes/query`, enter this JSON body:\n\n```json\n{\n  \"search\": \"tag:verb\",\n  \"select\": \"id\",\n  \"limit\": 10\n}\n```\n\nUse the POST query form when a JSON body is easier to compose. **Create note**\nis a separate operation at `POST /v1/notes`.\n\n### Read the next page\n\nA paginated response has three parts:\n\n- **`items`** holds the results on this page, shaped by your query.\n- **`next_cursor`** is the token for the following page. A value of `null` means\n  there are no more results.\n- **`stats`** contains metadata about how the query was processed.\n\nTo continue, copy `next_cursor` into the next request's `cursor` parameter or\nJSON property. Keep the search, filters, field selection and page size the same.\nTreat the cursor as an opaque token: copy it as returned. Clear it when starting\na different query. A small `limit`, such as `10`, makes initial requests easier\nto inspect.\n\n### Check feature support and job status\n\n`GET /v1/capabilities` reports all native operations in one place. Each operation\nhas a `status`: `available`, `disabled` for your app (its role lacks the\npermission, or the app is turned off), or `unsupported` by this Anki version.\nConditional options carry the same status, plus a reason and the permission or\nsetting that controls them. AnkiConnect actions remain separate at `GET /actions`.\n\nLook up an operation by method and path, such as\n`operations[\"POST /v1/cards:set-memory-state\"]`. FSRS scheduling appears under\n`features.fsrs_scheduling`; computations that work while scheduling is off remain\navailable. See [native discovery](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/capabilities.md)\nfor the response layout.\n\nFor an operation that returns an asynchronous job, use its returned job ID to\npoll `GET /v1/jobs/{job_id}` for status and results.\n\n### Errors\n\nEvery error response has `detail`, a message you can show. A 422 (a request\nthat doesn't match the operation's parameters or body) also lists each problem\nin `errors`, and a 503 says why in `reason`: `busy`, `syncing` or `closed`.\n\n## Try a request\n\nStart with `GET /v1/health`, or **Notes → List notes** with `limit=10`. Health\nneeds no key or open profile. Its `caller` says who the request counts as (app,\nrole) and whether its key is `valid`, `unknown` (counts as no key) or `none`,\nso sending your key checks it.\nThe console sends real requests to your current Anki profile, including changes\nwhen you use a write operation.\n\n[Swagger](/docs) · [ReDoc](/redoc) · [OpenAPI JSON](/openapi.json)\n",
     "license": {
       "name": "MIT"
     },
@@ -3301,13 +3360,17 @@
             }
           },
           {
-            "description": "Response shape: auto, object, or scalar",
+            "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
             "in": "query",
             "name": "shape",
             "required": false,
             "schema": {
-              "default": "auto",
-              "description": "Response shape: auto, object, or scalar",
+              "default": "object",
+              "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
+              "enum": [
+                "object",
+                "scalar"
+              ],
               "title": "Shape",
               "type": "string"
             }
@@ -4464,13 +4527,17 @@
             }
           },
           {
-            "description": "Response shape: auto, object, or scalar",
+            "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
             "in": "query",
             "name": "shape",
             "required": false,
             "schema": {
-              "default": "auto",
-              "description": "Response shape: auto, object, or scalar",
+              "default": "object",
+              "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
+              "enum": [
+                "object",
+                "scalar"
+              ],
               "title": "Shape",
               "type": "string"
             }
@@ -4804,13 +4871,17 @@
             }
           },
           {
-            "description": "Response shape: auto, object, or scalar",
+            "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
             "in": "query",
             "name": "shape",
             "required": false,
             "schema": {
-              "default": "auto",
-              "description": "Response shape: auto, object, or scalar",
+              "default": "object",
+              "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
+              "enum": [
+                "object",
+                "scalar"
+              ],
               "title": "Shape",
               "type": "string"
             }
@@ -6192,7 +6263,7 @@
     },
     "/v1/health": {
       "get": {
-        "description": "Verify the Tsunagi server is running and responsive",
+        "description": "Verify the Tsunagi server is running and responsive. Public; `caller` says who the request counts as, so sending your key checks it.",
         "operationId": "checkHealth",
         "responses": {
           "200": {
@@ -6620,13 +6691,17 @@
             }
           },
           {
-            "description": "Response shape: auto, object, or scalar",
+            "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
             "in": "query",
             "name": "shape",
             "required": false,
             "schema": {
-              "default": "auto",
-              "description": "Response shape: auto, object, or scalar",
+              "default": "object",
+              "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
+              "enum": [
+                "object",
+                "scalar"
+              ],
               "title": "Shape",
               "type": "string"
             }
@@ -7563,13 +7638,17 @@
             }
           },
           {
-            "description": "Response shape: auto, object, or scalar",
+            "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
             "in": "query",
             "name": "shape",
             "required": false,
             "schema": {
-              "default": "auto",
-              "description": "Response shape: auto, object, or scalar",
+              "default": "object",
+              "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
+              "enum": [
+                "object",
+                "scalar"
+              ],
               "title": "Shape",
               "type": "string"
             }
@@ -8184,13 +8263,17 @@
             }
           },
           {
-            "description": "Response shape: auto, object, or scalar",
+            "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
             "in": "query",
             "name": "shape",
             "required": false,
             "schema": {
-              "default": "auto",
-              "description": "Response shape: auto, object, or scalar",
+              "default": "object",
+              "description": "object (default): each item is an object with the selected fields. scalar: with exactly one selected field, each item is that field's bare value.",
+              "enum": [
+                "object",
+                "scalar"
+              ],
               "title": "Shape",
               "type": "string"
             }

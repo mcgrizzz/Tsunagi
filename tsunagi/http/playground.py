@@ -38,11 +38,21 @@ browser. Use `tag:verb` to find tagged content, or `deck:Japanese` to restrict a
 query to a deck.
 
 - **`search`** matches an Anki browser query, such as `tag:verb`.
-- **`where`** filters resource fields. For models, `name~=Basic` matches names
-  containing “Basic”.
-- **`select`** chooses returned fields. Use `id` to return only IDs.
+- **`where`** filters resource fields: `mod>1790000000`, `name~=Basic` (names
+  containing “Basic”), `model_name in ["Kiku","Kiku+"]`. Several `where`
+  clauses must all match.
+- **`select`** chooses returned fields: `select=id,name` returns
+  `[{"id": 1, "name": "Basic"}, …]`, and `select=id` returns `[{"id": 1}, …]`.
+  Add `shape=scalar` to get one field's bare values instead: `[1, …]`.
 - **`limit`** sets the page size, such as `10`.
 - **`cursor`** continues a query using the response's `next_cursor`.
+
+A `where` clause is a field, an operator (`==`, `!=`, `~=`, `>`, `>=`, `<`, `<=`,
+`in`, `not in`) and a value. Numbers, `true`, `false` and `null` are written as
+in JSON. **Write text as a JSON string**, and a list as a JSON array, so any
+name is safe, including quotes and backslashes: build the value with your
+language's JSON encoder, such as `"model_name in " + JSON.stringify(names)` in
+JavaScript or `"model_name in " + json.dumps(names)` in Python.
 
 Check each endpoint for its supported fields and filters. In the request
 console, enter parameter values directly; the client handles URL encoding.
@@ -102,9 +112,18 @@ for the response layout.
 For an operation that returns an asynchronous job, use its returned job ID to
 poll `GET /v1/jobs/{job_id}` for status and results.
 
+### Errors
+
+Every error response has `detail`, a message you can show. A 422 (a request
+that doesn't match the operation's parameters or body) also lists each problem
+in `errors`, and a 503 says why in `reason`: `busy`, `syncing` or `closed`.
+
 ## Try a request
 
-Start with `GET /v1/health`, or **Notes → List notes** with `limit=10`.
+Start with `GET /v1/health`, or **Notes → List notes** with `limit=10`. Health
+needs no key or open profile. Its `caller` says who the request counts as (app,
+role) and whether its key is `valid`, `unknown` (counts as no key) or `none`,
+so sending your key checks it.
 The console sends real requests to your current Anki profile, including changes
 when you use a write operation.
 

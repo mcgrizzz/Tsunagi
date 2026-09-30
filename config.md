@@ -93,7 +93,11 @@ Saved as `apps`:
 ```
 
 - A turned-off app's requests are refused with 403, saying it's turned off.
-- A key that matches no app counts as no key, as in AnkiConnect.
+  That stops its key working, not the program: without the key, it counts as
+  any request without a key. To stop a program connecting at all, also set
+  **Requests without a key → Programs on this computer** to **No access**.
+- A key that matches no app counts as no key, as in AnkiConnect. To check a
+  key, send it to `GET /v1/health`: `caller.key` is `valid` or `unknown`.
 
 ## Requests without a key
 

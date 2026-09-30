@@ -4,7 +4,17 @@ import logging
 import time
 from bisect import bisect_right
 from operator import itemgetter
-from typing import Any, Callable, Dict, List, Mapping, Optional, Union, get_args
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Union,
+    get_args,
+)
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from fastapi.responses import Response
@@ -92,21 +102,25 @@ def _finish(
                                              next_cursor=next_cursor, stats=_stats(start))
     nodes = parse_select_csv(select)
     final_items: Optional[List[ModelRow]] = None
-    shape_name = (shape or "auto").lower()
+    shape_name = (shape or "object").lower()
     top_level = (all(isinstance(n, SelectScalar) and len(n.path) == 1 for n in nodes)
                  and {type(r) for r in page_rows} <= {dict})
-    if top_level and len(nodes) == 1 and shape_name in ("auto", "scalar"):
+    if top_level and len(nodes) == 1 and shape_name == "scalar":
         # One top-level field from plain rows, e.g. select=id: read it directly
         # instead of building a projected dict per row and flattening it back.
         # Exact scalar types only; anything else takes the general path.
         values = [r.get(nodes[0].path[0]) for r in page_rows]
         if {type(v) for v in values} <= _SCALAR_TYPESET:
             final_items = values
-    elif top_level and len(nodes) > 1 and shape_name in ("auto", "object"):
-        # Several top-level fields: copy them in one C-level pass per row. A row
+    elif top_level and shape_name == "object":
+        # Top-level fields: copy them in one C-level pass per row. A row
         # missing a field takes the general path, which fills it with None.
         names = [n.as_name or n.path[0] for n in nodes]
-        get = itemgetter(*(n.path[0] for n in nodes))
+        if len(nodes) == 1:
+            one = nodes[0].path[0]
+            get = lambda r: (r[one],)  # itemgetter of one key returns the value, not a tuple
+        else:
+            get = itemgetter(*(n.path[0] for n in nodes))
         try:
             final_items = [dict(zip(names, get(r))) for r in page_rows]
         except KeyError:
@@ -114,7 +128,7 @@ def _finish(
     if final_items is None:
         include = selection_include(nodes)
         projected = [project_scalars(_as_dict(r, include), nodes) for r in page_rows]
-        final_items = maybe_flatten(projected, nodes, shape or "auto")
+        final_items = maybe_flatten(projected, nodes, shape_name)
     return Paginated[ModelRow].construct(items=final_items, next_cursor=next_cursor,
                                          stats=_stats(start))
 
@@ -415,7 +429,9 @@ def create_resource_routes(
             "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.")),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
-        shape: Optional[str]  = Query(default="auto", description="Response shape: auto, object, or scalar"),
+        shape: Literal["object", "scalar"] = Query(default="object", description=(
+            "object (default): each item is an object with the selected fields. scalar: with "
+            "exactly one selected field, each item is that field's bare value.")),
         limit: Optional[int] = Query(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap."),
         cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
     ) -> Any:

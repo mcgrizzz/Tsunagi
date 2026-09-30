@@ -22,7 +22,7 @@ class Flag(IntEnum):
 
 def general(rows, select, shape):
     nodes = parse_select_csv(select)
-    return maybe_flatten([project_scalars(dict(r), nodes) for r in rows], nodes, shape or "auto")
+    return maybe_flatten([project_scalars(dict(r), nodes) for r in rows], nodes, shape or "object")
 
 
 ROWS = [
@@ -37,7 +37,7 @@ ROWS = [
 
 @pytest.mark.parametrize("rows", ROWS)
 @pytest.mark.parametrize("select", ["id", "name", "tags", "flag", "score", "id:nid", "name,id", "id:nid,name", "id,id", "score,flag,id"])
-@pytest.mark.parametrize("shape", [None, "auto", "object"])
+@pytest.mark.parametrize("shape", [None, "object"])
 def test_matches_general_projection(rows, select, shape):
     page = _finish(rows, None, select, shape, time.perf_counter())
     assert page.items == general(rows, select, shape)

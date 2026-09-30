@@ -201,6 +201,24 @@ class TestCapabilities:
         assert unavailable.status_code == 503
         assert unavailable.json()["reason"] == "closed"
 
+    def test_health_reports_the_caller_without_a_collection(self, client, reset_settings, monkeypatch):
+        import aqt
+
+        from tsunagi.adapters.config import DEFAULTS
+
+        reset_settings.configure({**DEFAULTS, "apps": [
+            {"name": "Yomine", "key": "y" * 32, "role": "read_only"},
+            {"name": "Old script", "key": "o" * 32, "role": "default", "enabled": False}]}, persist=None)
+        monkeypatch.setattr(aqt.mw, "col", None)
+        health = lambda **headers: client.get("/v1/health", headers=headers).json()["caller"]
+        assert health() == {"app": "No key, this computer", "role": "Default", "enabled": True, "key": "none"}
+        assert health(**{"X-API-Key": "y" * 32}) == {
+            "app": "Yomine", "role": "Read-only", "enabled": True, "key": "valid"}
+        assert health(Authorization="Bearer " + "o" * 32)["enabled"] is False
+        # An unknown key counts as no key; health says so, and which row applies.
+        assert health(**{"X-API-Key": "nope"}) == {
+            "app": "No key, this computer", "role": "Default", "enabled": True, "key": "unknown"}
+
     def test_health_reports_ready_collection(self, client):
         assert client.get("/v1/health").json()["collection"] == {
             "profile": "User 1", "state": "ready"}

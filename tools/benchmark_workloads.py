@@ -308,7 +308,7 @@ class KnownWordsSnapshot(Workload):
                               select=f"id,model_name,cards,fields[name in {json.dumps(names, ensure_ascii=False)}]"))["items"]
         vocab = self.vocab((n["id"], n["model_name"], fields_of(n), n["cards"]) for n in notes)
         # getIntervals' meaning: 0 for a new card, else the latest review log interval.
-        new = set((await c.rest("GET", "/v1/cards", search=f"deck:* ({types}) is:new", select="id"))["items"])
+        new = set((await c.rest("GET", "/v1/cards", search=f"deck:* ({types}) is:new", select="id", shape="scalar"))["items"])
         latest = {}
         for review in (await c.rest("GET", "/v1/reviews", search=f"deck:* ({types})",
                                     select="id,card_id,interval"))["items"]:
@@ -396,7 +396,7 @@ class MinedWordsCache(Workload):
                            "mod": r["mod"]} for r in rows}
 
         async def find(query):
-            return (await c.rest("GET", "/v1/cards", search=query, select="id"))["items"]
+            return (await c.rest("GET", "/v1/cards", search=query, select="id", shape="scalar"))["items"]
         notes = [{"id": n["id"], "mod": n["mod"], "cards": n["cards"],
                   "fields": {f["name"]: f["value"] for f in n["fields"]}} for n in notes]
         return self.result(notes, cards, {r["id"]: r["suspended"] for r in rows},
@@ -412,7 +412,7 @@ class ChangePoll(Workload):
         return sorted(await c.action("findCards", query=self.query))
 
     async def tsunagi(self, c, ctx, trial):
-        return sorted((await c.rest("GET", "/v1/cards", search=self.query, select="id"))["items"])
+        return sorted((await c.rest("GET", "/v1/cards", search=self.query, select="id", shape="scalar"))["items"])
 
 
 class NoteTypeFields(Workload):
@@ -518,8 +518,8 @@ class ClientSettings(Workload):
         return {"decks": sorted(decks), "models": sorted(models), "fields": fields}
 
     async def tsunagi(self, c, ctx, trial):
-        decks = (await c.rest("GET", "/v1/decks", select="name"))["items"]
-        models = (await c.rest("GET", "/v1/models", select="name"))["items"]
+        decks = (await c.rest("GET", "/v1/decks", select="name", shape="scalar"))["items"]
+        models = (await c.rest("GET", "/v1/models", select="name", shape="scalar"))["items"]
         fields = (await c.rest("GET", "/v1/models", where=f'name=="{MODEL}"', select="fields[].name"))["items"]
         return {"decks": sorted(decks), "models": sorted(models), "fields": fields[0]["fields"]}
 
@@ -622,7 +622,7 @@ class SyncNotesBatch(Workload):
         notes, pictures = self.notes(trial)
         # The deck exists already here; a client creates it only when it's missing.
         decks = sorted({n["deckName"] for n in notes})
-        found = (await c.rest("GET", "/v1/decks", where=f"name in {json.dumps(decks)}", select="name"))["items"]
+        found = (await c.rest("GET", "/v1/decks", where=f"name in {json.dumps(decks)}", select="name", shape="scalar"))["items"]
         for name in set(decks) - set(found):
             await c.rest("POST", "/v1/decks", {"name": name})
         # Each picture travels with its note.
@@ -689,7 +689,7 @@ class FirstPageCards(Workload):
         page = (await c.rest("GET", "/v1/cards", search=self.query, limit=self.limit,
                              select="id,question,deck_name,model_name,due,interval,factor"))["items"]
         # The tool also reports how many cards matched.
-        ids = (await c.rest("GET", "/v1/cards", search=self.query, select="id"))["items"]
+        ids = (await c.rest("GET", "/v1/cards", search=self.query, select="id", shape="scalar"))["items"]
         return {"total": len(ids), "cards": [
             self.card(r["id"], r["question"], r["deck_name"], r["model_name"], r["due"], r["interval"],
                       r["factor"]) for r in page]}

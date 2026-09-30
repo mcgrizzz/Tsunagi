@@ -44,7 +44,7 @@ def test_lookup_uses_the_index_and_combines_with_other_filters(client):
     response = client.get("/v1/notes", params=[
         ("where", 'first_field=="よし"'), ("where", 'model_name=="Basic (and reversed card)"'),
         ("select", "id")])
-    assert response.json()["items"] == [reversed_]
+    assert response.json()["items"] == [{"id": reversed_}]
 
 
 def test_non_string_values_match_nothing(client):

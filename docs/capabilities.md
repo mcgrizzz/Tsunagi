@@ -92,7 +92,19 @@ is open. Its `collection` object gives the open `profile` and a `state`: `ready`
 `syncing`, `closed` (no collection, e.g. during a full sync) or `busy` (Anki
 did not answer a trivial read within a second). Every 503 from any route
 carries the same value as `reason`, so a client can say "Anki is syncing" rather than "request
-failed". Both endpoints carry the same `versions` identifiers:
+failed".
+
+Health's `caller` says who the request counts as, with no profile open needed:
+the `app` (or the No key row), its `role`, whether the app is `enabled`, and
+what became of the key: `valid`, `unknown` (sent but matching no app, so it
+counts as no key, as in AnkiConnect) or `none` (not sent). Send your key to
+check it:
+
+```json
+"caller": {"app": "No key, this computer", "role": "Default", "enabled": true, "key": "unknown"}
+```
+
+Both endpoints carry the same `versions` identifiers:
 
 | Field | Meaning |
 | --- | --- |

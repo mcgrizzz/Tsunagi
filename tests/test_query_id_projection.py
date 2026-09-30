@@ -62,20 +62,21 @@ def test_ids_and_filtered_pagination_need_no_record_loads(source, method, search
         if page["next_cursor"] is None:
             break
         query["cursor"] = page["next_cursor"]
-    assert result == [i for i in rows if i > 500 and (search != "even" or i % 2 == 0)]
+    assert result == [{"id": i} for i in rows if i > 500 and (search != "even" or i % 2 == 0)]
     assert calls["hydrate"] == []
     assert calls["pages"] if search is None else calls["search"]
 
 
 @pytest.mark.parametrize("method", ["GET", "POST"])
-def test_id_projection_is_live_and_preserves_object_shape(source, method):
+def test_id_projection_is_live_and_scalar_on_request(source, method):
     client, rows, calls = source
-    query = {"search": "even", "select": "id", "shape": "object"}
+    query = {"search": "even", "select": "id"}
     assert request(client, method, query)["items"] == [{"id": i} for i in rows if i % 2 == 0]
     del rows[2]
     rows[604] = {"id": 604, "name": "even"}
     assert request(client, method, query)["items"] == [{"id": i} for i in rows if i % 2 == 0]
-    assert len(calls["search"]) == 2
+    assert request(client, method, {**query, "shape": "scalar"})["items"] == [i for i in rows if i % 2 == 0]
+    assert len(calls["search"]) == 3
     assert calls["hydrate"] == []
 
 
@@ -94,7 +95,7 @@ def test_other_fields_still_load_records(source, query):
 def test_requested_ids_are_not_treated_as_existing_ids(source):
     client, rows, calls = source
     page = request(client, "GET", {"select": "id", "where": ["id in [2,999999]"]})
-    assert page["items"] == [2]
+    assert page["items"] == [{"id": 2}]
     assert calls["hydrate"]
 
 
@@ -133,7 +134,7 @@ def test_native_note_ids_do_not_reload_notes(tmp_path, monkeypatch):
         with TestClient(app) as client:
             response = client.get("/v1/notes", params={"search": "", "select": "id"})
             assert response.status_code == 200, response.text
-            assert response.json()["items"] == sorted(expected)
+            assert response.json()["items"] == [{"id": i} for i in sorted(expected)]
             assert loaded == []
             response = client.get("/v1/notes", params={"search": "", "select": "id,fields"})
             assert response.status_code == 200, response.text

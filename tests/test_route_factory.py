@@ -193,9 +193,12 @@ class TestQueries:
         body = client.get("/v1/things", params={"select": "id,name", "shape": "object"}).json()
         assert body["items"][0] == {"id": 1, "name": "Basic"}
 
-    def test_select_single_field_auto_flattens(self, client):
+    def test_select_single_field_returns_objects_unless_scalar(self, client):
         body = client.get("/v1/things", params={"select": "name"}).json()
+        assert body["items"] == [{"name": "Basic"}, {"name": "Cloze"}, {"name": "Basic (typed)"}]
+        body = client.get("/v1/things", params={"select": "name", "shape": "scalar"}).json()
         assert body["items"] == ["Basic", "Cloze", "Basic (typed)"]
+        assert client.get("/v1/things", params={"select": "name", "shape": "auto"}).status_code == 422
 
     def test_nested_select(self, client):
         body = client.get("/v1/things", params={"select": "fields[].name", "where": "id==1", "shape": "object"}).json()

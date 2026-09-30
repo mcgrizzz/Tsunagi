@@ -112,6 +112,26 @@ def register_exception_handlers(app: Any, syncing: Callable[[], bool] = lambda: 
     app.add_exception_handler(AnkiBusyError, _unavailable)
     app.add_exception_handler(CollectionUnavailableError, _unavailable)
 
+    from fastapi.exceptions import RequestValidationError
+
+    def _invalid(request: Any, exc: RequestValidationError) -> JSONResponse:
+        # `detail` is a string in every error response; FastAPI's own 422
+        # puts its list there, so the list moves to `errors`.
+        errors = exc.errors()
+        parts = [f"{'.'.join(str(p) for p in e.get('loc', ()))}: {e.get('msg', '')}" for e in errors[:3]]
+        more = f" (and {len(errors) - 3} more)" if len(errors) > 3 else ""
+        return JSONResponse(status_code=422, content={
+            "detail": "Invalid request: " + "; ".join(parts) + more,
+            "errors": jsonable_errors(errors)})
+
+    app.add_exception_handler(RequestValidationError, _invalid)
+
+
+def jsonable_errors(errors: list) -> list:
+    """Validation errors as JSON: their context can hold exceptions or other objects."""
+    from fastapi.encoders import jsonable_encoder
+    return jsonable_encoder(errors)
+
 
 T = TypeVar('T')
 

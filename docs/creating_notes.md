@@ -272,7 +272,7 @@ the same failure format. An empty array returns empty `created` and `failed` arr
 Some errors reject the whole request instead:
 
 - **422**: the request is malformed, such as a note without `fields`. Nothing
-  was written.
+  was written. `detail` sums up the problems and `errors` lists each one.
 - **401**: no usable key.
 - **403**: your app isn't allowed to create notes or upload media, or it is
   turned off. The message says which.

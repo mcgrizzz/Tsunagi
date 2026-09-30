@@ -1,9 +1,9 @@
-from typing import Generic, List, Optional, Sequence, TypeVar, Union
+from typing import Generic, List, Literal, Optional, Sequence, TypeVar, Union
 
 from pydantic import BaseModel, Field
 from pydantic.generics import GenericModel
 
-# Scalars we may return when shape=scalar or auto-flatten
+# Scalars we may return when shape=scalar
 Scalar = Union[str, int, float, bool, None]
 
 # Free-form projected object (when select=... returns dicts)
@@ -35,6 +35,6 @@ class QueryRequest(BaseModel):
     select: Optional[str] = None
     where: Optional[List[str]] = None
     search: Optional[str] = None   # Anki search string (search-backed resources)
-    shape: Optional[str] = "auto"
+    shape: Literal["object", "scalar"] = "object"
     limit: Optional[int] = Field(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap.")
     cursor: Optional[str] = None

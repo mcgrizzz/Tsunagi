@@ -330,27 +330,19 @@ def _is_scalar(value: Any) -> bool:
     return isinstance(value, _SCALAR_TYPES)
 
 def maybe_flatten(projected_rows: List[Dict[str, Any]], nodes: Sequence[SelectNode], shape: str) -> List[Any]:
-    shape = (shape or "auto").lower()
-    if not nodes or shape == "object":
+    """Objects, whatever the select; shape=scalar returns the one selected
+    field's bare values instead."""
+    if not nodes or (shape or "object").lower() != "scalar":
         return projected_rows
-
     if len(nodes) != 1:
-        if shape == "scalar":
-            raise SelectValidationError("shape=scalar requires exactly one selected field")
-        return projected_rows
+        raise SelectValidationError("shape=scalar requires exactly one selected field")
 
     only = nodes[0]
     key = (only.as_name or (only.path[-1] if isinstance(only, SelectScalar) else only.base[-1]))
     values = [row.get(key) for row in projected_rows]
-
-    if shape == "scalar":
-        if not all(_is_scalar(v) for v in values):
-            raise SelectValidationError("shape=scalar requires the selected field to be a scalar")
-        return values
-
-    if all(_is_scalar(v) for v in values):
-        return values
-    return projected_rows
+    if not all(_is_scalar(v) for v in values):
+        raise SelectValidationError("shape=scalar requires the selected field to be a scalar")
+    return values
 
 def referenced_top_fields(select_text: Optional[str]) -> Optional[Set[str]]:
     """

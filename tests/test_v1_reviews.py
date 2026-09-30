@@ -340,7 +340,7 @@ class TestNativePageMeasurements:
                 response = reviewed.post(f"/v1/{resource}/query", json=query)
             assert response.status_code == 200, response.text
             body = response.json()
-            seen.extend(body["items"] if projection else [row["id"] for row in body["items"]])
+            seen.extend(row["id"] for row in body["items"])
             cursor = body["next_cursor"]
             assert cursor
             assert reads, "Expected instrumentation to observe ID enumeration"

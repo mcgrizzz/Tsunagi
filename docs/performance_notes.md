@@ -216,9 +216,12 @@ against the page schema. Because the item type starts with `Any`, that
 validation returned the same objects. Now:
 
 - The page envelope is built without the per-item validation, for every query.
-- A single top-level field from plain rows is read directly. Aliases, lists,
-  unusual types and `shape=object` still take the general path;
-  `tests/test_query_single_field.py` checks both paths agree.
+- Top-level fields from plain rows are copied directly: one field's bare
+  values with `shape=scalar`, objects otherwise (the default since
+  2026-09-30, when `select=id` stopped returning bare IDs unless asked).
+  Aliases, lists and unusual types still take the general path;
+  `tests/test_query_single_field.py` checks both paths agree. The burst
+  benchmark below asks for `shape=scalar`, the shape it measured.
 - JSON encoding handles plain list items inline.
 
 On the real desktop, reading all note IDs (4,547 notes before, 4,561 after),

@@ -121,20 +121,15 @@ class TestUnicodeNames:
 
 
 class TestMaybeFlatten:
-    def test_auto_flattens_single_scalar_field(self):
-        nodes = parse_select_csv("name")
-        rows = [{"name": "Basic"}, {"name": "Cloze"}]
-        assert maybe_flatten(rows, nodes, "auto") == ["Basic", "Cloze"]
-
     def test_object_shape_never_flattens(self):
         nodes = parse_select_csv("name")
         rows = [{"name": "Basic"}]
         assert maybe_flatten(rows, nodes, "object") == rows
 
-    def test_auto_keeps_objects_for_multiple_fields(self):
-        nodes = parse_select_csv("id,name")
-        rows = [{"id": 1, "name": "Basic"}]
-        assert maybe_flatten(rows, nodes, "auto") == rows
+    def test_objects_by_default(self):
+        nodes = parse_select_csv("name")
+        rows = [{"name": "Basic"}, {"name": "Cloze"}]
+        assert maybe_flatten(rows, nodes, None) == rows
 
     def test_scalar_shape_requires_single_field(self):
         nodes = parse_select_csv("id,name")

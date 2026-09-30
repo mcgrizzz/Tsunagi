@@ -17,11 +17,16 @@ Requests that change things change your real collection.
 
 - If your app has a key, enter it under **Authentication** (as `X-Api-Key` or
   a Bearer token). It isn't kept after the page reloads.
-- `GET /v1/health` needs no key. AnkiConnect requests (`POST /`) take the key
-  as `"key"` in the JSON body.
+- `GET /v1/health` needs no key. Its `caller` says who a request counts as:
+  the app and role, and whether its key is `valid`, `unknown` or `none`.
+  AnkiConnect requests (`POST /`) take the key as `"key"` in the JSON body.
+- A key that matches no app counts as no key, so on this computer a mistyped
+  key still works with the no-key role. Health's `caller.key` is `unknown` then.
 - **401** means Tsunagi found no usable key. **403** means the request isn't
   allowed; the response says why (except for AnkiConnect requests from a
   website that isn't allowed, which get an empty 403, as in AnkiConnect).
+- Every error's `detail` is a message you can show; a **422** also lists each
+  problem in `errors`.
 
 ## Other formats
 
