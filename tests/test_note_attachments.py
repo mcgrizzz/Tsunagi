@@ -84,3 +84,20 @@ def test_created_notes_report_their_files_as_stored(client, col):
     # Only listed fields follow a rename; the client fixes the others with the reported name.
     assert fields_of(col, created[0]["id"])["Back"] == '<img src="inu.png">'
     assert "files" not in created[1]
+
+
+def test_a_failed_attachment_names_the_file(client, col):
+    body = note("鳥", audio={"data": b64(b"ok"), "filename": "tori.mp3"},
+                picture=[{"data": b64(b"ok"), "filename": "ok.png"},
+                         {"data": "not base64!", "filename": "bad.png", "fields": ["Back"]}])
+    (failure,) = client.post("/v1/notes", json=body).json()["failed"]
+    assert failure["code"] == "invalid_attachment"
+    assert failure["attachment"] == {"kind": "picture", "position": 1, "filename": "bad.png"}
+    assert "base64" in failure["message"]
+    assert not any(col.media.have(n) for n in ("tori.mp3", "ok.png", "bad.png"))
+
+
+def test_other_failures_have_no_attachment(client, col):
+    client.post("/v1/notes", json=note("犬"))
+    (failure,) = client.post("/v1/notes", json=note("犬")).json()["failed"]
+    assert failure["code"] == "duplicate" and "attachment" not in failure

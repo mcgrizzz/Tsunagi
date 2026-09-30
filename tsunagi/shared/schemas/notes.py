@@ -189,10 +189,18 @@ class NoteCreated(BaseModel):
                      "the note had files."))
 
 
+class AttachmentRef(BaseModel):
+    kind: Literal["audio", "video", "picture"]
+    position: int = Field(description="Zero-based position in that kind's list; 0 for one object.")
+    filename: Optional[str] = Field(default=None, description="The filename sent, if any.")
+
+
 class NoteCreateFailure(CreationFailure):
     duplicate_note_ids: Optional[List[int]] = Field(
         default=None,
         description="For code 'duplicate', with include_duplicate_ids=true: the existing notes it duplicates.")
+    attachment: Optional[AttachmentRef] = Field(
+        default=None, description="For code 'invalid_attachment': the file that failed.")
 
 
 class NoteCreateResponse(CreationResult[NoteCreated]):

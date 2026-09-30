@@ -211,8 +211,10 @@ Tsunagi stores each file and appends `[sound:inu.mp3]` or `<img src="inu.png">`
 to the fields you list; with no `fields`, the file is only stored. A note's
 files are stored only once the note passes its checks, so a rejected note (a
 duplicate, say) leaves no files behind. A file that can't be read or
-downloaded fails its note with `invalid_attachment`. Batches work the same way:
-each note in the array carries its own files.
+downloaded fails its note with `invalid_attachment`, and the failure's
+`attachment` says which one: `{"kind": "picture", "position": 1, "filename":
+"bad.png"}` is the second picture. Batches work the same way: each note in the
+array carries its own files.
 
 Each created note lists its files in `files`, audio first, then video, then
 pictures, in the same form `POST /v1/media` returns:
@@ -277,7 +279,7 @@ const rejected = response.failed.map(failure => ({
 
 | Endpoint | Failure codes |
 | --- | --- |
-| Notes | `duplicate`, `invalid_note` (such as a missing deck), `anki_error`, and for upsert `ambiguous` (several notes matched; the message lists them) |
+| Notes | `duplicate`, `invalid_note` (such as a missing deck), `invalid_attachment` (a file that can't be read or downloaded; `attachment` names it), `anki_error`, and for upsert `ambiguous` (several notes matched; the message lists them) |
 | Media | `invalid_media` (such as invalid base64 or a failed download), `source_error`, `storage_error` |
 
 Correct the reported problem and retry only those inputs. A single object uses

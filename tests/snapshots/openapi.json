@@ -307,6 +307,35 @@
         "title": "AnswerEntry",
         "type": "object"
       },
+      "AttachmentRef": {
+        "properties": {
+          "filename": {
+            "description": "The filename sent, if any.",
+            "title": "Filename",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "audio",
+              "video",
+              "picture"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "position": {
+            "description": "Zero-based position in that kind's list; 0 for one object.",
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "position"
+        ],
+        "title": "AttachmentRef",
+        "type": "object"
+      },
       "BatchOpResult": {
         "properties": {
           "affected": {
@@ -1830,6 +1859,15 @@
       },
       "NoteCreateFailure": {
         "properties": {
+          "attachment": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AttachmentRef"
+              }
+            ],
+            "description": "For code 'invalid_attachment': the file that failed.",
+            "title": "Attachment"
+          },
           "code": {
             "title": "Code",
             "type": "string"

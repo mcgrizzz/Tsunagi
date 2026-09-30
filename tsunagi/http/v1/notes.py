@@ -32,6 +32,7 @@ from ...shared.schemas.cards import SchedulingResult
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import sanitize_media_filename
 from ...shared.schemas.notes import (
+    AttachmentRef,
     NoteCheckRequest,
     NoteCheckResponse,
     NoteCreate,
@@ -173,16 +174,20 @@ def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
     fails alone."""
     attachments, errors = {}, {}
     for index, req in enumerate(candidates):
-        try:
-            files = []
-            for kind, attachment in req.attachments():
+        files, seen = [], {}
+        for kind, attachment in req.attachments():
+            position = seen[kind] = seen.get(kind, -1) + 1
+            try:
                 name, data = resolve_upload(attachment)
                 sanitize_media_filename(name)   # a bad name fails before anything is stored
-                files.append((kind, name, data, list(attachment.fields)))
+            except ValidationError as exc:
+                errors[index] = (str(exc), AttachmentRef(kind=kind, position=position,
+                                                         filename=attachment.filename))
+                break
+            files.append((kind, name, data, list(attachment.fields)))
+        else:
             if files:
                 attachments[index] = files
-        except ValidationError as exc:
-            errors[index] = str(exc)
     return {"attachments": attachments, "attachment_errors": errors}
 
 

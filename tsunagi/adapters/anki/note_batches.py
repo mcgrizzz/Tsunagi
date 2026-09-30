@@ -12,6 +12,7 @@ from ...shared.errors import (
 from ...shared.schemas.creation import CreationFailure
 from ...shared.schemas.media import MediaStored
 from ...shared.schemas.notes import (
+    AttachmentRef,
     NoteCreate,
     NoteCreated,
     NoteCreateFailure,
@@ -66,7 +67,7 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
                  include_cards: bool = False,
                  include_duplicate_ids: bool = False,
                  attachments: Optional[Dict[int, List[Attachment]]] = None,
-                 attachment_errors: Optional[Dict[int, str]] = None) -> NoteCreateResponse:
+                 attachment_errors: Optional[Dict[int, Tuple[str, AttachmentRef]]] = None) -> NoteCreateResponse:
     """attachments/attachment_errors: by input index, fetched before this
     operation (downloads stay outside it). A note's files are stored only once
     the note has passed its checks, so a rejected note leaves no files.
@@ -81,8 +82,9 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
     changes = OpChanges()
     for index, req in enumerate(candidates):
         if index in attachment_errors:
+            message, attachment = attachment_errors[index]
             failed.append(NoteCreateFailure(index=index, code="invalid_attachment",
-                                            message=attachment_errors[index]))
+                                            message=message, attachment=attachment))
             continue
         files = attachments.get(index, [])
         try:
