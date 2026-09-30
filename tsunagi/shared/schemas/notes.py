@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, StrictBool
 
 # ----------------- Response Schemas -----------------
 from .creation import CreationFailure, CreationResult
-from .media import MediaUpload
+from .media import MediaStored, MediaUpload
 
 
 class NoteField(BaseModel):
@@ -181,6 +181,12 @@ class NoteCreated(BaseModel):
     index: int = Field(description="Zero-based position in the submitted array; 0 for one object.")
     id: int
     cards: Optional[List[int]] = Field(default=None, description="Present when include=cards was requested.")
+    files: Optional[List[MediaStored]] = Field(
+        default=None,
+        description=("The note's audio, video and picture files as stored, in that order, as POST /v1/media "
+                     "reports them. `filename` differs from `requested_filename` when Anki renamed the file; "
+                     "references in the fields a file lists follow the rename, others don't. Present when "
+                     "the note had files."))
 
 
 class NoteCreateFailure(CreationFailure):

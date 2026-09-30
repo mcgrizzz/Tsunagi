@@ -68,3 +68,19 @@ def test_upsert_refuses_attachments(client, col):
         "羊", picture={"data": b64(b"sheep"), "filename": "hitsuji.png", "fields": ["Back"]})).json()
     assert answer["failed"][0]["code"] == "invalid_note" and "POST /v1/media" in answer["failed"][0]["message"]
     assert col.note_count() == 0 and not col.media.have("hitsuji.png")
+
+
+def test_created_notes_report_their_files_as_stored(client, col):
+    col.media.write_data("inu.png", b"other bytes")   # Anki renames a new inu.png
+    body = [note("犬", audio={"data": b64(b"mp3 bytes"), "filename": "inu.mp3", "fields": ["Front"]},
+                 picture={"data": b64(b"png bytes"), "filename": "inu.png", "fields": []}),
+            note("猫")]
+    body[0]["fields"]["Back"] = '<img src="inu.png">'   # a reference the attachment doesn't list
+    created = client.post("/v1/notes", json=body).json()["created"]
+    audio, picture = created[0]["files"]
+    assert audio == {"filename": "inu.mp3", "requested_filename": "inu.mp3", "renamed": False, "size": 9}
+    assert picture["renamed"] and picture["requested_filename"] == "inu.png"
+    assert picture["filename"] != "inu.png" and col.media.have(picture["filename"])
+    # Only listed fields follow a rename; the client fixes the others with the reported name.
+    assert fields_of(col, created[0]["id"])["Back"] == '<img src="inu.png">'
+    assert "files" not in created[1]

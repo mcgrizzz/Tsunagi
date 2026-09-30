@@ -10,6 +10,7 @@ from ...shared.errors import (
     anki_error_detail,
 )
 from ...shared.schemas.creation import CreationFailure
+from ...shared.schemas.media import MediaStored
 from ...shared.schemas.notes import (
     NoteCreate,
     NoteCreated,
@@ -46,14 +47,18 @@ def _with_references(values: Dict[str, str], files: List[Attachment]) -> Dict[st
     return out
 
 
-def _store_attachments(col: Collection, note: Any, files: List[Attachment]) -> None:
-    """Store a checked note's files; a renamed file's references follow it."""
+def _store_attachments(col: Collection, note: Any, files: List[Attachment]) -> List[MediaStored]:
+    """Store a checked note's files; a renamed file's references follow it in
+    the fields it lists. Returns what was stored, for references elsewhere."""
+    out = []
     for kind, name, data, fields in files:
-        stored, _renamed = write_media(col, name, data)
+        stored, renamed = write_media(col, name, data)
         if stored != name:
             old, new = _MARKUP[kind].format(name), _MARKUP[kind].format(stored)
             for field in fields:
                 note[field] = note[field].replace(old, new)
+        out.append(MediaStored(filename=stored, requested_filename=name, renamed=renamed, size=len(data)))
+    return out
 
 
 @as_collection_op
@@ -93,7 +98,7 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
                                  include_duplicate_ids=include_duplicate_ids,
                                  field_values=_with_references(_fields_to_map(req.fields), files)
                                  if files else None)
-            _store_attachments(col, note, files)
+            stored = _store_attachments(col, note, files)
             step = col.add_note(note, decks[deck_key])
         except DuplicateNoteError as exc:
             failed.append(NoteCreateFailure(index=index, code="duplicate",
@@ -120,7 +125,8 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
             # discard the first step. The returned flags cover the whole batch.
             changes = col.merge_undo_entries(target)
         created.append(NoteCreated(index=index, id=int(note.id),
-                                   cards=list(col.card_ids_of_note(note.id)) if include_cards else None))
+                                   cards=list(col.card_ids_of_note(note.id)) if include_cards else None,
+                                   files=stored or None))
 
     result = NoteCreateResponse(created=created, failed=failed)
     return ValueWithChanges(result, changes, event_changes=lambda: {

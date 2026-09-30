@@ -7,7 +7,7 @@
 
 | Create… | Endpoint | Each successful result includes… |
 | --- | --- | --- |
-| Notes | `POST /v1/notes` | `index`, `id` |
+| Notes | `POST /v1/notes` | `index`, `id`, and `files` when the note had files |
 | Media files | `POST /v1/media` | `index`, `filename`, `requested_filename`, `renamed`, `size` |
 
 `index` is the input's position (`0` for a single object), so you can match
@@ -213,6 +213,20 @@ files are stored only once the note passes its checks, so a rejected note (a
 duplicate, say) leaves no files behind. A file that can't be read or
 downloaded fails its note with `invalid_attachment`. Batches work the same way:
 each note in the array carries its own files.
+
+Each created note lists its files in `files`, audio first, then video, then
+pictures, in the same form `POST /v1/media` returns:
+
+```json
+{"index": 0, "id": 1790000000000,
+ "files": [{"filename": "inu.mp3", "requested_filename": "inu.mp3", "renamed": false, "size": 5120},
+           {"filename": "inu-1a2b3c.png", "requested_filename": "inu.png", "renamed": true, "size": 20480}]}
+```
+
+Anki renames a file when its name already holds different bytes. The
+references Tsunagi adds to the fields you list follow the new name; a reference
+you wrote into the fields yourself doesn't. If a file shows `renamed: true`,
+update your own references to its `filename`.
 
 Each file takes exactly one source:
 

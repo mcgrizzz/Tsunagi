@@ -1520,6 +1520,33 @@
         "title": "MediaList",
         "type": "object"
       },
+      "MediaStored": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "renamed": {
+            "default": false,
+            "title": "Renamed",
+            "type": "boolean"
+          },
+          "requested_filename": {
+            "title": "Requested Filename",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "size"
+        ],
+        "title": "MediaStored",
+        "type": "object"
+      },
       "MediaUpload": {
         "properties": {
           "data": {
@@ -1861,6 +1888,14 @@
               "type": "integer"
             },
             "title": "Cards",
+            "type": "array"
+          },
+          "files": {
+            "description": "The note's audio, video and picture files as stored, in that order, as POST /v1/media reports them. `filename` differs from `requested_filename` when Anki renamed the file; references in the fields a file lists follow the rename, others don't. Present when the note had files.",
+            "items": {
+              "$ref": "#/components/schemas/MediaStored"
+            },
+            "title": "Files",
             "type": "array"
           },
           "id": {
