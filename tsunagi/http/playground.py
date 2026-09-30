@@ -44,6 +44,13 @@ query to a deck.
 - **`select`** chooses returned fields: `select=id,name` returns
   `[{"id": 1, "name": "Basic"}, …]`, and `select=id` returns `[{"id": 1}, …]`.
   Add `shape=scalar` to get one field's bare values instead: `[1, …]`.
+- **`order`** sorts: `order=due` or `order=note_modified:desc`. Cards and notes
+  use Anki's Browser sorts, by their Browser names (`due`, `interval`, `ease`,
+  `lapses`, `reviews`, `created`, `note_modified`, `deck`, `note_type`,
+  `sort_field`, …), so `due` orders new, learning and review cards as the
+  Browser does. Other resources sort by a field of their rows, such as
+  `order=id:desc` for the newest reviews. Without `order`, rows come in
+  ascending id.
 - **`limit`** sets the page size, such as `10`.
 - **`cursor`** continues a query using the response's `next_cursor`.
 

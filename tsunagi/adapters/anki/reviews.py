@@ -145,6 +145,21 @@ def search_review_rows(col: Collection, query: str,
     return _rows(col, f"cid in {_in_clause(card_ids)}", wants)
 
 
+@as_query_op
+def ordered_review_ids(col: Collection, query: str, name: str, descending: bool) -> List[int]:
+    """Reviews of the cards a search matches (all reviews for ""), sorted by
+    one of their fields; ties in ascending id, as Anki's sorts break them."""
+    column = dict(zip(_NAMES, COLUMNS))[name]
+    where = ""
+    if query and query.strip():
+        card_ids = _find_cards(col, query)
+        if not card_ids:
+            return []
+        where = f" where cid in {_in_clause(card_ids)}"
+    direction = "desc" if descending else "asc"
+    return [int(i) for i in col.db.list(f"select id from revlog{where} order by {column} {direction}, id")]
+
+
 # ====================
 # The one write
 # ====================

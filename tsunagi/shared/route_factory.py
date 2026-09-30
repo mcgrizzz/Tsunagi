@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from bisect import bisect_right
 from operator import itemgetter
@@ -20,7 +21,12 @@ from fastapi import APIRouter, Body, HTTPException, Path, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from ..shared.pagination import decode_cursor, encode_cursor, paginate_keyset
+from ..shared.pagination import (
+    decode_cursor,
+    decode_order_cursor,
+    encode_cursor,
+    paginate_keyset,
+)
 from ..shared.schemas.wrappers import (
     DeletionResult,
     MutationResult,
@@ -38,7 +44,7 @@ from .errors import (
 from .filtering import build_predicate, parse_where
 from .model_export import model_row_dict
 from .permissions import requires
-from .planning import SourceCaps, make_plan
+from .planning import SourceCaps, _search_hydrator, make_plan
 from .query_encoding import render_query_page
 from .selecting import (
     SelectScalar,
@@ -48,6 +54,7 @@ from .selecting import (
     referenced_top_fields,
     selection_include,
 )
+from .sql_query import compile_where, filter_ids
 
 Row = Union[Mapping[str, Any], Any]
 ModelRow = Union[Any, ProjectedObject, Scalar]
@@ -268,6 +275,112 @@ def _paged_scan(
         out = _rehydrate(plan, out, id_getter, wants)
     return out, cur
 
+# ----- order= (backlog 8.1) -----
+
+_ORDER = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*(asc|desc)\s*)?$", re.IGNORECASE)
+_SCALARS = (str, int, float, bool)
+
+
+def _parse_order(text: str) -> tuple:
+    match = _ORDER.match(text or "")
+    if not match:
+        raise ValueError(f"Invalid order {text!r}: use a field name, optionally with :asc or :desc (e.g. due:desc)")
+    return match.group(1), (match.group(2) or "asc").lower() == "desc"
+
+
+def _cannot_order(name: str, names: Any) -> ValueError:
+    return ValueError(f"Can't order by {name}. Order by: {', '.join(sorted(names))}")
+
+
+def _order_start(keys: List[Any], cursor: Optional[str]) -> int:
+    """Where the next page starts: after the last row sent, if it is still in
+    the sorted list, else at the same position."""
+    state = decode_order_cursor(cursor)
+    if not state:
+        return 0
+    try:
+        return keys.index(state["last"]) + 1
+    except ValueError:
+        return state["pos"]
+
+
+def _order_cursor(keys: List[Any], next_pos: Optional[int], last: Any) -> Optional[str]:
+    if next_pos is None or next_pos >= len(keys):
+        return None
+    return encode_cursor({"pos": next_pos, "last": last})
+
+
+def _ordered_scan(ids: List[int], hydrate: Callable, limit: Optional[int], cursor: Optional[str],
+                  wants: Optional[set], id_getter: Callable[[Row], Any],
+                  pred: Optional[Callable[[Mapping[str, Any]], bool]]) -> tuple:
+    """Walk ids in their sorted order, a chunk at a time, until the page fills."""
+    i = _order_start(ids, cursor)
+    batch = HYDRATE_CHUNK if limit is None else max(min(limit, HYDRATE_CHUNK), 50)
+    out: List[Row] = []
+    next_pos = None
+    while i < len(ids) and next_pos is None:
+        chunk = ids[i:i + batch]
+        by_id = {id_getter(r): r for r in hydrate(chunk, wants)}  # hydration needn't keep the order
+        for j, rid in enumerate(chunk):
+            row = by_id.get(rid)
+            if row is None or (pred is not None and not pred(_as_dict(row))):
+                continue
+            out.append(row)
+            if limit is not None and len(out) == limit:
+                next_pos = i + j + 1
+                break
+        i += len(chunk)
+    return out, _order_cursor(ids, next_pos, id_getter(out[-1]) if out else None)
+
+
+def _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search, order, start):
+    name, descending = _parse_order(order)
+    wants = _wanted_fields(select, where)
+    pred = build_predicate(where) if where else None
+    if caps.order is not None:
+        # Cards and notes: Anki's own sort; reviews: SQL. Then the same where
+        # handling as unordered queries: SQL narrows, the predicate decides.
+        names = caps.order.names()
+        if name not in names:
+            raise _cannot_order(name, names)
+        ids = caps.order.ordered_ids(search or "", name, descending)
+        compiled = compile_where(caps.sql, where) if caps.sql is not None and where else None
+        if compiled is not None and compiled.pushed:
+            keep = set(filter_ids(caps.sql, compiled, ids))
+            ids = [i for i in ids if i in keep]
+        rows, cur = _ordered_scan(ids, _search_hydrator(caps.search), limit, cursor, wants, id_getter, pred)
+        return _finish(rows, cur, select, shape, start)
+
+    # Small resources (decks, note types, presets): every matching row, sorted here.
+    plan = make_plan(select, where, caps, search)
+    need = None if wants is None else wants | {name}
+    if plan.fetch is not None:
+        rows = plan.fetch(need)
+    else:
+        found = [int(i) for i in plan.find_ids()]
+        rows = [r for k in range(0, len(found), HYDRATE_CHUNK) for r in plan.hydrate(found[k:k + HYDRATE_CHUNK], need)]
+    if pred is not None:
+        rows = [r for r in rows if pred(_as_dict(r))]
+    fields = {k for r in rows for k, v in _as_dict(r).items() if isinstance(v, _SCALARS)}
+    if rows and name not in fields:
+        raise _cannot_order(name, fields)
+
+    def value(row: Row) -> tuple:
+        v = _as_dict(row).get(name)
+        return (v is None, v)
+    rows.sort(key=id_getter)
+    try:
+        rows.sort(key=value, reverse=descending)  # stable: ties keep ascending id
+    except TypeError:
+        raise ValueError(f"Can't order by {name}: its values have different types") from None
+    keys = [id_getter(r) for r in rows]
+    first = _order_start(keys, cursor)
+    page = rows[first:] if limit is None else rows[first:first + limit]
+    cur = _order_cursor(keys, first + len(page) if limit is not None else None,
+                        id_getter(page[-1]) if page else None)
+    return _finish(page, cur, select, shape, start)
+
+
 def _wanted_fields(select: Optional[str], where: Optional[List[str]]) -> Optional[set]:
     """
     Top-level fields the caller actually referenced, so fetchers can skip
@@ -287,12 +400,15 @@ def _execute_query(
     caps: SourceCaps,
     id_getter: Callable[[Row], int],
     search: Optional[str] = None,
+    order: Optional[str] = None,
 ) -> Paginated[ModelRow]:
     """
     Core query execution logic shared between GET and POST routes.
     """
     start = time.perf_counter()
     try:
+        if order:
+            return _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search, order, start)
         plan = make_plan(select, where, caps, search)
         wants = _wanted_fields(select, where)
 
@@ -429,6 +545,12 @@ def create_resource_routes(
             "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.")),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
+        order: Optional[str] = Query(default=None, description=(
+            "Sort: a name, optionally with :asc (default) or :desc, e.g. due:desc. Cards and notes "
+            "use Anki's Browser sorts (due, interval, ease, lapses, reviews, created, card_modified, "
+            "note_modified, deck, note_type, sort_field, tags, position, card_type; difficulty, "
+            "stability and retrievability on cards); other resources a field of their rows. Ties "
+            "in ascending id. Without it, rows come in ascending id.")),
         shape: Literal["object", "scalar"] = Query(default="object", description=(
             "object (default): each item is an object with the selected fields. scalar: with "
             "exactly one selected field, each item is that field's bare value.")),
@@ -439,7 +561,7 @@ def create_resource_routes(
         # Keyword args: _execute_query's positional order must never be
         # assumed here - a silent shift would land `shape` in `search`.
         return query_response(_execute_query(
-            select=select, where=where, search=search, shape=shape,
+            select=select, where=where, search=search, shape=shape, order=order,
             limit=limit, cursor=cursor, caps=caps, id_getter=id_getter,
         ))
 
@@ -463,6 +585,7 @@ def create_resource_routes(
             where=query.where,
             search=query.search,
             shape=query.shape,
+            order=query.order,
             limit=query.limit,
             cursor=query.cursor,
             caps=caps,

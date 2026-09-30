@@ -91,6 +91,15 @@ class ScanSpec:
     find_ids: BoundIdsFn
     hydrate: FetchValuesFn
 
+@dataclass(frozen=True)
+class OrderSpec:
+    """
+    A resource that sorts itself for `order=` (cards and notes: Anki's Browser
+    sorts; reviews: SQL). Other resources are small and sorted in Python.
+    """
+    names: Callable[[], List[str]]                      # the sort names available now
+    ordered_ids: Callable[[str, str, bool], List[int]]  # (search, name, descending) -> ids in order, ties by id
+
 # Subresource Mutation Capabilities
 @dataclass
 class SubresourceMutations:
@@ -129,6 +138,8 @@ class SourceCaps:
     # Row fields that are table columns: where clauses SQL answers exactly go
     # into the id query (sql_query.py). Needs `search` for hydration.
     sql: Optional[ColumnSource] = None
+    # Sorts itself for `order=`; needs `search` for hydration.
+    order: Optional[OrderSpec] = None
 
 @dataclass
 class Plan:

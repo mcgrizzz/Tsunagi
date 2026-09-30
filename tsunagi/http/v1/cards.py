@@ -29,13 +29,14 @@ from ...adapters.anki.cards import (
     unbury_cards,
     unsuspend_cards,
 )
+from ...adapters.anki.sorting import find_sorted, sort_names
 from ...shared.errors import (
     ResourceNotFoundError,
     ValidationError,
     handle_mutation_errors,
 )
 from ...shared.permissions import requires
-from ...shared.planning import IndexSpec, SearchSpec, SourceCaps
+from ...shared.planning import IndexSpec, OrderSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.cards import (
     AnswerRequest,
@@ -71,6 +72,9 @@ caps = SourceCaps(
                       page_ids=page_card_ids),
     # where clauses on card columns go into the id query (backlog 9.13).
     sql=CARD_SQL,
+    # order= uses Anki's Browser sorts (backlog 8.1).
+    order=OrderSpec(names=lambda: sort_names(False),
+                    ordered_ids=lambda query, name, desc: find_sorted(query, name, desc, False)),
     expensive_groups=(NOTE_WANTS, RENDER_WANTS, frozenset({"next_reviews"}),
                       frozenset({"retrievability"})),
     # No MutationCaps: cards aren't created or deleted directly - they're

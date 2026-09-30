@@ -36,6 +36,23 @@ def decode_cursor(cursor: Optional[str], *, key_type: type = int) -> dict:
 def encode_cursor(state: dict) -> str:
     return _b64u_encode(state)
 
+
+def decode_order_cursor(cursor: Optional[str]) -> dict:
+    """An ordered query's cursor: the position after the last row, and that row's id."""
+    if cursor is None:
+        return {}
+    try:
+        if not isinstance(cursor, str) or not cursor:
+            raise ValueError
+        state = _b64u_decode(cursor)
+        if (not isinstance(state, dict) or set(state) != {"pos", "last"}
+                or type(state["pos"]) is not int or state["pos"] < 0
+                or type(state["last"]) not in (int, str)):
+            raise ValueError
+        return state
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise ValueError("Invalid pagination cursor. Use next_cursor from the previous response, or omit cursor to start over.") from exc
+
 def paginate_keyset(
     items: Iterable[T],
     limit: Optional[int],

@@ -16,10 +16,17 @@ from ...adapters.anki.notes import (
     page_note_ids,
     patch_note,
 )
+from ...adapters.anki.sorting import find_sorted, sort_names
 from ...adapters.ops import collection_op_run_async
 from ...shared.errors import ValidationError, handle_mutation_errors
 from ...shared.permissions import requires
-from ...shared.planning import IndexSpec, MutationCaps, SearchSpec, SourceCaps
+from ...shared.planning import (
+    IndexSpec,
+    MutationCaps,
+    OrderSpec,
+    SearchSpec,
+    SourceCaps,
+)
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import sanitize_media_filename
@@ -61,6 +68,9 @@ caps = SourceCaps(
     # where clauses on note columns, and first_field by checksum, go into the
     # id query, with or without a search (backlog 9.13).
     sql=NOTE_SQL,
+    # order= uses Anki's Browser sorts, in notes mode (backlog 8.1).
+    order=OrderSpec(names=lambda: sort_names(True),
+                    ordered_ids=lambda query, name, desc: find_sorted(query, name, desc, True)),
     mutations=MutationCaps(
         patch=patch_note,
         delete=lambda nid: delete_notes([nid]) > 0,
