@@ -17,6 +17,15 @@ class TestParseWhere:
         c = parse_where('name=="Basic"')
         assert c.value == "Basic"
 
+    def test_quoted_strings_are_json_strings(self):
+        # A client can JSON-encode any name, quotes and backslashes included.
+        import json
+        names = ['Ki"ku', "a\\b", "日本", "a]b, c"]
+        assert parse_where(f"model_name in {json.dumps(names)}").value == names
+        assert parse_where('name=="\\u65e5"').value == "日"
+        with pytest.raises(WhereParseError):
+            parse_where('name=="bad \\q escape"')
+
     def test_bare_identifier_is_string(self):
         c = parse_where("name==Basic")
         assert c.value == "Basic"

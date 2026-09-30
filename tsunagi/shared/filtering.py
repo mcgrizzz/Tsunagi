@@ -1,6 +1,7 @@
 # tsunagi/shared/filtering.py
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from functools import lru_cache, partial
 from itertools import chain
@@ -94,8 +95,8 @@ class _WhereTransformer(Transformer):
             parts.append("[]" if s == "[]" else s)
         return tuple(parts)
 
-    def sval(self, s):     # "quoted"
-        return s[1:-1]
+    def sval(self, s):     # "quoted": a JSON string, so \" \\ \u65e5 decode
+        return json.loads(s, strict=False)
     def ident(self, n):    # bare identifier → string
         return str(n)
     def nval(self, n):
