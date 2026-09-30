@@ -48,6 +48,9 @@ key in the add-on's saved configuration for reference.
   Send an `Idempotency-Key` when creating notes or media so a retry is safe
   ([Creating notes](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/creating_notes.md)).
   A sync that takes longer answers 202 with a job to poll instead.
+- **Idle connections.** The server closes a connection after 75 seconds
+  without a request. A client that keeps connections open should close them
+  sooner, or retry a request that fails because the connection was closed.
 - **Logs** go to Anki's log folder for this add-on, `logs/addons/` in Anki's
   data folder (for example `%APPDATA%\Anki2\logs\addons\` on Windows). They
   rotate daily and are kept for ten days. Attach them to a bug report.

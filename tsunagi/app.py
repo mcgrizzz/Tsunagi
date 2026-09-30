@@ -424,6 +424,10 @@ def start_server(mw) -> None:
             # stream) would otherwise be waited on forever. The drain flag
             # in stop_server closes streams first; this catches stragglers.
             timeout_graceful_shutdown=3,
+            # uvicorn's 5 s default closes idle connections just as clients
+            # polling every few seconds reuse them (backlog 6.48). config.md
+            # tells clients the value.
+            timeout_keep_alive=75,
         ))
         t = threading.Thread(target=_serve, args=(server, session_id),
                              daemon=True, name="tsunagi-http")
