@@ -18,13 +18,15 @@ def _replace_tag_on(col: Collection, note, old: str, new: str):
         return None
     note.remove_tag(old)
     note.add_tag(new)
-    return col.update_note(note, skip_undo_entry=True)
+    return col.update_note(note)
 
 
 def _replace_tags(col, note_ids, old, new):
+    """The writes merge into one undo step (upstream skips undo, wiping Anki's history)."""
     changed = 0
     changes = None
     error = None
+    target = None
     try:
         for nid in note_ids:
             try:
@@ -35,7 +37,10 @@ def _replace_tags(col, note_ids, old, new):
                 continue
             result = _replace_tag_on(col, note, old, new)
             if result is not None:
-                changes = result
+                if target is None:
+                    target, changes = col.undo_status().last_step, result
+                else:
+                    changes = col.merge_undo_entries(target)
                 changed += 1
     except Exception as exc:
         error = str(exc)

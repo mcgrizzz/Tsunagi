@@ -88,10 +88,10 @@ supported behaviour. Actions checked by hand only are marked.
 | `forgetCards` | implemented |  |
 | `getEaseFactors` | implemented |  |
 | `getIntervals` | implemented | Batched. Missing last intervals raise the upstream error; complete=true still returns empty histories. The Tsunagi API's fallback defaults remain unchanged. |
-| `relearnCards` | implemented | Uses a raw UPDATE, wrapped in a CollectionOp. |
+| `relearnCards` | implemented | Sets the same type and queue as upstream's raw UPDATE, through Anki's card update. Unlike upstream, it can be undone: a raw UPDATE wipes Anki's whole undo history. |
 | `setDueDate` | implemented | Uses the Tsunagi API's scheduler mutation; exposes Anki's unprefixed invalid-input message. |
-| `setEaseFactors` | implemented | Uses the Tsunagi API's factor writer. Short arrays keep earlier writes, skip missing cards and fail at the first present card without a factor. |
-| `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Tsunagi API: POST /v1/cards:set-values. |
+| `setEaseFactors` | implemented | Uses the Tsunagi API's factor writer. Short arrays keep earlier writes, skip missing cards and fail at the first present card without a factor. Unlike upstream, the writes can be undone, as one step: upstream skips undo entries, which wipes Anki's whole undo history. |
+| `setSpecificValueOfCard` | implemented | Quirk-for-quirk, including the bare `false` for every input problem, `[true]` on success, `[[false, "err"]]` on failure, and the `warning_check is False` guard that a JSON `null` slips past. Unlike upstream, it can be undone: upstream skips the undo entry, which wipes Anki's whole undo history. Tsunagi API: POST /v1/cards:set-values. |
 | `suspend` | implemented | Supports suspend=false and reproduces upstream's list-removal iteration, including repeated-state return values and skipped missing-ID validation. State reads stay batched; writes use the Tsunagi API's methods. |
 | `suspended` | implemented |  |
 | `unsuspend` | implemented | Returns null, matching canonical. |
@@ -165,11 +165,11 @@ supported behaviour. Actions checked by hand only are marked.
 | `notesModTime` | implemented |  |
 | `removeEmptyNotes` | implemented | Removes note TYPES nothing uses, despite the name - see the note below. |
 | `removeTags` | implemented |  |
-| `replaceTags` | implemented | Exact-tag match, so 'verb' leaves 'verb::transitive' alone. |
-| `replaceTagsInAllNotes` | implemented | Exact-tag match, as above. |
-| `updateNote` | implemented |  |
-| `updateNoteFields` | implemented |  |
-| `updateNoteModel` | implemented |  |
+| `replaceTags` | implemented | Exact-tag match, so 'verb' leaves 'verb::transitive' alone. Unlike upstream, the writes can be undone, as one step: upstream skips undo entries, which wipes Anki's whole undo history. |
+| `replaceTagsInAllNotes` | implemented | Exact-tag match and one undo step, as above. |
+| `updateNote` | implemented | Field updates can be undone, as for `updateNoteFields`. |
+| `updateNoteFields` | implemented | Unlike upstream, it can be undone: upstream skips the undo entry, which wipes Anki's whole undo history. |
+| `updateNoteModel` | implemented | Unlike upstream, it can be undone: upstream skips the undo entry, which wipes Anki's whole undo history. |
 | `updateNoteTags` | implemented |  |
 
 Plain-note batches sent to `canAddNotes` or `canAddNotesWithErrorDetail` share

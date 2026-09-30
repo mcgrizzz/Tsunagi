@@ -800,7 +800,8 @@ def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
     try:
         note = _ac_prepare_update(col, note_id, fields, fields_missing=fields_missing)
         _ac_write_media(col, note, media)
-        return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True),
+        # An undo entry, unlike upstream: a write without one wipes Anki's undo history.
+        return ValueWithChanges(None, col.update_note(note),
                                 event_changes=lambda: {"notes": {"updated": [int(note.id)]}})
     except Exception as exc:
         if type(exc).__name__ == "NotFoundError":

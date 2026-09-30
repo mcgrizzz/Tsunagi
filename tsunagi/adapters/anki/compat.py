@@ -191,12 +191,13 @@ def reviews_for_raw_ids(col, ids):
 def set_raw_ease_factors(col, cards, factors):
     """Apply legacy entries in order, reporting prior writes even if one fails.
 
-    AnkiConnect skips undo entries, which also clears existing undo history.
-    The native ease-factor writer intentionally keeps its own undo behavior.
+    AnkiConnect skips undo entries, which also clears existing undo history;
+    here the writes merge into one undo step instead.
     """
     result = []
     changes = None
     error = None
+    target = None
     try:
         for index, cid in enumerate(cards):
             try:
@@ -207,7 +208,11 @@ def set_raw_ease_factors(col, cards, factors):
                 result.append(False)
                 continue
             card.factor = factors[index]
-            changes = col.update_card(card, skip_undo_entry=True)
+            step = col.update_card(card)
+            if target is None:
+                target, changes = col.undo_status().last_step, step
+            else:
+                changes = col.merge_undo_entries(target)
             result.append(True)
     except Exception as exc:
         error = str(exc)
@@ -241,7 +246,7 @@ def bulk_note_tags(col, notes, tags, add=True):
 
 @as_collection_op
 def update_note_model_raw(col, spec):
-    """Use AnkiConnect's validation, field reset and non-undoable model update."""
+    """Use AnkiConnect's validation and field reset; unlike upstream, the update can be undone."""
     try:
         nid = spec.get("id")
         if not nid:
@@ -265,7 +270,7 @@ def update_note_model_raw(col, spec):
                     note[model_field] = value
                     break
         note.tags = spec.get("tags", [])
-        return ValueWithChanges(None, col.update_note(note, skip_undo_entry=True))
+        return ValueWithChanges(None, col.update_note(note))
     except Exception as exc:
         if type(exc).__name__ == "NotFoundError":
             raise ValueError(f"Note was not found: {nid}") from exc
@@ -499,8 +504,13 @@ def reschedule_cards_raw(col, cards, action, days=None):
         elif action == "relearn":
             from anki.utils import ids2str
 
-            col.db.execute("update cards set type=3, queue=1 where id in " + ids2str(cards))
-            return None
+            # Upstream's raw UPDATE, as a card update: raw SQL would wipe Anki's undo history.
+            found = [col.get_card(cid) for cid in col.db.list("select id from cards where id in " + ids2str(cards))]
+            if not found:
+                return None
+            for card in found:
+                card.type, card.queue = 3, 1
+            changes = col.update_cards(found)
         elif action == "due":
             changes = col.sched.set_due_date(cards, days, config_key=None)
         else:

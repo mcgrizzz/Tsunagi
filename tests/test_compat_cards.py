@@ -182,7 +182,7 @@ class TestRescheduling:
         client, cids = cards
         assert rpc(client, "relearnCards", {"cards": cids}) == {"result": None, "error": None}
         (info,) = rpc(client, "cardsInfo", {"cards": [cids[0]]})["result"]
-        # The one action with no Anki API: a raw UPDATE to type=3, queue=1.
+        # The one action with no Anki API: upstream sets type=3, queue=1 directly.
         assert (info["type"], info["queue"]) == (3, 1)
 
 

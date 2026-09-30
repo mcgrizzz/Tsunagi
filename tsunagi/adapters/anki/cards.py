@@ -683,7 +683,7 @@ def set_card_values(col: Collection, card_id: int, values: Dict[str, Any]) -> An
     card = col.get_card(int(card_id))  # NotFoundError propagates
     for key, value in values.items():
         setattr(card, key, value)
-    changes = col.update_card(card, skip_undo_entry=True)
+    changes = col.update_card(card)
     return ValueWithChanges(True, changes,
                             event_changes=lambda: {"cards": {"updated": [int(card.id)]}})
 
