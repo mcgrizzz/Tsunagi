@@ -14,13 +14,16 @@ measurements, which run Anki's collection code without a window, the Qt
 main-thread handoff or an HTTP server, are developer profiling data. They are
 in [performance notes](performance_notes.md).
 
-There are three benchmarks, all on Anki **26.09.2** with the same testing
+There are four benchmarks, all on Anki **26.09.2** with the same testing
 profile:
 
 - **[Real client workloads](#real-client-workloads):** ten goals taken from
   real AnkiConnect clients, measured on **2026-09-29**.
 - **[Complete tasks](#complete-tasks):** four whole things a user does in
   Yomitan, Obsidian_to_Anki and anki-mcp-server, measured on **2026-09-29**.
+- **[Adding a batch of mined notes](#adding-a-batch-of-mined-notes):** ways to
+  send 1 to 1,000 notes with their audio and pictures, measured on
+  **2026-09-29**.
 - **[Many clients at once](#many-clients-at-once):** a burst of simultaneous
   note-ID lookups. AnkiConnect was measured on **2026-09-21**, the other two on
   **2026-09-23**.
@@ -41,6 +44,9 @@ request log, add a few microseconds per request and are not in it.
   settings takes about 5 ms through either Tsunagi API.
 - **The AnkiConnect Shim is faster than AnkiConnect on seven of ten goals**
   with the same requests, even on one, and slower on two.
+- **Adding 100 mined notes with their files took 3.4 to 3.9 s through the
+  Tsunagi API,** against 6.9 s for Yomine's current AnkiConnect requests (8 per
+  note) through the AnkiConnect Shim, in the fastest run of each.
 - **All three APIs gave the same answers** in every run.
 - **Under load, both Tsunagi APIs answered every request.** AnkiConnect began
   refusing connections at 64 simultaneous requests and refused most at 256.
@@ -159,6 +165,77 @@ profile as above.
   note in the file, the same notes, tags, suspended cards and media, and the
   same total and first 10 cards.
 
+## Adding a batch of mined notes
+
+How long it takes to add a batch of mined notes, and how the request shape
+changes that. Each note is shaped like a real Yomine note in the testing
+profile: a `Kiku` note with a real note's Yomitan fields (about 20 KB of text),
+word audio (26 KB, the same file for about 10% of notes), 0 to 2 dictionary
+images (1 KB each), a sentence clip (51 KB) and a screenshot (192 KB). Every
+file has random bytes. The shapes:
+
+- **A:** Yomine's AnkiConnect sequence through the AnkiConnect Shim, 8
+  requests per note: store each dictionary file, add the note, read the
+  profile and the note, store the clip and the screenshot, update the note.
+- **B:** one `POST /v1/notes?include=cards` per note, with its files attached.
+- **C:** one `POST /v1/media` array with every file, then one `POST /v1/notes`
+  array.
+- **D:** one `POST /v1/notes` array, each note with its own files attached.
+- **D10, D25, …:** D in requests of that many notes (C likewise).
+
+Batches of 1 to 100 notes ran three times and batches of 500 and 1,000 twice,
+with every shape once per round in a random order. During the runs, the
+machine switched between two speeds for minutes at a time: about 35 to 40 ms
+per note and about 70 ms per note, for every shape alike. So the table shows
+each shape's fastest run with the median beside it.
+
+| 100 notes | Fastest (median) | First note saved | Requests | Longest request | Largest request |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| A | 6.9 s (10.4 s) | 28 ms | 803 | 0.3 s | 0.3 MB |
+| B | 3.9 s (4.0 s) | 37 ms | 100 | 0.2 s | 0.4 MB |
+| C | 3.7 s (6.7 s) | 6.7 s | 2 | 6.4 s | 36.6 MB |
+| D | 3.9 s (6.9 s) | 6.9 s | 1 | 6.9 s | 41.8 MB |
+| D5 | 3.9 s (4.0 s) | 190 ms | 20 | 0.6 s | 2.1 MB |
+| D10 | 3.4 s (3.9 s) | 367 ms | 10 | 0.8 s | 4.2 MB |
+| D25 | 3.7 s (3.8 s) | 870 ms | 4 | 1.7 s | 10.4 MB |
+
+| 1,000 notes | Fastest (median) | First note saved | Longest request | Largest request |
+| --- | ---: | ---: | ---: | ---: |
+| A | 111 s (112 s) | 39 ms | 0.3 s | 0.3 MB |
+| B | 43 s (59 s) | 53 ms | 0.5 s | 0.4 MB |
+| D | 42 s (43 s) | 43 s | 18.3 s, answered 503 twice | 418 MB |
+| D25 | 39 s (40 s) | 955 ms | 1.5 s | 10.5 MB |
+| D100 | 37 s (52 s) | 5.0 s | 7.9 s | 41.8 MB |
+
+**How to read it:**
+
+- **The files take most of the time.** Adding a note costs about 5 ms; storing
+  its 270 KB of files is the rest. Every Tsunagi API shape reaches about 35 to
+  40 ms per note; one request per note (B) adds 5 to 10 ms per note for the
+  work each write request takes.
+- **Larger requests are no faster,** but the first note waits for the whole
+  request, and so does anything reading the collection meanwhile: a deck read
+  waited up to 6.3 s during a 100-note D request, while Anki's window stayed
+  responsive (146 ms at most for a request that runs in Anki's main window).
+  During C's media request, reads waited 0.4 s at most.
+- **A single request with every file stops fitting in the 15 s operation
+  timeout at a few hundred notes.** The 500- and 1,000-note single requests
+  answered 503; sending the same request again with the same `Idempotency-Key`
+  returned the finished result, once. With 4,000 notes, the retry returned all
+  4,000 with `Idempotent-Replayed: true`, and the deck held 4,000 notes.
+- **Each note succeeds or fails on its own.** An attachment that isn't valid
+  base64 fails only its note (`invalid_attachment`); the others are added with
+  their files, and none of the failed note's files are stored. A duplicate
+  fails with `code: "duplicate"` and its files aren't stored either.
+- **Repeated audio is stored once.** The same file name and bytes three times
+  in one `POST /v1/media` array returns the same name three times, each with
+  `renamed: false`; in a D request, the three notes share one file.
+- **One request is one undo step.** Edit → Undo after a 10-note D request
+  removed all 10 notes and left their 32 files in the media folder.
+- **Connections:** opening a new connection per request cost the benchmark's
+  client about 0.6 ms; Python's `http.client` took about 18 ms per new
+  connection and 1 ms on a reused one.
+
 ## Many clients at once
 
 **What happens:** a test client releases N requests at the same moment. Each
@@ -276,6 +353,22 @@ until AnkiConnect answers; `bench_switch.py tsunagi` switches back.
 `--workloads` runs a subset, and `--repeats` sets the number of timed runs.
 The runner writes to the profile; use a testing profile.
 
+### Adding a batch of mined notes
+
+Start Anki with a testing profile that has a `Kiku` note type and notes tagged
+`yomine`, then run on the same machine and disk as the profile:
+
+```sh
+python tools/benchmark_mining_batches.py \
+  --url http://127.0.0.1:7777 --profile "YOUR TEST PROFILE" \
+  --checks --output dist/benchmarks/mining-batches.json
+```
+
+`--batches 500 1000 --chunks 25 50 100 --idempotency-keys` adds the large
+batches, `--variants` runs a subset, and `--only-checks --retry-notes 4000`
+checks retrying a request that timed out. Deleted benchmark files go to Anki's
+media trash (**Tools → Check Media → Empty Trash**).
+
 ### Many clients at once
 
 Start Anki with a testing profile, then run the client on the same operating
@@ -298,6 +391,7 @@ environment; keys are not saved in reports.
 ## Raw reports
 
 Results are saved locally as JSON under `dist/benchmarks/` (not committed): `workloads-*.json` for the
-client workloads and `live-connections-*.json` for the burst test. What they
+client workloads, `mining-*.json` for the mined-note batches and
+`live-connections-*.json` for the burst test. What they
 record is described in
 [performance notes](performance_notes.md#live-connection-reports).
