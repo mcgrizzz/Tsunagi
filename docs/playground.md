@@ -25,8 +25,9 @@ Requests that change things change your real collection.
 - **401** means Tsunagi found no usable key. **403** means the request isn't
   allowed; the response says why (except for AnkiConnect requests from a
   website that isn't allowed, which get an empty 403, as in AnkiConnect).
-- Every error's `detail` is a message you can show; a **422** also lists each
-  problem in `errors`.
+- Tsunagi API route and validation errors have `detail`, a message you can
+  show; a **422** also lists each problem in `errors`. A refused Host header or
+  website origin gets a plain-text 403.
 
 ## Other formats
 

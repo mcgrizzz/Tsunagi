@@ -114,9 +114,11 @@ poll `GET /v1/jobs/{job_id}` for status and results.
 
 ### Errors
 
-Every error response has `detail`, a message you can show. A 422 (a request
-that doesn't match the operation's parameters or body) also lists each problem
-in `errors`, and a 503 says why in `reason`: `busy`, `syncing` or `closed`.
+Tsunagi API route and validation errors are JSON with `detail`, a message you
+can show. A 422 (a request that doesn't match the operation's parameters or
+body) also lists each problem in `errors`, and a 503 says why in `reason`:
+`busy`, `syncing` or `closed`. A request refused for its Host header or website
+origin gets a plain-text 403 instead.
 
 ## Try a request
 
