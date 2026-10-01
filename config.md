@@ -45,7 +45,7 @@ key in the add-on's saved configuration for reference.
 - **Timeouts.** Every 503 says why in `reason`: `busy`, `syncing` or `closed`
   (no profile open); `GET /v1/health` reports the same as `collection.state`.
   A timeout doesn't cancel the work: a write can still finish after the 503.
-  Send an `Idempotency-Key` with a write so a retry is safe
+  Send an `Idempotency-Key` with a write that changes the collection so a retry is safe
   ([Creating notes](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/creating_notes.md)).
   A sync that takes longer answers 202 with a job to poll instead. Every
   status the API uses is listed under Errors in the API reference.
