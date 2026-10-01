@@ -2534,6 +2534,11 @@
           "stats": {
             "title": "Stats",
             "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
           }
         },
         "required": [
@@ -2614,9 +2619,16 @@
             "title": "Distinct On",
             "type": "string"
           },
+          "include": {
+            "enum": [
+              "total"
+            ],
+            "title": "Include",
+            "type": "string"
+          },
           "limit": {
-            "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
-            "minimum": 1.0,
+            "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
+            "minimum": 0.0,
             "title": "Limit",
             "type": "integer"
           },
@@ -3303,7 +3315,7 @@
     }
   },
   "info": {
-    "description": "## Overview\n\nTsunagi provides a REST API for your running Anki collection. Browse the endpoints\nin the sidebar, inspect their schemas and code examples, then choose **Test\nRequest** to edit parameters or a JSON body and send the request to Anki.\n\n## Authentication\n\nIf you configured an API key in Tsunagi settings, enter it in **Authentication**.\nNative endpoints accept `X-API-Key` or `Authorization: Bearer <key>`. Leave it blank\nwhen authentication is disabled. The health endpoint is public. AnkiConnect RPC\nuses its own `key` field in the JSON body.\n\n## Core concepts\n\n### Notes, cards and note types\n\nChoose the resource that owns the data you want to work with:\n\n**Notes** contain field values and tags. Use note endpoints to add or edit content.\n\n**Cards** contain scheduling and review state. Use card endpoints to inspect due\ndates or change scheduling.\n\n**Models** are Anki's note types: the field definitions and templates that control\ncard structure and appearance.\n\nA note can generate several cards. For example, a note type with forward and\nreverse templates creates two cards from the same field values. Edit the note\nto change their shared content; work with the cards to change their schedules.\n\n### Find the data you need\n\nFor notes, cards and reviews, `search` accepts the same query syntax as Anki's\nbrowser. Use `tag:verb` to find tagged content, or `deck:Japanese` to restrict a\nquery to a deck.\n\n- **`search`** matches an Anki browser query, such as `tag:verb`.\n- **`where`** filters resource fields: `mod>1790000000`, `name~=Basic` (names\n  containing “Basic”), `model_name in [\"Kiku\",\"Kiku+\"]`. Several `where`\n  clauses must all match.\n- **`select`** chooses returned fields: `select=id,name` returns\n  `[{\"id\": 1, \"name\": \"Basic\"}, …]`, and `select=id` returns `[{\"id\": 1}, …]`.\n  Add `shape=scalar` to get one field's bare values instead: `[1, …]`.\n- **`order`** sorts: `order=due` or `order=note_modified:desc`. Cards and notes\n  use Anki's Browser sorts, by their Browser names (`due`, `interval`, `ease`,\n  `lapses`, `reviews`, `created`, `note_modified`, `deck`, `note_type`,\n  `sort_field`, …), so `due` orders new, learning and review cards as the\n  Browser does. Row fields that sort the same work too: `reps`, `mod`, and `id`\n  on notes. Other resources sort by a field of their rows, such as\n  `order=id:desc` for the newest reviews. Without `order`, rows come in\n  ascending id.\n- **`distinct_on`** keeps one row per value of a field, the first in `order`:\n  `GET /v1/reviews?distinct_on=card_id&order=id:desc` is each card's latest\n  review, and `distinct_on=note_id` on cards is one card per note. `where`\n  applies first. On cards, notes and reviews it takes a column field, and every\n  `where` clause must be on a column too; use `search` for the rest.\n- **`limit`** sets the page size, such as `10`.\n- **`cursor`** continues a query using the response's `next_cursor`.\n\nA `where` clause is a field, an operator (`==`, `!=`, `~=`, `>`, `>=`, `<`, `<=`,\n`in`, `not in`) and a value. Numbers, `true`, `false` and `null` are written as\nin JSON. **Write text as a JSON string**, and a list as a JSON array, so any\nname is safe, including quotes and backslashes: build the value with your\nlanguage's JSON encoder, such as `\"model_name in \" + JSON.stringify(names)` in\nJavaScript or `\"model_name in \" + json.dumps(names)` in Python.\n\nCheck each endpoint for its supported fields and filters. In the request\nconsole, enter parameter values directly; the client handles URL encoding.\n\n### Choosing rows: `search` or `where`\n\nUse `search` to choose cards and notes: it is Anki's own search, fast and with\nAnki's rules. Use `where` for what search can't do: exact values in the rows\nyou get back, and resources Anki can't search, such as reviews and decks.\n\n- Notes of a note type: `search=note:Kiku`\n- Cards in a deck and its subdecks: `search=deck:Mining`\n- Suspended cards: `search=is:suspended`\n- Cards with an interval of 21 days or more: `search=prop:ivl>=21`\n- Notes edited in the last 2 days: `search=edited:2`\n- Notes edited since an exact moment: `search=edited:2&where=mod>=1790000000`\n  (the search narrows quickly; `where` makes it exact to the second)\n- Notes whose first field is a word: `where=first_field in [\"食べる\"]`, with\n  `search=deck:Mining` to look in one deck only\n- Reviews answered Again: `where=ease==1` on `/v1/reviews`; there, `search`\n  chooses the cards whose reviews you get\n\n### GET parameters or a JSON body\n\nMany list endpoints also provide a **Query … (POST)** operation. Both forms\nperform the same query. For example, these requests find up to ten notes tagged\n`verb` and return their IDs:\n\n```http\nGET /v1/notes?search=tag%3Averb&select=id&limit=10\n```\n\nFor `POST /v1/notes/query`, enter this JSON body:\n\n```json\n{\n  \"search\": \"tag:verb\",\n  \"select\": \"id\",\n  \"limit\": 10\n}\n```\n\nUse the POST query form when a JSON body is easier to compose. **Create note**\nis a separate operation at `POST /v1/notes`.\n\n### Read the next page\n\nA paginated response has three parts:\n\n- **`items`** holds the results on this page, shaped by your query.\n- **`next_cursor`** is the token for the following page. A value of `null` means\n  there are no more results.\n- **`stats`** contains metadata about how the query was processed.\n\nTo continue, copy `next_cursor` into the next request's `cursor` parameter or\nJSON property. Keep the search, filters, field selection and page size the same.\nTreat the cursor as an opaque token: copy it as returned. Clear it when starting\na different query. A small `limit`, such as `10`, makes initial requests easier\nto inspect.\n\n### Check feature support and job status\n\n`GET /v1/capabilities` reports all native operations in one place. Each operation\nhas a `status`: `available`, `disabled` for your app (its role lacks the\npermission, or the app is turned off), or `unsupported` by this Anki version.\nConditional options carry the same status, plus a reason and the permission or\nsetting that controls them. AnkiConnect actions remain separate at `GET /actions`.\n\nLook up an operation by method and path, such as\n`operations[\"POST /v1/cards:set-memory-state\"]`. FSRS scheduling appears under\n`features.fsrs_scheduling`; computations that work while scheduling is off remain\navailable. See [native discovery](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/capabilities.md)\nfor the response layout.\n\nFor an operation that returns an asynchronous job, use its returned job ID to\npoll `GET /v1/jobs/{job_id}` for status and results.\n\n### Errors\n\nTsunagi API route and validation errors are JSON with `detail`, a message you\ncan show. A 422 also lists each problem in `errors`, and a 503 says why in\n`reason`: `busy`, `syncing` or `closed`. A request refused for its Host header\nor website origin gets a plain-text 403 instead. The status says what to do:\n\n| Status | Means | What to do |\n| --- | --- | --- |\n| 200, 201 | Done; 201 created something | |\n| 202 | Accepted as a job | Poll `GET /v1/jobs/{job_id}` |\n| 400 | The request's values are wrong: an unknown field, a bad search or cursor | Fix the request |\n| 401 | No usable key | Send a valid key |\n| 403 | The app's role lacks the permission (`detail` names it), or the app is off | Change the role on the settings page |\n| 404 | What you named doesn't exist | |\n| 409 | Valid, but it clashes with the collection: a name or id that's taken, a duplicate note, a job already running, a full sync Anki must do | Change the request, or wait |\n| 422 | The body or parameters don't match the operation | Fix the request (`errors` lists each problem) |\n| 500 | Tsunagi failed | Report it: it's a bug |\n| 501 | This Anki version lacks the feature | Update Anki |\n| 502 | AnkiWeb refused or couldn't be reached | Retry later |\n| 503 | Anki is busy, syncing or has no profile open (`reason`) | Retry; a write may still finish |\n\nA 503 doesn't cancel a write: Anki may still finish it. Send an\n`Idempotency-Key` header (a new UUID per request) with any write, and the same\nkey when you retry it: the retry gets the first attempt's result, marked\n`Idempotent-Replayed: true`, instead of writing again.\n\n## Try a request\n\nStart with `GET /v1/health`, or **Notes → List notes** with `limit=10`. Health\nneeds no key or open profile. Its `caller` says who the request counts as (app,\nrole) and whether its key is `valid`, `unknown` (counts as no key) or `none`,\nso sending your key checks it.\nThe console sends real requests to your current Anki profile, including changes\nwhen you use a write operation.\n\n[Swagger](/docs) · [ReDoc](/redoc) · [OpenAPI JSON](/openapi.json)\n",
+    "description": "## Overview\n\nTsunagi provides a REST API for your running Anki collection. Browse the endpoints\nin the sidebar, inspect their schemas and code examples, then choose **Test\nRequest** to edit parameters or a JSON body and send the request to Anki.\n\n## Authentication\n\nIf you configured an API key in Tsunagi settings, enter it in **Authentication**.\nNative endpoints accept `X-API-Key` or `Authorization: Bearer <key>`. Leave it blank\nwhen authentication is disabled. The health endpoint is public. AnkiConnect RPC\nuses its own `key` field in the JSON body.\n\n## Core concepts\n\n### Notes, cards and note types\n\nChoose the resource that owns the data you want to work with:\n\n**Notes** contain field values and tags. Use note endpoints to add or edit content.\n\n**Cards** contain scheduling and review state. Use card endpoints to inspect due\ndates or change scheduling.\n\n**Models** are Anki's note types: the field definitions and templates that control\ncard structure and appearance.\n\nA note can generate several cards. For example, a note type with forward and\nreverse templates creates two cards from the same field values. Edit the note\nto change their shared content; work with the cards to change their schedules.\n\n### Find the data you need\n\nFor notes, cards and reviews, `search` accepts the same query syntax as Anki's\nbrowser. Use `tag:verb` to find tagged content, or `deck:Japanese` to restrict a\nquery to a deck.\n\n- **`search`** matches an Anki browser query, such as `tag:verb`.\n- **`where`** filters resource fields: `mod>1790000000`, `name~=Basic` (names\n  containing “Basic”), `model_name in [\"Kiku\",\"Kiku+\"]`. Several `where`\n  clauses must all match.\n- **`select`** chooses returned fields: `select=id,name` returns\n  `[{\"id\": 1, \"name\": \"Basic\"}, …]`, and `select=id` returns `[{\"id\": 1}, …]`.\n  Add `shape=scalar` to get one field's bare values instead: `[1, …]`.\n- **`order`** sorts: `order=due` or `order=note_modified:desc`. Cards and notes\n  use Anki's Browser sorts, by their Browser names (`due`, `interval`, `ease`,\n  `lapses`, `reviews`, `created`, `note_modified`, `deck`, `note_type`,\n  `sort_field`, …), so `due` orders new, learning and review cards as the\n  Browser does. Row fields that sort the same work too: `reps`, `mod`, and `id`\n  on notes. Other resources sort by a field of their rows, such as\n  `order=id:desc` for the newest reviews. Without `order`, rows come in\n  ascending id.\n- **`distinct_on`** keeps one row per value of a field, the first in `order`:\n  `GET /v1/reviews?distinct_on=card_id&order=id:desc` is each card's latest\n  review, and `distinct_on=note_id` on cards is one card per note. `where`\n  applies first. On cards, notes and reviews it takes a column field, and every\n  `where` clause must be on a column too; use `search` for the rest.\n- **`include=total`** adds `total`, how many rows the query matches across\n  all pages. With `limit=0` it's the count alone: `GET\n  /v1/cards?search=is:suspended&include=total&limit=0`.\n- **`limit`** sets the page size, such as `10`.\n- **`cursor`** continues a query using the response's `next_cursor`.\n\nA `where` clause is a field, an operator (`==`, `!=`, `~=`, `>`, `>=`, `<`, `<=`,\n`in`, `not in`) and a value. Numbers, `true`, `false` and `null` are written as\nin JSON. **Write text as a JSON string**, and a list as a JSON array, so any\nname is safe, including quotes and backslashes: build the value with your\nlanguage's JSON encoder, such as `\"model_name in \" + JSON.stringify(names)` in\nJavaScript or `\"model_name in \" + json.dumps(names)` in Python.\n\nCheck each endpoint for its supported fields and filters. In the request\nconsole, enter parameter values directly; the client handles URL encoding.\n\n### Choosing rows: `search` or `where`\n\nUse `search` to choose cards and notes: it is Anki's own search, fast and with\nAnki's rules. Use `where` for what search can't do: exact values in the rows\nyou get back, and resources Anki can't search, such as reviews and decks.\n\n- Notes of a note type: `search=note:Kiku`\n- Cards in a deck and its subdecks: `search=deck:Mining`\n- Suspended cards: `search=is:suspended`\n- Cards with an interval of 21 days or more: `search=prop:ivl>=21`\n- Notes edited in the last 2 days: `search=edited:2`\n- Notes edited since an exact moment: `search=edited:2&where=mod>=1790000000`\n  (the search narrows quickly; `where` makes it exact to the second)\n- Notes whose first field is a word: `where=first_field in [\"食べる\"]`, with\n  `search=deck:Mining` to look in one deck only\n- Reviews answered Again: `where=ease==1` on `/v1/reviews`; there, `search`\n  chooses the cards whose reviews you get\n\n### GET parameters or a JSON body\n\nMany list endpoints also provide a **Query … (POST)** operation. Both forms\nperform the same query. For example, these requests find up to ten notes tagged\n`verb` and return their IDs:\n\n```http\nGET /v1/notes?search=tag%3Averb&select=id&limit=10\n```\n\nFor `POST /v1/notes/query`, enter this JSON body:\n\n```json\n{\n  \"search\": \"tag:verb\",\n  \"select\": \"id\",\n  \"limit\": 10\n}\n```\n\nUse the POST query form when a JSON body is easier to compose. **Create note**\nis a separate operation at `POST /v1/notes`.\n\n### Read the next page\n\nA paginated response has three parts:\n\n- **`items`** holds the results on this page, shaped by your query.\n- **`next_cursor`** is the token for the following page. A value of `null` means\n  there are no more results.\n- **`stats`** contains metadata about how the query was processed.\n\nTo continue, copy `next_cursor` into the next request's `cursor` parameter or\nJSON property. Keep the search, filters, field selection and page size the same.\nTreat the cursor as an opaque token: copy it as returned. Clear it when starting\na different query. A small `limit`, such as `10`, makes initial requests easier\nto inspect.\n\n### Check feature support and job status\n\n`GET /v1/capabilities` reports all native operations in one place. Each operation\nhas a `status`: `available`, `disabled` for your app (its role lacks the\npermission, or the app is turned off), or `unsupported` by this Anki version.\nConditional options carry the same status, plus a reason and the permission or\nsetting that controls them. AnkiConnect actions remain separate at `GET /actions`.\n\nLook up an operation by method and path, such as\n`operations[\"POST /v1/cards:set-memory-state\"]`. FSRS scheduling appears under\n`features.fsrs_scheduling`; computations that work while scheduling is off remain\navailable. See [native discovery](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/capabilities.md)\nfor the response layout.\n\nFor an operation that returns an asynchronous job, use its returned job ID to\npoll `GET /v1/jobs/{job_id}` for status and results.\n\n### Errors\n\nTsunagi API route and validation errors are JSON with `detail`, a message you\ncan show. A 422 also lists each problem in `errors`, and a 503 says why in\n`reason`: `busy`, `syncing` or `closed`. A request refused for its Host header\nor website origin gets a plain-text 403 instead. The status says what to do:\n\n| Status | Means | What to do |\n| --- | --- | --- |\n| 200, 201 | Done; 201 created something | |\n| 202 | Accepted as a job | Poll `GET /v1/jobs/{job_id}` |\n| 400 | The request's values are wrong: an unknown field, a bad search or cursor | Fix the request |\n| 401 | No usable key | Send a valid key |\n| 403 | The app's role lacks the permission (`detail` names it), or the app is off | Change the role on the settings page |\n| 404 | What you named doesn't exist | |\n| 409 | Valid, but it clashes with the collection: a name or id that's taken, a duplicate note, a job already running, a full sync Anki must do | Change the request, or wait |\n| 422 | The body or parameters don't match the operation | Fix the request (`errors` lists each problem) |\n| 500 | Tsunagi failed | Report it: it's a bug |\n| 501 | This Anki version lacks the feature | Update Anki |\n| 502 | AnkiWeb refused or couldn't be reached | Retry later |\n| 503 | Anki is busy, syncing or has no profile open (`reason`) | Retry; a write may still finish |\n\nA 503 doesn't cancel a write: Anki may still finish it. Send an\n`Idempotency-Key` header (a new UUID per request) with a write that changes the\ncollection in one step (creating, editing or deleting notes, cards, decks, note\ntypes, tags, presets, reviews or media; answering cards), and the same key when\nyou retry it: the retry gets the first attempt's result, marked\n`Idempotent-Replayed: true`, instead of writing again. Jobs (a 202 answer:\nimport, export, sync, FSRS computations, add-on actions), switching profile,\nchecking the database and actions on Anki's windows don't use the key yet: for\na job, poll the job you were given instead of retrying.\n\n## Try a request\n\nStart with `GET /v1/health`, or **Notes → List notes** with `limit=10`. Health\nneeds no key or open profile. Its `caller` says who the request counts as (app,\nrole) and whether its key is `valid`, `unknown` (counts as no key) or `none`,\nso sending your key checks it.\nThe console sends real requests to your current Anki profile, including changes\nwhen you use a write operation.\n\n[Swagger](/docs) · [ReDoc](/redoc) · [OpenAPI JSON](/openapi.json)\n",
     "license": {
       "name": "MIT"
     },
@@ -3721,13 +3733,27 @@
             }
           },
           {
-            "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
+            "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+              "enum": [
+                "total"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
-              "minimum": 1.0,
+              "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
+              "minimum": 0.0,
               "title": "Limit",
               "type": "integer"
             }
@@ -4910,13 +4936,27 @@
             }
           },
           {
-            "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
+            "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+              "enum": [
+                "total"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
-              "minimum": 1.0,
+              "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
+              "minimum": 0.0,
               "title": "Limit",
               "type": "integer"
             }
@@ -5276,13 +5316,27 @@
             }
           },
           {
-            "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
+            "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+              "enum": [
+                "total"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
-              "minimum": 1.0,
+              "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
+              "minimum": 0.0,
               "title": "Limit",
               "type": "integer"
             }
@@ -7122,13 +7176,27 @@
             }
           },
           {
-            "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
+            "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+              "enum": [
+                "total"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
-              "minimum": 1.0,
+              "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
+              "minimum": 0.0,
               "title": "Limit",
               "type": "integer"
             }
@@ -8103,13 +8171,27 @@
             }
           },
           {
-            "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
+            "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+              "enum": [
+                "total"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
-              "minimum": 1.0,
+              "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
+              "minimum": 0.0,
               "title": "Limit",
               "type": "integer"
             }
@@ -8805,13 +8887,27 @@
             }
           },
           {
-            "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
+            "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "description": "total: add `total`, how many rows the query matches across all pages. With limit=0, the count alone.",
+              "enum": [
+                "total"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "description": "Maximum results in this response. Omit to return all matches; no fixed upper cap.",
-              "minimum": 1.0,
+              "description": "Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.",
+              "minimum": 0.0,
               "title": "Limit",
               "type": "integer"
             }

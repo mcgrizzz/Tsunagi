@@ -34,7 +34,8 @@ def test_query_encoding_matches_framework(method, monkeypatch):
         resource_name="item", resource_plural="items", tag="Test", permission_resource="notes",
     ))
 
-    @app.get("/reference", response_model=Paginated[ModelRow], response_model_by_alias=False)
+    @app.get("/reference", response_model=Paginated[ModelRow], response_model_by_alias=False,
+             response_model_exclude={"total"})   # sent only with include=total
     def reference():
         return page
 

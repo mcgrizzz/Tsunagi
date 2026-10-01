@@ -57,6 +57,9 @@ query to a deck.
   review, and `distinct_on=note_id` on cards is one card per note. `where`
   applies first. On cards, notes and reviews it takes a column field, and every
   `where` clause must be on a column too; use `search` for the rest.
+- **`include=total`** adds `total`, how many rows the query matches across
+  all pages. With `limit=0` it's the count alone: `GET
+  /v1/cards?search=is:suspended&include=total&limit=0`.
 - **`limit`** sets the page size, such as `10`.
 - **`cursor`** continues a query using the response's `next_cursor`.
 
@@ -166,9 +169,14 @@ or website origin gets a plain-text 403 instead. The status says what to do:
 | 503 | Anki is busy, syncing or has no profile open (`reason`) | Retry; a write may still finish |
 
 A 503 doesn't cancel a write: Anki may still finish it. Send an
-`Idempotency-Key` header (a new UUID per request) with any write, and the same
-key when you retry it: the retry gets the first attempt's result, marked
-`Idempotent-Replayed: true`, instead of writing again.
+`Idempotency-Key` header (a new UUID per request) with a write that changes the
+collection in one step (creating, editing or deleting notes, cards, decks, note
+types, tags, presets, reviews or media; answering cards), and the same key when
+you retry it: the retry gets the first attempt's result, marked
+`Idempotent-Replayed: true`, instead of writing again. Jobs (a 202 answer:
+import, export, sync, FSRS computations, add-on actions), switching profile,
+checking the database and actions on Anki's windows don't use the key yet: for
+a job, poll the job you were given instead of retrying.
 
 ## Try a request
 

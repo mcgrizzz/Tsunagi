@@ -44,15 +44,16 @@ class CustomRow(BaseModel):
 ])
 def test_encoded_values_match_framework_without_changing_page(value):
     page = Paginated[ModelRow](items=[value], next_cursor=None, stats={"duration_ms": 0})
-    expected = JSONResponse(jsonable_encoder(page, by_alias=True)).body
+    # `total` is sent only when include=total set it.
+    expected = JSONResponse(jsonable_encoder(page, by_alias=True, exclude={"total"})).body
     assert query_encoding.render_query_page(page) == expected
-    assert JSONResponse(jsonable_encoder(page, by_alias=True)).body == expected
+    assert JSONResponse(jsonable_encoder(page, by_alias=True, exclude={"total"})).body == expected
 
 
 def test_plain_page_does_not_use_framework_conversion(monkeypatch):
     page = Paginated[ModelRow](items=[{"id": 1, "fields": [{"name": "Front", "value": "word"}]}],
                                next_cursor=None, stats={"duration_ms": 0})
-    expected = jsonable_encoder(page)
+    expected = jsonable_encoder(page, exclude={"total"})
     def unexpected(*args, **kwargs):
         pytest.fail("A plain JSON page should not be recursively converted again")
     monkeypatch.setattr(query_encoding, "jsonable_encoder", unexpected)
@@ -67,3 +68,9 @@ def test_nonfinite_numbers_still_fail_json_serialization(value):
         JSONResponse(jsonable_encoder(page))
     with pytest.raises(ValueError):
         query_encoding.render_query_page(page)
+
+
+def test_a_requested_total_is_encoded_like_the_framework():
+    page = Paginated[ModelRow](items=[{"id": 1}], next_cursor=None, stats={"duration_ms": 0}, total=7)
+    assert query_encoding.render_query_page(page) == JSONResponse(jsonable_encoder(page, by_alias=True)).body
+    assert b'"total":7' in query_encoding.render_query_page(page)

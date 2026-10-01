@@ -9,11 +9,18 @@ from tsunagi.shared.schemas.wrappers import QueryRequest
 
 
 @pytest.mark.parametrize("method", ["GET", "POST"])
-@pytest.mark.parametrize("limit", [0, -1])
-def test_query_limit_still_requires_positive_value(client, method, limit):
-    response = (client.get("/v1/cards", params={"limit": limit}) if method == "GET" else
-                client.post("/v1/cards/query", json={"limit": limit}))
+def test_query_limit_still_rejects_a_negative_value(client, method):
+    response = (client.get("/v1/cards", params={"limit": -1}) if method == "GET" else
+                client.post("/v1/cards/query", json={"limit": -1}))
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_limit_zero_is_an_empty_page(client, method):
+    # With include=total, the count alone (test_include_total.py).
+    response = (client.get("/v1/cards", params={"limit": 0}) if method == "GET" else
+                client.post("/v1/cards/query", json={"limit": 0}))
+    assert response.status_code == 200 and response.json()["items"] == []
 
 
 def test_query_limit_discovery_has_no_numeric_default_or_maximum(client):
@@ -22,9 +29,12 @@ def test_query_limit_discovery_has_no_numeric_default_or_maximum(client):
     for path in ("/v1/cards", "/v1/notes", "/v1/models", "/v1/decks", "/v1/reviews", "/v1/media"):
         limits.append(next(p["schema"] for p in schema["paths"][path]["get"]["parameters"]
                            if p["name"] == "limit"))
-    for limit in limits:
+    for path, limit in zip(("QueryRequest", "/v1/cards", "/v1/notes", "/v1/models", "/v1/decks",
+                            "/v1/reviews", "/v1/media"), limits):
         assert limit.get("default") is None
-        assert limit["minimum"] == 1
+        # 0 is the count alone on the shared lists; media's hand-built list
+        # moves onto them with backlog 6.71.
+        assert limit["minimum"] == (1 if path == "/v1/media" else 0), path
         assert "maximum" not in limit
 
 

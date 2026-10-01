@@ -20,9 +20,12 @@ def render_query_page(page: Any) -> bytes:
     # Most pages contain only JSON values, which the C encoder renders exactly as
     # JSONResponse would after FastAPI's conversion; it calls _unsupported for
     # anything else, and rejects keys it cannot convert.
+    # `total` is only sent when it was asked for (include=total).
+    body = page.__dict__ if page.__dict__.get("total") is not None else {
+        k: v for k, v in page.__dict__.items() if k != "total"}
     if not page.__config__.json_encoders:
         try:
-            text = json.dumps(page.__dict__, ensure_ascii=False, allow_nan=False,
+            text = json.dumps(body, ensure_ascii=False, allow_nan=False,
                               separators=(",", ":"), default=_unsupported)
         except (_NeedsFrameworkEncoder, TypeError):
             pass
@@ -34,4 +37,5 @@ def render_query_page(page: Any) -> bytes:
     # Fall back for the entire page, not just the special value. Pydantic's
     # recursive dict conversion affects nested model aliases and encoders, so
     # encoding those models individually could change the response.
-    return JSONResponse(jsonable_encoder(page, by_alias=True)).body
+    return JSONResponse(jsonable_encoder(page, by_alias=True,
+                                        exclude=None if "total" in body else {"total"})).body

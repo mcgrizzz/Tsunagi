@@ -121,6 +121,13 @@ def page_ids(source: ColumnSource, compiled: Compiled, after: Optional[int], lim
     return source.run(sql, ([int(after)] if after is not None else []) + list(compiled.args) + [int(limit)])
 
 
+def count(source: ColumnSource, compiled: Compiled, condition: str = "",
+          condition_args: Sequence[Any] = ()) -> int:
+    """How many rows the pushed clauses (and a search's `condition`) match."""
+    return int(source.run(f"select count(*) from {source.table}{_where(condition, compiled.condition)}",
+                          list(condition_args) + list(compiled.args))[0])
+
+
 def all_ids(source: ColumnSource, compiled: Compiled) -> List[int]:
     return source.run(f"select id from {source.table}{_where(compiled.condition)} order by id",
                       list(compiled.args))

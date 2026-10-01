@@ -58,6 +58,7 @@ from .sql_query import (
     Compiled,
     all_ids,
     compile_where,
+    count,
     filter_ids,
     first_by_id,
     first_per_value,
@@ -474,10 +475,64 @@ def _execute_query(
     search: Optional[str] = None,
     order: Optional[str] = None,
     distinct_on: Optional[str] = None,
+    include: Optional[str] = None,
 ) -> Paginated[ModelRow]:
     """
-    Core query execution logic shared between GET and POST routes.
+    Core query execution logic shared between GET and POST routes. limit=0
+    skips the rows; include=total adds how many the query matches (8.1).
     """
+    start = time.perf_counter()
+    if limit == 0:
+        page = _finish([], None, select, shape, start)
+    else:
+        page = _query_page(select, where, shape, limit, cursor, caps, id_getter, search, order, distinct_on)
+    if include == "total":
+        try:
+            page.total = _total(where, caps, id_getter, search, distinct_on)
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve)) from ve
+        page.stats = _stats(start)
+    return page
+
+
+def _total(where: Optional[List[str]], caps: SourceCaps, id_getter: Callable[[Row], int],
+           search: Optional[str], distinct_on: Optional[str]) -> int:
+    """
+    Every row the query matches. In SQL when it answers every where clause
+    exactly (cards, notes, reviews): a count, the search's ids, or the
+    distinct_on pick; otherwise the query itself, unpaged and ids only.
+    """
+    if caps.sql is not None and caps.search is not None:
+        compiled = compile_where(caps.sql, where) if where else Compiled("", (), 0)
+        if not where or compiled.exact == len(where):
+            condition: tuple = ("", ())
+            found = None
+            if search and caps.sql.search_condition is not None:
+                condition = caps.sql.search_condition(search)
+            elif search:
+                found = caps.search.find_ids(search)
+            if distinct_on is not None and distinct_on in caps.sql.columns:
+                return len(first_by_id(caps.sql, distinct_on, compiled, False, found, *condition))
+            if distinct_on is None:
+                if found is None:
+                    return count(caps.sql, compiled, *condition)
+                return len(filter_ids(caps.sql, compiled, found)) if compiled.pushed else len(set(found))
+    page = _query_page("id", where, "object", None, None, caps, id_getter, search, None, distinct_on)
+    return len(page.items)
+
+
+def _query_page(
+    select: Optional[str],
+    where: Optional[List[str]],
+    shape: Optional[str],
+    limit: Optional[int],
+    cursor: Optional[str],
+    caps: SourceCaps,
+    id_getter: Callable[[Row], int],
+    search: Optional[str] = None,
+    order: Optional[str] = None,
+    distinct_on: Optional[str] = None,
+) -> Paginated[ModelRow]:
     start = time.perf_counter()
     try:
         if order or distinct_on:
@@ -634,7 +689,10 @@ def create_resource_routes(
         shape: Literal["object", "scalar"] = Query(default="object", description=(
             "object (default): each item is an object with the selected fields. scalar: with "
             "exactly one selected field, each item is that field's bare value.")),
-        limit: Optional[int] = Query(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap."),
+        include: Optional[Literal["total"]] = Query(default=None, description=(
+            "total: add `total`, how many rows the query matches across all pages. With limit=0, "
+            "the count alone.")),
+        limit: Optional[int] = Query(default=None, ge=0, description="Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap."),
         cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
     ) -> Any:
         """Query resource collection with URL parameters."""
@@ -642,7 +700,8 @@ def create_resource_routes(
         # assumed here - a silent shift would land `shape` in `search`.
         return query_response(_execute_query(
             select=select, where=where, search=search, shape=shape, order=order,
-            distinct_on=distinct_on, limit=limit, cursor=cursor, caps=caps, id_getter=id_getter,
+            distinct_on=distinct_on, include=include, limit=limit, cursor=cursor, caps=caps,
+            id_getter=id_getter,
         ))
 
     # POST endpoint - query params in body
@@ -667,6 +726,7 @@ def create_resource_routes(
             shape=query.shape,
             order=query.order,
             distinct_on=query.distinct_on,
+            include=query.include,
             limit=query.limit,
             cursor=query.cursor,
             caps=caps,

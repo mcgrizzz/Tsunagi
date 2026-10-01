@@ -25,6 +25,9 @@ class Paginated(GenericModel, Generic[T]):
     items: Sequence[T]
     next_cursor: Optional[str] = None
     stats: dict
+    # Only with include=total; left out of the response otherwise.
+    total: Optional[int] = Field(None, description="With include=total: every row the query matches, "
+                                                   "across all pages")
 
 class MutationResult(GenericModel, Generic[T]):
     result: T
@@ -43,5 +46,6 @@ class QueryRequest(BaseModel):
     shape: Literal["object", "scalar"] = "object"
     order: Optional[str] = None     # e.g. "due:desc"; see the GET parameter
     distinct_on: Optional[str] = None   # one row per value of this field; see the GET parameter
-    limit: Optional[int] = Field(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap.")
+    include: Optional[Literal["total"]] = None   # see the GET parameter
+    limit: Optional[int] = Field(default=None, ge=0, description="Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.")
     cursor: Optional[str] = None
