@@ -172,7 +172,7 @@ class NoteCheckResult(BaseModel):
     reason: Optional[str] = None
     duplicate_note_ids: Optional[List[int]] = Field(
         default_factory=list, nullable=True,
-        description="Matching note IDs; null when include_duplicate_ids=false skips the lookup.",
+        description="Matching note IDs, with include=duplicate_ids; null without it.",
     )
 
 
@@ -202,7 +202,7 @@ class AttachmentRef(BaseModel):
 class NoteCreateFailure(CreationFailure):
     duplicate_note_ids: Optional[List[int]] = Field(
         default=None,
-        description="For code 'duplicate', with include_duplicate_ids=true: the existing notes it duplicates.")
+        description="For code 'duplicate', with include=duplicate_ids: the existing notes it duplicates.")
     attachment: Optional[AttachmentRef] = Field(
         default=None, description="For code 'invalid_attachment': the file that failed.")
 

@@ -36,7 +36,7 @@ def seeded(client, col):
 
 
 def check(client, candidate):
-    result = client.post("/v1/notes:check", json={"notes": [candidate]}).json()["results"][0]
+    result = client.post("/v1/notes:check?include=duplicate_ids", json={"notes": [candidate]}).json()["results"][0]
     return result["state"], sorted(result["duplicate_note_ids"] or [])
 
 
@@ -75,7 +75,7 @@ def test_creation_honors_the_scope(client, col, seeded):
                                                model="Basic (and reversed card)", deck="A"))
     assert blocked.json()["failed"][0]["code"] == "duplicate"
     # With the IDs asked for, the scope decides them, as the check reports them.
-    ids = client.post("/v1/notes", params={"include_duplicate_ids": "true"},
+    ids = client.post("/v1/notes", params={"include": "duplicate_ids"},
                       json=note("犬", duplicateScopeOptions={"checkAllModels": True},
                                 model="Basic (and reversed card)", deck="A")).json()["failed"][0]
     assert sorted(ids["duplicate_note_ids"]) == check(client, note("犬", duplicateScopeOptions={"checkAllModels": True},
@@ -86,7 +86,7 @@ def test_creation_honors_the_scope(client, col, seeded):
 
 def test_unknown_scope_deck_is_reported_not_ignored(client, seeded):
     candidate = note("犬", duplicateScope="deck", duplicateScopeOptions={"deckName": "Nope"})
-    result = client.post("/v1/notes:check", json={"notes": [candidate]}).json()["results"][0]
+    result = client.post("/v1/notes:check?include=duplicate_ids", json={"notes": [candidate]}).json()["results"][0]
     assert result["state"] == "invalid" and "Nope" in result["reason"]
 
 
@@ -99,4 +99,4 @@ def test_empty_and_cloze_checks_still_come_from_anki(client, seeded):
 
 def test_options_require_real_booleans(client):
     candidate = note("x", duplicateScopeOptions={"checkAllModels": "yes"})
-    assert client.post("/v1/notes:check", json={"notes": [candidate]}).status_code == 422
+    assert client.post("/v1/notes:check?include=duplicate_ids", json={"notes": [candidate]}).status_code == 422

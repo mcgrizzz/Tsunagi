@@ -71,7 +71,7 @@ class Workflow:
         if kind.startswith("duplicate"):
             status_only = kind.endswith("_status")
             if self.native:
-                path = "/v1/notes:check" + ("?include_duplicate_ids=false" if status_only else "")
+                path = "/v1/notes:check" + ("" if status_only else "?include=duplicate_ids")
                 return request.native("POST", path, {
                     "notes": [self.native_note(note) for note in self.notes]
                 })["results"]

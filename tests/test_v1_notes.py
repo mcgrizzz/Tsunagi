@@ -259,7 +259,7 @@ class TestDelete:
 
 class TestCheck:
     def check(self, client, notes):
-        return client.post("/v1/notes:check", json={"notes": notes}).json()["results"]
+        return client.post("/v1/notes:check?include=duplicate_ids", json={"notes": notes}).json()["results"]
 
     def test_normal_can_add(self, client):
         (res,) = self.check(client, [{"modelName": "Basic", "deckName": "Default",

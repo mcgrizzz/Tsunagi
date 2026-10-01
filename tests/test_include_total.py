@@ -66,3 +66,16 @@ def test_without_include_there_is_no_total(client, data):
 def test_a_bad_search_is_still_a_400(client, data):
     r = client.get("/v1/cards", params={"search": "deck:(", "include": "total", "limit": 0})
     assert r.status_code == 400
+
+
+@pytest.mark.parametrize("method,path,kwargs", [
+    ("get", "/v1/cards", {"params": {"include": "totals"}}),
+    ("post", "/v1/cards/query", {"json": {"include": "total,cards"}}),
+    ("post", "/v1/notes:upsert", {"params": {"include": "duplicate_ids"},
+                                  "json": {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "x"},
+                                           "match": {"field": "Front"}}}),
+])
+def test_an_unknown_part_is_a_422_naming_what_include_takes(client, data, method, path, kwargs):
+    response = getattr(client, method)(path, **kwargs)
+    assert response.status_code == 422, response.text
+    assert "include takes:" in response.json()["detail"]

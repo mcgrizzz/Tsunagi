@@ -10,6 +10,7 @@ from functools import wraps
 from typing import Any, Callable, Dict, Iterator, TypeVar
 
 from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
 
 
 class ResourceNotFoundError(Exception):
@@ -237,6 +238,8 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
                 return func(*args, **kwargs)
             except (AnkiBusyError, CollectionUnavailableError):
                 raise  # register_exception_handlers adds the 503 reason
+            except RequestValidationError:
+                raise  # a parameter checked in the handler (include=): the usual 422
             except Exception as e:
                 raise to_http_exception(e) from e
         return wrapper

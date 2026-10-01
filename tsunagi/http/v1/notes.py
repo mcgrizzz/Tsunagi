@@ -1,5 +1,5 @@
 import time
-from typing import List, Literal, Optional, Union
+from typing import List, Optional, Union
 
 from fastapi import Body, Header, Query
 from fastapi.responses import JSONResponse
@@ -19,6 +19,7 @@ from ...adapters.anki.notes import (
 from ...adapters.anki.sorting import find_sorted, sort_names
 from ...adapters.ops import collection_op_run_async
 from ...shared.errors import ValidationError, handle_mutation_errors
+from ...shared.helpers import parse_include
 from ...shared.permissions import requires
 from ...shared.planning import (
     IndexSpec,
@@ -136,19 +137,20 @@ router = create_resource_routes(
     response_model=NoteCheckResponse,
     summary="Check whether notes can be added",
     description=("Reports per candidate whether it can be added, and why not (empty first field, "
-                 "duplicate, unknown model/deck). Adds nothing. Duplicate note IDs are included "
-                 "by default. Set include_duplicate_ids=false to skip their lookup; "
-                 "duplicate_note_ids is then null, while validation and duplicate policy are unchanged."),
+                 "duplicate, unknown model/deck). Adds nothing. include=duplicate_ids also looks up "
+                 "the notes each duplicate matches (duplicate_note_ids; null without it)."),
     tags=["Notes"],
     operation_id="checkNotes",
 )
 @handle_mutation_errors("check")
 def check(
     body: NoteCheckRequest = Body(..., description="Candidate notes"),
-    include_duplicate_ids: bool = Query(default=True, description="Look up matching duplicate note IDs"),
+    include: Optional[str] = Query(default=None, description=(
+        "duplicate_ids: also look up the notes each duplicate matches.")),
 ) -> dict:
     start = time.perf_counter()
-    results = check_notes(body.notes, include_duplicate_ids=include_duplicate_ids)
+    parts = parse_include(include, ["duplicate_ids"])
+    results = check_notes(body.notes, include_duplicate_ids="duplicate_ids" in parts)
     # Keep response validation in FastAPI instead of building these models twice.
     return {
         "results": results,
@@ -198,9 +200,10 @@ def delete(body: NoteIds = Body(...)) -> VerbResult:
 @handle_mutation_errors("upsert notes")
 def upsert(
     body: Union[List[NoteUpsert], NoteUpsert] = Body(..., description="One note or an array of notes"),
-    include: Optional[Literal["cards"]] = Query(default=None, description="Also return card IDs"),
+    include: Optional[str] = Query(default=None, description="cards: also return card IDs."),
 ) -> NoteUpsertResponse:
-    return upsert_notes(body if isinstance(body, list) else [body], include_cards=include == "cards")
+    return upsert_notes(body if isinstance(body, list) else [body],
+                        include_cards="cards" in parse_include(include, ["cards"]))
 
 
 def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
@@ -230,7 +233,7 @@ def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
         "with zero-based input indexes (0 for a single object). Valid notes stay saved "
         "when another note is rejected. Inputs are processed in order and successful additions "
         "form one undo step. Malformed request bodies return 422 before writes. "
-        "Add include=cards to return generated card IDs, and include_duplicate_ids=true for "
+        "include adds parts, comma-separated: cards for each note's card IDs, duplicate_ids for "
         "the existing notes each duplicate matches (as POST /v1/notes:check reports them). Files can come with each note in "
         "audio, video and picture, as in AnkiConnect: each is stored once its note passes its "
         "checks, and its reference is appended to the listed fields. For many or large files, "
@@ -242,13 +245,14 @@ def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
 @handle_mutation_errors("create notes")
 def create(
     body: Union[List[NoteCreate], NoteCreate] = Body(..., description="One note or an array of notes"),
-    include: Optional[Literal["cards"]] = Query(default=None, description="Also return generated card IDs"),
-    include_duplicate_ids: bool = Query(default=False,
-                                        description="For duplicates, also look up the notes they match"),
+    include: Optional[str] = Query(default=None, description=(
+        "Extra parts, comma-separated: cards (each note's card IDs), duplicate_ids (the notes each "
+        "duplicate matches).")),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", description=IDEMPOTENCY_HELP),
 ) -> Union[NoteCreateResponse, JSONResponse]:
     candidates = body if isinstance(body, list) else [body]
-    include_cards = include == "cards"
+    parts = parse_include(include, ["cards", "duplicate_ids"])
+    include_cards, include_duplicate_ids = "cards" in parts, "duplicate_ids" in parts
     if not idempotency_key:
         return create_notes(candidates, include_cards=include_cards, include_duplicate_ids=include_duplicate_ids,
                             **_fetch_attachments(candidates))

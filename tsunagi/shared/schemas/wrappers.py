@@ -46,6 +46,6 @@ class QueryRequest(BaseModel):
     shape: Literal["object", "scalar"] = "object"
     order: Optional[str] = None     # e.g. "due:desc"; see the GET parameter
     distinct_on: Optional[str] = None   # one row per value of this field; see the GET parameter
-    include: Optional[Literal["total"]] = None   # see the GET parameter
+    include: Optional[str] = None   # extra parts, comma-separated; see the GET parameter
     limit: Optional[int] = Field(default=None, ge=0, description="Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap.")
     cursor: Optional[str] = None

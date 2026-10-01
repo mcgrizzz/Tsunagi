@@ -42,6 +42,7 @@ from .errors import (
     track_operation,
 )
 from .filtering import build_predicate, parse_where
+from .helpers import parse_include
 from .model_export import model_row_dict
 from .permissions import requires
 from .planning import SourceCaps, _search_hydrator, make_plan
@@ -486,7 +487,7 @@ def _execute_query(
         page = _finish([], None, select, shape, start)
     else:
         page = _query_page(select, where, shape, limit, cursor, caps, id_getter, search, order, distinct_on)
-    if include == "total":
+    if "total" in parse_include(include, ["total"]):
         try:
             page.total = _total(where, caps, id_getter, search, distinct_on)
         except ValueError as ve:
@@ -689,9 +690,9 @@ def create_resource_routes(
         shape: Literal["object", "scalar"] = Query(default="object", description=(
             "object (default): each item is an object with the selected fields. scalar: with "
             "exactly one selected field, each item is that field's bare value.")),
-        include: Optional[Literal["total"]] = Query(default=None, description=(
-            "total: add `total`, how many rows the query matches across all pages. With limit=0, "
-            "the count alone.")),
+        include: Optional[str] = Query(default=None, description=(
+            "Extra parts: total adds `total`, how many rows the query matches across all pages. "
+            "With limit=0, the count alone.")),
         limit: Optional[int] = Query(default=None, ge=0, description="Maximum results in this response; 0 for none (with include=total, the count alone). Omit to return all matches; no fixed upper cap."),
         cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
     ) -> Any:

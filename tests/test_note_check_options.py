@@ -36,12 +36,12 @@ def test_skipping_ids_preserves_all_other_results(client, col, monkeypatch):
                  candidate(""), candidate(modelName="missing"), candidate(deckName="missing"),
                  candidate(fields={"Missing": "field"})]
     original = deepcopy(submitted)
-    expected = client.post("/v1/notes:check", json={"notes": submitted}).json()["results"]
+    expected = client.post("/v1/notes:check?include=duplicate_ids", json={"notes": submitted}).json()["results"]
     before = col.undo_status()
     def unexpected(*args):
         pytest.fail("Validation-only requests must not search for duplicate IDs")
     monkeypatch.setattr(notes, "_duplicate_ids", unexpected)
-    response = client.post("/v1/notes:check?include_duplicate_ids=false", json={"notes": submitted})
+    response = client.post("/v1/notes:check", json={"notes": submitted})   # ids only when included
     assert response.status_code == 200, response.text
     for row in expected:
         row["duplicate_note_ids"] = None
@@ -51,16 +51,18 @@ def test_skipping_ids_preserves_all_other_results(client, col, monkeypatch):
     assert col.undo_status() == before
 
 
-def test_default_and_explicit_ids_use_live_collection(client, col):
+def test_included_ids_use_live_collection(client, col):
     body = {"notes": [candidate()]}
-    assert client.post("/v1/notes:check", json=body).json()["results"][0]["duplicate_note_ids"] == []
+    url = "/v1/notes:check?include=duplicate_ids"
+    assert client.post(url, json=body).json()["results"][0]["duplicate_note_ids"] == []
     nid = client.post("/v1/notes", json=candidate()).json()["created"][0]["id"]
-    for suffix in ["", "?include_duplicate_ids=true"]:
-        result = client.post("/v1/notes:check" + suffix, json=body).json()["results"][0]
-        assert result["state"] == "duplicate"
-        assert result["duplicate_note_ids"] == [nid]
-    col.undo()
+    result = client.post(url, json=body).json()["results"][0]
+    assert result["state"] == "duplicate" and result["duplicate_note_ids"] == [nid]
+    # Without include the state is the same, and no ids are looked up.
     result = client.post("/v1/notes:check", json=body).json()["results"][0]
+    assert result["state"] == "duplicate" and result["duplicate_note_ids"] is None
+    col.undo()
+    result = client.post(url, json=body).json()["results"][0]
     assert result["state"] == "normal"
     assert result["duplicate_note_ids"] == []
 
@@ -78,8 +80,8 @@ def test_adapter_reuses_validated_candidate_without_converting_or_changing_it(co
 
 
 @pytest.mark.parametrize("params,body", [
-    ({"include_duplicate_ids": "invalid"}, {"notes": [candidate()]}),
-    ({"include_duplicate_ids": "false"}, {"notes": [{}]}),
+    ({"include": "invalid"}, {"notes": [candidate()]}),
+    ({"include": "duplicate_ids"}, {"notes": [{}]}),
 ])
 def test_malformed_request_does_not_reach_anki(client, monkeypatch, params, body):
     def unexpected(*args, **kwargs):

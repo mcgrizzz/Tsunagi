@@ -166,7 +166,7 @@ class LookupDuplicates(Workload):
         # Yomitan decides "duplicate" within the note type but lists every note
         # with the word, whatever its note type (its findNotes search above).
         # So: the check without IDs, then the duplicates' notes by first field.
-        results = (await c.rest("POST", "/v1/notes:check", body, include_duplicate_ids="false"))["results"]
+        results = (await c.rest("POST", "/v1/notes:check", body))["results"]
         found = {w: {"duplicate": r["state"] == "duplicate", "ids": []} for w, r in zip(words, results)}
         dup = [w for w in words if found[w]["duplicate"]]
         if dup:

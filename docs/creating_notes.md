@@ -56,7 +56,7 @@ second is a duplicate of the first. HTTP **200** returns:
 its card IDs (`"cards": [1789200000001]`), so you can act on the cards (suspend
 them, set a due date) without searching for them first.
 
-**Need the note a duplicate matches?** Add `?include_duplicate_ids=true` and
+**Need the note a duplicate matches?** Add `?include=duplicate_ids` and
 each duplicate lists the notes it duplicates, the same ones `POST /v1/notes:check`
 reports. In the example above, the second note's failure becomes
 `{"index": 1, "code": "duplicate", "message": "Note duplicates an existing note", "duplicate_note_ids": [1789200000000]}`,
@@ -179,15 +179,18 @@ If 犬 already exists and there is no deck called Nope:
 - `invalid`: something else is wrong, such as an unknown note type or deck;
   `reason` says what.
 
-**Only need validation?** Use
-**`POST /v1/notes:check?include_duplicate_ids=false`**. Anki still checks for
-duplicates and applies your `allowDuplicate` policy, but Tsunagi skips the extra
-search for matching IDs. `duplicate_note_ids` is then `null` for every result.
-When IDs are requested, an empty array means no IDs were returned.
+**Need the matching notes too?** Add **`?include=duplicate_ids`**: each
+result then lists the existing notes it duplicates, so a dictionary popup can
+check a word and get its existing notes in one request. Without it, Anki still
+checks for duplicates and applies your `allowDuplicate` policy, but Tsunagi
+skips the extra search, and `duplicate_note_ids` is `null`. When IDs are
+included, an empty array means none matched.
 
-The default still includes IDs, so a dictionary popup can check a word and get
-its existing note IDs in one request. A check reads the current collection;
-it doesn't reserve a note or guarantee a later save will succeed.
+`include` works the same everywhere: each part (`cards`, `duplicate_ids`, or
+`total` on lists) costs an extra step before the answer, so none is sent unless
+you ask, and several go together with commas (`?include=cards,duplicate_ids`).
+A check reads the current collection; it doesn't reserve a note or guarantee a
+later save will succeed.
 
 **Want every note with the same word, in any note type?** Ask for notes by
 their first field, the field Anki compares for duplicates:

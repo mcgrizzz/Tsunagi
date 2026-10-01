@@ -104,7 +104,7 @@ def test_duplicate_failure_does_not_search_for_existing_ids(client, col, monkeyp
 
 def test_duplicate_ids_on_request(client, col):
     existing = create(client, candidate("seen"))["created"][0]["id"]
-    response = client.post("/v1/notes", params={"include_duplicate_ids": "true"}, json=[
+    response = client.post("/v1/notes", params={"include": "duplicate_ids"}, json=[
         candidate("seen"), candidate("new"), candidate("new"), candidate("")])
     result = response.json()
     first_new = result["created"][0]["id"]
@@ -159,3 +159,11 @@ def test_openapi_documents_object_or_array_on_one_create_route(client, resource,
     assert ref in variants
     assert {"type": "array", "items": ref} in variants
     assert "/v1/notes:batch-create" not in spec["paths"]
+
+
+def test_include_takes_several_parts(client, col):
+    existing = create(client, candidate("seen"))["created"][0]["id"]
+    result = client.post("/v1/notes", params={"include": "cards,duplicate_ids"},
+                         json=[candidate("seen"), candidate("new")]).json()
+    assert result["failed"][0]["duplicate_note_ids"] == [existing]
+    assert result["created"][0]["cards"] == list(col.card_ids_of_note(result["created"][0]["id"]))

@@ -200,3 +200,21 @@ def ensure_name_free(kind: str, name: Any, others: Any) -> None:
     folded = str(name).casefold()
     if any(str(other).casefold() == folded for other in others):
         raise ConflictError(f"{kind} name '{name}' already exists")
+
+
+def parse_include(text: Any, allowed: Sequence[str]) -> set:
+    """
+    `include`: the extra parts a response should carry, comma-separated
+    (`cards,duplicate_ids`). Each costs a step before the response is sent,
+    so none is there unless asked for (backlog 6.73). An unknown part doesn't
+    match the operation: a 422 like any other parameter that doesn't.
+    """
+    from fastapi.exceptions import RequestValidationError
+
+    parts = {p.strip() for p in str(text or "").split(",") if p.strip()}
+    unknown = sorted(parts - set(allowed))
+    if unknown:
+        raise RequestValidationError([{
+            "loc": ("query", "include"), "type": "value_error",
+            "msg": f"unknown part {unknown[0]!r}; include takes: {', '.join(allowed)}"}])
+    return parts

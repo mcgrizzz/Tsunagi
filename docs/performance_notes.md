@@ -65,7 +65,7 @@ Two versions of the same question, "can these notes be added?":
 - **Status and IDs** also returns the IDs of the existing notes that match.
 - **Status only** returns just yes or no for each candidate. AnkiConnect and the
   AnkiConnect Shim use one `canAddNotesWithErrorDetail` action; the Tsunagi API
-  uses `POST /v1/notes:check?include_duplicate_ids=false`.
+  uses `POST /v1/notes:check`.
 
 | Candidates | Want | AnkiConnect | AnkiConnect Shim | Tsunagi |
 | --- | --- | ---: | ---: | ---: |
@@ -126,8 +126,8 @@ bytes and field references.
 | Read all cards | `findCards`, then `cardsInfo` | `GET /v1/cards` selecting equivalent fields; no `limit` returns everything |
 | Create text notes | One `addNotes` action | One `POST /v1/notes` with an array |
 | Create notes with media | One `addNotes` action with attachments | One `POST /v1/media` array, then one `POST /v1/notes` array |
-| Duplicate status only | One `canAddNotesWithErrorDetail` action | One `POST /v1/notes:check?include_duplicate_ids=false` |
-| Duplicate status and IDs | `canAddNotesWithErrorDetail`, then `findNotes` for the duplicates, inside one `multi` | One `POST /v1/notes:check` |
+| Duplicate status only | One `canAddNotesWithErrorDetail` action | One `POST /v1/notes:check` |
+| Duplicate status and IDs | `canAddNotesWithErrorDetail`, then `findNotes` for the duplicates, inside one `multi` | One `POST /v1/notes:check?include=duplicate_ids` |
 | Note types with field names | `modelNamesAndIds`, then `modelFieldNames`, inside one `multi` | One model query selecting `id,name,fields[].name` |
 | Save a note and get its card IDs | `addNote`, then `findCards` | One `POST /v1/notes?include=cards` |
 
