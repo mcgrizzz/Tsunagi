@@ -1,4 +1,4 @@
-"""A name another item has, ignoring case, is a 400 on create and rename (backlog 6.65).
+"""A name another item has, ignoring case, is a 409 on create and rename (backlog 6.65, 6.69).
 
 Anki keeps these names unique ignoring case and, on a clash, renames silently
 (`Front+`, `Card 1+`, `Default+`, `Basic-93af0`) or keeps both (presets).
@@ -16,7 +16,7 @@ def mid(client, col):
 
 
 def refused(response, message):
-    assert response.status_code == 400, response.text
+    assert response.status_code == 409, response.text
     assert response.json()["detail"] == message
 
 

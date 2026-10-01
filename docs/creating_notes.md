@@ -309,6 +309,9 @@ Some errors reject the whole request instead:
 - **503**: Anki is busy, syncing or has no collection open (`reason` says
   which). See the note on timeouts below.
 
+Every status the Tsunagi API uses, and what to do about it, is listed under
+Errors in the API reference's overview.
+
 After a lost connection or an unexpected error, some writes may already have
 happened; check the collection before retrying.
 

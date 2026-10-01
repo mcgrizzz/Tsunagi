@@ -105,9 +105,9 @@ class TestMutations:
         names = [d["name"] for d in client.get("/v1/decks").json()["items"]]
         assert "A" in names and "A::B" in names
 
-    def test_create_duplicate_is_400(self, client):
+    def test_create_duplicate_is_409(self, client):
         client.post("/v1/decks", json={"name": "Japanese"})
-        assert client.post("/v1/decks", json={"name": "Japanese"}).status_code == 400
+        assert client.post("/v1/decks", json={"name": "Japanese"}).status_code == 409
 
     def test_create_missing_name_is_400(self, client):
         assert client.post("/v1/decks", json={"description": "x"}).status_code == 400

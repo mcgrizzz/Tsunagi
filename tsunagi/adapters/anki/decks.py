@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 from anki.collection import Collection
 
 from ...shared.errors import (
+    ConflictError,
     ResourceNotFoundError,
     ValidationError,
 )
@@ -157,7 +158,7 @@ def create_deck(col: Collection, data: Dict[str, Any]) -> DeckInfo:
     name = data["name"]
 
     if col.decks.by_name(name) is not None:
-        raise ValueError(f"Deck name '{name}' already exists")
+        raise ConflictError(f"Deck name '{name}' already exists")
 
     out = col.decks.add_normal_deck_with_name(name)
     changes = out
@@ -205,7 +206,7 @@ def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckIn
         # a clash would otherwise be renamed `Name+` (backlog 6.65).
         other = col.decks.by_name(updates["name"])
         if other is not None and int(other["id"]) != int(deck_id):
-            raise ValidationError(f"Deck name '{updates['name']}' already exists")
+            raise ConflictError(f"Deck name '{updates['name']}' already exists")
         changes = col.decks.rename(deck, updates["name"])
         # rename() renames in the backend and does NOT touch the dict we hold,
         # which still carries the old name - saving it below would write the

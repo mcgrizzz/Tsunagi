@@ -47,7 +47,8 @@ key in the add-on's saved configuration for reference.
   A timeout doesn't cancel the work: a write can still finish after the 503.
   Send an `Idempotency-Key` with a write so a retry is safe
   ([Creating notes](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/creating_notes.md)).
-  A sync that takes longer answers 202 with a job to poll instead.
+  A sync that takes longer answers 202 with a job to poll instead. Every
+  status the API uses is listed under Errors in the API reference.
 - **Idle connections.** The server closes a connection after 75 seconds
   without a request. A client that keeps connections open should close them
   sooner, or retry a request that fails because the connection was closed.

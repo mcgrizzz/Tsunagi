@@ -141,10 +141,24 @@ poll `GET /v1/jobs/{job_id}` for status and results.
 ### Errors
 
 Tsunagi API route and validation errors are JSON with `detail`, a message you
-can show. A 422 (a request that doesn't match the operation's parameters or
-body) also lists each problem in `errors`, and a 503 says why in `reason`:
-`busy`, `syncing` or `closed`. A request refused for its Host header or website
-origin gets a plain-text 403 instead.
+can show. A 422 also lists each problem in `errors`, and a 503 says why in
+`reason`: `busy`, `syncing` or `closed`. A request refused for its Host header
+or website origin gets a plain-text 403 instead. The status says what to do:
+
+| Status | Means | What to do |
+| --- | --- | --- |
+| 200, 201 | Done; 201 created something | |
+| 202 | Accepted as a job | Poll `GET /v1/jobs/{job_id}` |
+| 400 | The request's values are wrong: an unknown field, a bad search or cursor | Fix the request |
+| 401 | No usable key | Send a valid key |
+| 403 | The app's role lacks the permission (`detail` names it), or the app is off | Change the role on the settings page |
+| 404 | What you named doesn't exist | |
+| 409 | Valid, but it clashes with the collection: a name or id that's taken, a duplicate note, a job already running, a full sync Anki must do | Change the request, or wait |
+| 422 | The body or parameters don't match the operation | Fix the request (`errors` lists each problem) |
+| 500 | Tsunagi failed | Report it: it's a bug |
+| 501 | This Anki version lacks the feature | Update Anki |
+| 502 | AnkiWeb refused or couldn't be reached | Retry later |
+| 503 | Anki is busy, syncing or has no profile open (`reason`) | Retry; a write may still finish |
 
 A 503 doesn't cancel a write: Anki may still finish it. Send an
 `Idempotency-Key` header (a new UUID per request) with any write, and the same

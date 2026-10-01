@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Sequence, Type, TypeVar
 
 from pydantic import BaseModel
 
+from .errors import ConflictError
 from .errors import ValidationError as TsunagiValidationError
 
 T = TypeVar('T', bound=BaseModel)
@@ -198,4 +199,4 @@ def ensure_name_free(kind: str, name: Any, others: Any) -> None:
     """
     folded = str(name).casefold()
     if any(str(other).casefold() == folded for other in others):
-        raise TsunagiValidationError(f"{kind} name '{name}' already exists")
+        raise ConflictError(f"{kind} name '{name}' already exists")
