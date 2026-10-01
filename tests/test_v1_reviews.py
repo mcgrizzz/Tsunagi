@@ -224,10 +224,19 @@ class TestInsert:
         resp = client.post("/v1/reviews", json={"reviews": [
             {"id": 1700000000001, "card_id": cid},
             {"id": 1700000000000, "card_id": cid}]})  # dupe of the first insert
-        assert resp.status_code >= 400
+        assert resp.status_code == 409
+        assert resp.json()["detail"] == ("Review ids already taken: 1700000000000; "
+                                         "nothing was inserted")
         # All-or-nothing: the good row didn't land either.
         ids = [r["id"] for r in client.get("/v1/reviews").json()["items"]]
         assert ids == [1700000000000]
+
+    def test_an_id_repeated_in_the_request_is_named(self, client):
+        cid = self._card_id(client)
+        resp = client.post("/v1/reviews", json={"reviews": [
+            {"id": 1700000000005, "card_id": cid}, {"id": 1700000000005, "card_id": cid}]})
+        assert resp.status_code == 409 and "1700000000005" in resp.json()["detail"]
+        assert client.get("/v1/reviews").json()["items"] == []
 
     def test_missing_required_field_is_422(self, client):
         resp = client.post("/v1/reviews", json={"reviews": [{"ease": 3}]})

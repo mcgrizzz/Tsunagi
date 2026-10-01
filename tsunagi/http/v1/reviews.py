@@ -1,4 +1,5 @@
 import time
+from collections import Counter
 from typing import Any
 
 from fastapi import Body
@@ -6,6 +7,7 @@ from fastapi import Body
 from ...adapters.anki.reviews import (
     COLUMNS,
     REVIEW_SQL,
+    existing_review_ids,
     find_review_ids,
     get_reviews_by_ids,
     get_reviews_of_cards,
@@ -14,7 +16,7 @@ from ...adapters.anki.reviews import (
     page_review_ids,
     search_review_rows,
 )
-from ...shared.errors import handle_mutation_errors
+from ...shared.errors import ConflictError, handle_mutation_errors
 from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, OrderSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
@@ -95,6 +97,13 @@ def create_reviews(body: InsertReviewsRequest = Body(...)) -> InsertReviewsResul
     field_names = ("id", "card_id", "usn", "ease", "interval",
                    "last_interval", "factor", "time_ms", "type")
     assert len(field_names) == len(COLUMNS)
+    # A taken id would fail the insert with a database error (a 500); name it
+    # instead. The AnkiConnect shim keeps upstream's error text.
+    ids = [r.id for r in body.reviews]
+    taken = sorted({i for i, n in Counter(ids).items() if n > 1} | set(existing_review_ids(ids)))
+    if taken:
+        raise ConflictError(f"Review ids already taken: {', '.join(map(str, taken))}; "
+                              "nothing was inserted")
     inserted = insert_reviews(
         [[getattr(r, f) for f in field_names] for r in body.reviews])
     return InsertReviewsResult(

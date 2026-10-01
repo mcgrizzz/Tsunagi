@@ -160,6 +160,12 @@ def ordered_review_ids(col: Collection, query: str, name: str, descending: bool)
     return [int(i) for i in col.db.list(f"select id from revlog{where} order by {column} {direction}, id")]
 
 
+@as_query_op
+def existing_review_ids(col: Collection, ids: Sequence[int]) -> List[int]:
+    """Which of `ids` are already review rows."""
+    return [int(i) for i in col.db.list(f"select id from revlog where id in {_in_clause(ids)}")] if ids else []
+
+
 # ====================
 # The one write
 # ====================

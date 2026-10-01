@@ -41,6 +41,14 @@ class ValidationError(Exception):
         super().__init__(message)
 
 
+class ConflictError(Exception):
+    """The request is valid but clashes with the collection's state: a name or
+    id that's taken. 400 is for a request that is wrong in itself."""
+    def __init__(self, message: str):
+        self.status_code = 409
+        super().__init__(message)
+
+
 class DuplicateNoteError(Exception):
     """Raised when adding a note that duplicates an existing one"""
     def __init__(self, note_ids: list):
@@ -189,6 +197,7 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
     Maps custom exceptions to appropriate HTTP responses:
     - ResourceNotFoundError, SubresourceNotFoundError -> 404
     - ValidationError -> 400
+    - ConflictError, DuplicateNoteError, JobConflictError, SyncConflictError -> 409
     - ValueError -> 400
     - Other exceptions -> 500
 
@@ -202,7 +211,7 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
     """
     def to_http_exception(exc: Exception) -> HTTPException:
         if isinstance(exc, (ResourceNotFoundError, SubresourceNotFoundError, ValidationError,
-                            DuplicateNoteError, UnsupportedAnkiVersionError, JobConflictError,
+                            ConflictError, DuplicateNoteError, UnsupportedAnkiVersionError, JobConflictError,
                             SyncConflictError, SyncFailedError)):
             return HTTPException(status_code=exc.status_code, detail=str(exc))
         if type(exc).__name__ in ANKI_CLIENT_ERRORS:
