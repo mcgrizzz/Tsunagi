@@ -42,5 +42,6 @@ class QueryRequest(BaseModel):
     search: Optional[str] = None   # Anki search string (search-backed resources)
     shape: Literal["object", "scalar"] = "object"
     order: Optional[str] = None     # e.g. "due:desc"; see the GET parameter
+    distinct_on: Optional[str] = None   # one row per value of this field; see the GET parameter
     limit: Optional[int] = Field(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap.")
     cursor: Optional[str] = None

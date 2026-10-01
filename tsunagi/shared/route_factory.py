@@ -54,7 +54,14 @@ from .selecting import (
     referenced_top_fields,
     selection_include,
 )
-from .sql_query import compile_where, filter_ids
+from .sql_query import (
+    Compiled,
+    all_ids,
+    compile_where,
+    filter_ids,
+    first_by_id,
+    first_per_value,
+)
 
 Row = Union[Mapping[str, Any], Any]
 ModelRow = Union[Any, ProjectedObject, Scalar]
@@ -310,6 +317,10 @@ def _cannot_order(name: str, names: Any) -> ValueError:
     return ValueError(f"Can't order by {name}. Order by: {', '.join(sorted(names))}")
 
 
+def _cannot_distinct(name: str, names: Any) -> ValueError:
+    return ValueError(f"Can't use distinct_on with {name}. Use: {', '.join(sorted(names))}")
+
+
 def _order_start(keys: List[Any], cursor: Optional[str]) -> int:
     """Where the next page starts: after the last row sent, if it is still in
     the sorted list, else at the same position."""
@@ -351,27 +362,58 @@ def _ordered_scan(ids: List[int], hydrate: Callable, limit: Optional[int], curso
     return out, _order_cursor(ids, next_pos, id_getter(out[-1]) if out else None)
 
 
-def _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search, order, start):
-    name, descending = _parse_order(order)
+def _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search, order, start,
+                   distinct_on=None):
+    """`order` and `distinct_on` (backlog 8.1, 8.12): the rows in order, then
+    only the first of each value of `distinct_on`, like PostgreSQL's DISTINCT
+    ON. Without `order`, ascending id."""
+    name, descending = _parse_order(order) if order else (None, False)
     wants = _wanted_fields(select, where)
     pred = build_predicate(where) if where else None
     if caps.order is not None:
         # Cards and notes: Anki's own sort; reviews: SQL. Then the same where
         # handling as unordered queries: SQL narrows, the predicate decides.
-        names = caps.order.names()
-        if name not in names:
-            raise _cannot_order(name, names)
-        ids = caps.order.ordered_ids(search or "", name, descending)
         compiled = compile_where(caps.sql, where) if caps.sql is not None and where else None
-        if compiled is not None and compiled.pushed:
-            keep = set(filter_ids(caps.sql, compiled, ids))
-            ids = [i for i in ids if i in keep]
+        if distinct_on is not None:
+            if caps.sql is None or caps.sql.rows is None or distinct_on not in caps.sql.columns:
+                raise _cannot_distinct(distinct_on, caps.sql.columns if caps.sql else [])
+            # The pick happens before the rest of the page is built, so every
+            # where clause must be answered exactly in SQL first.
+            if where and (compiled is None or compiled.exact < len(where)):
+                raise ValueError("distinct_on can't be combined with a where clause on a field that isn't "
+                                 f"a column ({', '.join(sorted(caps.sql.columns))}); use search instead")
+        if name is not None:
+            names = caps.order.names()
+            if name not in names:
+                raise _cannot_order(name, names)
+        if distinct_on is not None and name in (None, "id") and "id" in caps.sql.columns:
+            # Ordered by id: each value's first id, grouped in SQL (backlog 8.12).
+            condition: tuple = ("", ())
+            found = None
+            if search and caps.sql.search_condition is not None:
+                condition = caps.sql.search_condition(search)
+            elif search:
+                found = caps.search.find_ids(search)
+            ids = first_by_id(caps.sql, distinct_on, compiled or Compiled("", (), 0), descending,
+                              found, *condition)
+        else:
+            if name is not None:
+                ids = caps.order.ordered_ids(search or "", name, descending)
+            elif search:
+                ids = sorted(int(i) for i in caps.search.find_ids(search))
+            else:
+                ids = all_ids(caps.sql, compiled or Compiled("", (), 0))
+            if compiled is not None and compiled.pushed:
+                keep = set(filter_ids(caps.sql, compiled, ids))
+                ids = [i for i in ids if i in keep]
+            if distinct_on is not None:
+                ids = first_per_value(caps.sql, distinct_on, ids)
         rows, cur = _ordered_scan(ids, _search_hydrator(caps.search), limit, cursor, wants, id_getter, pred)
         return _finish(rows, cur, select, shape, start)
 
     # Small resources (decks, note types, presets): every matching row, sorted here.
     plan = make_plan(select, where, caps, search)
-    need = None if wants is None else wants | {name}
+    need = None if wants is None else wants | {n for n in (name, distinct_on) if n}
     if plan.fetch is not None:
         rows = plan.fetch(need)
     else:
@@ -380,17 +422,29 @@ def _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search,
     if pred is not None:
         rows = [r for r in rows if pred(_as_dict(r))]
     fields = {k for r in rows for k, v in _as_dict(r).items() if isinstance(v, _SCALARS)}
-    if rows and name not in fields:
+    if rows and name is not None and name not in fields:
         raise _cannot_order(name, fields)
+    if rows and distinct_on is not None and distinct_on not in fields:
+        raise _cannot_distinct(distinct_on, fields)
 
     def value(row: Row) -> tuple:
         v = _as_dict(row).get(name)
         return (v is None, v)
     rows.sort(key=id_getter)
-    try:
-        rows.sort(key=value, reverse=descending)  # stable: ties keep ascending id
-    except TypeError:
-        raise ValueError(f"Can't order by {name}: its values have different types") from None
+    if name is not None:
+        try:
+            rows.sort(key=value, reverse=descending)  # stable: ties keep ascending id
+        except TypeError:
+            raise ValueError(f"Can't order by {name}: its values have different types") from None
+    if distinct_on is not None:
+        seen: set = set()
+        kept = []
+        for row in rows:
+            value_ = _as_dict(row).get(distinct_on)
+            if value_ not in seen:
+                seen.add(value_)
+                kept.append(row)
+        rows = kept
     keys = [id_getter(r) for r in rows]
     first = _order_start(keys, cursor)
     page = rows[first:] if limit is None else rows[first:first + limit]
@@ -419,14 +473,16 @@ def _execute_query(
     id_getter: Callable[[Row], int],
     search: Optional[str] = None,
     order: Optional[str] = None,
+    distinct_on: Optional[str] = None,
 ) -> Paginated[ModelRow]:
     """
     Core query execution logic shared between GET and POST routes.
     """
     start = time.perf_counter()
     try:
-        if order:
-            return _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search, order, start)
+        if order or distinct_on:
+            return _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search, order, start,
+                                  distinct_on or None)
         plan = make_plan(select, where, caps, search)
         wants = _wanted_fields(select, where)
 
@@ -570,6 +626,11 @@ def create_resource_routes(
             "stability and retrievability on cards), and the row fields that sort the same (reps, "
             "mod; id on notes); other resources a field of their rows. Ties "
             "in ascending id. Without it, rows come in ascending id.")),
+        distinct_on: Optional[str] = Query(default=None, description=(
+            "One row per distinct value of this field: the first in `order`, like PostgreSQL's "
+            "DISTINCT ON. distinct_on=card_id&order=id:desc on reviews is each card's latest review. "
+            "On cards, notes and reviews it takes a column field, and every where clause must be on "
+            "a column too.")),
         shape: Literal["object", "scalar"] = Query(default="object", description=(
             "object (default): each item is an object with the selected fields. scalar: with "
             "exactly one selected field, each item is that field's bare value.")),
@@ -581,7 +642,7 @@ def create_resource_routes(
         # assumed here - a silent shift would land `shape` in `search`.
         return query_response(_execute_query(
             select=select, where=where, search=search, shape=shape, order=order,
-            limit=limit, cursor=cursor, caps=caps, id_getter=id_getter,
+            distinct_on=distinct_on, limit=limit, cursor=cursor, caps=caps, id_getter=id_getter,
         ))
 
     # POST endpoint - query params in body
@@ -605,6 +666,7 @@ def create_resource_routes(
             search=query.search,
             shape=query.shape,
             order=query.order,
+            distinct_on=query.distinct_on,
             limit=query.limit,
             cursor=query.cursor,
             caps=caps,

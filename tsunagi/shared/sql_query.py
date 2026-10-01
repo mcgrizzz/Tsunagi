@@ -16,7 +16,7 @@ the SQL inside its QueryOp and returns ids.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .filtering import Clause, parse_where
 
@@ -41,6 +41,10 @@ class ColumnSource:
     columns: Mapping[str, Column]
     run: Callable[[str, Sequence[Any]], List[int]]   # (sql, args) -> ids
     restrictions: Mapping[str, Restriction] = field(default_factory=dict)
+    rows: Optional[Callable[[str, Sequence[Any]], List[Sequence[Any]]]] = None   # (sql, args) -> rows
+    # (Anki search) -> a SQL condition on this table for what it matches, when
+    # that is cheaper than the id list (reviews: `cid in (...)`).
+    search_condition: Optional[Callable[[str], Tuple[str, Sequence[Any]]]] = None
 
 
 def _is_int(v: Any) -> bool:
@@ -80,11 +84,13 @@ class Compiled:
     condition: str        # "" when nothing was pushed
     args: Tuple[Any, ...]
     pushed: int           # clauses answered (exactly or as a superset) in SQL
+    exact: int = 0        # of those, the ones SQL answers exactly (not a superset)
 
 
 def compile_where(source: ColumnSource, where: Optional[List[str]]) -> Compiled:
     parts: List[str] = []
     args: List[Any] = []
+    exact = 0
     for text in where or []:
         clause = parse_where(text)
         if len(clause.tokens) != 1:
@@ -92,6 +98,7 @@ def compile_where(source: ColumnSource, where: Optional[List[str]]) -> Compiled:
         name = clause.tokens[0]
         if name in source.columns:
             done = _pushed(source.columns[name], clause)
+            exact += done is not None
         elif name in source.restrictions:
             done = _restricted(source.restrictions[name], clause)
         else:
@@ -99,7 +106,7 @@ def compile_where(source: ColumnSource, where: Optional[List[str]]) -> Compiled:
         if done is not None:
             parts.append(f"({done[0]})")
             args.extend(done[1])
-    return Compiled(" and ".join(parts), tuple(args), len(parts))
+    return Compiled(" and ".join(parts), tuple(args), len(parts), exact)
 
 
 def _where(*conditions: str) -> str:
@@ -129,3 +136,51 @@ def filter_ids(source: ColumnSource, compiled: Compiled, ids: Sequence[int]) -> 
             f"select id from {source.table}{_where(f'id in ({chunk})', compiled.condition)} order by id",
             list(compiled.args)))
     return out
+
+
+def first_per_value(source: ColumnSource, name: str, ids: Sequence[int]) -> List[int]:
+    """`ids`, in their order, keeping the first of each value of the column
+    `name`: what `distinct_on` returns (backlog 8.12). A null is a value too."""
+    assert source.rows is not None
+    expr = source.columns[name].sql
+    values: Dict[int, Any] = {}
+    ordered = sorted({int(i) for i in ids})
+    for start in range(0, len(ordered), SEARCH_CHUNK):
+        chunk = ",".join(str(i) for i in ordered[start:start + SEARCH_CHUNK])
+        values.update((int(row[0]), row[1]) for row in source.rows(
+            f"select id, ({expr}) from {source.table} where id in ({chunk})", []))
+    seen: set = set()
+    out: List[int] = []
+    for i in ids:
+        if i in values and values[i] not in seen:
+            seen.add(values[i])
+            out.append(i)
+    return out
+
+
+def first_by_id(source: ColumnSource, name: str, compiled: Compiled, descending: bool,
+                ids: Optional[Sequence[int]] = None, condition: str = "",
+                condition_args: Sequence[Any] = ()) -> List[int]:
+    """`distinct_on` when the order is by id: each value's lowest id (highest
+    when descending) in one grouped query, which walks the column's index when
+    it has one (revlog `cid`). `ids` (a search's result) are grouped a chunk at
+    a time and merged; `condition` is a search already in SQL."""
+    agg = "max" if descending else "min"
+    expr = source.columns[name].sql
+    args = list(condition_args) + list(compiled.args)
+    if ids is None:
+        found = source.run(f"select {agg}(id) from {source.table}{_where(condition, compiled.condition)} "
+                           f"group by ({expr})", args)
+    else:
+        assert source.rows is not None
+        best: Dict[Any, int] = {}
+        ordered = sorted({int(i) for i in ids})
+        for start in range(0, len(ordered), SEARCH_CHUNK):
+            chunk = ",".join(str(i) for i in ordered[start:start + SEARCH_CHUNK])
+            for value, rid in source.rows(
+                    f"select ({expr}), {agg}(id) from {source.table}"
+                    f"{_where(f'id in ({chunk})', condition, compiled.condition)} group by ({expr})", args):
+                if value not in best or (rid > best[value] if descending else rid < best[value]):
+                    best[value] = int(rid)
+        found = list(best.values())
+    return sorted((int(i) for i in found), reverse=descending)

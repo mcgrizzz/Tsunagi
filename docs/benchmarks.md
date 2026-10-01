@@ -109,6 +109,11 @@ says otherwise.
   Yomitan's own `multi` of these searches took 349 ms; one search, repeated
   alone, took about 60 ms through the AnkiConnect Shim or the Tsunagi API
   alike.
+- **Each card's latest review:** what AnkiConnect's `getIntervals` reads.
+  On the owner's desktop (2026-10-01, 283,025 reviews), every review row
+  took 572 ms and 15.9 MB, with the latest per card picked by the client;
+  `GET /v1/reviews?search=deck:*&distinct_on=card_id&order=id:desc` took
+  44 ms and 230 KB for the same 3,986 rows.
 - **Simplifications:** asbplayer's update searches only the benchmark deck
   instead of the whole collection, to keep the test profile safe, and skips an
   optional Browser refresh. asbplayer's change poll normally also filters by

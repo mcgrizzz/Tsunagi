@@ -9,3 +9,8 @@ from ..ops import as_query_op
 @as_query_op
 def select_ids(col: Collection, sql: str, args: Sequence[Any]) -> List[int]:
     return [int(i) for i in col.db.list(sql, *args)]
+
+
+@as_query_op
+def select_rows(col: Collection, sql: str, args: Sequence[Any]) -> List[Sequence[Any]]:
+    return col.db.all(sql, *args)

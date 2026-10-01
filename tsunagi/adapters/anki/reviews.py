@@ -7,13 +7,13 @@ rows behind its back discards the undo history and cached study queues (Anki's
 own dbproxy behaviour) - the write exists for history imports, not for
 recording reviews.
 """
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from anki.collection import Collection
 
 from ...shared.sql_query import Column, ColumnSource
 from ..ops import as_collection_op, as_query_op
-from .id_queries import select_ids
+from .id_queries import select_ids, select_rows
 
 # Raw review rows are needed here: Anki's GetReviewLogs returns processed
 # statistics without all revlog columns (for example, usn). Keep that storage
@@ -27,7 +27,8 @@ _NAMES = ("id", "card_id", "usn", "ease", "interval", "last_interval", "factor",
 
 # Every review field is an integer column: all of them can go into the id query.
 REVIEW_SQL = ColumnSource("revlog", {name: Column(column, "int") for column, name in zip(COLUMNS, _NAMES)},
-                          select_ids)
+                          select_ids, rows=select_rows,
+                          search_condition=lambda query: review_search_condition(query))
 
 
 def _row(values: Sequence[int], names: Sequence[str] = _NAMES) -> Dict[str, int]:
@@ -158,6 +159,13 @@ def ordered_review_ids(col: Collection, query: str, name: str, descending: bool)
         where = f" where cid in {_in_clause(card_ids)}"
     direction = "desc" if descending else "asc"
     return [int(i) for i in col.db.list(f"select id from revlog{where} order by {column} {direction}, id")]
+
+
+@as_query_op
+def review_search_condition(col: Collection, query: str) -> Tuple[str, List[Any]]:
+    """A search as a revlog condition: the reviews of the cards it matches."""
+    card_ids = _find_cards(col, query)
+    return (f"cid in {_in_clause(card_ids)}" if card_ids else "0"), []
 
 
 @as_query_op

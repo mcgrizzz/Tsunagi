@@ -20,7 +20,7 @@ from ...shared.schemas.notes import (
 from ...shared.sql_query import Column, ColumnSource
 from ..event_results import note_result
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
-from .id_queries import select_ids
+from .id_queries import select_ids, select_rows
 from .media import write_media
 
 # note.fields_check() states (anki.notes.NoteFieldsCheckResult)
@@ -313,7 +313,7 @@ def _first_field_checksums(values: List[Any]) -> Optional[Tuple[str, List[Any]]]
 NOTE_SQL = ColumnSource("notes", {
     "id": Column("id", "int"), "guid": Column("guid", "text"), "model_id": Column("mid", "int"),
     "mod": Column("mod", "int"), "usn": Column("usn", "int"),
-}, select_ids, {"first_field": _first_field_checksums})
+}, select_ids, {"first_field": _first_field_checksums}, rows=select_rows)
 
 
 @as_query_op
