@@ -105,7 +105,10 @@ says otherwise.
   Tsunagi API asks for notes whose first field matches, using the index Anki's
   duplicate check uses. Both give the same notes on this profile. With "Check
   for duplicates across all models" on, the check's own IDs are the list, so
-  the Tsunagi API needs one request.
+  the Tsunagi API needs one request. On the owner's desktop (2026-09-30),
+  Yomitan's own `multi` of these searches took 349 ms; one search, repeated
+  alone, took about 60 ms through the AnkiConnect Shim or the Tsunagi API
+  alike.
 - **Simplifications:** asbplayer's update searches only the benchmark deck
   instead of the whole collection, to keep the test profile safe, and skips an
   optional Browser refresh. asbplayer's change poll normally also filters by
