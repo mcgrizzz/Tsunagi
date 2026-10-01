@@ -140,16 +140,23 @@ def _with_references(values: Dict[str, str], files: List[Attachment]) -> Dict[st
 
 
 def _store_attachments(col: Collection, note: Any, files: List[Attachment]) -> List[MediaStored]:
-    """Store a checked note's files; a renamed file's references follow it in
-    the fields it lists. Returns what was stored, for references elsewhere."""
+    """Store a checked note's files. `_with_references` appended their
+    references, by requested name, to the end of the fields they list; those
+    appended references, and only they, are rewritten to the stored names.
+    Rewriting every match instead pointed two same-named files at one, and
+    retargeted a reference the client wrote itself. Returns what was stored."""
     out = []
+    appended: Dict[str, List[Tuple[str, str]]] = {}   # field -> (requested, stored) markup, in append order
     for kind, name, data, fields in files:
         stored, renamed = write_media(col, name, data)
-        if stored != name:
-            old, new = _MARKUP[kind].format(name), _MARKUP[kind].format(stored)
-            for field in fields:
-                note[field] = note[field].replace(old, new)
+        for field in fields:
+            appended.setdefault(field, []).append((_MARKUP[kind].format(name), _MARKUP[kind].format(stored)))
         out.append(MediaStored(filename=stored, requested_filename=name, renamed=renamed, size=len(data)))
+    for field, references in appended.items():
+        requested = "".join(r for r, _ in references)
+        value = note[field]
+        if value.endswith(requested):
+            note[field] = value[:len(value) - len(requested)] + "".join(s for _, s in references)
     return out
 
 

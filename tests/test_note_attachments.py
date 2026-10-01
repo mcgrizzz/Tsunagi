@@ -155,3 +155,17 @@ def test_patch_skips_a_reference_the_field_has(client, col):
     client.patch(f"/v1/notes/{nid}", json={"audio": {"data": b64(b"other"), "filename": "inu.mp3", "fields": ["Back"]}})
     back = fields_of(col, nid)["Back"]
     assert back.startswith("meaning[sound:inu.mp3][sound:inu") and back.count("[sound:") == 2
+
+
+def test_same_named_files_each_keep_their_own_reference(client, col):
+    # Review finding 2026-10-01: a rename replaced every matching reference.
+    col.media.write_data("image.png", b"already here")
+    body = note("犬", picture=[{"data": b64(b"first"), "filename": "image.png", "fields": ["Back"]},
+                               {"data": b64(b"second"), "filename": "image.png", "fields": ["Back"]}])
+    body["fields"]["Back"] = 'mine:<img src="image.png">'   # the client means the existing file
+    created = client.post("/v1/notes", json=body).json()["created"][0]
+    first, second = (f["filename"] for f in created["files"])
+    assert len({first, second, "image.png"}) == 3
+    assert fields_of(col, created["id"])["Back"] == (
+        f'mine:<img src="image.png"><img src="{first}"><img src="{second}">')
+    assert col.media.have(first) and col.media.have(second)
