@@ -173,14 +173,6 @@ class SetCardValuesRequest(BaseModel):
     force: bool = False
 
 
-# ----------------- Verb response -----------------
-
-
-class SchedulingResult(BaseModel):
-    affected: int
-    stats: dict
-
-
 class BatchRequest(BaseModel):
     # Entries stay raw dicts here: each is validated against ITS verb's
     # request model by the route, keyed on "op".

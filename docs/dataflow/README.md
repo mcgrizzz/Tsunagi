@@ -39,7 +39,7 @@ adapter call ── EVERY collection touch is one cross-thread round trip:
   │                                     │ (collection mutex) → SQLite
   │   request thread ◀──Event.set────── done-callback (main thread)
   ▼
-response ── Paginated/SchedulingResult envelope, stats.duration_ms
+response ── Paginated/VerbResult envelope, stats.duration_ms
 ```
 
 The cross-thread hop is why adapters batch: one `@as_query_op` call that

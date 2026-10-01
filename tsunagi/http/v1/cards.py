@@ -46,14 +46,13 @@ from ...shared.schemas.cards import (
     ChangeDeckRequest,
     ForgetRequest,
     RepositionRequest,
-    SchedulingResult,
     SetCardValuesRequest,
     SetDueDateRequest,
     SetEaseRequest,
     SetFlagRequest,
     SetMemoryStateRequest,
 )
-from ...shared.schemas.wrappers import Paginated
+from ...shared.schemas.wrappers import Paginated, VerbResult
 
 
 def _int_id(v: Any) -> Any:
@@ -110,7 +109,7 @@ def _verb(path: str, summary: str, description: str,
         operation_id = "cards" + "".join(p.capitalize() for p in path.split("-"))
         return router.post(
             f"/v1/cards:{path}",
-            response_model=SchedulingResult,
+            response_model=VerbResult,
             summary=summary,
             description=description,
             tags=["Cards"],
@@ -120,40 +119,40 @@ def _verb(path: str, summary: str, description: str,
     return decorate
 
 
-def _result(affected: Any, start: float) -> SchedulingResult:
-    return SchedulingResult(
+def _result(affected: Any, start: float) -> VerbResult:
+    return VerbResult(
         affected=int(affected),
         stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)},
     )
 
 
 @_verb("suspend", "Suspend cards", "Removes cards from review until unsuspended.")
-def suspend(body: CardIds = Body(...)) -> SchedulingResult:
+def suspend(body: CardIds = Body(...)) -> VerbResult:
     start = time.perf_counter()
     return _result(suspend_cards(body.card_ids), start)
 
 
 @_verb("unsuspend", "Unsuspend cards", "Returns suspended cards to their queue.")
-def unsuspend(body: CardIds = Body(...)) -> SchedulingResult:
+def unsuspend(body: CardIds = Body(...)) -> VerbResult:
     start = time.perf_counter()
     return _result(unsuspend_cards(body.card_ids), start)
 
 
 @_verb("bury", "Bury cards", "Hides cards until the next day.")
-def bury(body: CardIds = Body(...)) -> SchedulingResult:
+def bury(body: CardIds = Body(...)) -> VerbResult:
     start = time.perf_counter()
     return _result(bury_cards(body.card_ids), start)
 
 
 @_verb("unbury", "Unbury cards", "Returns buried cards to their queue.")
-def unbury(body: CardIds = Body(...)) -> SchedulingResult:
+def unbury(body: CardIds = Body(...)) -> VerbResult:
     start = time.perf_counter()
     return _result(unbury_cards(body.card_ids), start)
 
 
 @_verb("forget", "Reset cards to new",
        "Puts cards back in the new queue, optionally restoring their original position.")
-def forget(body: ForgetRequest = Body(...)) -> SchedulingResult:
+def forget(body: ForgetRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     affected = forget_cards(
         body.card_ids,
@@ -165,21 +164,21 @@ def forget(body: ForgetRequest = Body(...)) -> SchedulingResult:
 
 @_verb("set-due-date", "Set the due date",
        "`days` is '5' (due in five days) or '5-7' (a random day in that range).")
-def set_due(body: SetDueDateRequest = Body(...)) -> SchedulingResult:
+def set_due(body: SetDueDateRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     return _result(set_due_date(body.card_ids, body.days, body.config_key), start)
 
 
 @_verb("change-deck", "Move cards to another deck",
        "Takes deck_id or deck_name. The deck must already exist - this never creates one.")
-def move(body: ChangeDeckRequest = Body(...)) -> SchedulingResult:
+def move(body: ChangeDeckRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     return _result(change_deck(body.card_ids, body.deck_id, body.deck_name), start)
 
 
 @_verb("reposition", "Reposition new cards",
        "Reassigns the position (`due`) of cards in the new queue.")
-def reposition(body: RepositionRequest = Body(...)) -> SchedulingResult:
+def reposition(body: RepositionRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     affected = reposition_cards(
         body.card_ids,
@@ -192,14 +191,14 @@ def reposition(body: RepositionRequest = Body(...)) -> SchedulingResult:
 
 
 @_verb("set-flag", "Set the coloured flag", "0 clears the flag; 1-7 are Anki's colours.")
-def flag(body: SetFlagRequest = Body(...)) -> SchedulingResult:
+def flag(body: SetFlagRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     return _result(set_flag(body.card_ids, body.flag), start)
 
 
 @_verb("set-ease", "Set ease factors",
        "Per-card ease, stored as an integer 10x the percentage (250% is 2500).")
-def ease(body: SetEaseRequest = Body(...)) -> SchedulingResult:
+def ease(body: SetEaseRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     results: List[bool] = set_ease_factors([e.dict() for e in body.cards])
     return _result(sum(1 for ok in results if ok), start)
@@ -211,7 +210,7 @@ def ease(body: SetEaseRequest = Body(...)) -> SchedulingResult:
        "unchanged; an explicit null clears it. Needs the memory_state "
        "permission, which only the Everything role has by default.",
        permission="memory_state")
-def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResult:
+def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     results: List[bool] = set_memory_states(
         [e.dict(exclude_unset=True) for e in body.cards])
@@ -223,7 +222,7 @@ def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> SchedulingResul
        "again/hard/good/easy) had been pressed in the reviewer. Works on a "
        "card in any state - answering a suspended card unsuspends it. A "
        "missing card is skipped; `affected` counts the cards answered.")
-def answer(body: AnswerRequest = Body(...)) -> SchedulingResult:
+def answer(body: AnswerRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     results: List[bool] = answer_cards(
         [{"card_id": e.card_id, "ease": e.ease} for e in body.answers])
@@ -236,7 +235,7 @@ def answer(body: AnswerRequest = Body(...)) -> SchedulingResult:
        "Scheduling and linkage columns (did, id, ivl, lapses, left, mod, nid, "
        "odid, odue, ord, queue, reps, type, usn) corrupt the card when "
        "written badly, so they require `force: true`.")
-def set_values(body: SetCardValuesRequest = Body(...)) -> SchedulingResult:
+def set_values(body: SetCardValuesRequest = Body(...)) -> VerbResult:
     risky = sorted(set(body.values) & RISKY_CARD_COLUMNS)
     if risky and not body.force:
         raise ValidationError(

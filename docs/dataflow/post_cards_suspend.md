@@ -53,7 +53,7 @@ windows, and the event stream. Same request, three audiences.
    - `_success(result)` unwraps `.value` → Event.set → the request thread
      resumes with the affected count.
 
-6. **Response.** `SchedulingResult {affected, stats}`.
+6. **Response.** `VerbResult {affected, stats}`.
 
 ## The AnkiConnect Shim variant
 

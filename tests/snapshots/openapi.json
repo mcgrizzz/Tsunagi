@@ -2541,24 +2541,6 @@
         "title": "ReviewInfo",
         "type": "object"
       },
-      "SchedulingResult": {
-        "properties": {
-          "affected": {
-            "title": "Affected",
-            "type": "integer"
-          },
-          "stats": {
-            "title": "Stats",
-            "type": "object"
-          }
-        },
-        "required": [
-          "affected",
-          "stats"
-        ],
-        "title": "SchedulingResult",
-        "type": "object"
-      },
       "SetAddNoteDataRequest": {
         "description": "Everything optional: an empty body just opens the dialog.",
         "properties": {
@@ -2955,6 +2937,24 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VerbResult": {
+        "properties": {
+          "affected": {
+            "title": "Affected",
+            "type": "integer"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          }
+        },
+        "required": [
+          "affected",
+          "stats"
+        ],
+        "title": "VerbResult",
         "type": "object"
       },
       "Versions": {
@@ -3617,7 +3617,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -3719,7 +3719,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -3770,7 +3770,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -3821,7 +3821,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -3872,7 +3872,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -3923,7 +3923,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -3974,7 +3974,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -4025,7 +4025,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -4076,7 +4076,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -4127,7 +4127,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -4178,7 +4178,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -4229,7 +4229,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -4280,7 +4280,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },
@@ -8228,7 +8228,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SchedulingResult"
+                  "$ref": "#/components/schemas/VerbResult"
                 }
               }
             },

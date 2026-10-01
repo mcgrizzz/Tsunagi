@@ -28,7 +28,6 @@ from ...shared.planning import (
     SourceCaps,
 )
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
-from ...shared.schemas.cards import SchedulingResult
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import sanitize_media_filename
 from ...shared.schemas.notes import (
@@ -41,7 +40,7 @@ from ...shared.schemas.notes import (
     NoteUpsert,
     NoteUpsertResponse,
 )
-from ...shared.schemas.wrappers import Paginated
+from ...shared.schemas.wrappers import Paginated, VerbResult
 from .media import resolve_upload
 
 caps = SourceCaps(
@@ -124,7 +123,7 @@ def check(
 @router.post(
     "/v1/notes:delete",
     openapi_extra=requires("write:notes"),
-    response_model=SchedulingResult,
+    response_model=VerbResult,
     summary="Delete notes",
     description=("Deletes the notes and their cards, as one undo step. A missing note is "
                  "skipped; `affected` counts the notes deleted. Same `resource:verb` form "
@@ -133,11 +132,11 @@ def check(
     operation_id="notesDelete",
 )
 @handle_mutation_errors("delete")
-def delete(body: NoteIds = Body(...)) -> SchedulingResult:
+def delete(body: NoteIds = Body(...)) -> VerbResult:
     start = time.perf_counter()
     # No ids, no write: Anki would still record an empty undo step.
     affected = delete_notes(body.note_ids) if body.note_ids else 0
-    return SchedulingResult(affected=affected,
+    return VerbResult(affected=affected,
                             stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)})
 
 

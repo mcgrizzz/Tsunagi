@@ -11,6 +11,11 @@ class ProjectedObject(BaseModel):
     class Config:
         extra = "allow"
 
+# The answer to a `resource:verb` action on a set of rows (cards:suspend, notes:delete...).
+class VerbResult(BaseModel):
+    affected: int
+    stats: dict
+
 # Generic paginated envelope; covariant + Sequence fixes list invariance issues.
 # Must be GenericModel (not BaseModel + Generic): parametrizing a plain
 # BaseModel leaks typing's __orig_class__ into __dict__/.dict() output.
