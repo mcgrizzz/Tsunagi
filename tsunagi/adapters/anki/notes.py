@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 from anki.collection import Collection
 
 from ...shared.errors import DuplicateNoteError, ResourceNotFoundError, ValidationError
+from ...shared.schemas.media import MediaStored
 from ...shared.schemas.notes import (
     NoteCreate,
     NoteInfo,
@@ -20,6 +21,7 @@ from ...shared.sql_query import Column, ColumnSource
 from ..event_results import note_result
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 from .id_queries import select_ids
+from .media import write_media
 
 # note.fields_check() states (anki.notes.NoteFieldsCheckResult)
 NORMAL, EMPTY, DUPLICATE, MISSING_CLOZE = 0, 1, 2, 3
@@ -123,13 +125,46 @@ def _resolve_deck_id(col: Collection, req: NoteCreate) -> int:
     raise ValidationError("one of 'deck_id' or 'deck_name' is required")
 
 
-def _apply_fields(note: Any, values: Dict[str, str], notetype_name: str) -> None:
+# A note's attachment, fetched on the request thread: (kind, filename, bytes, fields).
+Attachment = Tuple[str, str, bytes, List[str]]
+_MARKUP = {"audio": "[sound:{}]", "video": "[sound:{}]", "picture": '<img src="{}">'}
+
+
+def _with_references(values: Dict[str, str], files: List[Attachment]) -> Dict[str, str]:
+    """Field values with each file's reference appended to its fields, as AnkiConnect does."""
+    out = dict(values)
+    for kind, name, _data, fields in files:
+        for field in fields:
+            out[field] = out.get(field, "") + _MARKUP[kind].format(name)
+    return out
+
+
+def _store_attachments(col: Collection, note: Any, files: List[Attachment]) -> List[MediaStored]:
+    """Store a checked note's files; a renamed file's references follow it in
+    the fields it lists. Returns what was stored, for references elsewhere."""
+    out = []
+    for kind, name, data, fields in files:
+        stored, renamed = write_media(col, name, data)
+        if stored != name:
+            old, new = _MARKUP[kind].format(name), _MARKUP[kind].format(stored)
+            for field in fields:
+                note[field] = note[field].replace(old, new)
+        out.append(MediaStored(filename=stored, requested_filename=name, renamed=renamed, size=len(data)))
+    return out
+
+
+def _check_fields(note: Any, names: Any, notetype_name: str) -> None:
     known = set(note.keys())
-    for name, value in values.items():
+    for name in names:
         if name not in known:
             raise ValidationError(
                 f"Unknown field '{name}' for model '{notetype_name}'. Available: {sorted(known)}"
             )
+
+
+def _apply_fields(note: Any, values: Dict[str, str], notetype_name: str) -> None:
+    _check_fields(note, values, notetype_name)
+    for name, value in values.items():
         note[name] = value
 
 
@@ -414,8 +449,12 @@ def _change_notetype(col: Collection, note: Any, req: NotePatch) -> None:
     note.fields = [""] * len(notetype["flds"])
 
 
-@as_collection_op(event_details=lambda note_id, updates: {"note_ids": [int(note_id)]})
-def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteInfo:
+@as_collection_op(event_details=lambda note_id, updates, files=(): {"note_ids": [int(note_id)]})
+def patch_note(col: Collection, note_id: int, updates: Dict[str, Any],
+               files: Sequence[Attachment] = ()) -> NoteInfo:
+    """files: the body's attachments, fetched on the request thread. Each
+    file's reference, by its stored name, is appended to its fields after
+    `fields` is applied, unless the field already has it."""
     req = NotePatch.parse_obj(updates)
     if req.tags is not None and (req.add_tags or req.remove_tags):
         raise ValidationError("'tags' cannot be combined with 'add_tags'/'remove_tags'")
@@ -442,6 +481,18 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any]) -> NoteIn
     if req.remove_tags:
         drop = set(req.remove_tags)
         note.tags = [t for t in note.tags if t not in drop]
+
+    if files:
+        _check_fields(note, [name for *_file, fields in files for name in fields],
+                      model_names.get(int(note.mid), ""))
+        for kind, name, data, fields in files:
+            stored, _renamed = write_media(col, name, data)
+            reference = _MARKUP[kind].format(stored)
+            for field in fields:
+                # A field that has the reference keeps one: a retried PATCH
+                # adds nothing (backlog 6.63), as upsert's append does.
+                if reference not in note[field]:
+                    note[field] += reference
 
     changes = col.update_note(note)
     info = _note_info(col, col.get_note(note.id), model_names)

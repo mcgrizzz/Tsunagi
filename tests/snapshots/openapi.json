@@ -1845,6 +1845,7 @@
         "type": "object"
       },
       "NoteCreate": {
+        "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
           "allowDuplicate": {
             "default": false,
@@ -2121,6 +2122,7 @@
         "type": "object"
       },
       "NotePatch": {
+        "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
           "addTags": {
             "items": {
@@ -2128,6 +2130,20 @@
             },
             "title": "Addtags",
             "type": "array"
+          },
+          "audio": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Audio"
           },
           "fields": {
             "anyOf": [
@@ -2154,6 +2170,20 @@
             "title": "Modelname",
             "type": "string"
           },
+          "picture": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Picture"
+          },
           "removeTags": {
             "items": {
               "type": "string"
@@ -2167,6 +2197,20 @@
             },
             "title": "Tags",
             "type": "array"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteAttachment"
+                },
+                "type": "array"
+              },
+              {
+                "$ref": "#/components/schemas/NoteAttachment"
+              }
+            ],
+            "title": "Video"
           }
         },
         "title": "NotePatch",
@@ -2214,6 +2258,7 @@
         "type": "object"
       },
       "NoteUpsert": {
+        "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
           "allowDuplicate": {
             "default": false,

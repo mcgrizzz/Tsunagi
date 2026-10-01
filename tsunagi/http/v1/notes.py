@@ -36,6 +36,7 @@ from ...shared.schemas.notes import (
     NoteCheckResponse,
     NoteCreate,
     NoteCreateResponse,
+    NoteFiles,
     NoteIds,
     NotePatch,
     NoteUpsert,
@@ -43,6 +44,39 @@ from ...shared.schemas.notes import (
 )
 from ...shared.schemas.wrappers import Paginated, VerbResult
 from .media import resolve_upload
+
+
+class _AttachmentFailed(Exception):
+    def __init__(self, message: str, ref: AttachmentRef):
+        super().__init__(message)
+        self.message, self.ref = message, ref
+
+
+def _fetch_files(req: NoteFiles) -> list:
+    """A note's files, fetched on the request thread: downloads stay outside
+    the collection operation. The first that can't be fetched is named."""
+    files, seen = [], {}
+    for kind, attachment in req.attachments():
+        position = seen[kind] = seen.get(kind, -1) + 1
+        try:
+            name, data = resolve_upload(attachment)
+            sanitize_media_filename(name)   # a bad name fails before anything is stored
+        except ValidationError as exc:
+            raise _AttachmentFailed(str(exc), AttachmentRef(kind=kind, position=position,
+                                                            filename=attachment.filename)) from exc
+        files.append((kind, name, data, list(attachment.fields)))
+    return files
+
+
+def _patch_note(note_id: int, updates: dict):
+    """PATCH: fields, tags and files in one update, as one undo step (backlog 6.58)."""
+    try:
+        files = _fetch_files(NotePatch.parse_obj(updates))
+    except _AttachmentFailed as failure:
+        ref = failure.ref
+        raise ValidationError(f"{ref.kind} {ref.position} ({ref.filename}): {failure.message}") from failure
+    return patch_note(note_id, updates, files)
+
 
 caps = SourceCaps(
     # No fetch_all on purpose: materializing every note must be unreachable.
@@ -75,7 +109,7 @@ caps = SourceCaps(
     order=OrderSpec(names=lambda: sort_names(True),
                     ordered_ids=lambda query, name, desc: find_sorted(query, name, desc, True)),
     mutations=MutationCaps(
-        patch=patch_note,
+        patch=_patch_note,
         patch_body=NotePatch,
         delete=lambda nid: delete_notes([nid]) > 0,
     ),
@@ -175,20 +209,13 @@ def _fetch_attachments(candidates: List[NoteCreate]) -> dict:
     fails alone."""
     attachments, errors = {}, {}
     for index, req in enumerate(candidates):
-        files, seen = [], {}
-        for kind, attachment in req.attachments():
-            position = seen[kind] = seen.get(kind, -1) + 1
-            try:
-                name, data = resolve_upload(attachment)
-                sanitize_media_filename(name)   # a bad name fails before anything is stored
-            except ValidationError as exc:
-                errors[index] = (str(exc), AttachmentRef(kind=kind, position=position,
-                                                         filename=attachment.filename))
-                break
-            files.append((kind, name, data, list(attachment.fields)))
-        else:
-            if files:
-                attachments[index] = files
+        try:
+            files = _fetch_files(req)
+        except _AttachmentFailed as failure:
+            errors[index] = (failure.message, failure.ref)
+            continue
+        if files:
+            attachments[index] = files
     return {"attachments": attachments, "attachment_errors": errors}
 
 

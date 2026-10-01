@@ -1,5 +1,7 @@
-"""Files sent with a note on POST /v1/notes (audio, video, picture)."""
+"""Files sent with a note on POST /v1/notes and PATCH /v1/notes/{id} (audio, video, picture)."""
 import base64
+
+import pytest
 
 import tsunagi.http.v1.media as media_routes
 
@@ -101,3 +103,55 @@ def test_other_failures_have_no_attachment(client, col):
     client.post("/v1/notes", json=note("犬"))
     (failure,) = client.post("/v1/notes", json=note("犬")).json()["failed"]
     assert failure["code"] == "duplicate" and "attachment" not in failure
+
+
+def test_patch_attaches_files_as_one_undo_step(client, col):
+    nid = client.post("/v1/notes", json=note("犬")).json()["created"][0]["id"]
+    body = {"fields": {"Back": "dog"},
+            "audio": {"data": b64(b"mp3"), "filename": "inu.mp3", "fields": ["Back"]},
+            "picture": {"data": b64(b"png"), "filename": "inu.png", "fields": ["Front", "Back"]}}
+    r = client.patch(f"/v1/notes/{nid}", json=body)
+    assert r.status_code == 200, r.text
+    # Appended after `fields` is applied, audio first, as on creation.
+    assert fields_of(col, nid) == {"Front": '犬<img src="inu.png">',
+                                   "Back": 'dog[sound:inu.mp3]<img src="inu.png">'}
+    assert col.media.have("inu.mp3") and col.media.have("inu.png")
+    assert col.undo_status().undo == "Update Note"
+    col.undo()
+    assert fields_of(col, nid) == {"Front": "犬", "Back": "meaning"}
+
+
+def test_patch_follows_a_renamed_file(client, col):
+    col.media.write_data("same.png", b"already here")
+    nid = client.post("/v1/notes", json=note("犬")).json()["created"][0]["id"]
+    client.patch(f"/v1/notes/{nid}", json={"picture": {"data": b64(b"new"), "filename": "same.png", "fields": ["Back"]}})
+    back = fields_of(col, nid)["Back"]
+    assert back.startswith('meaning<img src="') and 'src="same.png"' not in back
+    stored = back[len('meaning<img src="'):-2]
+    assert col.media.have(stored)
+
+
+@pytest.mark.parametrize("files,message", [
+    ({"picture": [{"data": b64(b"ok"), "filename": "ok.png"}, {"data": "not base64!", "filename": "bad.png"}]},
+     "picture 1 (bad.png): 'data' is not valid base64"),
+    ({"audio": {"data": b64(b"ok"), "filename": "ok.mp3", "fields": ["Missing"]}}, "Unknown field 'Missing'"),
+])
+def test_a_bad_file_on_patch_changes_nothing(client, col, files, message):
+    nid = client.post("/v1/notes", json=note("犬")).json()["created"][0]["id"]
+    r = client.patch(f"/v1/notes/{nid}", json={"fields": {"Back": "dog"}, **files})
+    assert r.status_code == 400 and message in r.json()["detail"], r.text
+    assert fields_of(col, nid)["Back"] == "meaning"
+    assert not any(col.media.have(n) for n in ("ok.png", "bad.png", "ok.mp3"))
+
+
+def test_patch_skips_a_reference_the_field_has(client, col):
+    nid = client.post("/v1/notes", json=note("犬")).json()["created"][0]["id"]
+    body = {"audio": {"data": b64(b"mp3"), "filename": "inu.mp3", "fields": ["Back"]},
+            "picture": {"data": b64(b"png"), "filename": "inu.png", "fields": ["Front"]}}
+    client.patch(f"/v1/notes/{nid}", json={**body, "fields": {"Front": '<img src="inu.png">犬'}})
+    client.patch(f"/v1/notes/{nid}", json=body)   # a retry
+    assert fields_of(col, nid) == {"Front": '<img src="inu.png">犬', "Back": "meaning[sound:inu.mp3]"}
+    # A file Anki renames is a different reference, so it is added.
+    client.patch(f"/v1/notes/{nid}", json={"audio": {"data": b64(b"other"), "filename": "inu.mp3", "fields": ["Back"]}})
+    back = fields_of(col, nid)["Back"]
+    assert back.startswith("meaning[sound:inu.mp3][sound:inu") and back.count("[sound:") == 2

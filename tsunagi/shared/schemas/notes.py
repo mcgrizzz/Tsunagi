@@ -88,7 +88,24 @@ class NoteAttachment(MediaUpload):
 Attachments = Optional[Union[List[NoteAttachment], NoteAttachment]]
 
 
-class NoteCreate(BaseModel):
+class NoteFiles(BaseModel):
+    """Files sent with a note, on creation and on PATCH."""
+    # Stored with the note, with [sound:...] or <img src="..."> appended to
+    # their fields: one object or a list each, as in AnkiConnect.
+    audio: Attachments = None
+    video: Attachments = None
+    picture: Attachments = None
+
+    def attachments(self) -> List[tuple]:
+        """(kind, attachment) pairs, audio first, as AnkiConnect orders them."""
+        out = []
+        for kind in ("audio", "video", "picture"):
+            value = getattr(self, kind)
+            out += [(kind, a) for a in (value if isinstance(value, list) else [value] if value else [])]
+        return out
+
+
+class NoteCreate(NoteFiles):
     class Config:
         allow_population_by_field_name = True
         # Without smart_union pydantic v1 tries Dict[str, str] first and
@@ -113,22 +130,9 @@ class NoteCreate(BaseModel):
                      "check_all_models is used, notes match on the first field's checksum, "
                      "as in AnkiConnect."),
     )
-    # Stored with the note, with [sound:...] or <img src="..."> appended to
-    # their fields: one object or a list each, as in AnkiConnect.
-    audio: Attachments = None
-    video: Attachments = None
-    picture: Attachments = None
-
-    def attachments(self) -> List[tuple]:
-        """(kind, attachment) pairs, audio first, as AnkiConnect orders them."""
-        out = []
-        for kind in ("audio", "video", "picture"):
-            value = getattr(self, kind)
-            out += [(kind, a) for a in (value if isinstance(value, list) else [value] if value else [])]
-        return out
 
 
-class NotePatch(BaseModel):
+class NotePatch(NoteFiles):
     class Config:
         allow_population_by_field_name = True
         smart_union = True

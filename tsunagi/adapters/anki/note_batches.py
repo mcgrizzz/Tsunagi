@@ -10,7 +10,6 @@ from ...shared.errors import (
     anki_error_detail,
 )
 from ...shared.schemas.creation import CreationFailure
-from ...shared.schemas.media import MediaStored
 from ...shared.schemas.notes import (
     AttachmentRef,
     NoteCreate,
@@ -22,9 +21,9 @@ from ...shared.schemas.notes import (
     NoteUpsertResponse,
 )
 from ..ops import ValueWithChanges, as_collection_op
-from .media import write_media
 from .notes import (
     EMPTY,
+    Attachment,
     _apply_fields,
     _duplicate_ids,
     _duplicate_state,
@@ -32,34 +31,9 @@ from .notes import (
     _prepare_note,
     _resolve_deck_id,
     _resolve_notetype,
+    _store_attachments,
+    _with_references,
 )
-
-# A note's attachment, fetched on the request thread: (kind, filename, bytes, fields).
-Attachment = Tuple[str, str, bytes, List[str]]
-_MARKUP = {"audio": "[sound:{}]", "video": "[sound:{}]", "picture": '<img src="{}">'}
-
-
-def _with_references(values: Dict[str, str], files: List[Attachment]) -> Dict[str, str]:
-    """Field values with each file's reference appended to its fields, as AnkiConnect does."""
-    out = dict(values)
-    for kind, name, _data, fields in files:
-        for field in fields:
-            out[field] = out.get(field, "") + _MARKUP[kind].format(name)
-    return out
-
-
-def _store_attachments(col: Collection, note: Any, files: List[Attachment]) -> List[MediaStored]:
-    """Store a checked note's files; a renamed file's references follow it in
-    the fields it lists. Returns what was stored, for references elsewhere."""
-    out = []
-    for kind, name, data, fields in files:
-        stored, renamed = write_media(col, name, data)
-        if stored != name:
-            old, new = _MARKUP[kind].format(name), _MARKUP[kind].format(stored)
-            for field in fields:
-                note[field] = note[field].replace(old, new)
-        out.append(MediaStored(filename=stored, requested_filename=name, renamed=renamed, size=len(data)))
-    return out
 
 
 @as_collection_op

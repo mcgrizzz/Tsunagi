@@ -240,6 +240,20 @@ Each file takes exactly one source:
 Base64 files need a `filename`; URL and path files can derive it from the
 source. The configured upload-size limit applies to each file.
 
+**Adding files to a note you already have:** send the same `audio`, `video` and
+`picture` to **`PATCH /v1/notes/{id}`**, with or without `fields` and tags. The
+references go after the fields' new values, renames are followed, and the whole
+change is one undo step. A field that already has a file's reference doesn't get
+a second one, so retrying a PATCH after a timeout is safe:
+
+```json
+{"audio": {"url": "https://example.com/inu.mp3", "fields": ["Back"]}}
+```
+
+A file that can't be read fails the request with 400, naming the file, and
+nothing is changed or stored. The answer is the updated note; to learn a file's
+stored name without referencing it, upload it with `POST /v1/media` instead.
+
 **Many or large files, or one file for several notes?** Upload them first with
 **`POST /v1/media`** (one object or an array, same sources), then put the
 returned names in your fields:
