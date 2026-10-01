@@ -44,6 +44,18 @@ def test_cards_follow_ankis_sort(client, data, order, key, reverse, limit):
     assert walk(client, "/v1/cards", **params) == anki_order(data, key, reverse)
 
 
+@pytest.mark.parametrize("path,field,same_as", [
+    ("/v1/cards", "reps", "reviews"), ("/v1/cards", "mod", "card_modified"),
+    ("/v1/notes", "mod", "note_modified"), ("/v1/notes", "id", "created"),
+])
+def test_row_field_names_order_as_their_browser_sort(client, data, path, field, same_as):
+    for direction in ("", ":desc"):
+        rows = client.get(path, params={"order": field + direction, "select": f"id,{field}"}).json()["items"]
+        assert [r["id"] for r in rows] == walk(client, path, order=same_as + direction, select="id")
+        keys = [(r[field], r["id"]) for r in rows]   # ordered by the field, ties by id
+        assert keys == sorted(keys, key=lambda k: (-k[0] if direction else k[0], k[1]))
+
+
 def test_notes_follow_ankis_sort_with_a_search(client, data):
     expected = anki_order(data, "noteFld", True, notes=True, query="tag:even")
     assert walk(client, "/v1/notes", search="tag:even", order="sort_field:desc", limit=2, select="id") == expected
@@ -81,7 +93,8 @@ def test_small_resources_sort_by_their_fields(client, data):
 
 @pytest.mark.parametrize("path,order,message", [
     ("/v1/cards", "question", "Can't order by question. Order by: card_modified"),
-    ("/v1/cards", "mod", "Can't order by mod."),
+    ("/v1/cards", "factor", "Can't order by factor."),   # the ease sort puts new cards apart
+    ("/v1/cards", "id", "Can't order by id."),           # no Browser sort by card id
     ("/v1/notes", "retrievability", "Can't order by retrievability."),   # a card-only sort
     ("/v1/reviews", "due", "Can't order by due. Order by: card_id"),
     ("/v1/cards", "due:sideways", "Invalid order 'due:sideways'"),

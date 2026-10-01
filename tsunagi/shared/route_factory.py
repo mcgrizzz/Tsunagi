@@ -549,7 +549,8 @@ def create_resource_routes(
             "Sort: a name, optionally with :asc (default) or :desc, e.g. due:desc. Cards and notes "
             "use Anki's Browser sorts (due, interval, ease, lapses, reviews, created, card_modified, "
             "note_modified, deck, note_type, sort_field, tags, position, card_type; difficulty, "
-            "stability and retrievability on cards); other resources a field of their rows. Ties "
+            "stability and retrievability on cards), and the row fields that sort the same (reps, "
+            "mod; id on notes); other resources a field of their rows. Ties "
             "in ascending id. Without it, rows come in ascending id.")),
         shape: Literal["object", "scalar"] = Query(default="object", description=(
             "object (default): each item is an object with the selected fields. scalar: with "

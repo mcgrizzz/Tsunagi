@@ -48,7 +48,8 @@ query to a deck.
   use Anki's Browser sorts, by their Browser names (`due`, `interval`, `ease`,
   `lapses`, `reviews`, `created`, `note_modified`, `deck`, `note_type`,
   `sort_field`, …), so `due` orders new, learning and review cards as the
-  Browser does. Other resources sort by a field of their rows, such as
+  Browser does. Row fields that sort the same work too: `reps`, `mod`, and `id`
+  on notes. Other resources sort by a field of their rows, such as
   `order=id:desc` for the newest reviews. Without `order`, rows come in
   ascending id.
 - **`limit`** sets the page size, such as `10`.

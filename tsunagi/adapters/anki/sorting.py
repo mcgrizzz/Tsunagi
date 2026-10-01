@@ -20,6 +20,13 @@ NAMES = {
 }
 
 
+# Row field names for the sorts that order exactly by that field's values, so
+# `order` also takes the names `select` and `where` use. Not `factor`: the ease
+# sort puts new cards apart (checked on 26.08, 2026-09-30).
+FIELD_NAMES = {False: {"reps": "cardReps", "mod": "cardMod"},
+               True: {"mod": "noteMod", "id": "noteCrt"}}
+
+
 def _sorts(col: Collection, notes: bool) -> Dict[str, Any]:
     """The sortable columns this Anki has; one it adds later is named by its label."""
     out = {}
@@ -27,6 +34,8 @@ def _sorts(col: Collection, notes: bool) -> Dict[str, Any]:
         if column.sorting_notes if notes else column.sorting_cards:
             name = NAMES.get(column.key) or column.cards_mode_label.lower().replace(" ", "_")
             out[name] = column
+    by_key = {column.key: column for column in out.values()}
+    out.update({field: by_key[key] for field, key in FIELD_NAMES[notes].items() if key in by_key})
     return out
 
 
