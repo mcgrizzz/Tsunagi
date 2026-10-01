@@ -9,6 +9,7 @@ overhead and streaming quirks.
 """
 from __future__ import annotations
 
+import hashlib
 import time
 from ipaddress import ip_address
 from typing import Any
@@ -18,8 +19,9 @@ from fastapi import HTTPException, Request
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
-from ..adapters import request_log
+from ..adapters import idempotency, ops, request_log
 from ..adapters.settings import is_loopback_host
+from ..shared.errors import ValidationError
 from ..shared.permissions import ADDON, PUBLIC, allows, current_caller, denied_message
 
 # Paths the auth middleware lets through without resolving a caller:
@@ -156,6 +158,67 @@ class ApiKeyAuthMiddleware:
             await self.app(scope, receive, send)
         finally:
             current_caller.reset(token)
+
+
+class IdempotencyMiddleware:
+    """
+    `Idempotency-Key` on every /v1 write (backlog 6.64). Inside the key check,
+    so the key is scoped to the caller. A request with a key gets a journal
+    (adapters/idempotency.py) that records its collection writes; a retry with
+    the same key, method, path, query and body gets them back instead of
+    writing again, marked `Idempotent-Replayed: true`. POST /v1/notes and
+    POST /v1/media record their whole response themselves.
+    """
+
+    OWN = {("POST", "/v1/notes"), ("POST", "/v1/media")}
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (scope["type"] != "http" or scope["method"] in ("GET", "HEAD", "OPTIONS")
+                or not scope["path"].startswith("/v1/") or (scope["method"], scope["path"]) in self.OWN):
+            return await self.app(scope, receive, send)
+        key = Headers(scope=scope).get("idempotency-key")
+        if not key:
+            return await self.app(scope, receive, send)
+
+        chunks, more = [], True
+        while more:
+            message = await receive()
+            if message["type"] != "http.request":
+                break
+            chunks.append(message.get("body", b""))
+            more = message.get("more_body", False)
+        body = b"".join(chunks)
+        caller = current_caller.get()
+        fingerprint = hashlib.sha256(scope.get("query_string", b"") + b"\0" + body).hexdigest()
+        try:
+            journal = idempotency.open_journal(
+                (caller.name if caller else "", scope["method"], scope["path"], key), fingerprint)
+        except ValidationError as exc:
+            return await JSONResponse({"detail": str(exc)}, status_code=400)(scope, receive, send)
+
+        replayed_body = False
+
+        async def receive_body():
+            nonlocal replayed_body
+            if not replayed_body:
+                replayed_body = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        async def send_marked(message):
+            if message["type"] == "http.response.start" and journal.replayed:
+                MutableHeaders(scope=message).append("Idempotent-Replayed", "true")
+            await send(message)
+
+        token = ops.write_journal.set(journal)
+        try:
+            await self.app(scope, receive_body, send_marked)
+        finally:
+            ops.write_journal.reset(token)
+            idempotency.close_journal(journal)
 
 
 async def check_route_permission(request: Request) -> None:

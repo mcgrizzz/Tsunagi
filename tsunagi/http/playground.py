@@ -146,6 +146,11 @@ body) also lists each problem in `errors`, and a 503 says why in `reason`:
 `busy`, `syncing` or `closed`. A request refused for its Host header or website
 origin gets a plain-text 403 instead.
 
+A 503 doesn't cancel a write: Anki may still finish it. Send an
+`Idempotency-Key` header (a new UUID per request) with any write, and the same
+key when you retry it: the retry gets the first attempt's result, marked
+`Idempotent-Replayed: true`, instead of writing again.
+
 ## Try a request
 
 Start with `GET /v1/health`, or **Notes → List notes** with `limit=10`. Health

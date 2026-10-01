@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 from concurrent.futures import Future
+from contextvars import ContextVar
 from functools import wraps
 from typing import Any, Callable, Optional, TypeVar, cast
 
@@ -25,6 +26,11 @@ OP_TIMEOUT: float = 15.0
 # timeout=FOREVER waits for as long as it takes (sync, add-on jobs).
 # timeout=None means OP_TIMEOUT.
 FOREVER = float("inf")
+
+# The request's idempotency journal (adapters/idempotency.py), set by the
+# middleware when the request carries an Idempotency-Key: collection writes
+# record their results there, and a retry gets them back instead of writing.
+write_journal: ContextVar[Optional[Any]] = ContextVar("write_journal", default=None)
 
 
 class ValueWithChanges:
@@ -325,6 +331,10 @@ def collection_op_call(
     **kwargs: P.kwargs,
 ) -> R:
     """Wait for a CollectionOp result, retaining the ordinary operation deadline."""
+    journal = write_journal.get()
+    if journal is not None:
+        return cast(R, journal.run(lambda ok, fail: collection_op_run_async(
+            fn, *args, on_success=ok, on_failure=fail, event_details=event_details, **kwargs), timeout))
     done = threading.Event()
     box: dict[str, Any] = {}
 

@@ -328,8 +328,10 @@ submitted input.
 ### Retry safely with an idempotency key
 
 Send an `Idempotency-Key` header, a new unique value (such as a UUID) per
-request, on `POST /v1/notes` and `POST /v1/media`, and reuse it when you retry
-that request:
+request, on any write, and reuse it when you retry that request. Every `POST`,
+`PUT`, `PATCH` and `DELETE` under `/v1` takes one: creating notes and media,
+answering cards, a PATCH, and the rest. Actions on Anki's window (`/v1/gui:…`)
+don't use it yet.
 
 ```sh
 curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" -d '{...}'
@@ -339,17 +341,26 @@ curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" -d '{.
   writing again, with the header `Idempotent-Replayed: true`. This holds after
   a 503: the result is recorded when the write completes, not when the
   request gives up.
+- A replay is the first attempt's result as it was then, even if the data has
+  changed since (someone edited the note, or undid the write).
 - A retry while the first attempt is still running waits for it, like any
   write (503 again if it still isn't done).
 - The same key with a different body is refused (400). Use a new key for a new
-  request.
+  request. For writes other than creating notes and media, "the same" means
+  the same path, query and body bytes.
+- For those other writes, a retry runs the request again, but each write in
+  it returns its recorded result instead of writing; only the response's
+  `stats` timing can differ.
 - Keys belong to the app and route that sent them and are kept for ten
   minutes. A first attempt that failed with an error is forgotten, so its
   retry runs again.
 - A 200 response is recorded even when some items are in `failed`. To retry
   just those items with corrected input, send a new request with a new key.
-- `POST /v1/notes:upsert` doesn't take a key: repeating an upsert updates the
-  same note and changes nothing more.
+- Some writes are safe to repeat without a key: an upsert updates the same
+  note and changes nothing more, and setting tags, flags or fields to the same
+  values changes nothing. Answering a card, repositioning with
+  `shift_existing`, or adding a file to a note with PATCH are not, so send a
+  key with those.
 
 ## How batching reduces repeated work
 

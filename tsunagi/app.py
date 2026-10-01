@@ -25,6 +25,7 @@ from .http.middleware import (
     LOG_ENTRY,
     ApiKeyAuthMiddleware,
     DynamicCORSMiddleware,
+    IdempotencyMiddleware,
     RequestLogMiddleware,
     check_route_permission,
     is_local_request,
@@ -161,7 +162,9 @@ register_exception_handlers(app, syncing=lambda: anki_collection.syncing)
 
 # Auth inner, CORS outside it (added last runs first) so auth 401s still carry
 # CORS headers for allowed origins and disallowed origins never reach auth.
-# The request log wraps both, so it sees what they refuse too.
+# The request log wraps both, so it sees what they refuse too. Idempotency
+# keys innermost: a key belongs to the caller auth resolved.
+app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(ApiKeyAuthMiddleware, settings=settings)
 app.add_middleware(DynamicCORSMiddleware, settings=settings)
 app.add_middleware(RequestLogMiddleware, settings=settings)
