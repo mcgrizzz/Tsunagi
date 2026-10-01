@@ -38,7 +38,7 @@ on newer Anki. Keep the minimum in step with `min_point_version` in
 
 ```text
 Branch 1
-Supports: [ 26.08.0 ] - [ 26.09.0 ]
+Supports: [ 26.08.0 ] - [ 26.09.3 ]
 ```
 
 ## Description
