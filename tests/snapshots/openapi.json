@@ -3612,7 +3612,7 @@
     },
     "/v1/capabilities": {
       "get": {
-        "description": "One report for all native operations and collection features. Each has an effective status: available, disabled in settings, or unsupported by this Anki. Conditional options carry their own status, reason and setting. Availability does not bypass input validation, authentication or transient collection/GUI state. Requires an open collection; /v1/health remains a lightweight liveness check. AnkiConnect actions are listed separately at /actions.",
+        "description": "One report for all native operations and collection features. Each has an effective status: available, disabled in settings, or unsupported by this Anki. Conditional options carry their own status, reason and setting. Availability does not bypass input validation, authentication or transient collection/GUI state. Needs no permission, so an app can see what its role is missing; features that read the collection or the installed add-ons show as disabled, naming the permission, for an app without it. Requires an open collection; /v1/health remains a lightweight liveness check. AnkiConnect actions are listed separately at /actions.",
         "operationId": "getCapabilities",
         "responses": {
           "200": {
@@ -3638,7 +3638,7 @@
         "tags": [
           "Collection"
         ],
-        "x-permission": "read:collection"
+        "x-permission": "public"
       }
     },
     "/v1/cards": {

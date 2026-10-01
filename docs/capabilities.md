@@ -5,6 +5,13 @@ registered Tsunagi API operations, their current status, and settings or version
 restrictions on individual options. AnkiConnect's action list remains at
 `GET /actions`.
 
+It needs no permission, so an app whose role is missing something can see what
+and why. Two features say something about your collection, so an app without
+the permission to read it sees them as `disabled`, with `setting` naming the
+permission: `features.fsrs_scheduling` (`read:collection`) and
+`features["addon_actions.<provider>"]` (`read:addons`). It still needs a
+profile open; `GET /v1/health` answers without one.
+
 ## Read a capability
 
 Every operation, conditional option and collection feature uses the same status:

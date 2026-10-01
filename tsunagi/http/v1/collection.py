@@ -29,7 +29,7 @@ from ...adapters.anki.collection import (
 )
 from ...adapters.jobs import jobs
 from ...shared.errors import anki_error_detail, handle_mutation_errors
-from ...shared.permissions import current_caller, requires
+from ...shared.permissions import PUBLIC, current_caller, requires
 from ...shared.schemas.capabilities import CallerInfo, Capabilities, runtime_versions
 from ...shared.schemas.collection import (
     CollectionActionResult,
@@ -55,7 +55,9 @@ def _stats(start: float) -> dict:
 
 @router.get(
     "/v1/capabilities",
-    openapi_extra=requires("read:collection"),
+    # Any accepted caller (backlog 6.62): an app missing permissions is the one
+    # that most needs to read which, and why.
+    openapi_extra=requires(PUBLIC),
     response_model=Capabilities,
     summary="Native API capabilities",
     description=(
@@ -63,7 +65,10 @@ def _stats(start: float) -> dict:
         "effective status: available, disabled in settings, or unsupported by this Anki. "
         "Conditional options carry their own status, reason and setting. Availability "
         "does not bypass input validation, authentication or transient collection/GUI state. "
-        "Requires an open collection; /v1/health remains a lightweight liveness check. "
+        "Needs no permission, so an app can see what its role is missing; features that "
+        "read the collection or the installed add-ons show as disabled, naming the permission, "
+        "for an app without it. Requires an open collection; /v1/health remains a lightweight "
+        "liveness check. "
         "AnkiConnect actions are listed separately at /actions."
     ),
     tags=["Collection"],

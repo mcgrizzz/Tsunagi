@@ -84,3 +84,21 @@ def test_capabilities_say_who_the_caller_was_taken_to_be(client):
     caller = client.get("/v1/capabilities").json()["caller"]
     assert caller == {"name": "No key, this computer", "role": "Default",
                       "this_computer": True, "host": "127.0.0.1"}
+
+
+def test_an_app_without_reads_still_gets_the_report(client, reset_settings):
+    # The app that most needs to know what it's missing (backlog 6.62).
+    reset_settings.update(roles={"writer": {"name": "Writer", "grants": ["write"]}},
+                          no_key_local_role="writer")
+    response = client.get("/v1/capabilities")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    notes = body["operations"]["GET /v1/notes"]
+    assert notes["status"] == "disabled" and notes["setting"] == "permissions.read:notes"
+    assert body["operations"]["POST /v1/notes"]["status"] == "available"
+    fsrs = body["features"]["fsrs_scheduling"]
+    assert fsrs["status"] == "disabled" and fsrs["setting"] == "permissions.read:collection"
+    for name, feature in body["features"].items():
+        if name.startswith("addon_actions."):
+            assert feature["setting"] == "permissions.read:addons" and feature["status"] == "disabled"
+    assert body["caller"]["role"] == "Writer"

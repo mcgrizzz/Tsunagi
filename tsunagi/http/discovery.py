@@ -24,15 +24,24 @@ def permission_state(permission, **kwargs):
 
 
 def native_features(support):
+    """Features that would tell an app what it may not read (whether FSRS is
+    on, which add-ons are installed) show as disabled for one without the
+    permission, naming it (backlog 6.62)."""
     fsrs = support["fsrs"]
-    features = {"fsrs_scheduling": state(supported=fsrs["supported"], enabled=fsrs["enabled"],
-                                        setting="anki.fsrs")}
+    if permitted("read:collection"):
+        fsrs_state = state(supported=fsrs["supported"], enabled=fsrs["enabled"], setting="anki.fsrs")
+    else:
+        fsrs_state = permission_state("read:collection")
+    features = {"fsrs_scheduling": fsrs_state}
     # Each bundled add-on provider; its items' own statuses are in
     # GET /v1/addons/{provider}/actions.
     for provider in addon_actions.PROVIDERS.values():
         reason = addon_actions.unavailable(provider)
-        features[f"addon_actions.{provider.id}"] = (
-            CapabilityState(status="unsupported", reason=reason) if reason else state())
+        if not permitted("read:addons"):
+            features[f"addon_actions.{provider.id}"] = permission_state("read:addons")
+        else:
+            features[f"addon_actions.{provider.id}"] = (
+                CapabilityState(status="unsupported", reason=reason) if reason else state())
     return features
 
 
