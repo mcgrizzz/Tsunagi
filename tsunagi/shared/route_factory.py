@@ -275,6 +275,24 @@ def _paged_scan(
         out = _rehydrate(plan, out, id_getter, wants)
     return out, cur
 
+# ----- PATCH bodies (backlog 6.57) -----
+
+def _declare_body(fn: Callable, model: Optional[type]) -> None:
+    """Type fn's `updates` as `model`, so OpenAPI shows it and FastAPI validates it."""
+    if model is None:
+        return
+    import inspect
+    sig = inspect.signature(fn)
+    fn.__signature__ = sig.replace(parameters=[
+        p.replace(annotation=model) if p.name == "updates" else p for p in sig.parameters.values()])
+
+
+def _sent(updates: Any) -> Any:
+    """A validated body as the dict the adapters take: only the keys sent (an
+    explicit null stays), by alias, which every patch schema accepts."""
+    return updates.dict(by_alias=True, exclude_unset=True) if isinstance(updates, BaseModel) else updates
+
+
 # ----- order= (backlog 8.1) -----
 
 _ORDER = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*(asc|desc)\s*)?$", re.IGNORECASE)
@@ -619,7 +637,19 @@ def create_resource_routes(
 
         # PATCH {path}/{id} - Partial update
         if caps.mutations.patch:
-            @router.patch(
+            def _patch(
+                id: int = Path(..., description=f"{resource_name_title} ID"),
+                updates: Dict[str, Any] = Body(..., description="Fields to update"),
+            ) -> MutationResult[Any]:
+                """Partially update a resource."""
+                with track_operation("patch") as stats:
+                    result = caps.mutations.patch(id, _sent(updates))
+                    if result is None:
+                        raise HTTPException(status_code=404, detail=f"{resource_name_title} with id={id} not found")
+                    return MutationResult(result=_plain(result), stats=stats)
+
+            _declare_body(_patch, caps.mutations.patch_body)
+            router.patch(
                 f"{path}/{{id}}",
                 response_model=MutationResult[Any],
                 response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
@@ -628,18 +658,7 @@ def create_resource_routes(
                 tags=[tag],
                 operation_id=f"update{resource_name_title}",
                 openapi_extra=write_permission,
-            )
-            @handle_mutation_errors("update")
-            def _patch(
-                id: int = Path(..., description=f"{resource_name_title} ID"),
-                updates: Dict[str, Any] = Body(..., description="Fields to update"),
-            ) -> MutationResult[Any]:
-                """Partially update a resource."""
-                with track_operation("patch") as stats:
-                    result = caps.mutations.patch(id, updates)
-                    if result is None:
-                        raise HTTPException(status_code=404, detail=f"{resource_name_title} with id={id} not found")
-                    return MutationResult(result=_plain(result), stats=stats)
+            )(handle_mutation_errors("update")(_patch))
 
         # DELETE {path}/{id} - Delete
         if caps.mutations.delete:
@@ -776,7 +795,7 @@ def _add_subresource_routes(
             def handler(**kwargs):
                 parent_id = kwargs.get(parent_param_name)
                 sub_id = kwargs.get(sub_param_name)
-                updates = kwargs.get('updates')
+                updates = _sent(kwargs.get('updates'))
                 with track_operation(f"patch_{subres_name}") as stats:
                     result = caps.patch(parent_id, sub_id, updates)
                     return MutationResult(result=_plain(result), stats=stats)
@@ -788,7 +807,8 @@ def _add_subresource_routes(
                 inspect.Parameter(sub_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                 annotation=sub_id_annotation, default=Path(..., description=f"{sub_resource_singular.title()} identifier")),
                 inspect.Parameter('updates', inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=Dict[str, Any], default=Body(..., description="Fields to update"))
+                                annotation=caps.patch_body or Dict[str, Any],
+                                default=Body(..., description="Fields to update"))
             ])
             return handler
 

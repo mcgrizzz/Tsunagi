@@ -803,6 +803,37 @@
         "title": "DeckNameRequest",
         "type": "object"
       },
+      "DeckPatch": {
+        "description": "Schema for patching a deck - all fields optional",
+        "properties": {
+          "browserCollapsed": {
+            "title": "Browsercollapsed",
+            "type": "boolean"
+          },
+          "collapsed": {
+            "title": "Collapsed",
+            "type": "boolean"
+          },
+          "conf": {
+            "title": "Conf",
+            "type": "integer"
+          },
+          "desc": {
+            "title": "Desc",
+            "type": "string"
+          },
+          "desiredRetention": {
+            "title": "Desiredretention",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "DeckPatch",
+        "type": "object"
+      },
       "DeletionResult": {
         "properties": {
           "affected_ids": {
@@ -926,6 +957,53 @@
           "path"
         ],
         "title": "ExportRequest",
+        "type": "object"
+      },
+      "FieldPatch": {
+        "description": "Schema for patching a field - all fields optional",
+        "properties": {
+          "collapsed": {
+            "title": "Collapsed",
+            "type": "boolean"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "excludeFromSearch": {
+            "title": "Excludefromsearch",
+            "type": "boolean"
+          },
+          "font": {
+            "title": "Font",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "plainText": {
+            "title": "Plaintext",
+            "type": "boolean"
+          },
+          "preventDeletion": {
+            "title": "Preventdeletion",
+            "type": "boolean"
+          },
+          "rtl": {
+            "title": "Rtl",
+            "type": "boolean"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "sticky": {
+            "title": "Sticky",
+            "type": "boolean"
+          }
+        },
+        "title": "FieldPatch",
         "type": "object"
       },
       "FindReplaceRequest": {
@@ -1623,6 +1701,29 @@
         "title": "MemoryStateEntry",
         "type": "object"
       },
+      "ModelPatch": {
+        "description": "Schema for patching a model - all fields optional",
+        "properties": {
+          "css": {
+            "title": "Css",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sortf": {
+            "title": "Sortf",
+            "type": "integer"
+          },
+          "type": {
+            "title": "Type",
+            "type": "integer"
+          }
+        },
+        "title": "ModelPatch",
+        "type": "object"
+      },
       "MutationResult_Any_": {
         "properties": {
           "result": {
@@ -2017,6 +2118,58 @@
           "noteIds"
         ],
         "title": "NoteIds",
+        "type": "object"
+      },
+      "NotePatch": {
+        "properties": {
+          "addTags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Addtags",
+            "type": "array"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NoteFieldValue"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Fields"
+          },
+          "modelId": {
+            "title": "Modelid",
+            "type": "integer"
+          },
+          "modelName": {
+            "title": "Modelname",
+            "type": "string"
+          },
+          "removeTags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removetags",
+            "type": "array"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "title": "NotePatch",
         "type": "object"
       },
       "NoteUpdated": {
@@ -2893,6 +3046,33 @@
           "name"
         ],
         "title": "TagRename",
+        "type": "object"
+      },
+      "TemplatePatch": {
+        "description": "Schema for patching a template - all fields optional",
+        "properties": {
+          "afmt": {
+            "title": "Afmt",
+            "type": "string"
+          },
+          "bafmt": {
+            "title": "Bafmt",
+            "type": "string"
+          },
+          "bqfmt": {
+            "title": "Bqfmt",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "qfmt": {
+            "title": "Qfmt",
+            "type": "string"
+          }
+        },
+        "title": "TemplatePatch",
         "type": "object"
       },
       "UpsertMatch": {
@@ -5255,9 +5435,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DeckPatch"
+                  }
+                ],
                 "description": "Fields to update",
-                "title": "Updates",
-                "type": "object"
+                "title": "Updates"
               }
             }
           },
@@ -7086,9 +7270,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ModelPatch"
+                  }
+                ],
                 "description": "Fields to update",
-                "title": "Updates",
-                "type": "object"
+                "title": "Updates"
               }
             }
           },
@@ -7292,9 +7480,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/FieldPatch"
+                  }
+                ],
                 "description": "Fields to update",
-                "title": "Updates",
-                "type": "object"
+                "title": "Updates"
               }
             }
           },
@@ -7568,9 +7760,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/TemplatePatch"
+                  }
+                ],
                 "description": "Fields to update",
-                "title": "Updates",
-                "type": "object"
+                "title": "Updates"
               }
             }
           },
@@ -8093,9 +8289,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/NotePatch"
+                  }
+                ],
                 "description": "Fields to update",
-                "title": "Updates",
-                "type": "object"
+                "title": "Updates"
               }
             }
           },

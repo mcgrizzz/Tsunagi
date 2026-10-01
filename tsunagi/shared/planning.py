@@ -110,6 +110,7 @@ class SubresourceMutations:
     id_type: str = "str"                               # Type for path parameter: "str" or "int"
     create: Optional[SubresourceCreateFn] = None
     patch: Optional[SubresourcePatchFn] = None
+    patch_body: Optional[type] = None                  # PATCH body schema (see MutationCaps)
     delete: Optional[SubresourceDeleteFn] = None
     reorder: Optional[SubresourceReorderFn] = None
 
@@ -118,6 +119,9 @@ class SubresourceMutations:
 class MutationCaps:
     create: Optional[CreateFn] = None
     patch: Optional[PatchFn] = None
+    # PATCH body schema: shown in OpenAPI and validated (422) before `patch`,
+    # which still gets a dict of only the keys sent. None: an untyped object.
+    patch_body: Optional[type] = None
     delete: Optional[DeleteFn] = None
     subresources: Dict[str, SubresourceMutations] = field(default_factory=dict)
 

@@ -37,6 +37,7 @@ from ...shared.schemas.notes import (
     NoteCreate,
     NoteCreateResponse,
     NoteIds,
+    NotePatch,
     NoteUpsert,
     NoteUpsertResponse,
 )
@@ -75,6 +76,7 @@ caps = SourceCaps(
                     ordered_ids=lambda query, name, desc: find_sorted(query, name, desc, True)),
     mutations=MutationCaps(
         patch=patch_note,
+        patch_body=NotePatch,
         delete=lambda nid: delete_notes([nid]) > 0,
     ),
 )

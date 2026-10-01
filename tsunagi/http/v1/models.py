@@ -35,12 +35,19 @@ from ...shared.planning import (
     SubresourceMutations,
 )
 from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
-from ...shared.schemas.models import FindReplaceRequest, FindReplaceResult
+from ...shared.schemas.models import (
+    FieldPatch,
+    FindReplaceRequest,
+    FindReplaceResult,
+    ModelPatch,
+    TemplatePatch,
+)
 from ...shared.schemas.wrappers import Paginated
 
 mutation_caps = MutationCaps(
     create=create_model,
     patch=patch_model,
+    patch_body=ModelPatch,
     delete=delete_model,
     subresources={
         "fields": SubresourceMutations(
@@ -50,6 +57,7 @@ mutation_caps = MutationCaps(
             id_type="str",
             create=create_field,
             patch=patch_field,
+            patch_body=FieldPatch,
             delete=delete_field,
             reorder=reorder_fields,
         ),
@@ -60,6 +68,7 @@ mutation_caps = MutationCaps(
             id_type="str",
             create=create_template,
             patch=patch_template,
+            patch_body=TemplatePatch,
             delete=delete_template,
             reorder=reorder_templates,
         ),
