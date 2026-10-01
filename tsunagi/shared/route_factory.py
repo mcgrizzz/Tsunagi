@@ -4,6 +4,7 @@ import logging
 import re
 import time
 from bisect import bisect_right
+from dataclasses import replace
 from operator import itemgetter
 from typing import (
     Any,
@@ -483,17 +484,36 @@ def _execute_query(
     skips the rows; include=total adds how many the query matches (8.1).
     """
     start = time.perf_counter()
+    total = "total" in parse_include(include, ["total"])
+    if total and caps.fetch_all is not None:
+        # A small list read in full: the page and the count share one read
+        # within this request (a media folder scan is ~100 ms at 45k files).
+        caps = replace(caps, fetch_all=_read_once(caps.fetch_all))
     if limit == 0:
         page = _finish([], None, select, shape, start)
     else:
         page = _query_page(select, where, shape, limit, cursor, caps, id_getter, search, order, distinct_on)
-    if "total" in parse_include(include, ["total"]):
+    if total:
         try:
             page.total = _total(where, caps, id_getter, search, distinct_on)
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve)) from ve
         page.stats = _stats(start)
     return page
+
+
+def _read_once(fetch_all: Callable) -> Callable:
+    """fetch_all for one request: every row once, whatever fields each caller
+    wants (small lists' rows are complete anyway). Callers get their own list."""
+    rows: List[Row] = []
+    done = False
+
+    def fetch(wants: Any = None) -> List[Row]:
+        nonlocal rows, done
+        if not done:
+            rows, done = fetch_all(None), True
+        return list(rows)
+    return fetch
 
 
 def _total(where: Optional[List[str]], caps: SourceCaps, id_getter: Callable[[Row], int],
@@ -518,7 +538,9 @@ def _total(where: Optional[List[str]], caps: SourceCaps, id_getter: Callable[[Ro
                 if found is None:
                     return count(caps.sql, compiled, *condition)
                 return len(filter_ids(caps.sql, compiled, found)) if compiled.pushed else len(set(found))
-    page = _query_page("id", where, "object", None, None, caps, id_getter, search, None, distinct_on)
+    # Ids only where rows are expensive; small lists have no id field to select.
+    page = _query_page("id" if caps.sql is not None else None, where, "object", None, None, caps, id_getter,
+                       search, None, distinct_on)
     return len(page.items)
 
 
@@ -572,7 +594,7 @@ def _query_page(
             rows = [r for r in rows if pred(_as_dict(r))]
 
         rows.sort(key=id_getter)
-        page_rows, next_cursor = paginate_keyset(rows, limit, cursor, key_fn=id_getter)
+        page_rows, next_cursor = paginate_keyset(rows, limit, cursor, key_fn=id_getter, key_type=caps.key_type)
         return _finish(page_rows, next_cursor, select, shape, start)
 
     except HTTPException:

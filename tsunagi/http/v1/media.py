@@ -12,7 +12,7 @@ import time
 import urllib.request
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, Body, Header, Path, Query
+from fastapi import Body, Header, Path
 from fastapi.responses import FileResponse, JSONResponse
 
 from ...adapters import idempotency
@@ -29,19 +29,32 @@ from ...shared.errors import (
     ValidationError,
     handle_mutation_errors,
 )
-from ...shared.pagination import decode_cursor, encode_cursor
 from ...shared.permissions import current_denial, permitted, requires
+from ...shared.planning import SourceCaps
+from ...shared.route_factory import ModelRow, create_resource_routes
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import (
     MediaCreateResponse,
     MediaDeletionResult,
-    MediaFile,
-    MediaList,
     MediaUpload,
 )
+from ...shared.schemas.wrappers import Paginated
 from ...shared.version import ADDON_VERSION
 
-router = APIRouter()
+# Query: GET /v1/media, POST /v1/media/query, with the parameters every list
+# takes (backlog 6.71); rows keyed by filename. Uploads and files are below.
+router = create_resource_routes(
+    path="/v1/media",
+    caps=SourceCaps(fetch_all=lambda wants=None: [{"filename": n, "size": s, "mtime": m}
+                                                  for n, s, m in list_media()], key_type=str),
+    response_model=Paginated[ModelRow],
+    id_getter=lambda row: row["filename"],
+    resource_name="media file",
+    resource_plural="media",
+    permission_resource="media",
+    tag="Media",
+    description="Every file in the media folder: filename, size and mtime (where=filename$=\".mp3\").",
+)
 
 _UA = f"Mozilla/5.0 (compatible; Tsunagi/{ADDON_VERSION}; +https://github.com/mcgrizzz/Tsunagi)"
 
@@ -133,44 +146,6 @@ def resolve_upload(body: MediaUpload) -> tuple:
     if len(data) > limit:
         raise ValidationError(f"file exceeds media_max_bytes ({limit})")
     return name, data
-
-
-@router.get(
-    "/v1/media",
-    openapi_extra=requires("read:media"),
-    response_model=MediaList,
-    summary="List media files",
-    description="Media is a flat file namespace, not a queryable resource - filter with prefix/suffix rather than the select/where DSL.",
-    tags=["Media"],
-    operation_id="listMedia",
-)
-@handle_mutation_errors("list_media")
-def list_media_files(
-    prefix: Optional[str] = Query(default=None, description="Only names starting with this"),
-    suffix: Optional[str] = Query(default=None, description="Only names ending with this (e.g. '.mp3')"),
-    limit: Optional[int] = Query(default=None, ge=1, description="Maximum results in this response. Omit to return all matches; no fixed upper cap."),
-    cursor: Optional[str] = Query(default=None, description="Opaque next_cursor from the previous response. Omit to start at page one; malformed or empty cursors return 400."),
-) -> MediaList:
-    start = time.perf_counter()
-    last = decode_cursor(cursor, key_type=str).get("last_key")
-    files = sorted(list_media(), key=lambda f: f[0])
-    if prefix:
-        files = [f for f in files if f[0].startswith(prefix)]
-    if suffix:
-        files = [f for f in files if f[0].endswith(suffix)]
-
-    # Keyset on the filename (a string key, so paginate_keyset - which is
-    # int-only - doesn't apply).
-    if last is not None:
-        files = [f for f in files if f[0] > last]
-    page, more = files[:limit], limit is not None and len(files) > limit
-    next_cursor = encode_cursor({"last_key": page[-1][0]}) if more and page else None
-
-    return MediaList(
-        items=[MediaFile(filename=n, size=s, mtime=m) for n, s, m in page],
-        next_cursor=next_cursor,
-        stats=_stats(start),
-    )
 
 
 @router.get(

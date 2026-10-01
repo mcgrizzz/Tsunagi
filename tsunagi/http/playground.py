@@ -64,9 +64,11 @@ query to a deck.
 - **`limit`** sets the page size, such as `10`.
 - **`cursor`** continues a query using the response's `next_cursor`.
 
-A `where` clause is a field, an operator (`==`, `!=`, `~=`, `>`, `>=`, `<`, `<=`,
-`in`, `not in`) and a value. Numbers, `true`, `false` and `null` are written as
-in JSON. **Write text as a JSON string**, and a list as a JSON array, so any
+A `where` clause is a field, an operator (`==`, `!=`, `~=`, `^=`, `$=`, `>`,
+`>=`, `<`, `<=`, `in`, `not in`) and a value. `~=` contains, ignoring case; `^=`
+starts with and `$=` ends with, matching case as `==` does
+(`GET /v1/tags?where=name^="Japanese::"`, `GET /v1/media?where=filename$=".mp3"`).
+Numbers, `true`, `false` and `null` are written as in JSON. **Write text as a JSON string**, and a list as a JSON array, so any
 name is safe, including quotes and backslashes: build the value with your
 language's JSON encoder, such as `"model_name in " + JSON.stringify(names)` in
 JavaScript or `"model_name in " + json.dumps(names)` in Python.

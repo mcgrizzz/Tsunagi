@@ -27,13 +27,15 @@ class TestList:
         assert items[0]["size"] == 3
         assert items[0]["mtime"] > 0
 
-    def test_prefix_and_suffix_filters(self, client, col):
+    def test_starts_and_ends_with_filters(self, client, col):
         for name in ("dog.png", "dog.mp3", "cat.png"):
             seed(col, name)
         assert [i["filename"] for i in client.get(
-            "/v1/media", params={"prefix": "dog"}).json()["items"]] == ["dog.mp3", "dog.png"]
+            "/v1/media", params={"where": 'filename^="dog"'}).json()["items"]] == ["dog.mp3", "dog.png"]
         assert [i["filename"] for i in client.get(
-            "/v1/media", params={"suffix": ".png"}).json()["items"]] == ["cat.png", "dog.png"]
+            "/v1/media", params={"where": 'filename$=".png"'}).json()["items"]] == ["cat.png", "dog.png"]
+        body = client.get("/v1/media", params={"order": "size:desc", "include": "total", "limit": 0}).json()
+        assert body["total"] == 3 and body["items"] == []
 
     def test_cursor_walks_every_file(self, client, col):
         for name in ("a.png", "b.png", "c.png"):
@@ -186,3 +188,14 @@ def assert_upload_rejected(response):
     assert result["failed"][0]["index"] == 0
     assert result["failed"][0]["code"] == "invalid_media"
     assert result["failed"][0]["message"]
+
+
+def test_include_total_reads_the_folder_once(client, col, monkeypatch):
+    from tsunagi.http.v1 import media
+    for name in ("a.png", "b.mp3"):
+        seed(col, name)
+    calls = []
+    real = media.list_media
+    monkeypatch.setattr(media, "list_media", lambda: calls.append(1) or real())
+    body = client.get("/v1/media", params={"include": "total", "limit": 1, "where": 'filename$=".png"'}).json()
+    assert body["total"] == 1 and len(body["items"]) == 1 and len(calls) == 1

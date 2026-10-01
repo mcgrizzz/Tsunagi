@@ -4,6 +4,10 @@ Full-app tests for /v1/tags over the fake collection.
 import pytest
 
 
+def tag_names(client, **params):
+    return [row["name"] for row in client.get("/v1/tags", params=params).json()["items"]]
+
+
 def add(client, front, tags):
     return client.post("/v1/notes", json={
         "modelName": "Basic", "deckName": "Default",
@@ -20,16 +24,24 @@ def seeded(client):
 
 class TestReads:
     def test_list_is_sorted(self, seeded):
-        body = seeded.get("/v1/tags").json()
-        assert body["items"] == ["verb", "verb::transitive", "vocab"]
-        assert "duration_ms" in body["stats"]
+        assert tag_names(seeded) == ["verb", "verb::transitive", "vocab"]
+        assert "duration_ms" in seeded.get("/v1/tags").json()["stats"]
 
-    def test_prefix_filter(self, seeded):
-        body = seeded.get("/v1/tags", params={"prefix": "verb"}).json()
-        assert body["items"] == ["verb", "verb::transitive"]
+    def test_starts_with_filter(self, seeded):
+        assert tag_names(seeded, where='name^="verb"') == ["verb", "verb::transitive"]
+
+    def test_rows_take_the_shared_list_parameters(self, seeded):
+        body = seeded.get("/v1/tags", params={"select": "name", "shape": "scalar", "order": "name:desc",
+                                              "limit": 2, "include": "total"}).json()
+        assert body["items"] == ["vocab", "verb::transitive"] and body["total"] == 3
+        rest = seeded.get("/v1/tags", params={"select": "name", "shape": "scalar", "order": "name:desc",
+                                              "cursor": body["next_cursor"]}).json()["items"]
+        assert rest == ["verb"]
+        assert seeded.post("/v1/tags/query", json={"where": ['name~="TRANS"']}).json()["items"] == [
+            {"name": "verb::transitive"}]
 
     def test_empty_collection(self, client):
-        assert client.get("/v1/tags").json()["items"] == []
+        assert tag_names(client) == []
 
 
 class TestRename:
@@ -37,7 +49,7 @@ class TestRename:
         # Anki's own semantics: renaming "verb" also renames "verb::transitive".
         body = seeded.patch("/v1/tags/verb", json={"name": "action"}).json()
         assert body["affected"] == 2
-        assert seeded.get("/v1/tags").json()["items"] == [
+        assert tag_names(seeded) == [
             "action", "action::transitive", "vocab"]
 
     def test_unknown_tag_is_404(self, seeded):
@@ -51,11 +63,11 @@ class TestDelete:
     def test_removes_tag_and_children(self, seeded):
         body = seeded.delete("/v1/tags/verb").json()
         assert body["affected"] == 2
-        assert seeded.get("/v1/tags").json()["items"] == ["vocab"]
+        assert tag_names(seeded) == ["vocab"]
 
     def test_leaves_other_tags_alone(self, seeded):
         seeded.delete("/v1/tags/vocab")
-        assert seeded.get("/v1/tags").json()["items"] == ["verb", "verb::transitive"]
+        assert tag_names(seeded) == ["verb", "verb::transitive"]
 
     def test_unknown_tag_is_404(self, seeded):
         assert seeded.delete("/v1/tags/nope").status_code == 404
@@ -67,7 +79,7 @@ class TestBulk:
         body = client.post("/v1/tags:bulk-add",
                            json={"note_ids": nids, "tags": "vocab jp"}).json()
         assert body["affected"] == 2
-        assert client.get("/v1/tags").json()["items"] == ["jp", "vocab"]
+        assert tag_names(client) == ["jp", "vocab"]
 
     def test_bulk_remove(self, seeded):
         nids = [n["id"] for n in seeded.get("/v1/notes").json()["items"]]
@@ -77,12 +89,12 @@ class TestBulk:
         # Anki's tag registry keeps a tag after the last note drops it; only
         # clear-unused retires it. GET /v1/tags reports the registry, so the
         # tag is still listed until then.
-        assert "vocab" in seeded.get("/v1/tags").json()["items"]
+        assert "vocab" in tag_names(seeded)
         notes = seeded.get("/v1/notes", params={
             "select": "id,tags", "shape": "object"}).json()["items"]
         assert all("vocab" not in n["tags"] for n in notes)
         seeded.post("/v1/tags:clear-unused")
-        assert "vocab" not in seeded.get("/v1/tags").json()["items"]
+        assert "vocab" not in tag_names(seeded)
 
     def test_camel_case_body_accepted(self, client):
         nid = add(client, "犬", [])

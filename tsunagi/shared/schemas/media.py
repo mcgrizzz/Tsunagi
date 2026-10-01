@@ -3,7 +3,7 @@ from __future__ import annotations
 import ntpath
 import os
 import unicodedata
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -51,18 +51,6 @@ def sanitize_media_filename(name: object) -> str:
 
 
 # ----------------- Schemas -----------------
-
-
-class MediaFile(BaseModel):
-    filename: str
-    size: int
-    mtime: int
-
-
-class MediaList(BaseModel):
-    items: List[MediaFile]
-    next_cursor: Optional[str] = None
-    stats: dict
 
 
 class MediaUpload(BaseModel):

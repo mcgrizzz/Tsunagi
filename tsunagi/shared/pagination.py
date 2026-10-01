@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Callable, Iterable, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, Iterable, List, Optional, Tuple, TypeVar
 
 T = TypeVar("T")
 
@@ -57,14 +57,15 @@ def paginate_keyset(
     items: Iterable[T],
     limit: Optional[int],
     cursor: Optional[str],
-    key_fn: Callable[[T], int],
+    key_fn: Callable[[T], Any],
+    key_type: type = int,
 ) -> Tuple[List[T], Optional[str]]:
-    state = decode_cursor(cursor)
+    state = decode_cursor(cursor, key_type=key_type)
     last_key = state.get("last_key")
 
     lim = max(1, int(limit)) if limit is not None else None
     out: List[T] = []
-    page_last: Optional[int] = None
+    page_last: Optional[Any] = None
     more = False
 
     for it in items:

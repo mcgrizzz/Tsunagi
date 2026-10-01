@@ -26,6 +26,7 @@ from .python_compat import DATACLASS_SLOTS
 # Examples:
 #   id==123
 #   name~="basic"
+#   name^="Japanese::"     (starts with; $= ends with)
 #   did in[1,2,3]
 #   flds[].name=="Front"
 #   tmpls[].ord>=1
@@ -50,7 +51,7 @@ list  : LBRACK [value ("," value)*] RBRACK
 
 ARR   : "[]"
 DOT   : "."
-OP    : "==" | "!=" | "~=" | ">=" | "<=" | ">" | "<"
+OP    : "==" | "!=" | "~=" | "^=" | "$=" | ">=" | "<=" | ">" | "<"
 
 LBRACK: "["
 RBRACK: "]"
@@ -141,6 +142,7 @@ def parse_where(clause_text: str) -> Clause:
             f"Valid examples:\n"
             f"  - id==123\n"
             f"  - name~=\"Basic\"\n"
+            f"  - name^=\"Japanese::\"\n"
             f"  - type>=0\n"
             f"  - id in [1,2,3]\n"
             f"  - flds[].name==\"Front\"\n"
@@ -210,6 +212,13 @@ def _substr(vals: Iterable[Any], needle: Any) -> bool:
     n = needle.casefold()
     return any(isinstance(v, str) and n in v.casefold() for v in vals)
 
+def _starts(vals: Iterable[Any], prefix: Any) -> bool:
+    # Exact case, like ==; ~= is the case-insensitive match.
+    return isinstance(prefix, str) and any(isinstance(v, str) and v.startswith(prefix) for v in vals)
+
+def _ends(vals: Iterable[Any], suffix: Any) -> bool:
+    return isinstance(suffix, str) and any(isinstance(v, str) and v.endswith(suffix) for v in vals)
+
 def _cmp(vals: Iterable[Any], x: Any, op: str) -> bool:
     # Only compare values of exactly the same type
     vs = (v for v in vals if type(v) is type(x))
@@ -253,6 +262,8 @@ _OPS: Dict[str, Callable[..., bool]] = {
     "==":  _any_eq,
     "!=":  _none_eq,     # NONE equals
     "~=":  _substr,
+    "^=":  _starts,      # starts with (backlog 6.71)
+    "$=":  _ends,        # ends with
     ">":   partial(_cmp, op=">"),
     ">=":  partial(_cmp, op=">="),
     "<":   partial(_cmp, op="<"),

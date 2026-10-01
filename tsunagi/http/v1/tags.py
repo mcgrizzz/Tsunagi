@@ -1,11 +1,10 @@
 """
-Tags router - hand-written for the same reason as media: a flat string
-namespace with no integer id and nothing for the query planner to plan.
+Tags: the list is a shared resource list (rows `{"name": ...}`, keyed by name;
+backlog 6.71); rename, delete and the bulk verbs are written here.
 """
 import time
-from typing import Optional
 
-from fastapi import APIRouter, Body, Path, Query
+from fastapi import Body, Path
 
 from ...adapters.anki.tags import (
     add_tags,
@@ -17,38 +16,31 @@ from ...adapters.anki.tags import (
 )
 from ...shared.errors import ResourceNotFoundError, handle_mutation_errors
 from ...shared.permissions import requires
+from ...shared.planning import SourceCaps
+from ...shared.route_factory import ModelRow, create_resource_routes
 from ...shared.schemas.tags import (
     TagBulkRequest,
-    TagList,
     TagMutationResult,
     TagRename,
 )
+from ...shared.schemas.wrappers import Paginated
 
-router = APIRouter()
+# Query: GET /v1/tags, POST /v1/tags/query, with the parameters every list takes.
+router = create_resource_routes(
+    path="/v1/tags",
+    caps=SourceCaps(fetch_all=lambda wants=None: [{"name": t} for t in all_tags()], key_type=str),
+    response_model=Paginated[ModelRow],
+    id_getter=lambda row: row["name"],
+    resource_name="tag",
+    resource_plural="tags",
+    permission_resource="tags",
+    tag="Tags",
+    description="Every tag in the collection; nesting uses '::' (where=name^=\"Japanese::\" for one branch).",
+)
 
 
 def _stats(start: float) -> dict:
     return {"duration_ms": round((time.perf_counter() - start) * 1000, 3)}
-
-
-@router.get(
-    "/v1/tags",
-    openapi_extra=requires("read:tags"),
-    response_model=TagList,
-    summary="List tags",
-    description="Every tag in the collection, sorted. Nesting uses '::'.",
-    tags=["Tags"],
-    operation_id="listTags",
-)
-@handle_mutation_errors("list")
-def list_tags(
-    prefix: Optional[str] = Query(None, description="Only tags starting with this prefix"),
-) -> TagList:
-    start = time.perf_counter()
-    items = all_tags()
-    if prefix:
-        items = [t for t in items if t.startswith(prefix)]
-    return TagList(items=items, stats=_stats(start))
 
 
 @router.patch(

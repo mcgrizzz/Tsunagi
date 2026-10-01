@@ -144,6 +144,9 @@ class SourceCaps:
     sql: Optional[ColumnSource] = None
     # Sorts itself for `order=`; needs `search` for hydration.
     order: Optional[OrderSpec] = None
+    # Type of the row key (id_getter) the cursor carries: str for lists keyed
+    # by name (tags, media files), int for everything else.
+    key_type: type = int
 
 @dataclass
 class Plan:

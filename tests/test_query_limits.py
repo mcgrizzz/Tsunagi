@@ -32,9 +32,7 @@ def test_query_limit_discovery_has_no_numeric_default_or_maximum(client):
     for path, limit in zip(("QueryRequest", "/v1/cards", "/v1/notes", "/v1/models", "/v1/decks",
                             "/v1/reviews", "/v1/media"), limits):
         assert limit.get("default") is None
-        # 0 is the count alone on the shared lists; media's hand-built list
-        # moves onto them with backlog 6.71.
-        assert limit["minimum"] == (1 if path == "/v1/media" else 0), path
+        assert limit["minimum"] == 0, path   # 0: the count alone, with include=total
         assert "maximum" not in limit
 
 

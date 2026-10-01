@@ -5,11 +5,6 @@ from typing import List
 from pydantic import BaseModel, Field
 
 
-class TagList(BaseModel):
-    items: List[str]
-    stats: dict
-
-
 class TagRename(BaseModel):
     name: str
 
