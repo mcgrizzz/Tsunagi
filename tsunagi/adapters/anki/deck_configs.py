@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from anki.collection import Collection
 
 from ...shared.errors import ResourceNotFoundError, ValidationError
+from ...shared.helpers import ensure_name_free
 from ..ops import as_collection_op, as_query_op
 
 # Anki's built-in options group. Every deck falls back to it, so it can't go.
@@ -78,6 +79,7 @@ def create_deck_config(col: Collection, data: Dict[str, Any]) -> Dict[str, Any]:
     name = str(data.get("name") or "").strip()
     if not name:
         raise ValidationError("'name' is required")
+    ensure_name_free("Preset", name, [c["name"] for c in col.decks.all_config()])
 
     clone_from = data.get("clone_from_id", data.get("cloneFromId"))
     source: Optional[Dict[str, Any]] = None
@@ -97,6 +99,9 @@ def patch_deck_config(col: Collection, config_id: int,
     if conf is None:
         raise ResourceNotFoundError("deck config", int(config_id))
     merged = _merge(conf, updates)
+    if merged.get("name") != conf.get("name"):
+        ensure_name_free("Preset", merged.get("name"),
+                         [c["name"] for c in col.decks.all_config() if int(c["id"]) != int(config_id)])
     # The id is the resource's identity, not a settable property.
     merged["id"] = int(config_id)
     col.decks.update_config(merged)

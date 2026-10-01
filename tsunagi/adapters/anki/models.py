@@ -5,6 +5,7 @@ from anki.collection import Collection
 from ...shared.errors import ResourceNotFoundError, ValidationError
 from ...shared.helpers import (
     copy_if_present,
+    ensure_name_free,
     find_in_subresource,
     normalize_field_names,
     validate_nonempty_list,
@@ -144,9 +145,7 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
     flds = validate_nonempty_list(data, "flds", "field")
     tmpls = validate_nonempty_list(data, "tmpls", "template")
 
-    # Check name doesn't already exist
-    if name in [n.name for n in mm.all_names_and_ids()]:
-        raise ValueError(f"Model name '{name}' already exists")
+    ensure_name_free("Model", name, [n.name for n in mm.all_names_and_ids()])
 
     # Create new model (defaults to standard type)
     m = mm.new(name)
@@ -164,6 +163,7 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
         fld_data = normalize_field_names(fld_data, FieldCreate)
 
         validate_required_keys(fld_data, ["name"])
+        ensure_name_free("Field", fld_data["name"], [f["name"] for f in m["flds"]])
         fm = mm.new_field(fld_data["name"])
 
         # Copy optional field properties (using Anki's names after normalization)
@@ -181,6 +181,7 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
 
         # Default to "Card #" if no name provided
         template_name = tmpl_data.get("name", f"Card {idx}")
+        ensure_name_free("Template", template_name, [t["name"] for t in m["tmpls"]])
         t = mm.new_template(template_name)
 
         # Copy optional template properties
@@ -249,6 +250,9 @@ def patch_model(col: Collection, model_id: int, updates: Dict[str, Any]) -> Mode
 
     # Normalize field names (accepts both "sort_field"/"sortf", etc.)
     updates = normalize_field_names(updates, ModelPatch)
+    if "name" in updates:
+        ensure_name_free("Model", updates["name"],
+                         [n.name for n in mm.all_names_and_ids() if int(n.id) != int(model_id)])
 
     # Apply updates to allowed top-level properties. Note: a notetype's "type"
     # (standard vs cloze) is fixed at creation and intentionally not patchable.
@@ -293,6 +297,7 @@ def create_field(col: Collection, model_id: int, field_data: Dict[str, Any]) -> 
     field_data = normalize_field_names(field_data, FieldCreate)
 
     validate_required_keys(field_data, ["name"])
+    ensure_name_free("Field", field_data["name"], [f["name"] for f in m["flds"]])
     field = mm.new_field(field_data["name"])
 
     # Apply optional field properties (using Anki's names after normalization)
@@ -325,6 +330,7 @@ def patch_field(col: Collection, model_id: int, field_name: str, updates: Dict[s
 
     # Special handling for rename
     if "name" in updates:
+        ensure_name_free("Field", updates["name"], [f["name"] for f in m["flds"] if f is not field])
         # This helper saves and refreshes rewritten template references before
         # the final save below; rename_field alone leaves the working dict stale.
         mm.renameField(m, field, updates["name"])
@@ -405,6 +411,7 @@ def create_template(col: Collection, model_id: int, template_data: Dict[str, Any
 
     # Default name if not provided
     name = template_data.get("name", f"Card {len(m['tmpls']) + 1}")
+    ensure_name_free("Template", name, [t["name"] for t in m["tmpls"]])
     template = mm.new_template(name)
 
     # Apply optional template properties
@@ -431,6 +438,8 @@ def patch_template(col: Collection, model_id: int, template_name: str, updates: 
     updates = normalize_field_names(updates, TemplatePatch)
 
     template = find_in_subresource(m, "tmpls", template_name, "name")
+    if "name" in updates:
+        ensure_name_free("Template", updates["name"], [t["name"] for t in m["tmpls"] if t is not template])
 
     # Apply property updates
     copy_if_present(updates, template, ["name", "qfmt", "afmt", "bqfmt", "bafmt"])

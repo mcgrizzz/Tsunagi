@@ -186,3 +186,16 @@ def validate_subresource_order(
         if extra:
             errors.append(f"Not in {json_key}: {extra}")
         raise TsunagiValidationError(". ".join(errors))
+
+
+def ensure_name_free(kind: str, name: Any, others: Any) -> None:
+    """
+    Refuse a name another item already has (backlog 6.65). Anki keeps deck,
+    note type, field, template and preset names unique ignoring case, and on a
+    clash renames silently (`Front+`, `Basic-93af0`) or keeps both (presets).
+    `others` are the other items' names, without the one being renamed, so a
+    change of case alone is still allowed.
+    """
+    folded = str(name).casefold()
+    if any(str(other).casefold() == folded for other in others):
+        raise TsunagiValidationError(f"{kind} name '{name}' already exists")

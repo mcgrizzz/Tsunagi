@@ -201,6 +201,11 @@ def patch_deck(col: Collection, deck_id: int, updates: Dict[str, Any]) -> DeckIn
 
     changes = None
     if "name" in updates:
+        # Anki's own name lookup (case and `::` spacing as Anki compares them);
+        # a clash would otherwise be renamed `Name+` (backlog 6.65).
+        other = col.decks.by_name(updates["name"])
+        if other is not None and int(other["id"]) != int(deck_id):
+            raise ValidationError(f"Deck name '{updates['name']}' already exists")
         changes = col.decks.rename(deck, updates["name"])
         # rename() renames in the backend and does NOT touch the dict we hold,
         # which still carries the old name - saving it below would write the
