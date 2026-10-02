@@ -78,9 +78,9 @@ def test_no_survivors_does_not_render(query_client):
 
 @pytest.mark.parametrize("select,expected", [
     ("question", [{"question": "Q150"}, {"question": "Q290"}]),
-    ("id,question:front", [{"id": 150, "front": "Q150"}, {"id": 290, "front": "Q290"}]),
+    ("id,question", [{"id": 150, "question": "Q150"}, {"id": 290, "question": "Q290"}]),
 ])
-def test_deferred_projection_keeps_objects_and_aliases(query_client, select, expected):
+def test_deferred_projection_keeps_objects(query_client, select, expected):
     client, renders, _ = query_client
     assert query(client, select=select, where=["queue==-1"])["items"] == expected
     assert renders == [150, 290]

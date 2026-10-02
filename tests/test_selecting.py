@@ -27,30 +27,26 @@ class TestParseSelect:
         nodes = parse_select_csv("id,name")
         assert nodes == [SelectScalar(path=("id",)), SelectScalar(path=("name",))]
 
-    def test_scalar_alias(self):
-        assert parse_select_csv("name:displayName") == [
-            SelectScalar(path=("name",), as_name="displayName")
-        ]
+    @pytest.mark.parametrize("renamed", ["name:displayName", "fields[].name:labels",
+                                         "fields[].(name:nm,ord)", "fields[].(name,ord):flds"])
+    def test_renaming_is_refused(self, renamed):
+        with pytest.raises(SelectParseError, match="rename"):
+            parse_select_csv(renamed)
 
     def test_array_copy_and_child(self):
         assert parse_select_csv("fields[]") == [SelectArrayPluck(base=("fields",))]
-        assert parse_select_csv("fields[].name:labels") == [
-            SelectArrayPluck(base=("fields",), child=("name",), as_name="labels")
+        assert parse_select_csv("fields[].name") == [
+            SelectArrayPluck(base=("fields",), child=("name",))
         ]
 
-    def test_array_multi_with_aliases(self):
-        nodes = parse_select_csv("fields[].(name:nm,ord:ix):flds")
-        assert nodes == [
-            SelectArrayMulti(
-                base=("fields",),
-                children=((("name",), "nm"), (("ord",), "ix")),
-                as_name="flds",
-            )
+    def test_array_multi(self):
+        assert parse_select_csv("fields[].(name,ord)") == [
+            SelectArrayMulti(base=("fields",), children=(("name",), ("ord",)))
         ]
 
     def test_element_filter(self):
-        assert parse_select_csv('fields[name in ["Front", "Sentence Audio"]].value:v') == [
-            SelectArrayPluck(base=("fields",), child=("value",), as_name="v",
+        assert parse_select_csv('fields[name in ["Front", "Sentence Audio"]].value') == [
+            SelectArrayPluck(base=("fields",), child=("value",),
                              where=("name", frozenset({"Front", "Sentence Audio"})))
         ]
         assert parse_select_csv("fields[ord in [0, -1]].(name,ord)")[0].where == ("ord", frozenset({0, -1}))
@@ -78,13 +74,13 @@ class TestProjectScalars:
         nodes = parse_select_csv("id,missing")
         assert project_scalars(OBJ, nodes) == {"id": 1, "missing": None}
 
-    def test_top_level_aliases_keep_composite_values_and_last_alias(self):
+    def test_top_level_fields_keep_composite_values(self):
         row = {"id": 7, "name": "食べる", "fields": [{"name": "Front", "value": "食べる"}],
                "metadata": {"language": "ja"}, "optional": None}
-        nodes = parse_select_csv("fields:content,metadata,optional,id:key,missing:key,name:label")
+        nodes = parse_select_csv("fields,metadata,optional,id,missing,name")
         assert project_scalars(row, nodes) == {
-            "content": row["fields"], "metadata": {"language": "ja"}, "optional": None,
-            "key": None, "label": "食べる",
+            "fields": row["fields"], "metadata": {"language": "ja"}, "optional": None,
+            "id": 7, "missing": None, "name": "食べる",
         }
 
     def test_same_projection_reads_current_row_values(self):
@@ -103,10 +99,10 @@ class TestProjectScalars:
         nodes = parse_select_csv("templates[].name")
         assert project_scalars(OBJ, nodes) == {"templates": []}
 
-    def test_multi_pluck_aliases(self):
-        nodes = parse_select_csv("fields[].(name:nm,ord:ix)")
+    def test_multi_pluck(self):
+        nodes = parse_select_csv("fields[].(name,ord)")
         assert project_scalars(OBJ, nodes) == {
-            "fields": [{"nm": "Front", "ix": 0}, {"nm": "Back", "ix": 1}]
+            "fields": [{"name": "Front", "ord": 0}, {"name": "Back", "ord": 1}]
         }
 
 

@@ -60,8 +60,8 @@ def test_narrow_projection_keeps_validation_and_human_field_names():
 
 @pytest.mark.parametrize("select", [
     "fields[].name", "fields[].name,fields[].ord", "fields[].(name,plain_text)",
-    "fields[],fields[].name:names", "fields[].name:names,fields[]", "fields,fields[].ord:ords",
-    "name,fields[].missing,templates[].qfmt", "fields[].name:same,name:same",
+    "fields[],fields[].name", "fields[].name,fields[]", "fields,fields[].ord",
+    "name,fields[].missing,templates[].qfmt", "fields[].name,name",
 ])
 def test_partial_model_conversion_matches_full_conversion(select):
     from tsunagi.shared.schemas.models import ModelInfo

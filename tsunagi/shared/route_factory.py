@@ -136,7 +136,7 @@ def _finish(
     elif top_level and shape_name == "object":
         # Top-level fields: copy them in one C-level pass per row. A row
         # missing a field takes the general path, which fills it with None.
-        names = [n.as_name or n.path[0] for n in nodes]
+        names = [n.path[0] for n in nodes]
         if len(nodes) == 1:
             one = nodes[0].path[0]
             get = lambda r: (r[one],)  # itemgetter of one key returns the value, not a tuple

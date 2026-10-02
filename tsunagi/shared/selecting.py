@@ -30,18 +30,15 @@ from .schemas.wrappers import Scalar
 _SCALAR_TYPES = get_args(Scalar)
 
 # GRAMMAR NOTES
-# - ":" = alias (rename output key):  name:alias, arr[]:alias, arr[].child:alias
 # - "[]" = iterate array; "." = pluck a child; "(...)" = multi-pluck per element
 # - "[key in [...]]" = iterate only the elements whose key is one of the values
-# - Multi-pluck aliasing:
-#     • per-item inside () → (name:nm, ord:ix)
-#     • optional group alias after () → arr[].(...):group_alias
+# - Output keys are the field names; there is no renaming (backlog 6.76)
 # - Missing values: scalar→None, array→[], missing child in pluck→None
 #
 # Examples:
 #   flds[]                    # copy list
-#   flds[].name:labels        # pluck one field with alias
-#   flds[].(name:nm,ord:ix):fields  # multi-pluck with per-item + group alias
+#   flds[].name               # pluck one field
+#   flds[].(name,ord)         # multi-pluck
 #   fields[name in ["Front","Back"]]  # only the elements named Front or Back
 
 _SELECT_GRAMMAR = r"""
@@ -53,12 +50,12 @@ start: sel ("," sel)*
       | arr_multi
 
 # Scalars
-scalar: NAME alias?                              -> scalar
+scalar: NAME                                     -> scalar
 
 # Arrays: "[]" for every element, or a filter for some of them
-arr_copy : NAME brack alias?                       -> arr_copy
-arr_child: NAME brack DOT NAME alias?              -> arr_child
-arr_multi: NAME brack DOT LP group_items RP alias? -> arr_multi
+arr_copy : NAME brack                              -> arr_copy
+arr_child: NAME brack DOT NAME                     -> arr_child
+arr_multi: NAME brack DOT LP group_items RP        -> arr_multi
 ?brack   : ARR | filter
 filter   : "[" NAME "in" "[" value ("," value)* "]" "]"
 value    : ESCAPED_STRING -> string
@@ -66,8 +63,7 @@ value    : ESCAPED_STRING -> string
 
 # Common pieces
 group_items: group_item ("," group_item)*
-group_item : NAME alias?                         -> group_item
-alias      : ":" NAME                            -> alias
+group_item : NAME                                -> group_item
 
 # Tokens
 ARR  : "[]"
@@ -86,7 +82,6 @@ NAME : /[^\W\d]\w*/
 @dataclass(frozen=True, **DATACLASS_SLOTS)
 class SelectScalar:
     path: Tuple[str, ...]
-    as_name: Optional[str] = None
 
 # (key, allowed values): keep only the array elements whose key is one of them.
 ElementFilter = Tuple[str, FrozenSet[Scalar]]
@@ -95,15 +90,12 @@ ElementFilter = Tuple[str, FrozenSet[Scalar]]
 class SelectArrayPluck:
     base: Tuple[str, ...]                      # ("flds",)
     child: Optional[Tuple[str, ...]] = None    # None or ("name",)
-    as_name: Optional[str] = None
     where: Optional[ElementFilter] = None
 
 @dataclass(frozen=True, **DATACLASS_SLOTS)
 class SelectArrayMulti:
     base: Tuple[str, ...]
-    # tuple of (path, alias), where path is a tuple[str, ...]
-    children: Tuple[Tuple[Tuple[str, ...], Optional[str]], ...]
-    as_name: Optional[str] = None
+    children: Tuple[Tuple[str, ...], ...]      # each a path, such as ("name",)
     where: Optional[ElementFilter] = None
 
 SelectNode = Union[SelectScalar, SelectArrayPluck, SelectArrayMulti]
@@ -116,20 +108,14 @@ class _SelectTransformer(Transformer):
     def LP(self, _):  return Discard
     def RP(self, _):  return Discard
 
-    # helpers
-    def alias(self, name_tok):
-        return str(name_tok)
-
     # start
     def start(self, *sels):
         # tuple instead of list as its immutable
         return tuple(sels)
 
     # scalars
-    def scalar(self, name_tok, alias_tok=None):
-        name = str(name_tok)
-        alias = str(alias_tok) if alias_tok else None
-        return SelectScalar(path=(name,), as_name=alias)
+    def scalar(self, name_tok):
+        return SelectScalar(path=(str(name_tok),))
 
     # arrays
     def string(self, tok):
@@ -141,23 +127,20 @@ class _SelectTransformer(Transformer):
     def filter(self, key_tok, *values):
         return (str(key_tok), frozenset(values))
 
-    def arr_copy(self, base_tok, where, alias_tok=None):
-        return SelectArrayPluck(base=(str(base_tok),), child=None,
-                                as_name=(str(alias_tok) if alias_tok else None), where=where)
+    def arr_copy(self, base_tok, where):
+        return SelectArrayPluck(base=(str(base_tok),), child=None, where=where)
 
-    def arr_child(self, base_tok, where, child_tok, alias_tok=None):
-        return SelectArrayPluck(base=(str(base_tok),), child=(str(child_tok),),
-                                as_name=(str(alias_tok) if alias_tok else None), where=where)
+    def arr_child(self, base_tok, where, child_tok):
+        return SelectArrayPluck(base=(str(base_tok),), child=(str(child_tok),), where=where)
 
-    def group_item(self, name_tok, alias_tok=None):
-        return ((str(name_tok),), (str(alias_tok) if alias_tok else None))
+    def group_item(self, name_tok):
+        return (str(name_tok),)
 
     def group_items(self, first, *rest):
         return (first, *rest)  # tuple, not list
 
-    def arr_multi(self, base_tok, where, items, alias_tok=None):
-        return SelectArrayMulti(base=(str(base_tok),), children=tuple(items),
-                                as_name=(str(alias_tok) if alias_tok else None), where=where)
+    def arr_multi(self, base_tok, where, items):
+        return SelectArrayMulti(base=(str(base_tok),), children=tuple(items), where=where)
 
 _parser = Lark(_SELECT_GRAMMAR, parser="lalr", maybe_placeholders=False)
 
@@ -181,6 +164,10 @@ def parse_select_csv(select_text: str) -> List[SelectNode]:
         # Cached parse (nodes are immutable); fresh list per caller.
         return list(_parse_select_cached(select_text))
     except UnexpectedInput as e:
+        if getattr(e, "char", None) == ":":
+            # name:alias renamed the output key until 6.76.
+            raise SelectParseError("select doesn't rename fields (name:alias); output keys are "
+                                   "the field names, so rename them in your app") from None
         ctx = e.get_context(select_text)
         raise SelectParseError(
             f"Malformed select:\n{ctx}\n\n"
@@ -189,9 +176,7 @@ def parse_select_csv(select_text: str) -> List[SelectNode]:
             f"  - flds[] (array copy)\n"
             f"  - flds[].name (pluck field from array)\n"
             f"  - flds[].(name,ord) (multi-pluck)\n"
-            f"  - flds[].(name:label,ord:index) (with aliases)\n"
-            f"  - fields[name in [\"Front\",\"Back\"]] (only some elements)\n"
-            f"  - name:displayName (field alias)"
+            f"  - fields[name in [\"Front\",\"Back\"]] (only some elements)"
         ) from None
     except Exception as e:
         raise SelectParseError(f"Malformed select: {e}") from e
@@ -228,28 +213,25 @@ def _build_spec(nodes: Tuple[SelectNode, ...]) -> Dict[str, object]:
     spec: Dict[str, object] = {}
     for n in nodes:
         if isinstance(n, SelectScalar):
-            alias = n.as_name or n.path[-1]
-            # before: spec[alias] = tuple(n.path)
-            spec[alias] = Coalesce(tuple(n.path), default=None)
+            spec[n.path[-1]] = Coalesce(tuple(n.path), default=None)
 
         elif isinstance(n, SelectArrayPluck):
-            alias = n.as_name or n.base[-1]
+            key = n.base[-1]
             safe = _as_iterable_list(tuple(n.base))
             if n.where is not None:
                 safe = (safe, lambda values, where=n.where: _kept(values, where))
             if n.child is None:
-                spec[alias] = safe
+                spec[key] = safe
             else:
-                spec[alias] = (safe, [Coalesce(tuple(n.child), default=None)])
+                spec[key] = (safe, [Coalesce(tuple(n.child), default=None)])
 
         elif isinstance(n, SelectArrayMulti):
-            alias = n.as_name or n.base[-1]
+            key = n.base[-1]
             safe = _as_iterable_list(tuple(n.base))
             if n.where is not None:
                 safe = (safe, lambda values, where=n.where: _kept(values, where))
-            elem_spec = { (a or p[-1]): Coalesce(tuple(p), default=None)
-                          for (p, a) in n.children }
-            spec[alias] = (safe, [elem_spec])
+            elem_spec = {p[-1]: Coalesce(tuple(p), default=None) for p in n.children}
+            spec[key] = (safe, [elem_spec])
 
         else:
             raise RuntimeError(f"Unknown node: {n!r}")
@@ -268,7 +250,7 @@ def selection_include(nodes: Sequence[SelectNode]) -> Dict[str, Any]:
         if isinstance(node, SelectArrayPluck):
             paths = [node.child] if node.child is not None else []
         else:
-            paths = [path for path, _ in node.children]
+            paths = list(node.children)
         if node.where is not None and paths:
             paths.append((node.where[0],))   # the filter reads its key too
         if len(node.base) != 1 or not paths or any(len(path) != 1 for path in paths):
@@ -289,7 +271,7 @@ def _project_simple(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Opti
         if isinstance(node, SelectScalar):
             if len(node.path) != 1:
                 return None
-            result[node.as_name or node.path[0]] = obj.get(node.path[0])
+            result[node.path[0]] = obj.get(node.path[0])
             continue
         if not isinstance(node, (SelectArrayPluck, SelectArrayMulti)) or len(node.base) != 1:
             return None
@@ -297,20 +279,20 @@ def _project_simple(obj: Mapping[str, Any], nodes: Sequence[SelectNode]) -> Opti
         if not isinstance(values, list):
             return None
         values = _kept(values, node.where)
-        alias = node.as_name or node.base[0]
+        key = node.base[0]
         if isinstance(node, SelectArrayPluck) and node.child is None:
-            result[alias] = values
+            result[key] = values
             continue
         if not all(isinstance(value, Mapping) for value in values):
             return None
         if isinstance(node, SelectArrayPluck):
             if len(node.child) != 1:
                 return None
-            result[alias] = [value.get(node.child[0]) for value in values]
+            result[key] = [value.get(node.child[0]) for value in values]
         else:
-            if any(len(path) != 1 for path, _ in node.children):
+            if any(len(path) != 1 for path in node.children):
                 return None
-            result[alias] = [{name or path[0]: value.get(path[0]) for path, name in node.children}
+            result[key] = [{path[0]: value.get(path[0]) for path in node.children}
                              for value in values]
     return result
 
@@ -338,7 +320,7 @@ def maybe_flatten(projected_rows: List[Dict[str, Any]], nodes: Sequence[SelectNo
         raise SelectValidationError("shape=scalar requires exactly one selected field")
 
     only = nodes[0]
-    key = (only.as_name or (only.path[-1] if isinstance(only, SelectScalar) else only.base[-1]))
+    key = only.path[-1] if isinstance(only, SelectScalar) else only.base[-1]
     values = [row.get(key) for row in projected_rows]
     if not all(_is_scalar(v) for v in values):
         raise SelectValidationError("shape=scalar requires the selected field to be a scalar")

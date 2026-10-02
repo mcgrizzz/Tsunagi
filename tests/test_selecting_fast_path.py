@@ -7,12 +7,10 @@ from tsunagi.shared.selecting import _build_spec, parse_select_csv, project_scal
 
 @pytest.mark.parametrize("select", [
     "id,fields[]", "id,fields[].name", "fields[].(name,ord)",
-    "fields[].(name:label,ord:position):mapped",
-    "id:same,fields[].name:same", "fields[].name:same,id:same",
-    "fields[].(name:same,ord:same)", "fields[].読み:readings",
+    "fields[],fields[].name", "fields[].name,fields[]", "fields[].(name,ord,name)", "fields[].読み",
     "missing[].name,id,fields[].missing",
     'fields[name in ["Front"]]', 'fields[name in ["Front","Back"]].ord',
-    'fields[ord in [0]].(name,ord)', 'fields[name in [""]].name:empty',
+    'fields[ord in [0]].(name,ord)', 'fields[name in [""]].name',
 ])
 @pytest.mark.parametrize("values", [
     [], [{"name": "Front", "ord": 0, "読み": "よみ"}, {"name": "Back", "ord": 1}],
