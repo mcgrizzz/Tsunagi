@@ -91,8 +91,9 @@ use resources alone if you need all notifications affecting a displayed list.
 
 ### Connection events
 
-Every connection starts with ready: session_id, after_seq, ts and the selected
-data resources. This announces an active subscription, not a data change. Load
+Every connection starts with ready: session_id, after_seq, ts, the selected
+data resources and heartbeat_ms, how often a heartbeat comment is sent
+(15000). This announces an active subscription, not a data change. Load
 initial data after ready. cards.answered/sync-only subscriptions have an empty resources
 list. A new connection gets a new ready even when it uses the same session.
 
@@ -239,7 +240,8 @@ def stream_events(
             if reason or ready is None:
                 yield _close_frame(reason or broker.close_reason)
                 return
-            yield _sse_frame({**ready, "resources": sorted(data_resources)})
+            yield _sse_frame({**ready, "resources": sorted(data_resources),
+                              "heartbeat_ms": round(HEARTBEAT_SECONDS * 1000)})
             sent = 0
             start = last_beat = time.monotonic()
             while True:

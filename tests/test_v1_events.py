@@ -75,6 +75,30 @@ class TestStream:
         assert [f[0] for f in frames] == ["ready", "sync", "sync", "cards.stale", "close"]
         assert [f[1].get("phase") for f in frames[1:3]] == ["started", "finished"]
 
+    def test_ready_states_the_heartbeat_interval(self, client):
+        # Clients treat a few intervals without bytes as a dead stream.
+        ready = parse_frames(client.get("/v1/events?timeout=0.2").text)[0]
+        assert ready[0] == "ready"
+        assert ready[1]["heartbeat_ms"] == 15000
+
+    def test_framing(self, client, monkeypatch):
+        # What docs/events.md promises small parsers.
+        from tsunagi.http.v1 import events
+        monkeypatch.setattr(events, "HEARTBEAT_SECONDS", 0.1)
+        publish_soon(("sync", {"phase": "started"}))
+        text = client.get("/v1/events?timeout=0.5").text
+        assert "\r" not in text
+        assert text.startswith("retry: 3000\n\n")
+        assert "\n\n: ping\n\n" in text
+        blocks = [b for b in text.split("\n\n") if b.startswith("event: ")]
+        assert [b.split("\n", 1)[0] for b in blocks] == [
+            "event: ready", "event: sync", "event: close"]
+        for block in blocks:
+            data = [line for line in block.split("\n") if line.startswith("data: ")]
+            assert len(data) == 1 and isinstance(json.loads(data[0][6:]), dict)
+        assert "\nid: " not in blocks[0] and "\nid: " in blocks[1]
+        assert parse_frames(text)[-1] == ("close", {"reason": "timeout"})
+
     def test_drain_closes_an_open_stream(self, client):
         # The shutdown path: stop_server flips this flag before should_exit;
         # a stream must end for shutdown before its timeout expires.

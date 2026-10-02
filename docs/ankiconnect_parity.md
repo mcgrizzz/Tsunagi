@@ -26,6 +26,10 @@ Tsunagi handles it.
 - A key is checked for each action, including inside `multi`. A refused action
   returns the usual `{"result": null, "error": "..."}` naming the app, its role
   and what's missing.
+- **Every action but `requestPermission` needs a key** when keyless requests
+  get No access, `version` included, as in AnkiConnect. `version` and
+  `apiReflect` answer any app's key, whatever the app is allowed to do, so an
+  answer doesn't show access; `GET /v1/health` names the app and its role.
 - **`requireApikey`** in the `requestPermission` answer is `true` when the
   caller must send a key: requests without one, from where the caller is, get
   No access.

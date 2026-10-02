@@ -17,7 +17,7 @@ Add a note in Anki (or through the API) and this arrives:
 
 ```text
 event: ready
-data: {"type":"ready","session_id":"5f0c…","after_seq":0,"ts":1790000000000,"resources":["notes"]}
+data: {"type":"ready","session_id":"5f0c…","after_seq":0,"ts":1790000000000,"resources":["notes"],"heartbeat_ms":15000}
 
 event: notes.created
 id: 5f0c…:1
@@ -174,7 +174,9 @@ without telling Anki are reported with the next change Anki does announce.
 <details>
 <summary>Connection messages</summary>
 
-- `ready`: you're connected. Sent first on every connection.
+- `ready`: you're connected. Sent first on every connection. `heartbeat_ms`
+  is how often the server sends a heartbeat (15000): if nothing arrives for a
+  few of those, treat the connection as dead and reconnect.
 - `gap`: your connection fell behind and `discarded` messages were lost.
   Reload what you show.
 - `close`: the server ended the stream. `reason` is `profile_closed` (the
@@ -184,6 +186,43 @@ without telling Anki are reported with the next change Anki does announce.
 
 Missed messages aren't replayed after a reconnect: load your data again on
 the new `ready`. A new `session_id` means a new server session.
+
+</details>
+
+<details>
+<summary>Reading the stream without a library</summary>
+
+The stream is standard
+[Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html).
+A short stream, as sent:
+
+```text
+retry: 3000
+
+: connected
+
+event: ready
+data: {"type":"ready","session_id":"8839…","after_seq":0,"ts":1790894419127,"resources":[],"heartbeat_ms":15000}
+
+event: sync
+id: 8839…:1
+data: {"phase":"started","type":"sync","seq":1,"session_id":"8839…","ts":1790894419219}
+
+: ping
+
+event: close
+data: {"reason": "timeout"}
+
+```
+
+- Lines end in a single LF; a blank line ends each message.
+- The stream starts with `retry: 3000` (reconnect after 3 seconds) and a
+  `: connected` comment.
+- Each message has an `event:` line, then an `id:` line on all but `ready`,
+  `gap` and `close`, then exactly one `data:` line holding a JSON object.
+- Lines starting with `:` are comments. `: ping` is the heartbeat, sent every
+  `heartbeat_ms`; skip it.
+- `close` is the last message, and its `reason` says why.
 
 </details>
 

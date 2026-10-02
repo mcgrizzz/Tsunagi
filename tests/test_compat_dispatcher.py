@@ -63,6 +63,14 @@ class TestErrors:
         body = client.post("/", json={"action": "version"}).json()
         assert body == {"result": None, "error": API_KEY_ERROR}
 
+    def test_version_answers_any_app_key_but_shows_no_access(self, client, reset_settings):
+        # As upstream: only requestPermission skips the key; any valid key may
+        # call version, so it can't tell an app what its role allows.
+        reset_settings.configure({**DEFAULTS, **key_required("k", role="none")}, persist=None)
+        assert client.post("/", json={"action": "version", "key": "k"}).json() == 6
+        denied = client.post("/", json={"action": "deckNames", "version": 6, "key": "k"}).json()
+        assert denied["result"] is None and "Test app" in denied["error"]
+
     def test_param_validation_error_names_the_field(self, client):
         body = client.post("/", json={"action": "modelFieldNames", "version": 6,
                                       "params": {}}).json()
