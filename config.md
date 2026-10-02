@@ -8,7 +8,7 @@ Each section below is one page of the settings window, with the setting's
 key in the add-on's saved configuration for reference.
 
 - **Save** applies your changes and keeps the window open. Changes to the
-  server (on/off, port, host, log level, timeout) restart it right away.
+  server (on/off, port, host, log level) restart it right away.
 - **Cancel** discards unsaved changes on every page.
 - Closing the window with unsaved changes asks first. Each page can also undo
   its own changes or restore its defaults.

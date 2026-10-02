@@ -41,8 +41,9 @@ class TestFieldSpec:
         # config.md: server-level keys are only read at server startup, so
         # the dialog restarts the embedded server when one changes.
         # dev_watch_seconds is startup-bound too but hidden from the form.
+        # op_timeout_seconds is read on each request (ops.op_timeout).
         assert RESTART_KEYS == {"enabled", "host", "port", "prefer_port",
-                                "log_level", "op_timeout_seconds"}
+                                "log_level"}
 
 
 class TestRoundTrip:
@@ -60,6 +61,13 @@ class TestRoundTrip:
             new_cfg, restart = config_from_form(dict(DEFAULTS), values)
             assert new_cfg[key] == value
             assert restart is True, key
+
+    def test_timeout_change_applies_without_a_restart(self):
+        values = form_values_from_config(DEFAULTS)
+        values["op_timeout_seconds"] = 30
+        new_cfg, restart = config_from_form(dict(DEFAULTS), values)
+        assert new_cfg["op_timeout_seconds"] == 30
+        assert restart is False
 
     def test_whitespace_only_text_edit_is_not_a_change(self):
         values = form_values_from_config(DEFAULTS)

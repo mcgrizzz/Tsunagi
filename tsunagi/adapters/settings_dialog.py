@@ -59,8 +59,9 @@ FIELDS: Tuple[Field, ...] = (
     Field("log_level", "Advanced", "choice", "Log level", restart=True,
           choices=("critical", "error", "warning", "info", "debug")),
     Field("op_timeout_seconds", "Advanced", "int", "Operation timeout (seconds)",
-          restart=True, minimum=1, maximum=600,
-          tooltip="How long a request may wait on Anki's collection."),
+          minimum=1, maximum=600,
+          tooltip="How long a request may wait on Anki's collection. "
+                  "Applies immediately."),
     Field("media_max_bytes", "Advanced", "mib", "Max upload size",
           minimum=1, maximum=4096,
           tooltip="Largest media file the API accepts. Applies immediately."),
@@ -182,8 +183,8 @@ def gate_rows(cfg: Dict[str, Any]) -> List[Tuple[str, str, str, bool]]:
 def _restart_server(mw: Any, *, enabled: bool) -> None:
     """
     Apply server-level keys live: stop uvicorn and start it again on the
-    just-saved config (start_server re-reads everything, including log_level
-    and op_timeout_seconds). The one case that still needs an Anki restart is
+    just-saved config (start_server re-reads everything, including
+    log_level). The one case that still needs an Anki restart is
     a server thread that won't die - its port may still be held.
     """
     from aqt.utils import showWarning, tooltip
