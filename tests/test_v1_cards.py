@@ -553,7 +553,7 @@ class TestBatch:
             {"op": "suspend", "card_ids": [c1]},
             {"op": "explode", "card_ids": [c1]},
         ]})
-        assert resp.status_code == 400 and "explode" in resp.json()["detail"]
+        assert resp.status_code == 422 and "explode" in resp.json()["detail"]
         assert seeded.get("/v1/cards", params={"where": f"id=={c1}"}
                           ).json()["items"][0]["suspended"] is False
 
@@ -573,12 +573,12 @@ class TestBatch:
         resp = seeded.post("/v1/cards:batch", json={"operations": [
             {"op": "set-due-date", "card_ids": [self._card(seeded)]},  # no days
         ]})
-        assert resp.status_code == 400
-        assert "operation 0" in resp.json()["detail"]
+        assert resp.status_code == 422
+        assert "body.operations.0.days" in resp.json()["detail"]
 
-    def test_empty_batch_is_400(self, seeded):
+    def test_empty_batch_is_422(self, seeded):
         assert seeded.post("/v1/cards:batch",
-                           json={"operations": []}).status_code == 400
+                           json={"operations": []}).status_code == 422
 
     def test_in_openapi(self, seeded):
         spec = seeded.get("/openapi.json").json()

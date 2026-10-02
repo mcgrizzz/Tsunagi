@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
+
+from .notes import tags_without_spaces
 
 
 class GuiResult(BaseModel):
@@ -52,6 +54,8 @@ class AddCardsRequest(BaseModel):
 
     class Config:
         allow_population_by_field_name = True
+
+    _tags = validator("tags", allow_reuse=True)(tags_without_spaces)
 
 
 class AddCardsResult(BaseModel):

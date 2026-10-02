@@ -105,6 +105,16 @@ class NoteFiles(BaseModel):
         return out
 
 
+def tags_without_spaces(tags: Optional[List[str]]) -> Optional[List[str]]:
+    """Anki splits a tag on whitespace when it saves the note, so "a b" would
+    quietly become two tags (6.75). The AnkiConnect side keeps that."""
+    for tag in tags or []:
+        if any(c.isspace() for c in tag):
+            raise ValueError(f"a tag can't contain a space: {tag!r} would be stored as "
+                             f"{len(tag.split())} tags")
+    return tags
+
+
 class NoteCreate(NoteFiles):
     class Config:
         allow_population_by_field_name = True
@@ -131,6 +141,8 @@ class NoteCreate(NoteFiles):
                      "as in AnkiConnect."),
     )
 
+    _tags = validator("tags", allow_reuse=True)(tags_without_spaces)
+
 
 class NotePatch(NoteFiles):
     class Config:
@@ -142,6 +154,7 @@ class NotePatch(NoteFiles):
     tags: Optional[List[str]] = None                                  # replaces
     add_tags: Optional[List[str]] = Field(alias="addTags", default=None)
     remove_tags: Optional[List[str]] = Field(alias="removeTags", default=None)
+    _tags = validator("tags", "add_tags", "remove_tags", allow_reuse=True)(tags_without_spaces)
     # Retype the note. Requires `fields`: the new model's fields start empty.
     model_id: Optional[int] = Field(alias="modelId", default=None)
     model_name: Optional[str] = Field(alias="modelName", default=None)

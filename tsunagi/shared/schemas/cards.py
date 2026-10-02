@@ -170,10 +170,9 @@ class SetCardValuesRequest(BaseModel):
         allow_population_by_field_name = True
 
     card_id: int = Field(alias="cardId")
-    # Raw card columns, written as-is. Values must fit the column's type.
+    # Raw card columns, written as-is: the route lists them; values are integers.
     values: dict
-    # Scheduling/linkage columns (did, id, ivl, lapses, left, mod, nid, odid,
-    # odue, ord, queue, reps, type, usn) are refused unless this is true.
+    # Scheduling/linkage columns are refused unless this is true.
     force: bool = False
 
 

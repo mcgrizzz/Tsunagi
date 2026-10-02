@@ -2,6 +2,7 @@ import time
 from typing import Any, Callable, List
 
 from fastapi import Body
+from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError as PydanticValidationError
 
 from ...adapters.anki.cards import (
@@ -230,13 +231,25 @@ def answer(body: AnswerRequest = Body(...)) -> VerbResult:
     return _result(sum(1 for ok in results if ok), start)
 
 
+# The card columns Anki saves (Card._to_backend_card), each an integer. Not
+# id (it names the card), mod and usn (Anki sets them), data (custom data has
+# no raw form here): writing those answered 200 and changed nothing (6.75).
+CARD_COLUMNS = frozenset({"did", "due", "factor", "flags", "ivl", "lapses", "left",
+                          "nid", "odid", "odue", "ord", "queue", "reps", "type"})
+
+
 @_verb("set-values", "Set raw card columns",
        "Writes card columns as-is, with no validation beyond the column's "
        "type - the escape hatch AnkiConnect calls setSpecificValueOfCard. "
-       "Scheduling and linkage columns (did, id, ivl, lapses, left, mod, nid, "
-       "odid, odue, ord, queue, reps, type, usn) corrupt the card when "
-       "written badly, so they require `force: true`.")
+       "Columns: " + ", ".join(sorted(CARD_COLUMNS)) + "; each value an integer. "
+       "Scheduling and linkage columns (" + ", ".join(sorted(CARD_COLUMNS & RISKY_CARD_COLUMNS))
+       + ") corrupt the card when written badly, so they require `force: true`.")
 def set_values(body: SetCardValuesRequest = Body(...)) -> VerbResult:
+    for name, value in body.values.items():
+        if name not in CARD_COLUMNS:
+            raise ValidationError(f"can't write {name}; columns: {', '.join(sorted(CARD_COLUMNS))}")
+        if type(value) is not int:
+            raise ValidationError(f"{name} must be an integer")
     risky = sorted(set(body.values) & RISKY_CARD_COLUMNS)
     if risky and not body.force:
         raise ValidationError(
@@ -247,10 +260,12 @@ def set_values(body: SetCardValuesRequest = Body(...)) -> VerbResult:
     except Exception as e:
         if type(e).__name__ == "NotFoundError":
             raise ResourceNotFoundError("card", body.card_id) from e
-        if isinstance(e, TypeError):  # the card's columns refused a value's type
-            raise ValidationError(f"values: {e}") from e
         raise
     return _result(1, start)
+
+
+def _invalid(loc: tuple, msg: str) -> RequestValidationError:
+    return RequestValidationError([{"loc": loc, "msg": msg, "type": "value_error"}])
 
 
 @router.post(
@@ -276,20 +291,22 @@ def set_values(body: SetCardValuesRequest = Body(...)) -> VerbResult:
 @handle_mutation_errors("batch")
 def batch(body: BatchRequest = Body(...)) -> BatchResult:
     start = time.perf_counter()
+    # Each step is checked against its verb's body here, so a bad one is the
+    # same 422 any body gets, located in `operations` (6.75).
     if not body.operations:
-        raise ValidationError("at least one operation is required")
+        raise _invalid(("body", "operations"), "at least one operation is required")
     parsed = []
     for i, item in enumerate(body.operations):
         name = item.get("op")
         if name not in BATCH_VERBS:
-            raise ValidationError(
-                f"operation {i}: unknown op {name!r}; "
-                f"expected one of {sorted(BATCH_VERBS)}")
+            raise _invalid(("body", "operations", i, "op"),
+                           f"unknown op {name!r}; expected one of {', '.join(sorted(BATCH_VERBS))}")
         model = BATCH_VERBS[name][0]
         try:
             parsed.append((name, model.parse_obj(item)))
         except PydanticValidationError as e:
-            raise ValidationError(f"operation {i} ({name}): {e}") from e
+            raise RequestValidationError(
+                [{**err, "loc": ("body", "operations", i) + tuple(err["loc"])} for err in e.errors()]) from e
     result = batch_cards(parsed)
     return BatchResult(
         affected=result["affected"],

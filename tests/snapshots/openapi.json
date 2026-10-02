@@ -5146,7 +5146,7 @@
     },
     "/v1/cards:set-values": {
       "post": {
-        "description": "Writes card columns as-is, with no validation beyond the column's type - the escape hatch AnkiConnect calls setSpecificValueOfCard. Scheduling and linkage columns (did, id, ivl, lapses, left, mod, nid, odid, odue, ord, queue, reps, type, usn) corrupt the card when written badly, so they require `force: true`.",
+        "description": "Writes card columns as-is, with no validation beyond the column's type - the escape hatch AnkiConnect calls setSpecificValueOfCard. Columns: did, due, factor, flags, ivl, lapses, left, nid, odid, odue, ord, queue, reps, type; each value an integer. Scheduling and linkage columns (did, ivl, lapses, left, nid, odid, odue, ord, queue, reps, type) corrupt the card when written badly, so they require `force: true`.",
         "operationId": "cardsSetValues",
         "requestBody": {
           "content": {
