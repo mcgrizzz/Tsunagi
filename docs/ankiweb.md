@@ -67,4 +67,6 @@ After installing, restart Anki and open **Tools → Tsunagi Settings**. Coming f
 [AnkiConnect compatibility](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/ankiconnect_parity.md)
 
 [Report a problem](https://github.com/mcgrizzz/Tsunagi/issues)
+
+[What's new in {{version}}]({{release_url}})
 ```
