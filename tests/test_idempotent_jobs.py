@@ -73,7 +73,7 @@ def test_a_main_thread_action_that_ends_after_a_503_runs_once(client, monkeypatc
     undos, queued = [], []
     monkeypatch.setattr(mw, "undo", lambda: undos.append(1), raising=False)
     monkeypatch.setattr(mw.taskman, "run_on_main", queued.append)
-    monkeypatch.setattr(ops, "OP_TIMEOUT", 0.05)
+    monkeypatch.setattr(ops, "op_timeout", lambda: 0.05)
     first = client.post("/v1/gui:undo", headers=keyed("late"))
     assert first.status_code == 503
     for call in queued:

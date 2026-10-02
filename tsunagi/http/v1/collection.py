@@ -192,7 +192,7 @@ def sync() -> Union[SyncResult, JSONResponse]:
 def _job_answer(job, result_model, start: float):
     """The job's result if it ends within op_timeout_seconds, else 202 to poll it.
     A failure is raised as it happened, so it maps to its usual status."""
-    if jobs.wait(job, ops.OP_TIMEOUT):
+    if jobs.wait(job, ops.op_timeout()):
         if job.exception is not None:
             raise job.exception
         if job.status == "done":

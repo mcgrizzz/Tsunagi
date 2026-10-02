@@ -20,7 +20,7 @@ def deferred(monkeypatch):
         real = cls.run_in_background
         monkeypatch.setattr(cls, "run_in_background",
                             lambda self, *a, _real=real, **k: queued.append(lambda: _real(self, *a, **k)))
-    monkeypatch.setattr(ops, "OP_TIMEOUT", 5.0)
+    monkeypatch.setattr(ops, "op_timeout", lambda: 5.0)
     return queued
 
 

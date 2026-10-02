@@ -20,12 +20,16 @@ from .events import ApiOp, broker
 P = ParamSpec("P")
 R = TypeVar("R")
 
-# Default wait for cross-thread operations; overridden from config
-# ("op_timeout_seconds") at server start.
-OP_TIMEOUT: float = 15.0
 # timeout=FOREVER waits for as long as it takes (sync, add-on jobs).
-# timeout=None means OP_TIMEOUT.
+# timeout=None means op_timeout().
 FOREVER = float("inf")
+
+
+def op_timeout() -> float:
+    """How long a request waits for Anki: the op_timeout_seconds setting, as
+    it is now. The one place it is read; tests replace this function."""
+    from .settings import settings
+    return float(settings.get("op_timeout_seconds", 15))
 
 # The request's idempotency journal (adapters/idempotency.py), set by the
 # middleware when the request carries an Idempotency-Key: each step a write
@@ -70,7 +74,7 @@ def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], 
         # time out (backlog 8.13). The op has started and still finishes.
         raise RuntimeError(f"{what} called on Anki's main thread, which can't wait for its "
                            "result; call it from another thread, or use the *_run_async form")
-    limit = OP_TIMEOUT if timeout is None else timeout
+    limit = op_timeout() if timeout is None else timeout
     # Event.wait rejects an infinite timeout, so FOREVER is no timeout at all.
     if not done.wait(None if limit == FOREVER else limit):
         raise AnkiBusyError(f"{what} timed out; Anki may be busy or blocked by a dialog")
@@ -118,7 +122,7 @@ def call_on_main(fn: Callable[P, R], /, *args: P.args, timeout: Optional[float] 
     Run `fn(*args, **kwargs)` on Anki's UI thread and return its result.
     - If already on the UI thread, runs inline.
     - Raises AnkiBusyError if the UI thread doesn't respond within `timeout`
-      (default: OP_TIMEOUT; FOREVER waits as long as it takes).
+      (default: op_timeout(); FOREVER waits as long as it takes).
     - Propagates the original exception from the UI thread.
     - A step of the request's write (`recorded`): a keyed retry doesn't run
       it again, even after a 503 whose call ran later.
@@ -173,7 +177,7 @@ def _interactive(fn: Callable[[], R]) -> R:
             result.set_exception(exc)
 
     mw.taskman.run_on_main(run)
-    if not started.wait(OP_TIMEOUT) and result.cancel():
+    if not started.wait(op_timeout()) and result.cancel():
         raise AnkiBusyError("Main-thread dispatch timed out; Anki did not accept the dialog request")
     # If dispatch won the race with the timeout, it now owns the request.
     return result.result()
@@ -226,11 +230,7 @@ def query_op_call(
             op=lambda col: fn(col, *args, **kwargs),
             success=_success,
         )
-        # Some builds expose .failure(); if not, ignore.
-        try:
-            op.failure(_failure)  # type: ignore[attr-defined]
-        except AttributeError:
-            pass
+        op.failure(_failure)
         op.run_in_background()
 
     if threading.current_thread() is threading.main_thread():
@@ -250,7 +250,7 @@ def query_op_run_async(
     Fire-and-forget QueryOp: start 'fn(col)' in a worker thread and return
     immediately. Exactly one of the callbacks fires when the op finishes; both
     run on the Qt main thread, so they must be quick and must not block.
-    Used for work that can outlive OP_TIMEOUT (FSRS optimization) where the
+    Used for work that can outlive op_timeout_seconds (FSRS optimization) where the
     caller tracks completion itself (the job store) instead of waiting.
     """
     def start_on_main() -> None:
@@ -258,10 +258,7 @@ def query_op_run_async(
             on_failure(CollectionUnavailableError())
             return
         op = QueryOp(parent=mw, op=fn, success=on_success)
-        try:
-            op.failure(on_failure)  # type: ignore[attr-defined]
-        except AttributeError:
-            pass
+        op.failure(on_failure)
         op.run_in_background()
 
     if threading.current_thread() is threading.main_thread():
@@ -300,8 +297,9 @@ def collection_op_run_async(
             return
 
         def _success(res: Any) -> None:
-            # Extract the actual value from ResultWithChanges if present
-            on_success(res.value if hasattr(res, 'value') else res)
+            # Only Tsunagi's wrapper is unwrapped; an Anki result can have a
+            # `value` of its own.
+            on_success(res.value if isinstance(res, ValueWithChanges) else res)
 
         def _failure(exc: Exception) -> None:
             on_failure(exc)
@@ -309,7 +307,7 @@ def collection_op_run_async(
         initiator = ApiOp(event_details, collection=collection,
                           client=caller.name if caller else None)
 
-        # Wrap the function to return a ResultWithChanges object
+        # CollectionOp needs a result with `changes`; a bare value gets none.
         def wrapped_op(col: Collection) -> Any:
             if col is not collection:
                 raise CollectionUnavailableError()
@@ -330,18 +328,12 @@ def collection_op_run_async(
                     initiator.changes = {}
                     logging.getLogger(__name__).exception(
                         "Could not prepare changed IDs; using resource invalidation")
-            # If the result already has .changes, return as-is
             if hasattr(result, 'changes'):
                 return result
-            # Otherwise, wrap it with empty changes
             from anki.collection import OpChanges
-            class ResultWithChanges:
-                def __init__(self, value, changes):
-                    self.value = value
-                    self.changes = changes
-            return ResultWithChanges(result, OpChanges())
+            return ValueWithChanges(result, OpChanges())
 
-        # Cast to appease type checkers: (Collection) -> ResultWithChanges[Any]
+        # Cast to appease type checkers: (Collection) -> a result with changes
         op = CollectionOp(
             parent=mw,
             op=cast(
@@ -349,21 +341,12 @@ def collection_op_run_async(
                 wrapped_op,
             ),  # type: ignore[arg-type]
         )
-        try:
-            op.success(_success)  # type: ignore[attr-defined]
-        except AttributeError:
-            pass
-        try:
-            op.failure(_failure)  # type: ignore[attr-defined]
-        except AttributeError:
-            pass
+        op.success(_success)
+        op.failure(_failure)
         # Tag the op so operation_did_execute subscribers (the event stream)
         # can attribute the change to the API rather than Anki's own UI, and
         # carry any identity the adapter attached (note_ids etc.).
-        try:
-            op.run_in_background(initiator=initiator)
-        except TypeError:
-            op.run_in_background()  # older signature without initiator
+        op.run_in_background(initiator=initiator)
 
     def dispatch() -> None:
         try:

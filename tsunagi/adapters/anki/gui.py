@@ -90,9 +90,9 @@ def _search_browser(browser: Any) -> None:
 
     from aqt.qt import QTimer
 
-    from ..ops import OP_TIMEOUT
+    from .. import ops
 
-    deadline = time.monotonic() + OP_TIMEOUT
+    deadline = time.monotonic() + ops.op_timeout()
 
     def active():
         return (_existing_dialog("Browser") is browser

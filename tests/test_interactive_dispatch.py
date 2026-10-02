@@ -12,7 +12,7 @@ from tsunagi.shared.errors import AnkiBusyError
 def test_expired_dispatch_never_opens_a_late_dialog(monkeypatch):
     queued = Queue()
     calls = []
-    monkeypatch.setattr(ops, 'OP_TIMEOUT', 0)
+    monkeypatch.setattr(ops, 'op_timeout', lambda: 0)
     monkeypatch.setattr(ops.mw.taskman, 'run_on_main', queued.put)
     with ThreadPoolExecutor() as pool:
         pending = pool.submit(ops.call_on_main_interactive, lambda: calls.append('opened'))
@@ -26,7 +26,7 @@ def test_expired_dispatch_never_opens_a_late_dialog(monkeypatch):
 def test_accepted_interaction_outlives_dispatch_timeout(monkeypatch, fail):
     queued = Queue()
     opened, close = Event(), Event()
-    monkeypatch.setattr(ops, 'OP_TIMEOUT', 0.1)
+    monkeypatch.setattr(ops, 'op_timeout', lambda: 0.1)
     monkeypatch.setattr(ops.mw.taskman, 'run_on_main', queued.put)
 
     def dialog():

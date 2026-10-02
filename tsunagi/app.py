@@ -403,9 +403,6 @@ def start_server(mw) -> None:
         if not cfg.get("enabled", True):
             _log("disabled via config; not starting"); return
 
-        from .adapters import ops
-        ops.OP_TIMEOUT = float(cfg.get("op_timeout_seconds", 15))
-
         settings.configure(cfg, persist=make_persist(mw))
         settings.anki_page_origin = f"http://127.0.0.1:{mw.mediaServer.getPort()}"
 
@@ -414,9 +411,9 @@ def start_server(mw) -> None:
             # config editor - kept as the fallback path for direct meta.json
             # edits; the settings dialog calls apply_config itself (and also
             # restarts the server for server-level keys, which this path does
-            # not - here host/port/op_timeout_seconds/log_level/enabled still
-            # need an Anki restart). Per-request keys (apps, roles, gates,
-            # cors_allowlist, media_*) apply immediately either way.
+            # not - here host/port/log_level/enabled still need an Anki
+            # restart). Per-request keys (apps, roles, gates, cors_allowlist,
+            # media_*, op_timeout_seconds) apply immediately either way.
             # write=False: Anki already wrote the edited dict.
             apply_config(mw, new_cfg, write=False)
 

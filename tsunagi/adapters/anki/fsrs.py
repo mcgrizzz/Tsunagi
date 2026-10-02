@@ -7,7 +7,7 @@ each method exists, so an Anki release that removes one reports that operation
 as unsupported instead of failing inside a request.
 
 compute_params/evaluate_params are plain (col, ...) functions on purpose: they
-can outlive OP_TIMEOUT, so the router runs them through query_op_run_async and
+can outlive op_timeout_seconds, so the router runs them through query_op_run_async and
 tracks completion in the job store instead of blocking.
 """
 from typing import Any, Dict, Optional

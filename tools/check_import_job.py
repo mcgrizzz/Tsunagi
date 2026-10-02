@@ -46,7 +46,7 @@ def check(app, screenshot):
             col.remove_notes([note.id])
             gui_hooks.operation_did_execute.append(changed)
             try:
-                with patch.object(ops, 'OP_TIMEOUT', 0.1), patch.object(
+                with patch.object(ops, 'op_timeout', lambda: 0.1), patch.object(
                     adapter.import_package, '__wrapped__', delayed
                 ):
                     request = pool.submit(route.import_, ImportRequest(path=path))

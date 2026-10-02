@@ -60,7 +60,7 @@ def test_pending_search_is_cancelled_when_superseded(client, cold_browser, chang
 def test_unready_editor_stops_polling_at_operation_timeout(client, cold_browser, monkeypatch, caplog):
     from tsunagi.adapters import ops
 
-    monkeypatch.setattr(ops, "OP_TIMEOUT", 0)
+    monkeypatch.setattr(ops, "op_timeout", lambda: 0)
     rpc(client, {"query": "cid:0"})
     cold_browser.callbacks.pop()(False)
     assert cold_browser.timers == []

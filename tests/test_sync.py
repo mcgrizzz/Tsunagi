@@ -121,7 +121,7 @@ def test_no_sync_account_is_400_with_no_hooks(client, web):
 
 
 def test_a_slow_sync_becomes_a_job(client, web, monkeypatch):
-    monkeypatch.setattr(ops, "OP_TIMEOUT", 0.05)
+    monkeypatch.setattr(ops, "op_timeout", lambda: 0.05)
     web.delay = 0.3
     resp = client.post("/v1/collection:sync")
     assert resp.status_code == 202
@@ -135,7 +135,7 @@ def test_a_slow_sync_becomes_a_job(client, web, monkeypatch):
 
 
 def test_ankiconnect_sync_waits_for_the_end(client, web, monkeypatch):
-    monkeypatch.setattr(ops, "OP_TIMEOUT", 0.05)
+    monkeypatch.setattr(ops, "op_timeout", lambda: 0.05)
     web.delay = 0.2
     body = client.post("/", json={"action": "sync", "version": 6}).json()
     assert body == {"result": None, "error": None}

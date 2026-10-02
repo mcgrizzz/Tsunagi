@@ -21,7 +21,7 @@ def pending(monkeypatch):
         calls.append((path, kwargs))
 
     monkeypatch.setattr(collection, 'submit_import_package', defer)
-    monkeypatch.setattr(collection.ops, 'OP_TIMEOUT', 0)
+    monkeypatch.setattr(collection.ops, 'op_timeout', lambda: 0)
     return calls, original
 
 
@@ -157,7 +157,7 @@ def test_queued_import_cannot_move_to_another_profile(client, monkeypatch):
     from tsunagi.adapters.anki import collection as adapter
 
     queued = []
-    monkeypatch.setattr(ops, 'OP_TIMEOUT', 0)
+    monkeypatch.setattr(ops, 'op_timeout', lambda: 0)
     monkeypatch.setattr(ops.mw.taskman, 'run_on_main', queued.append)
 
     def forbidden(*args, **kwargs):

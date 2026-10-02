@@ -45,7 +45,7 @@ def test_a_write_that_completes_after_a_503_is_returned_to_the_retry(client, col
     queued = []
     monkeypatch.setattr(notes_route, "collection_op_run_async",
                         lambda fn, *a, on_success, on_failure, **kw: queued.append((fn, a, kw, on_success)))
-    monkeypatch.setattr(ops, "OP_TIMEOUT", 0.05)
+    monkeypatch.setattr(ops, "op_timeout", lambda: 0.05)
     first = post_note(client, note(), "late")
     assert first.status_code == 503 and "retry with the same Idempotency-Key" in first.json()["detail"]
     assert post_note(client, note(), "late").status_code == 503  # still running: waits, starts nothing

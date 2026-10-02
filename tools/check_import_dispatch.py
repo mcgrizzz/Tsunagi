@@ -22,11 +22,11 @@ def check_mode(app, compat):
                 observations.append((dialog.isVisible(), request.done()))
                 dialog.reject()
 
-            # Keep a genuine nested Qt event loop open past OP_TIMEOUT.
+            # Keep a genuine nested Qt event loop open past the operation timeout.
             QTimer.singleShot(300, cancel)
             dialog.exec()
 
-        with patch.object(ops, 'OP_TIMEOUT', 0.1), patch.object(
+        with patch.object(ops, 'op_timeout', lambda: 0.1), patch.object(
             importing, 'prompt_for_file_then_import', prompt
         ):
             request = pool.submit(gui.import_file, _compat=compat)
