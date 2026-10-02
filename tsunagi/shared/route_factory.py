@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, create_model
 
 from ..shared.pagination import (
     decode_cursor,
+    decode_keyset_cursor,
     decode_order_cursor,
     encode_cursor,
     paginate_keyset,
@@ -65,6 +66,7 @@ from .sql_query import (
     filter_ids,
     first_by_id,
     first_per_value,
+    ordered_page,
 )
 
 Row = Union[Mapping[str, Any], Any]
@@ -366,6 +368,37 @@ def _ordered_scan(ids: List[int], hydrate: Callable, limit: Optional[int], curso
     return out, _order_cursor(ids, next_pos, id_getter(out[-1]) if out else None)
 
 
+def _column_order_scan(source, name: str, descending: bool, compiled, condition: tuple, hydrate: Callable,
+                       limit: Optional[int], cursor: Optional[str], wants: Optional[set],
+                       id_getter: Callable[[Row], Any],
+                       pred: Optional[Callable[[Mapping[str, Any]], bool]]) -> tuple:
+    """
+    Rows ordered by a column, a page at a time from SQL after the cursor's
+    (value, id) (backlog 8.1b); the predicate decides what SQL couldn't. The
+    cursor is the last row sent; there is none once no row follows it.
+    """
+    after = decode_keyset_cursor(cursor)
+    batch = HYDRATE_CHUNK if limit is None else max(min(limit, HYDRATE_CHUNK), 50)
+    out: List[Row] = []
+    while True:
+        keys = ordered_page(source, name, descending, compiled, after, batch, *condition)
+        by_id = {id_getter(r): r for r in hydrate([k[1] for k in keys], wants)} if keys else {}
+        for n, (value, rid) in enumerate(keys):
+            row = by_id.get(rid)
+            if row is None or (pred is not None and not pred(_as_dict(row))):
+                continue
+            out.append(row)
+            if limit is not None and len(out) == limit:
+                last = (value, int(rid))
+                more = (n + 1 < len(keys)
+                        or (len(keys) == batch and bool(ordered_page(source, name, descending, compiled,
+                                                                     last, 1, *condition))))
+                return out, encode_cursor({"after": list(last)}) if more else None
+        if len(keys) < batch:
+            return out, None
+        after = (keys[-1][0], int(keys[-1][1]))
+
+
 def _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search, order, start,
                    distinct_on=None):
     """`order` and `distinct_on` (backlog 8.1, 8.12): the rows in order, then
@@ -400,6 +433,15 @@ def _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search,
                 found = caps.search.find_ids(search)
             ids = first_by_id(caps.sql, distinct_on, compiled or Compiled("", (), 0), descending,
                               found, *condition)
+        elif name is not None and distinct_on is None and caps.order.by_column:
+            # Each page starts after the last row sent, in SQL (backlog 8.1b).
+            condition: tuple = ("", ())
+            if search:
+                condition = caps.sql.search_condition(search)
+            rows, cur = _column_order_scan(caps.sql, name, descending, compiled or Compiled("", (), 0),
+                                           condition, _search_hydrator(caps.search), limit, cursor, wants,
+                                           id_getter, pred)
+            return _finish(rows, cur, select, shape, start)
         else:
             if name is not None:
                 ids = caps.order.ordered_ids(search or "", name, descending)

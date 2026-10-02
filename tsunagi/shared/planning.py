@@ -99,6 +99,9 @@ class OrderSpec:
     """
     names: Callable[[], List[str]]                      # the sort names available now
     ordered_ids: Callable[[str, str, bool], List[int]]  # (search, name, descending) -> ids in order, ties by id
+    # The sort is the column of the same name in the resource's ColumnSource
+    # (reviews), so a page can start after the last row sent (backlog 8.1b).
+    by_column: bool = False
 
 # Subresource Mutation Capabilities
 @dataclass

@@ -121,6 +121,26 @@ def page_ids(source: ColumnSource, compiled: Compiled, after: Optional[int], lim
     return source.run(sql, ([int(after)] if after is not None else []) + list(compiled.args) + [int(limit)])
 
 
+def ordered_page(source: ColumnSource, name: str, descending: bool, compiled: Compiled,
+                 after: Optional[Tuple[Any, int]], limit: int, condition: str = "",
+                 condition_args: Sequence[Any] = ()) -> List[Sequence[Any]]:
+    """
+    (value, id) of the next `limit` rows ordered by the column `name`, ties in
+    ascending id, starting after `after` (the last row sent): a page that
+    costs about the same however deep it is (backlog 8.1b). For columns that
+    are never null.
+    """
+    assert source.rows is not None
+    expr = source.columns[name].sql
+    keyset, keyset_args = "", []
+    if after is not None:
+        keyset = f"(({expr}) {'<' if descending else '>'} ? or (({expr}) = ? and id > ?))"
+        keyset_args = [after[0], after[0], int(after[1])]
+    sql = (f"select ({expr}), id from {source.table}{_where(condition, compiled.condition, keyset)} "
+           f"order by ({expr}) {'desc' if descending else 'asc'}, id limit ?")
+    return source.rows(sql, list(condition_args) + list(compiled.args) + keyset_args + [int(limit)])
+
+
 def count(source: ColumnSource, compiled: Compiled, condition: str = "",
           condition_args: Sequence[Any] = ()) -> int:
     """How many rows the pushed clauses (and a search's `condition`) match."""

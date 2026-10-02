@@ -114,6 +114,11 @@ says otherwise.
   took 572 ms and 15.9 MB, with the latest per card picked by the client;
   `GET /v1/reviews?search=deck:*&distinct_on=card_id&order=id:desc` took
   44 ms and 230 KB for the same 3,986 rows.
+- **Paging through sorted reviews:** `GET /v1/reviews?order=interval:desc`,
+  page after page with `next_cursor`. On the owner's desktop (2026-10-01,
+  283,038 reviews), a page costs the same at any depth: 30 ms for 50 rows,
+  80 ms for 1,000. Walking every review 1,000 at a time took 20.5 s in 284
+  pages.
 - **Simplifications:** asbplayer's update searches only the benchmark deck
   instead of the whole collection, to keep the test profile safe, and skips an
   optional Browser refresh. asbplayer's change poll normally also filters by

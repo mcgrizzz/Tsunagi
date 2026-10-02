@@ -50,7 +50,8 @@ caps = SourceCaps(
     # Every review field is a column: where clauses go into the id query (backlog 9.13).
     sql=REVIEW_SQL,
     # order= sorts by any review field in SQL; Anki doesn't sort reviews (backlog 8.1).
-    order=OrderSpec(names=lambda: list(REVIEW_SQL.columns), ordered_ids=ordered_review_ids),
+    order=OrderSpec(names=lambda: list(REVIEW_SQL.columns), ordered_ids=ordered_review_ids,
+                    by_column=True),
     # No MutationCaps: the factory's CRUD shapes don't fit an append-only log.
     # The one write - raw row insertion for history imports, AnkiConnect's
     # insertReviews - is the hand-written POST below.
