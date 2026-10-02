@@ -1,0 +1,91 @@
+name: Weekly checks
+
+# Runs once a week without a push: the full CI (suite on both supported Anki
+# versions, Qt checks, pip-audit), so a change in Anki, a dependency or the
+# runner shows before the next push; and upstream AnkiConnect against
+# docs/ankiconnect_parity.md, so an action it gains or drops shows. A failure
+# opens an issue labelled `weekly`, or comments on the one still open.
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      drift: ${{ steps.check.outputs.drift }}
+      report: ${{ steps.check.outputs.report }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Clone upstream AnkiConnect
+        run: git clone --depth 1 https://git.sr.ht/~foosoft/anki-connect "$RUNNER_TEMP/anki-connect"
+
+      - name: Compare its actions with the compatibility page
+        id: check
+        run: |
+          set +e
+          python3 tools/check_parity.py --clone "$RUNNER_TEMP/anki-connect" | tee "$RUNNER_TEMP/parity.txt"
+          code=${PIPESTATUS[0]}
+          set -e
+          # 1 is drift, reported as an issue; anything else is a broken check.
+          if [ "$code" = 1 ]; then
+            { echo "drift=true"; echo "report<<EOF"; cat "$RUNNER_TEMP/parity.txt"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$code"
+
+  report:
+    needs: [ci, parity]
+    if: always() && (needs.ci.result != 'success' || needs.parity.result != 'success' || needs.parity.outputs.drift == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CI_RESULT: ${{ needs.ci.result }}
+          PARITY: ${{ needs.parity.result }}
+          DRIFT: ${{ needs.parity.outputs.drift }}
+          DRIFT_REPORT: ${{ needs.parity.outputs.report }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create weekly --color fbca04 \
+            --description "Weekly checks: CI or AnkiConnect drift" 2>/dev/null || true
+          report() {  # title, body
+            num=$(gh issue list --label weekly --state open --json number,title \
+              --jq ".[] | select(.title == \"$1\") | .number" | head -n 1)
+            if [ -n "$num" ]; then gh issue comment "$num" --body "$2"
+            else gh issue create --label weekly --title "$1" --body "$2"; fi
+          }
+          if [ "$CI_RESULT" != success ] || [ "$PARITY" != success ]; then
+            report "Weekly checks failed" "CI: $CI_RESULT
+          AnkiConnect check: $PARITY
+
+          Run: $RUN_URL"
+          fi
+          if [ "$DRIFT" = true ]; then
+            report "Upstream AnkiConnect changed its actions" "Update docs/ankiconnect_parity.md (and the Shim, if the action should be supported).
+
+          \`\`\`
+          $DRIFT_REPORT
+          \`\`\`
+
+          Run: $RUN_URL"
+          fi

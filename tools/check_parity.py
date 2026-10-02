@@ -4,7 +4,8 @@ Diff docs/ankiconnect_parity.md against a local AnkiConnect checkout.
 
 `tests/test_parity_doc.py` checks the doc against our own registry, which
 catches us drifting from our own claim. It cannot catch *upstream* drifting
-from us, because CI has no copy of AnkiConnect. Run this by hand after
+from us, because the suite has no copy of AnkiConnect. The weekly checks
+(`.github/workflows/scheduled.yml`) run this on a fresh clone; by hand, after
 pulling the reference clone:
 
     cd ~/refs/anki-connect && git pull

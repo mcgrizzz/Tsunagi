@@ -74,9 +74,9 @@ environment active.
 <summary>AnkiConnect comparisons</summary>
 
 - To see whether upstream AnkiConnect gained or dropped actions, pull a local
-  checkout of it and run `python tools/check_parity.py`. The routine tests only
-  compare the [compatibility page](ankiconnect_parity.md) with Tsunagi's own
-  actions.
+  checkout of it and run `python tools/check_parity.py` (the weekly checks
+  also do this). The routine tests only compare the
+  [compatibility page](ankiconnect_parity.md) with Tsunagi's own actions.
 - The broad comparison suite against upstream is archived in Git at `3c8e2dd`
   (`tests/test_upstream_*.py`, `tests/upstream_support.py`). To run it again,
   check out that revision separately and set `TSUNAGI_ANKICONNECT_CHECKOUT` to
@@ -96,6 +96,10 @@ environment active.
   has an Anki release, beta or RC it hasn't tested, it runs the suite and Qt
   checks against it and records the result as an `anki-watch` issue (closed if
   everything passed).
+- The [weekly checks](../.github/workflows/scheduled.yml) run `ci.yml` without
+  a push, and compare upstream AnkiConnect's actions with the compatibility
+  page. A failure or a change upstream opens a `weekly` issue, or comments on
+  the one still open.
 
 ## Try changes in Anki
 
