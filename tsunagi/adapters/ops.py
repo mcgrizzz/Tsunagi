@@ -63,7 +63,13 @@ class ValueWithChanges:
         self.event_changes = event_changes
         self.changes = getattr(changes, "changes", changes)
 
-def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], what: str) -> Any:
+def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], what: str,
+          result_on_main: bool = False) -> Any:
+    if result_on_main and not done.is_set() and threading.current_thread() is threading.main_thread():
+        # An Anki op reports back on this thread, so waiting here can only
+        # time out (backlog 8.13). The op has started and still finishes.
+        raise RuntimeError(f"{what} called on Anki's main thread, which can't wait for its "
+                           "result; call it from another thread, or use the *_run_async form")
     limit = OP_TIMEOUT if timeout is None else timeout
     # Event.wait rejects an infinite timeout, so FOREVER is no timeout at all.
     if not done.wait(None if limit == FOREVER else limit):
@@ -74,7 +80,7 @@ def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], 
 
 def recorded(begin: Callable[[Callable[[Any], None], Callable[[BaseException], None]], None],
              timeout: Optional[float] = None, what: str = "Write operation",
-             rerun_if: Optional[Callable[[Any], bool]] = None) -> Any:
+             rerun_if: Optional[Callable[[Any], bool]] = None, result_on_main: bool = False) -> Any:
     """
     One step of a write: `begin(done, fail)` starts it and calls one of them
     when it ends, however late. Waits `timeout` like any write (503 past it,
@@ -105,7 +111,7 @@ def recorded(begin: Callable[[Callable[[Any], None], Callable[[BaseException], N
         done.set()
 
     begin(ok, fail)
-    return _wait(done, box, timeout, what)
+    return _wait(done, box, timeout, what, result_on_main)
 
 def call_on_main(fn: Callable[P, R], /, *args: P.args, timeout: Optional[float] = None, **kwargs: P.kwargs) -> R:
     """
@@ -232,7 +238,7 @@ def query_op_call(
     else:
         mw.taskman.run_on_main(start_on_main)
 
-    return cast(R, _wait(done, box, timeout, "Read operation"))
+    return cast(R, _wait(done, box, timeout, "Read operation", result_on_main=True))
 
 def query_op_run_async(
     fn: Callable[[Collection], R],
@@ -384,7 +390,8 @@ def collection_op_call(
 ) -> R:
     """Wait for a CollectionOp result, retaining the ordinary operation deadline."""
     return cast(R, recorded(lambda ok, fail: collection_op_run_async(
-        fn, *args, on_success=ok, on_failure=fail, event_details=event_details, **kwargs), timeout))
+        fn, *args, on_success=ok, on_failure=fail, event_details=event_details, **kwargs), timeout,
+        result_on_main=True))
 
 
 def as_collection_op(
