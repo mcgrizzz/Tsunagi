@@ -97,7 +97,7 @@ def test_unsupported_duplicate_scope_is_not_silently_treated_as_collection(clien
     body = {"notes": submitted} if path.endswith(":check") else submitted
     response = client.post(path, json=body)
     assert response.status_code == 422, response.text
-    assert "duplicateScope" in response.text
+    assert "duplicate_scope" in response.text
     assert col.note_count() == 0
 
 

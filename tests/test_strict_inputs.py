@@ -44,7 +44,7 @@ def test_set_values_still_writes_a_column(client, col, cid):
 
 
 @pytest.mark.parametrize("operations,loc", [
-    ([{"op": "suspend"}], ["body", "operations", 0, "cardIds"]),
+    ([{"op": "suspend"}], ["body", "operations", 0, "card_ids"]),
     ([{"op": "set-flag", "card_ids": [1], "flag": 99}], ["body", "operations", 0, "flag"]),
     ([{"op": "nope"}], ["body", "operations", 0, "op"]),
     ([], ["body", "operations"]),

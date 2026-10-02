@@ -34,6 +34,7 @@ from ...adapters.anki.sorting import find_sorted, sort_names
 from ...shared.errors import (
     ResourceNotFoundError,
     ValidationError,
+    field_loc,
     handle_mutation_errors,
 )
 from ...shared.permissions import requires
@@ -306,7 +307,8 @@ def batch(body: BatchRequest = Body(...)) -> BatchResult:
             parsed.append((name, model.parse_obj(item)))
         except PydanticValidationError as e:
             raise RequestValidationError(
-                [{**err, "loc": ("body", "operations", i) + tuple(err["loc"])} for err in e.errors()]) from e
+                [{**err, "loc": ("body", "operations", i) + field_loc(model, err["loc"])}
+                 for err in e.errors()]) from e
     result = batch_cards(parsed)
     return BatchResult(
         affected=result["affected"],

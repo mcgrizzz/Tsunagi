@@ -7,7 +7,17 @@ import logging
 import time
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, Dict, FrozenSet, Iterator, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    Iterator,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -127,6 +137,10 @@ def register_exception_handlers(app: Any, syncing: Callable[[], bool] = lambda: 
         # `detail` is a string in every error response; FastAPI's own 422
         # puts its list there, so the list moves to `errors`.
         errors = exc.errors()
+        body = getattr(getattr(request.scope.get("route"), "body_field", None), "outer_type_", None)
+        if body is not None:
+            errors = [{**e, "loc": ("body",) + field_loc(body, e["loc"][1:])}
+                      if e.get("loc", ())[:1] == ("body",) else e for e in errors]
         parts = [f"{'.'.join(str(p) for p in e.get('loc', ()))}: {e.get('msg', '')}" for e in errors[:3]]
         more = f" (and {len(errors) - 3} more)" if len(errors) > 3 else ""
         return JSONResponse(status_code=422, content={
@@ -134,6 +148,42 @@ def register_exception_handlers(app: Any, syncing: Callable[[], bool] = lambda: 
             "errors": jsonable_errors(errors)})
 
     app.add_exception_handler(RequestValidationError, _invalid)
+
+
+def field_loc(annotation: Any, loc: Any) -> tuple:
+    """
+    A validation error's location with field names for aliases (6.78):
+    pydantic 1 reports `addTags` where the API description says `add_tags`.
+    Walks `annotation` (a model, or lists, dicts and unions of them) along
+    `loc`; a part it can't place is kept as it is.
+    """
+    from pydantic import BaseModel
+
+    out = []
+    types = [annotation]
+    for part in loc:
+        name, inner = part, []
+        for kind in _members(types):
+            if isinstance(kind, type) and issubclass(kind, BaseModel) and isinstance(part, str):
+                field = next((f for f in kind.__fields__.values() if part in (f.alias, f.name)), None)
+                if field is not None:
+                    name = field.name
+                    inner.append(field.outer_type_)
+            elif get_origin(kind) in (list, tuple, set, frozenset) and isinstance(part, int):
+                inner.extend(get_args(kind)[:1])
+            elif get_origin(kind) is dict and isinstance(part, str):
+                inner.extend(get_args(kind)[1:2])
+        out.append(name)
+        types = inner
+    return tuple(out)
+
+
+def _members(types: list) -> list:
+    """Each type, with unions (Optional too) opened."""
+    out = []
+    for kind in types:
+        out.extend(get_args(kind) if get_origin(kind) is Union else [kind])
+    return out
 
 
 def jsonable_errors(errors: list) -> list:
