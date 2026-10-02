@@ -77,10 +77,10 @@ def test_expired_request_closes_its_active_dialog_on_ui_thread(qt_host, monkeypa
     results, guard_fired = [], []
     original_wait = ops._wait
 
-    def wait_after_visible(done, box, timeout, what):
+    def wait_after_visible(done, box, timeout, what, result_on_main=False):
         # Cold Qt/font initialization must not consume the active-dialog deadline.
         assert qt.shown.wait(timeout=5)
-        return original_wait(done, box, 0.01, what)
+        return original_wait(done, box, 0.01, what, result_on_main)
 
     monkeypatch.setattr(ops, "_wait", wait_after_visible)
 
