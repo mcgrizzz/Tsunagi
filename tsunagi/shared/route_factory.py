@@ -10,6 +10,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    FrozenSet,
     List,
     Literal,
     Mapping,
@@ -509,6 +510,24 @@ def _wanted_fields(select: Optional[str], where: Optional[List[str]]) -> Optiona
         return None
     return wants | {parse_where(w).tokens[0] for w in (where or [])}
 
+def _check_fields(select: Optional[str], where: Optional[List[str]], fields: FrozenSet[str]) -> None:
+    """A name the rows don't have is a 400 naming the ones they do: a guessed
+    name would otherwise look like an empty result. Text that doesn't parse
+    is left to the query, which says why."""
+    try:
+        named = set(referenced_top_fields(select) or ())
+    except ValueError:
+        named = set()
+    for text in where or []:
+        try:
+            named.add(parse_where(text).tokens[0])
+        except (ValueError, IndexError):
+            pass
+    unknown = sorted(named - fields)
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown field {unknown[0]}. Fields: {', '.join(sorted(fields))}")
+
+
 def _execute_query(
     select: Optional[str],
     where: Optional[List[str]],
@@ -521,11 +540,16 @@ def _execute_query(
     order: Optional[str] = None,
     distinct_on: Optional[str] = None,
     include: Optional[str] = None,
+    fields: Optional[FrozenSet[str]] = None,
 ) -> Paginated[ModelRow]:
     """
     Core query execution logic shared between GET and POST routes. limit=0
     skips the rows; include=total adds how many the query matches (8.1).
+    `fields`: the row's fields, when they are fixed; select and where may
+    name only those (6.77).
     """
+    if fields is not None:
+        _check_fields(select, where, fields)
     start = time.perf_counter()
     total = "total" in parse_include(include, ["total"])
     if total and caps.fetch_all is not None:
@@ -734,6 +758,8 @@ def create_resource_routes(
     write_permission = requires(f"write:{permission_resource}")
 
     response_model = documented_rows(row_model, resource_name)
+    # Anki's deck presets keep keys this API doesn't list; their names aren't checked.
+    fields = None if row_model.__config__.extra == "allow" else frozenset(row_model.__fields__)
 
     def query_response(page):
         # The shared query engine already validated and projected this
@@ -788,6 +814,7 @@ def create_resource_routes(
             select=select, where=where, search=search, shape=shape, order=order,
             distinct_on=distinct_on, include=include, limit=limit, cursor=cursor, caps=caps,
             id_getter=id_getter,
+            fields=fields,
         ))
 
     # POST endpoint - query params in body
@@ -817,6 +844,7 @@ def create_resource_routes(
             cursor=query.cursor,
             caps=caps,
             id_getter=id_getter,
+            fields=fields,
         ))
 
     # Mutation endpoints (if mutations provided)
