@@ -10,7 +10,7 @@ A one-line description, under 80 characters. The same name as `manifest.json`,
 which Anki shows in its add-on list.
 
 ```text
-Tsunagi - Modern API access to Anki
+🔗 Tsunagi - Modern API access to Anki
 ```
 
 ## Tags
