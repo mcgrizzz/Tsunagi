@@ -1,4 +1,5 @@
 import socket
+import sys
 from typing import Tuple
 
 # Top-level package name of the addon (= installed folder name); used as the
@@ -109,6 +110,11 @@ def load_config() -> dict:
 
 def _bindable(host: str, port: int) -> bool:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # As uvicorn binds (asyncio sets SO_REUSEADDR on POSIX only): without it,
+    # connections a stopped server closed (TIME_WAIT) make the port look busy
+    # on Linux and macOS. On Windows it would allow binding over a live server.
+    if sys.platform != "win32":
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         s.bind((host, port))
         return True
