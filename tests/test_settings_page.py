@@ -15,14 +15,7 @@ def fresh():
 
 def draft_of(cfg):
     """What the page sends back when nothing was edited."""
-    state = page.page_state(cfg, {})
-    draft = {"values": state["values"],
-             "gates": {g["key"]: g["on"] for g in state["gates"]},
-             "apps": state["apps"],
-             "roles": [{k: g[k] for k in ("id", "name", "grants")} for g in state["roles"]]}
-    for row in state["no_key_rows"]:
-        draft[row["setting"]] = row["role"]
-    return draft
+    return page.page_draft(page.page_state(cfg, {}))
 
 
 def test_catalog_labels_every_permission():
@@ -233,11 +226,25 @@ def test_bridge_save_applies_and_stays_open(monkeypatch):
     draft = draft_of(fresh())
     draft["apps"] = [{"name": "Phone", "key": "p" * 32, "role": "read_only"}]
     res = cmd(b, "save", draft)
-    assert res["ok"] and res["state"]["apps"][0]["name"] == "Phone"  # the page's new baseline
+    assert res["ok"] and res["cfg"]["apps"][0]["name"] == "Phone"  # the page's new baseline
     assert saved[0][0]["apps"][0]["name"] == "Phone" and saved[0][1] is False
     assert events == []  # stays open; no server-level change, so no restart
-    assert cmd(b, "save", {**draft, "close": True}) == {"ok": True}  # the X/Esc prompt's Save
-    assert events == ["close"]
+
+
+def test_bridge_state_carries_what_the_page_edits_as_cfg():
+    # Kiso's shell keeps state.cfg as the page's saved and draft config.
+    b, _ = bridge()
+    state = cmd(b, "state")
+    assert state["cfg"] == page.page_draft(state) == draft_of(fresh())
+
+
+def test_bridge_save_failure_is_an_error_kiso_can_show(monkeypatch):
+    def fail(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr("tsunagi.adapters.settings_dialog.save_settings", fail)
+    b, _ = bridge()
+    assert cmd(b, "save", draft_of(fresh()))["errors"] == [
+        {"message": "Could not save settings: disk full", "page": None, "field": None}]
 
 
 def test_bridge_save_restarts_the_server_for_server_keys(monkeypatch):

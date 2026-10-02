@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def bootstrap():
     if not (ROOT / "lib/shared/fastapi").is_dir():
-        raise RuntimeError("build vendored dependencies first: python3 tools/build_addon.py --offline")
+        raise RuntimeError("vendor the dependencies first: kiso vendor --offline")
     for path in (ROOT / "lib/shared", ROOT, ROOT / "tests"):
         sys.path.insert(0, str(path))
     import anki.collection  # noqa: F401 (initialize before Anki's circular imports)

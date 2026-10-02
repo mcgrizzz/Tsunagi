@@ -4,7 +4,7 @@ version = "0.5.0"
 description = "HTTP API for Anki with advanced querying and pagination"
 requires-python = ">=3.10"
 
-# Runtime deps are vendored by tools/build_addon.py (tools/requirements.lock.txt
+# Runtime deps are vendored into lib/shared by `kiso vendor` (tools/requirements.lock.txt
 # is the single source of truth); tests run against the vendored lib/shared.
 #
 # `anki` is a TEST-ONLY dependency and must never reach lib/shared or the lock
@@ -17,6 +17,32 @@ requires-python = ">=3.10"
 dev = [
     "pytest", "ruff", "httpx",
     "anki>=26.8",
+]
+
+[tool.kiso]
+# Kiso (github.com/mcgrizzz/Kiso): the plumbing shared with the owner's other
+# add-ons, bundled into tsunagi/_kiso/ (not in Git). `kiso vendor` puts the web
+# stack the lockfile pins into lib/shared (pure-Python wheels only), and `kiso
+# build` ships it.
+package = "tsunagi"
+root_files = ["__init__.py", "manifest.json", "config.json", "config.md", "README.md", "LICENSE"]
+dev_name = "Tsunagi (dev)"
+kiso = "0.1"
+vendor = "tools/requirements.lock.txt"
+# Advisories `kiso audit` (CI) skips: each is unreachable in Tsunagi today;
+# recheck it when the named feature starts being used. Any other one fails CI.
+audit_ignore = [
+    # starlette form parsing (CVE-2026-54283): Tsunagi parses no forms and
+    # python-multipart is not vendored. Backlog 7.5. The fixes for this and
+    # the ones below are in starlette 1.x; the bundled FastAPI 0.125.0 requires
+    # starlette<0.51, and later FastAPI releases require pydantic 2.
+    "PYSEC-2026-249",
+    # starlette request.url rebuilt from Host/path (CVE-2026-48710, CVE-2026-54282):
+    # auth and routing read scope["path"]; the Host header is validated first.
+    "PYSEC-2026-161", "PYSEC-2026-248",
+    # starlette StaticFiles on Windows (CVE-2026-48818), HTTPEndpoint methods
+    # (CVE-2026-48817): neither is used.
+    "PYSEC-2026-2281", "PYSEC-2026-2280",
 ]
 
 [tool.pytest.ini_options]
@@ -33,7 +59,7 @@ filterwarnings = [
 
 [tool.ruff]
 target-version = "py310"
-extend-exclude = ["lib", ".wheelhouse", "dist"]
+extend-exclude = ["lib", ".wheelhouse", "dist", "tsunagi/_kiso"]
 
 [tool.ruff.lint]
 # Lean ruleset: real defects (F, B, E4/E9 syntax+imports) + import order (I).
@@ -43,6 +69,10 @@ ignore = [
     "E401",  # existing compact style uses `import a, b`
     "B905",  # zip(strict=) only exists from Python 3.10; existing zips pair equal-length sequences
 ]
+
+[tool.ruff.lint.isort]
+# tsunagi/_kiso exists only once Kiso is bundled (pytest, kiso build); CI lints before that.
+known-first-party = ["tsunagi"]
 
 [tool.ruff.lint.flake8-bugbear]
 # fastapi's Query/Body/Path in defaults is the framework idiom, not a bug

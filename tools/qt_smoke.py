@@ -1,35 +1,33 @@
-"""Isolated real-Anki setup for focused GUI smoke tools."""
+"""Real-Anki checks on Kiso's harness (kiso_dev.harness): Anki runs offscreen in
+a throwaway profile, with Tsunagi installed through its real root __init__.py,
+so its server, hooks and settings are the ones a user gets.
 
-import argparse
-import os
+    from qt_smoke import aqt, run, tsunagi, until
+
+    def check(app, screenshot):            # screenshot: a .png path, or None
+        gui = tsunagi("adapters.anki.gui")  # the installed add-on's module
+        ...
+
+    if __name__ == "__main__":
+        run(check, __doc__)                 # --screenshots DIR saves <check>.png there
+"""
+
+# isort: off
+# kiso_dev.harness sets Qt up for offscreen use before aqt loads, so it comes first.
+from kiso_dev import harness
+from kiso_dev.harness import addon, js, pump, until  # noqa: F401  (re-exported for the checks)
+
+import importlib
 import sys
-import tempfile
-import time
-import traceback
 from pathlib import Path
 
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
-os.environ["ANKI_SOFTWAREOPENGL"] = "1"
-
-import aqt  # noqa: E402
-from aqt.profiles import ProfileManager  # noqa: E402
-from aqt.qt import QCoreApplication, QEvent, sip  # noqa: E402
-
-REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "lib" / "shared"))
-sys.path.insert(0, str(REPO))
+import aqt  # noqa: F401  (re-exported for the checks)
+# isort: on
 
 
-def until(app, predicate, seconds=20):
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        app.processEvents()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        if predicate():
-            return
-        time.sleep(0.01)
-    raise AssertionError("Qt condition timed out")
+def tsunagi(module: str):
+    """A module of the installed add-on's package: tsunagi("adapters.anki.gui")."""
+    return importlib.import_module(f"{addon().__name__}.tsunagi.{module}")
 
 
 def wait_for_editor(app, editor):
@@ -45,41 +43,7 @@ def wait_for_editor(app, editor):
 
 
 def run(check, description):
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--screenshot", type=Path)
-    args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="tsunagi-smoke-qt-") as base:
-        pm = ProfileManager(base)
-        pm.setupMeta()
-        pm.create("TsunagiQtAudit")
-        pm.openProfile("TsunagiQtAudit")
-        pm.meta["defaultLang"] = "en_US"
-        pm.save()
-        pm.db.close()
-        # Bypass IPC so this process cannot signal another Anki instance.
-        aqt.AnkiApp.secondInstance = lambda self: False
-        app = aqt._run(
-            ["anki", "-b", base, "-p", "TsunagiQtAudit", "-l", "en", "--safemode"],
-            exec=False,
-        )
-        assert app is not None
-        errors = []
-        original_hook = sys.excepthook
-
-        def exception_hook(kind, value, tb):
-            errors.append(str(value))
-            traceback.print_exception(kind, value, tb)
-
-        sys.excepthook = exception_hook
-        try:
-            until(app, lambda: aqt.mw.col is not None and aqt.mw.state == "deckBrowser")
-            check(app, args.screenshot)
-            assert not errors, errors
-        finally:
-            # Anki deletes the Qt wrapper during shutdown; don't inspect it after that.
-            if not sip.isdeleted(aqt.mw):
-                aqt.mw.close()
-                until(app, lambda: sip.isdeleted(aqt.mw))
-            sys.excepthook = original_hook
-    assert not Path(base).exists()
-    print("PASS: isolated Anki shutdown and temporary profile cleanup.", flush=True)
+    """Run check(app, screenshot) in Anki once it shows the deck list."""
+    name = Path(sys.argv[0]).stem
+    harness.run(lambda app, shots, base: check(app, shots / f"{name}.png" if shots else None),
+                description)

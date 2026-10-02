@@ -36,7 +36,13 @@ class TestMigrate:
         cfg["config_version"] = 1
         cfg, changed = _migrate(cfg)
         assert changed
-        assert cfg["config_version"] == 4
+        assert cfg["config_version"] == DEFAULTS["config_version"]
+
+    def test_v5_drops_the_old_dev_watch_setting(self):
+        # Kiso's dev watch (a DEV_WATCH file from `kiso sync`) replaced it.
+        cfg, changed = _migrate({**DEFAULTS, "dev_watch_seconds": 1, "config_version": 4})
+        assert changed
+        assert "dev_watch_seconds" not in cfg and cfg["config_version"] == 5
 
     def test_v2_install_gains_localhost_allowlist(self):
         # Pre-v3 installs have an empty allowlist, which blocks browser
@@ -64,7 +70,7 @@ class TestMigrate:
         assert changed
         assert "media_allow_local_path" not in cfg
         assert cfg["gates"] == DEFAULTS["gates"]  # now a permission (6.5a)
-        assert cfg["config_version"] == 4
+        assert cfg["config_version"] == DEFAULTS["config_version"]
 
     def test_migration_does_not_alias_defaults(self):
         # A migrated config must own its nested containers - mutating them

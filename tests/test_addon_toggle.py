@@ -1,7 +1,8 @@
 """Turning Tsunagi off in Tools -> Add-ons offers to stop its server now."""
 from types import SimpleNamespace
 
-from tsunagi.adapters.addon_toggle import ServerSwitch, watch_own_toggle
+from tsunagi._kiso.toggle import watch_own_toggle
+from tsunagi.adapters.addon_toggle import ServerSwitch
 
 
 class Manager:

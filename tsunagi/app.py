@@ -2,7 +2,7 @@
 import json
 import threading
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
 from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel, Field
@@ -10,8 +10,8 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, JSONResponse
 
 from .adapters.anki import collection as anki_collection
-from .adapters.config import ADDON_PACKAGE, choose_port, load_config
-from .adapters.settings import apply_config, make_persist, settings
+from .adapters.config import choose_port, load_config
+from .adapters.settings import make_persist, settings
 from .http.compat import (
     actions as _compat_actions,  # noqa: F401  (side-effect import: registers action handlers)
 )
@@ -406,19 +406,6 @@ def start_server(mw) -> None:
         settings.configure(cfg, persist=make_persist(mw))
         settings.anki_page_origin = f"http://127.0.0.1:{mw.mediaServer.getPort()}"
 
-        def _on_config_updated(new_cfg: dict) -> None:
-            # Anki calls this (main thread) when the user saves the raw JSON
-            # config editor - kept as the fallback path for direct meta.json
-            # edits; the settings dialog calls apply_config itself (and also
-            # restarts the server for server-level keys, which this path does
-            # not - here host/port/log_level/enabled still need an Anki
-            # restart). Per-request keys (apps, roles, gates, cors_allowlist,
-            # media_*, op_timeout_seconds) apply immediately either way.
-            # write=False: Anki already wrote the edited dict.
-            apply_config(mw, new_cfg, write=False)
-
-        mw.addonManager.setConfigUpdatedAction(ADDON_PACKAGE, _on_config_updated)
-
         # Other add-ons' action providers (backlog 2b-P); all are loaded by now.
         from .adapters import addon_actions
         addon_actions.collect()
@@ -504,39 +491,49 @@ def server_url() -> Optional[str]:
     return f"http://{st.host}:{st.port}" if st.started else None
 
 
+def begin_stop(reason: str = "shutdown") -> Callable[[], bool]:
+    """
+    Signal uvicorn to exit without waiting for it. `reason` is what open event
+    streams are told in their close event. Returns whether the server thread
+    has ended (so the port is free); the dev reload polls it from a timer, so
+    requests waiting on Anki's main thread can finish meanwhile.
+    """
+    st = _SERVER_STATE
+    thread = st.thread
+    if st.started:
+        try:
+            # Close open event streams BEFORE signaling uvicorn: its graceful
+            # shutdown waits on in-flight responses, and an SSE stream is
+            # in-flight for its whole life. Generators poll this flag and exit
+            # within ~0.5s.
+            from .adapters.events import broker
+            broker.begin_drain(reason=reason)
+        except Exception:
+            log.exception("Closing the event streams failed")
+        finally:
+            if st.server is not None:
+                st.server.should_exit = True
+            st.thread = None
+            st.server = None
+            st.port = None
+            st.started = False
+            _set_app_nap(allowed=True)
+    return lambda: thread is None or not thread.is_alive()
+
+
 def stop_server(reason: str = "shutdown") -> bool:
     """
     Signal uvicorn to exit and wait briefly; called on profile close.
     `reason` is what open event streams are told in their close event.
 
     Returns False if the thread outlived the wait, which means the port may
-    still be held - the dev reload needs to know that before rebinding.
+    still be held.
     """
-    st = _SERVER_STATE
-    stopped = True
-    if not st.started:
-        return True
-    try:
-        # Close open event streams BEFORE signaling uvicorn: its graceful
-        # shutdown waits on in-flight responses, and an SSE stream is
-        # in-flight for its whole life. Generators poll this flag and exit
-        # within ~0.5s, well inside the join below.
-        from .adapters.events import broker
-        broker.begin_drain(reason=reason)
-        if st.server is not None:
-            st.server.should_exit = True
-        if st.thread is not None:
-            st.thread.join(5)
-            if st.thread.is_alive():
-                log.warning("Server thread did not stop within 5s; abandoning it (daemon)")
-                stopped = False
-    except Exception:
-        log.exception("Server shutdown failed")
-        stopped = False
-    finally:
-        st.thread = None
-        st.server = None
-        st.port = None
-        st.started = False
-        _set_app_nap(allowed=True)
-    return stopped
+    thread = _SERVER_STATE.thread
+    stopped = begin_stop(reason)
+    if thread is not None:
+        thread.join(5)
+    if not stopped():
+        log.warning("Server thread did not stop within 5s; abandoning it (daemon)")
+        return False
+    return True

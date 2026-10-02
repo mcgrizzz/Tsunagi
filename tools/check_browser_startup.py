@@ -3,14 +3,14 @@
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-from qt_smoke import aqt, run, until, wait_for_editor
+from qt_smoke import aqt, run, tsunagi, until, wait_for_editor
 
 
 def check(app, screenshot):
     from aqt.operations import QueryOp
     from aqt.webview import AnkiWebPage
 
-    from tsunagi.adapters.anki import gui
+    gui = tsunagi("adapters.anki.gui")
 
     col = aqt.mw.col
     notes = []

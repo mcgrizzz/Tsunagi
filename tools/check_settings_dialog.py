@@ -4,8 +4,8 @@ Covers load, apps and no-key roles, the other-devices confirmation (Save going
 to the field that needs it), a page's own revert and restore, role edit and
 reset, add-on enabling and role grants, Save and Cancel keeping the window open,
 the unsaved-changes prompt on X/Esc, and taking over from AnkiConnect (the
-Server page's button, and the first-start window). --screenshot PATH also saves images
-(PATH-<name>.png), in light and dark themes.
+Server page's button, and the first-start window). --screenshots DIR also saves images
+(check_settings_dialog-<name>.png), in light and dark themes.
 """
 import socket
 import sys
@@ -14,12 +14,7 @@ import traceback
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from qt_smoke import aqt, run, until
-
-from tsunagi.adapters import addon_actions, request_log, settings_dialog, settings_page
-from tsunagi.adapters.config import ADDON_PACKAGE, _migrate
-from tsunagi.adapters.dialogs import ANKICONNECT_ID
-from tsunagi.adapters.settings import apply_config
+from qt_smoke import aqt, run, tsunagi, until
 
 HELPERS = """
 window.$ = (s) => document.querySelector(s);
@@ -51,15 +46,15 @@ class ProbeServer:
 
 def js(app, dlg, code):
     out = []
-    dlg.tsunagi_web.page().runJavaScript(HELPERS + code, out.append)
+    dlg.kiso_web.page().runJavaScript(HELPERS + code, out.append)
     until(app, lambda: out)
     return out[0]
 
 
 def open_page(app, **kw):
-    dlg = settings_page.make_dialog(aqt.mw, **kw)
+    dlg = tsunagi("adapters.settings_page").make_dialog(aqt.mw, **kw)
     dlg.show()
-    until(app, lambda: js(app, dlg, "window.tsunagiReady === true"))
+    until(app, lambda: js(app, dlg, "window.kisoReady === true"))
     return dlg
 
 
@@ -86,6 +81,12 @@ def save(app, dlg):
 
 
 def check(app, screenshot):
+    addon_actions = tsunagi("adapters.addon_actions")
+    request_log = tsunagi("adapters.request_log")
+    settings_dialog = tsunagi("adapters.settings_dialog")
+    ADDON_PACKAGE, _migrate = tsunagi("adapters.config").ADDON_PACKAGE, tsunagi("adapters.config")._migrate
+    ANKICONNECT_ID = tsunagi("adapters.dialogs").ANKICONNECT_ID
+    apply_config = tsunagi("adapters.settings").apply_config
     store = {"cfg": _migrate({})[0]}
     manager = aqt.mw.addonManager
     real_get = manager.getConfig
@@ -101,7 +102,7 @@ def check(app, screenshot):
         assert js(app, dlg, "$('#version').textContent").startswith("Tsunagi ")
         assert js(app, dlg, "$('#restoreAll') === null")  # no global reset
         assert js(app, dlg, "$('#save').disabled && $('#cancel').disabled")  # nothing to save or discard
-        until(app, lambda: js(app, dlg, "$('#server').textContent") == "Server off")  # not started here
+        until(app, lambda: js(app, dlg, "$('#server').textContent") == "Server running on 127.0.0.1:7777")
         request_log.clear()
         now = time.time()
         request_log.add({"time": now - 5, "method": "GET", "path": "/v1/decks", "origin": None, "local": True,
@@ -194,7 +195,7 @@ def check(app, screenshot):
             shoot(app, dlg, screenshot, "nokey-confirm")
         # Save from another page: it stays open and goes to the field that needs attention.
         js(app, dlg, "go('server'); $('#save').click()")
-        until(app, lambda: js(app, dlg, "!$('#errors').hidden"))
+        until(app, lambda: js(app, dlg, "$('#errors').textContent !== ''"))
         assert "Confirm that other devices" in js(app, dlg, "$('#errors').textContent")
         assert dlg.isVisible() and store["cfg"]["no_key_remote_role"] == "none"
         assert js(app, dlg, "$('[data-page=nokey]').getAttribute('aria-current') === 'true'")
@@ -322,7 +323,7 @@ def check(app, screenshot):
         until(app, lambda: not dlg.isVisible())
         dlg = open_page(app)
         js(app, dlg, "go('nokey'); setv('#no_key_local_role', 'default', 'change')")
-        until(app, lambda: dlg.tsunagi_bridge.dirty)
+        until(app, lambda: dlg.kiso_bridge.dirty)
         dlg.reject()
         until(app, lambda: js(app, dlg, "$('.dialog') !== null"))
         assert dlg.isVisible() and "Requests without a key" in js(app, dlg, "$('.dialog').textContent")
@@ -337,7 +338,7 @@ def check(app, screenshot):
         assert store["cfg"] == before
         dlg = open_page(app)
         js(app, dlg, "go('nokey'); setv('#no_key_local_role', 'default', 'change')")
-        until(app, lambda: dlg.tsunagi_bridge.dirty)
+        until(app, lambda: dlg.kiso_bridge.dirty)
         dlg.reject()
         until(app, lambda: js(app, dlg, "$('.dialog') !== null"))
         js(app, dlg, "$('#saveClose').click()")
@@ -404,11 +405,10 @@ def check(app, screenshot):
             from aqt.theme import Theme
 
             aqt.mw.set_theme(Theme.DARK)
-            with patch("tsunagi.app.server_url", lambda: "http://127.0.0.1:7777"):
-                dlg = open_page(app)
-                until(app, lambda: js(app, dlg, "$('#server').textContent") == "Server running on 127.0.0.1:7777")
-                shoot(app, dlg, screenshot, "dark-running")
-                close(app, dlg)
+            dlg = open_page(app)
+            until(app, lambda: js(app, dlg, "$('#server').textContent") == "Server running on 127.0.0.1:7777")
+            shoot(app, dlg, screenshot, "dark-running")
+            close(app, dlg)
             dlg = open_page(app)
             for page in ("apps", "addons", "roles"):
                 js(app, dlg, f"go('{page}')")

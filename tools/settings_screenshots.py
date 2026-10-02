@@ -5,7 +5,7 @@ with tidy demo settings and a demo request log, and saves one PNG per page to
 docs/images/settings-<page>.png. Needs the Qt interpreter (see
 docs/development.md). Rerun after changing the settings page:
 
-    QT_QPA_PLATFORM=offscreen python tools/settings_screenshots.py
+    python tools/settings_screenshots.py
 """
 import sys
 import time
@@ -14,10 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from check_settings_dialog import js, open_page
-from qt_smoke import aqt, run, until
-
-from tsunagi.adapters import addon_actions, request_log
-from tsunagi.adapters.config import ADDON_PACKAGE, _migrate
+from qt_smoke import aqt, run, tsunagi, until
 
 OUT = Path(__file__).resolve().parent.parent / "docs" / "images"
 SIZE = (1000, 680)
@@ -34,7 +31,7 @@ DEMO = {
 }
 
 
-def demo_requests():
+def demo_requests(request_log):
     now = time.time()
     rows = [
         (-42, "GET", "/v1/decks", None, "AnkiStats", None, 200),
@@ -63,16 +60,18 @@ def shoot(app, dlg, name):
 def check(app, _screenshot):
     from aqt.theme import Theme
 
+    addon_actions = tsunagi("adapters.addon_actions")
+    request_log = tsunagi("adapters.request_log")
+    ADDON_PACKAGE, _migrate = tsunagi("adapters.config").ADDON_PACKAGE, tsunagi("adapters.config")._migrate
     OUT.mkdir(parents=True, exist_ok=True)
     cfg = {**_migrate({})[0], **DEMO}
     manager = aqt.mw.addonManager
     real_get = manager.getConfig
     request_log.clear()
-    demo_requests()
+    demo_requests(request_log)
     aqt.mw.set_theme(Theme.DARK)
     with patch.object(manager, "getConfig",
                       lambda name: cfg if name == ADDON_PACKAGE else real_get(name)), \
-         patch("tsunagi.app.server_url", lambda: "http://127.0.0.1:7777"), \
          patch.object(addon_actions, "unavailable", lambda provider: None):
         dlg = open_page(app)
         dlg.resize(*SIZE)

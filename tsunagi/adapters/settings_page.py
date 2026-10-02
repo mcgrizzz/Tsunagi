@@ -9,12 +9,11 @@ Module level is pure dict-in/dict-out logic, tested headless; the Qt shell
 """
 from __future__ import annotations
 
-import json
-import logging
 import re
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .._kiso.settings import Bridge
 from ..shared.permissions import BUILTIN_ROLES, NO_ACCESS, PERMISSIONS, is_grant
 from ..shared.version import ADDON_VERSION
 from .config import ADDON_PACKAGE, DEFAULTS, _migrate
@@ -237,42 +236,49 @@ def config_from_page(cfg: Dict[str, Any], draft: Dict[str, Any]) -> Tuple[Dict[s
     return new_cfg, restart, []
 
 
+def page_draft(state: Dict[str, Any]) -> Dict[str, Any]:
+    """The part of page_state the page edits and Save sends back: Kiso's shell
+    keeps it as `saved` and `draft`, and compares slices of it for each page's
+    unsaved dot."""
+    draft = {"values": dict(state["values"]),
+             "gates": {g["key"]: g["on"] for g in state["gates"]},
+             "apps": [dict(a) for a in state["apps"]],
+             "roles": [{k: g[k] for k in ("id", "name", "grants")} for g in state["roles"]],
+             "addon_enabled": dict(state["addon_enabled"]),
+             "confirm_remote": False}
+    for row in state["no_key_rows"]:
+        draft[row["setting"]] = row["role"]
+    return draft
+
+
 def _page_html() -> str:
+    from .._kiso.settings import page_html
+
     def read(name: str) -> str:
         return (WEB_DIR / name).read_text(encoding="utf-8")
-    # Inlined: nothing is served to other pages, and no web exports are needed.
-    return (read("settings.html")
-            .replace("/*STYLE*/", read("settings.css"))
-            .replace("/*SCRIPT*/", read("settings.js")))
+    # Inlined into Kiso's shell: nothing is served, and no web exports are needed.
+    return page_html(css=[read("settings.css")], js=[read("settings.js")])
 
 
-class SettingsBridge:
-    """Handles the page's pycmd("tsunagi:{op, arg}") calls; returns JSON values."""
+class SettingsBridge(Bridge):
+    """Handles the page's pycmd("tsunagi:{op, arg}") calls; returns JSON values.
+    Kiso's Bridge dispatches them and answers dirty and close."""
+
+    prefix = _PREFIX
 
     def __init__(self, mw: Any, *, restart: Callable[[bool], None],
-                 close: Callable[[], None], copy: Callable[[str], None],
+                 close: Optional[Callable[[], None]] = None, copy: Callable[[str], None],
                  offer_takeover: bool = False) -> None:
+        super().__init__(close=close)   # close the window, no questions asked
         self.mw = mw
         self.offer_takeover = offer_takeover  # open with the AnkiConnect takeover (first start)
         self.restart = restart  # restart(enabled): apply server-level keys
-        self.close = close      # close the window, no questions asked
         self.copy = copy
-        self.dirty = False      # unsaved changes on the page (X/Esc asks first)
 
     def saved(self) -> Dict[str, Any]:
         # Persisted truth, not the live singleton: server-level keys the
         # running server hasn't picked up yet must display as saved.
         return _migrate(dict(self.mw.addonManager.getConfig(ADDON_PACKAGE) or {}))[0]
-
-    def handle(self, cmd: str) -> Any:
-        if not cmd.startswith(_PREFIX):
-            return None
-        try:
-            msg = json.loads(cmd[len(_PREFIX):])
-            return getattr(self, "op_" + msg["op"])(msg.get("arg"))
-        except Exception as exc:
-            logging.getLogger(__name__).exception("Settings page request failed")
-            return {"error": str(exc)}
 
     def _status(self) -> Dict[str, Any]:
         from .dialogs import ankiconnect_status
@@ -284,7 +290,8 @@ class SettingsBridge:
         # saving applies the draft over the saved config, so import history
         # and other bookkeeping survive a restore.
         offer, self.offer_takeover = self.offer_takeover, False  # once, not after a Save
-        return {**page_state(self.saved(), status), "providers": providers_for_page(),
+        state = page_state(self.saved(), status)
+        return {**state, "cfg": page_draft(state), "providers": providers_for_page(),
                 "defaults": page_state(_migrate({})[0], status), "offer_takeover": offer}
 
     def op_new_key(self, _arg: Any) -> str:
@@ -329,11 +336,10 @@ class SettingsBridge:
         return {"ok": True, "state": self.op_state(None)}
 
     def op_save(self, draft: Dict[str, Any]) -> Dict[str, Any]:
-        """Save stays open and returns the saved state as the page's new
-        baseline; only the X/Esc prompt's Save sends `close`."""
+        """Save stays open and returns the saved draft as the page's new
+        baseline (the X/Esc prompt's Save then asks to close)."""
         from .settings_dialog import save_settings
 
-        close = bool(draft.pop("close", False))
         new_cfg, restart, errors = config_from_page(self.saved(), draft)
         if errors:
             return {"errors": [{"message": str(e), "page": getattr(e, "page", None),
@@ -341,24 +347,11 @@ class SettingsBridge:
         try:
             save_settings(self.mw, new_cfg)
         except Exception as exc:
-            return {"errors": [f"Could not save settings: {exc}"]}
+            return {"errors": [{"message": f"Could not save settings: {exc}", "page": None, "field": None}]}
         if restart:
             self.restart(bool(new_cfg.get("enabled", True)))
         self.dirty = False
-        if close:
-            self.close()
-            return {"ok": True}
-        return {"ok": True, "state": self.op_state(None)}
-
-    def op_close(self, _arg: Any) -> bool:
-        """Discard in the X/Esc prompt: close without saving."""
-        self.dirty = False
-        self.close()
-        return True
-
-    def op_dirty(self, dirty: Any) -> bool:
-        self.dirty = bool(dirty)
-        return True
+        return {"ok": True, "cfg": self.op_state(None)["cfg"]}
 
     def op_requests(self, arg: Any) -> Dict[str, Any]:
         """Every client's totals, and the requests matching the page's filters."""
@@ -386,51 +379,16 @@ def open_settings(mw: Any, *, offer_takeover: bool = False) -> None:
 
 def make_dialog(mw: Any, *, offer_takeover: bool = False) -> Any:
     """The settings dialog, not yet shown (tools/check_settings_dialog.py drives it)."""
-    from aqt.qt import QApplication, QDialog, QTimer, QVBoxLayout
-    from aqt.utils import disable_help_button, restoreGeom, saveGeom
-    from aqt.webview import AnkiWebView
+    from aqt.qt import QApplication, QTimer
 
+    from .._kiso.settings import make_dialog as kiso_dialog
     from .settings_dialog import _restart_server
-
-    class SettingsDialog(QDialog):
-        def reject(self) -> None:
-            # X and Esc: close at once when clean; with unsaved changes the
-            # page asks Save / Discard / Keep editing.
-            if bridge.dirty:
-                web.eval("askClose()")
-            else:
-                super().reject()
-
-    dlg = SettingsDialog(mw)
-    dlg.setWindowTitle("Tsunagi Settings")
-    disable_help_button(dlg)
-    layout = QVBoxLayout(dlg)
-    layout.setContentsMargins(0, 0, 0, 0)
-    web = AnkiWebView(parent=dlg, title="Tsunagi settings")
-    web.setObjectName("tsunagiSettingsPage")
-    layout.addWidget(web)
 
     def restart(enabled: bool) -> None:
         # After the bridge call returns, so the reply reaches the page first.
         QTimer.singleShot(0, lambda: _restart_server(mw, enabled=enabled))
 
-    def close() -> None:
-        # After the bridge call returns: closing inside it would tear down the
-        # page while Qt is still delivering the reply.
-        QTimer.singleShot(0, dlg.accept)
-
-    bridge = SettingsBridge(mw, restart=restart, close=close,
-                            copy=lambda text: QApplication.clipboard().setText(text),
-                            offer_takeover=offer_takeover)
-    dlg.tsunagi_bridge, dlg.tsunagi_web = bridge, web  # for the real-dialog check
-    web.set_bridge_command(bridge.handle, dlg)
-    web.stdHtml(_page_html(), context=dlg)
-
-    def finished(_result: int) -> None:
-        saveGeom(dlg, _GEOM_KEY)
-        web.cleanup()
-
-    dlg.finished.connect(finished)
-    dlg.resize(980, 680)
-    restoreGeom(dlg, _GEOM_KEY)
-    return dlg
+    return kiso_dialog(mw, title="Tsunagi Settings", html=_page_html(), geom_key=_GEOM_KEY, size=(980, 680),
+                       bridge=lambda dlg, web: SettingsBridge(
+                           mw, restart=restart, copy=lambda text: QApplication.clipboard().setText(text),
+                           offer_takeover=offer_takeover))

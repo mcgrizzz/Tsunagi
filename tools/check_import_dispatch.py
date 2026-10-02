@@ -2,15 +2,15 @@
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-from qt_smoke import run, until
+from qt_smoke import run, tsunagi, until
 
 
 def check_mode(app, compat):
     from aqt.import_export import importing
     from aqt.qt import QDialog, QThread, QTimer
 
-    from tsunagi.adapters import ops
-    from tsunagi.adapters.anki import gui
+    ops = tsunagi("adapters.ops")
+    gui = tsunagi("adapters.anki.gui")
 
     observations = []
     with ThreadPoolExecutor(max_workers=1) as pool:

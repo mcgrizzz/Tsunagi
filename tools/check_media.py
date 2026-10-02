@@ -4,18 +4,16 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Event, get_ident
 from unittest.mock import patch
 
-from qt_smoke import run, until
+from qt_smoke import run, tsunagi, until
 
 
 def check(app, screenshot):
     import aqt
 
-    from tsunagi.http.compat import downloads
-    from tsunagi.http.compat.actions.notes import (
-        AddNoteParams,
-        ac_addNote,
-        ac_canAddNoteWithErrorDetail,
-    )
+    downloads = tsunagi("http.compat.downloads")
+    notes = tsunagi("http.compat.actions.notes")
+    AddNoteParams, ac_addNote = notes.AddNoteParams, notes.ac_addNote
+    ac_canAddNoteWithErrorDetail = notes.ac_canAddNoteWithErrorDetail
 
     col = aqt.mw.col
     main_thread = get_ident()

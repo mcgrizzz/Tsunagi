@@ -11,7 +11,7 @@ import sys
 import threading
 from pathlib import Path
 
-from qt_smoke import run, until
+from qt_smoke import run, tsunagi, until
 
 ADDON = "759844606"
 
@@ -19,15 +19,15 @@ ADDON = "759844606"
 def check(app, screenshot):
     import aqt
 
-    from tsunagi.adapters import addon_actions as actions
-    from tsunagi.adapters import providers  # noqa: F401  (registers fsrs_helper)
-    from tsunagi.adapters.jobs import jobs
+    actions = tsunagi("adapters.addon_actions")
+    tsunagi("adapters.providers")   # registers fsrs_helper
+    jobs = tsunagi("adapters.jobs").jobs
 
     mw = aqt.mw
     src = Path(os.environ["FSRS_HELPER_DIR"])
     shutil.copytree(src, Path(mw.addonManager.addonsFolder()) / ADDON,
                     ignore=shutil.ignore_patterns("__pycache__", "user_files"))
-    importlib.import_module(ADDON)  # what Anki does at startup (safe mode skips it)
+    importlib.import_module(ADDON)  # what Anki does at startup (it isn't there yet then)
 
     col = mw.col
     col.set_config("fsrs", True)
@@ -102,5 +102,4 @@ def check(app, screenshot):
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     run(check, "FSRS Helper provider against the real add-on")

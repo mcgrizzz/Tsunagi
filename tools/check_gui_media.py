@@ -5,17 +5,14 @@ from pathlib import Path
 from threading import Event, get_ident
 from unittest.mock import patch
 
-from qt_smoke import aqt, run, until, wait_for_editor
+from qt_smoke import aqt, run, tsunagi, until, wait_for_editor
 
 
 def check(app, screenshot):
-    from tsunagi.http.compat import downloads
-    from tsunagi.http.compat.actions.gui import (
-        GuiAddCardsParams,
-        GuiAddNoteSetDataParams,
-        ac_guiAddCards,
-        ac_guiAddNoteSetData,
-    )
+    downloads = tsunagi("http.compat.downloads")
+    actions = tsunagi("http.compat.actions.gui")
+    GuiAddCardsParams, GuiAddNoteSetDataParams = actions.GuiAddCardsParams, actions.GuiAddNoteSetDataParams
+    ac_guiAddCards, ac_guiAddNoteSetData = actions.ac_guiAddCards, actions.ac_guiAddNoteSetData
 
     col = aqt.mw.col
     main_thread = get_ident()

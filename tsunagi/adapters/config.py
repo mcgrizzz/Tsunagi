@@ -2,6 +2,8 @@ import socket
 import sys
 from typing import Tuple
 
+from .._kiso import config as kiso_config
+
 # Top-level package name of the addon (= installed folder name); used as the
 # key for addonManager.getConfig/writeConfig.
 ADDON_PACKAGE = __name__.split(".")[0]
@@ -39,11 +41,11 @@ DEFAULTS = {
     "ankiconnect_import_offered": False,
     "ankiconnect_imported_at": None,
     "ankiconnect_ignore_origins": [],
-    # Dev only: poll the add-on's own source every N seconds and restart the
-    # server when it changes. 0 disables it (and it stays 0 for real users).
-    "dev_watch_seconds": 0,
-    "config_version": 4,
+    "config_version": 5,
 }
+CONFIG_VERSION = DEFAULTS["config_version"]
+# Dicts of the user's own entries, filled as a whole or not at all.
+FREE_FORM = ("roles", "addon_enabled")
 
 # The app an AnkiConnect settings import fills with AnkiConnect's key.
 DEFAULT_APP = "AnkiConnect key"
@@ -67,46 +69,43 @@ def with_default_app_key(cfg: dict, key: str) -> list:
     return [{"name": DEFAULT_APP, "key": key, "role": "default", **kept}, *apps] if key else apps
 
 
-def _migrate(cfg: dict) -> Tuple[dict, bool]:
-    """Fill defaults and upgrade legacy keys. Returns (cfg, changed). Pure."""
-    changed = False
-    # v1 auto-minted a "token" nobody ever saw or validated; copying it into
-    # api_key would silently turn auth ON and break existing clients. Drop it.
-    if "token" in cfg:
-        cfg.pop("token")
-        changed = True
-    for k, v in DEFAULTS.items():
-        if k not in cfg:
-            # Copy containers so a user config never shares state with DEFAULTS.
-            cfg[k] = v.copy() if isinstance(v, (dict, list)) else v
-            changed = True
+def _v3(cfg: dict) -> None:
     # v3 introduced the AnkiConnect-compatible default allowlist. Installs
     # created before it have an empty list, which blocks browser extensions
     # (Yomitan) - add the entry once so they behave like a fresh install.
-    if cfg.get("config_version", 1) < 3:
-        allowlist = cfg.get("cors_allowlist") or []
-        if "http://localhost" not in allowlist:
-            cfg["cors_allowlist"] = ["http://localhost", *allowlist]
-        cfg["config_version"] = 3
-        changed = True
+    allowlist = cfg.get("cors_allowlist") or []
+    if "http://localhost" not in allowlist:
+        cfg["cors_allowlist"] = ["http://localhost", *allowlist]
+
+
+def _v4(cfg: dict) -> None:
     # v4 grouped the opt-in switches under "gates". The old flat
     # media_allow_local_path is now the local_files permission; drop it.
-    if cfg.get("config_version", 1) < 4:
-        gates = dict(DEFAULTS["gates"])
-        gates.update(cfg.get("gates") or {})
-        cfg.pop("media_allow_local_path", None)
-        cfg["gates"] = gates
-        cfg["config_version"] = 4
-        changed = True
-    return cfg, changed
+    gates = dict(DEFAULTS["gates"])
+    gates.update(cfg.get("gates") or {})
+    cfg.pop("media_allow_local_path", None)
+    cfg["gates"] = gates
+
+
+def _v5(cfg: dict) -> None:
+    # v5: Kiso's dev watch (a DEV_WATCH file from `kiso sync`) replaced dev_watch_seconds.
+    cfg.pop("dev_watch_seconds", None)
+
+
+def _migrate(cfg: dict) -> Tuple[dict, bool]:
+    """Fill defaults and upgrade legacy keys. Returns (cfg, changed). Pure.
+    A config without config_version is a new one (Anki's config.json has it)."""
+    # v1 auto-minted a "token" nobody ever saw or validated; copying it into
+    # api_key would silently turn auth ON and break existing clients. Drop it.
+    had_token = "token" in cfg
+    migrated, changed = kiso_config.migrate({k: v for k, v in cfg.items() if k != "token"}, DEFAULTS,
+                                            CONFIG_VERSION, [(3, _v3), (4, _v4), (5, _v5)], FREE_FORM)
+    return migrated, changed or had_token
+
 
 def load_config() -> dict:
     from aqt import mw
-    cfg = mw.addonManager.getConfig(ADDON_PACKAGE) or {}
-    cfg, changed = _migrate(cfg)
-    if changed:
-        mw.addonManager.writeConfig(ADDON_PACKAGE, cfg)
-    return cfg
+    return kiso_config.load(mw.addonManager, ADDON_PACKAGE, _migrate)
 
 def _bindable(host: str, port: int) -> bool:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

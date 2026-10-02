@@ -6,6 +6,7 @@
 /.wheelhouse
 /dist
 /lib
+/tsunagi/_kiso/
 /__pycache__
 *.pyc
 

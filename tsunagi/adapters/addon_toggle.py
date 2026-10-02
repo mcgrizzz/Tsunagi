@@ -3,32 +3,15 @@ Turning Tsunagi off in Tools -> Add-ons.
 
 Anki unloads add-ons only when it restarts: toggleEnabled just writes the
 add-on's meta.json, and no hook announces it. So without this the server kept
-running, port and all, until the next restart. Wrapping toggleEnabled lets the
-user stop it now instead, and start it again if they turn Tsunagi back on in
-the same session.
+running, port and all, until the next restart. Kiso's Addon wraps
+toggleEnabled (on_toggle in the root __init__.py) and calls ServerSwitch, which
+lets the user stop it now instead, and start it again if they turn Tsunagi
+back on in the same session.
 """
 from typing import Any, Callable
 
 TEXT = ("Tsunagi is turned off. Anki unloads add-ons only when it restarts, so "
         "Tsunagi's server keeps running until then.")
-
-
-def watch_own_toggle(manager: Any, package: str, on_toggled: Callable[[bool], None]) -> bool:
-    """Call on_toggled(enabled) after Anki turns `package` on or off.
-
-    Anki's own toggleEnabled runs first and unchanged. Returns False when the
-    method is missing (a future Anki), leaving today's behaviour."""
-    original = getattr(manager, "toggleEnabled", None)
-    if original is None:
-        return False
-
-    def toggle(module: str, enable: Any = None) -> None:
-        original(module, enable)
-        if module == package:
-            on_toggled(bool(manager.addon_meta(module).enabled))
-
-    manager.toggleEnabled = toggle
-    return True
 
 
 class ServerSwitch:

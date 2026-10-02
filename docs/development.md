@@ -13,16 +13,21 @@ git clone https://github.com/mcgrizzz/Tsunagi.git
 cd Tsunagi
 python -m venv .venv
 . .venv/bin/activate                  # Windows PowerShell: .\.venv\Scripts\Activate.ps1
-python -m pip install pytest ruff httpx anki
-python tools/build_addon.py
+python -m pip install pytest ruff httpx anki "kiso-anki @ git+https://github.com/mcgrizzz/Kiso.git"
+kiso vendor
 ```
 
-- `build_addon.py` puts the dependencies from
+- [Kiso](https://github.com/mcgrizzz/Kiso) is the plumbing Tsunagi shares with
+  other add-ons: the wiring with Anki, config migration, the dev reload, the
+  bundled libraries, and the `kiso` command. It's copied into `tsunagi/_kiso/`
+  (not in Git) by pytest, `kiso build` and `kiso sync`. With a Kiso checkout
+  next to this one, install it with `pip install -e ../kiso` instead.
+- `kiso vendor` puts the web stack pinned in
   [tools/requirements.lock.txt](../tools/requirements.lock.txt) into
-  `lib/shared` and packages the add-on into `dist/`. Anki itself is only a
-  test dependency and is never bundled.
-- Once the wheels are cached, `python tools/build_addon.py --offline` builds
-  without downloading.
+  `lib/shared`, from pure-Python wheels only (pytest does it too when
+  `lib/shared` isn't current). Anki itself is only a test dependency and is
+  never bundled. Once the wheels are cached in `.wheelhouse/`, `--offline`
+  works without downloading.
 - Tsunagi supports the current Anki release and the one before it. To test
   the older one, use Python 3.10 and install `anki==26.8.1` instead of `anki`.
 
@@ -39,12 +44,12 @@ checks need a second environment with Anki's GUI package, as CI makes it:
 ```sh
 python -m venv .venv-qt
 . .venv-qt/bin/activate               # Windows PowerShell: .\.venv-qt\Scripts\Activate.ps1
-python -m pip install pytest httpx "aqt[qt6]"
+python -m pip install pytest httpx "aqt[qt6]" "kiso-anki @ git+https://github.com/mcgrizzz/Kiso.git"
 ```
 
 On Linux, Qt also needs some system libraries; the list CI installs is in
-[qt.yml](../.github/workflows/qt.yml). Run the Qt checks with this
-environment active.
+[Kiso's setup action](https://github.com/mcgrizzz/Kiso/blob/main/action.yml). Run the
+Qt checks with this environment active.
 
 | Check | Needs | Run |
 | --- | --- | --- |
@@ -53,10 +58,14 @@ environment active.
 | Browser check of the API reference | Playwright and Chromium in their own environment | `TSUNAGI_BROWSER_PYTHON=/path/to/python python -m pytest -q tests/test_playground.py` |
 | Media and FSRS Helper checks | a real Anki; FSRS Helper installed for the second | `python tools/check_media.py`, `python tools/check_fsrs_helper_provider.py` (by hand, not in CI) |
 
+- The real-Anki checks run on Kiso's harness (`tools/qt_smoke.py`): Anki starts
+  offscreen in a throwaway profile with Tsunagi installed through its root
+  `__init__.py`, server and all. `--screenshots DIR` keeps the images of the
+  checks that take them.
 - Set `TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` to include the Qt and
   browser checks in a full `pytest` run. Tests for another Anki version still
   skip.
-- Set `TSUNAGI_STRICT_ANKI_NOTICES=1` to fail on any deprecation notice Anki
+- Set `KISO_STRICT_ANKI_NOTICES=1` to fail on any deprecation notice Anki
   prints. Notices are always listed at the end of the run.
 - **API contract.** `tests/snapshots/openapi.json` records the published
   schema, so any change shows up as a diff. After an intended change,
@@ -88,10 +97,13 @@ environment active.
 
 ## CI
 
-- [ci.yml](../.github/workflows/ci.yml) runs the suite on both supported
-  Anki versions, the [Qt checks](../.github/workflows/qt.yml) on the newest,
-  and `pip-audit` on the bundled dependencies. Advisories that don't apply are
-  listed with their reason in `ci.yml`; any new one fails the build.
+- [ci.yml](../.github/workflows/ci.yml) runs Kiso's add-on CI: ruff and the
+  suite on both supported Anki versions, the Qt checks (`tools/qt_checks.sh`)
+  on the newest, the build, and `pip-audit` on the bundled dependencies.
+  Advisories that don't apply are listed with their reason in
+  `pyproject.toml` (`audit_ignore`); any new one fails the build. So does a
+  deprecation notice for Tsunagi's own call to an old Anki API (one raised
+  inside Anki's own code is only listed).
 - The [Anki watch](../.github/workflows/anki-watch.yml) runs daily. When PyPI
   has an Anki release, beta or RC it hasn't tested, it runs the suite and Qt
   checks against it and records the result as an `anki-watch` issue (closed if
@@ -103,19 +115,21 @@ environment active.
 
 ## Try changes in Anki
 
-Install a built package once, then copy your source changes into that add-on
-folder:
+Copy the add-on into Anki's add-ons folder, then restart Anki once:
 
 ```sh
-python tools/dev_sync.py --dest /path/to/Anki2/addons21/tsunagi
+kiso sync --watch     # or KISO_ADDON_DIR=/path/to/Anki2/addons21/tsunagi kiso sync --watch
 ```
 
-- `--watch` keeps copying as you edit; `--full` also copies `lib/` after you
-  rebuild dependencies.
-- Copying doesn't reload the running add-on: restart Anki, or set
-  `dev_watch_seconds` ([settings without a field](../config.md#settings-without-a-field))
-  so Tsunagi reloads itself. Changes to the root `__init__.py` or to `lib/`
-  always need a restart.
+- `kiso sync` finds Anki's add-ons folder, copies the add-on, names it
+  "Tsunagi (dev)" in Anki's list, and leaves a `DEV_WATCH` file there. A
+  running Anki notices each copy and reloads Tsunagi within a second or two,
+  waiting for requests in progress to finish first. `--watch` keeps copying
+  as you edit.
+- To reload by hand, run `import tsunagi; tsunagi.reload_addon()` in Anki's
+  debug console (Ctrl+Shift+;).
+- Changes to the root `__init__.py` or to `lib/` need an Anki restart. A plain
+  `kiso sync` (without `--watch`) copies `lib/` when it changed.
 - Tsunagi logs to Anki's log folder for the add-on (`logs/addons/` in Anki's
   data folder), not the console.
 - If another add-on has already loaded a different version of FastAPI,
@@ -124,26 +138,25 @@ python tools/dev_sync.py --dest /path/to/Anki2/addons21/tsunagi
 
 ## Package for AnkiWeb
 
-Keep the version the same in `tools/version.py`, `tsunagi/shared/version.py`
-and `pyproject.toml`, then run `python tools/build_addon.py`. It prints where
-it put:
+Keep the version the same in `pyproject.toml` and `tsunagi/shared/version.py`
+(a test checks), then run `kiso build`. It prints where it put:
 
 | File | Purpose |
 | --- | --- |
 | `dist/tsunagi-<version>.ankiaddon` | Upload to [AnkiWeb](https://ankiweb.net/shared/addons/). Also works with **Install from file**. |
 | `dist/tsunagi-<version>.ankiaddon.sha256` | Checksum for verifying the package. |
 
-- The package holds the add-on's code, assets, bundled dependencies, licence
-  notices, `README.md` and `config.md`. It leaves out your local `meta.json`,
-  bytecode, tools, tests and the `docs/` folder.
-- It checks the required files, JSON and ZIP before replacing an older
-  package, and never uploads anything.
-- `--offline` reuses cached dependencies; `--refresh` downloads them again.
-  Not both.
+- The package holds the add-on's code, assets, bundled dependencies (vendored
+  afresh from the lockfile), their licence notices, `README.md`, `LICENSE` and
+  `config.md`. It leaves out your local `meta.json`, bytecode, tools, tests
+  and the `docs/` folder.
+- It checks the required files, JSON, ZIP and that nothing compiled slipped
+  in before replacing an older package, and never uploads anything.
+- `kiso build --offline` vendors from cached wheels.
 
 ## GitHub releases
 
-Commit matching versions in the three files above and push. Then either:
+Commit matching versions in the two files above and push. Then either:
 
 - open **Actions → Release → Run workflow** on `main` (it uses the declared
   version, so `0.1.0` becomes `v0.1.0`), or
@@ -151,10 +164,10 @@ Commit matching versions in the three files above and push. Then either:
 
 The [Release workflow](../.github/workflows/release.yml):
 
-1. checks the three versions agree (and match the tag, if you pushed one);
-2. runs CI: the suite on both Anki versions, the Qt checks and the
-   dependency audit;
-3. builds the package;
+1. runs CI: the suite on both Anki versions, the Qt checks, the
+   dependency audit, and the test that the two versions agree;
+2. checks the tag matches `pyproject.toml`'s version (Kiso's `addon-release`);
+3. builds the package with `kiso build`;
 4. creates the tag at the tested commit if a manual run needs one;
 5. makes a **draft GitHub release** with generated notes, the `.ankiaddon` and
    its checksum. Review it and publish when ready.

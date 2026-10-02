@@ -1,5 +1,8 @@
-"use strict";
-// Tsunagi settings page. Talks to Python only through Anki's pycmd bridge
+// Tsunagi settings page, on Kiso's settings shell (_kiso/web/shell.js): it owns
+// the sidebar, Save and Cancel, the unsaved dots, each page's Revert and
+// Restore, the close prompt and the globals used here (S, saved, draft, page,
+// call, h, icon, ICONS, clone, same, changed, render, pageChanged,
+// pageActions). Talks to Python only through Anki's pycmd bridge
 // (adapters/settings_page.py, SettingsBridge). No build step.
 
 const PAGES = [
@@ -14,7 +17,7 @@ const PAGES = [
 
 // Sidebar icons: 24-unit stroke paths drawn in the text colour. They support
 // the labels, never replace them (aria-hidden).
-const ICONS = {
+Object.assign(ICONS, {
   server: "M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01",
   apps: "M14.5 9.5a4 4 0 1 1-1.2-2.8M13.3 10.7 20 17.4V20h-2.6v-2h-2v-2h-2l-.7-.7",
   nokey: "M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M4 12h11M11 8l4 4-4 4",
@@ -24,65 +27,30 @@ const ICONS = {
   requests: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
   chevron: "M9 6l6 6-6 6",
   done: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12.5l2.7 2.7L16 9.8",
-};
+});
 
-function icon(name) {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("aria-hidden", "true");
-  svg.setAttribute("class", "icon");
-  const path = document.createElementNS(ns, "path");
-  path.setAttribute("d", ICONS[name]);
-  svg.append(path);
-  return svg;
-}
-
-let S = null;          // state from Python: fields, catalog, roles' defaults, defaults...
-let draft = null;      // what Save sends
-let saved = null;      // the draft as last saved, for "Revert this page"
-let savedRemote = "none";
-let page = "server";
 let editing = null;    // role id open in the role editor, or null for the list
 let takeover = null;   // the AnkiConnect takeover dialog: {startup, preview, busy, done}
-let closing = false;    // the "unsaved changes" prompt is open (X or Esc)
-let reportedDirty = false;
 const openApps = new Set();   // app rows showing their detail (full key, New key, Remove)
 const openAreas = new Set();
 
-function call(op, arg) {
-  return new Promise((resolve) => pycmd("tsunagi:" + JSON.stringify({ op, arg }), resolve));
-}
-
-// DOM helper: text always goes through textContent, never innerHTML.
-function h(tag, attrs, ...kids) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
-    if (v === false || v == null) continue;
-    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
-    else if (k === "value") el.value = v;
-    else if (k === "checked") el.checked = v;
-    else el.setAttribute(k, v === true ? "" : v);
-  }
-  for (const kid of kids.flat(Infinity)) {
-    if (kid == null || kid === false) continue;
-    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
-  }
-  return el;
-}
 const link = (label, onclick, attrs) => h("button", { type: "button", class: "link", onclick, ...attrs }, label);
+// Links inside the pages; the sidebar sets `page` itself (see the nav listener).
 const go = (p, role) => {
-  page = p; editing = role || null; render(); document.getElementById("main").scrollTop = 0;
-  if (p === "requests") refreshRequests();
+  page = p; editing = role || null; changed(true); document.getElementById("main").scrollTop = 0;
 };
-const clone = (x) => JSON.parse(JSON.stringify(x));
-let notice = "";       // a short footer message, e.g. after a key is copied
+const anyUnsaved = () => Kiso.pages.some((p) => pageChanged(p.id));
+const showError = (message) => { document.getElementById("errors").textContent = message; };
+
+// A short footer message, e.g. after a key is copied; the unsaved status comes back after it.
 let noticeTimer = 0;
 function notify(text) {
-  notice = text;
+  changed(true);
+  const status = document.getElementById("status");
+  status.textContent = text;
+  status.classList.remove("dirty");
   clearTimeout(noticeTimer);
-  noticeTimer = setTimeout(() => { notice = ""; render(); }, 2500);
-  render();
+  noticeTimer = setTimeout(() => changed(false), 2500);
 }
 function copyKey(key, button) {
   call("copy", key);
@@ -92,56 +60,12 @@ function copyKey(key, button) {
     setTimeout(() => { if (button.isConnected) { button.textContent = "Copy"; button.classList.remove("done"); } }, 1500);
   }
 }
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-function draftFrom(state) {
-  const d = {
-    values: { ...state.values },
-    gates: Object.fromEntries(state.gates.map((g) => [g.key, g.on])),
-    apps: state.apps.map((a) => ({ ...a })),
-    roles: state.roles.map((r) => ({ id: r.id, name: r.name, grants: [...r.grants] })),
-    addon_enabled: { ...(state.addon_enabled || {}) },
-    confirm_remote: false,
-  };
-  for (const row of state.no_key_rows) d[row.setting] = row.role;
-  return d;
-}
-
+// The page's state from Python, with what it edits as `cfg` (a Save answers the new `cfg` only).
 function load(state) {
   S = state;
-  draft = draftFrom(state);
-  saved = draftFrom(state);
-  savedRemote = draft.no_key_remote_role;
-  document.getElementById("version").textContent = "Tsunagi " + state.version;
-  render();
-  if (state.offer_takeover) openTakeover(true);
-}
-
-// Sidebar dots, footer status and Save/Cancel: cheap, so it also runs on every
-// keystroke (see the input listener at the end), without rebuilding the page
-// and losing the field's focus.
-function renderChrome() {
-  document.getElementById("nav").replaceChildren(
-    ...PAGES.map(([id, title]) => h("button", { type: "button", "data-page": id,
-      "aria-current": String(id === page), onclick: () => go(id) }, icon(id), h("span", { class: "label" }, title),
-      changed(id) ? h("span", { class: "dot", title: "Unsaved changes" }, "•") : null)),
-  );
-  const dirty = PAGES.filter(([id]) => changed(id)).length;
-  document.getElementById("status").textContent = notice ||
-    (dirty ? `Unsaved changes on ${dirty} page${dirty === 1 ? "" : "s"}` : "");
-  // Nothing to save or discard until something differs from what is saved.
-  document.getElementById("save").disabled = !dirty;
-  document.getElementById("cancel").disabled = !dirty;
-  if (!!dirty !== reportedDirty) { reportedDirty = !!dirty; call("dirty", reportedDirty); }
-}
-
-function render() {
-  renderChrome();
-  const main = document.getElementById("main");
-  const scroll = main.scrollTop;
-  main.replaceChildren(...PAGE[page]().flat(Infinity).filter(Boolean));
-  main.scrollTop = scroll;
-  document.getElementById("modal").replaceChildren(...(closing ? [closeDialog()] : takeover ? [takeoverDialog()] : []));
+  saved = clone(state.cfg);
+  draft = clone(state.cfg);
 }
 
 // ---------- per-page revert and restore (both only change the draft) ----------
@@ -157,7 +81,6 @@ function sliceOf(p, d) {
   if (p === "addons") return d.addon_enabled;
   return null;  // requests: nothing to save
 }
-const changed = (p) => !same(sliceOf(p, draft), sliceOf(p, saved));
 
 const REVERT = {
   server: (d) => { for (const k of serverKeys()) d.values[k] = saved.values[k]; },
@@ -199,27 +122,21 @@ const RESTORE = {
                                              if (def) { r.name = def.name; r.grants = def.grants; } } },
 };
 
-// Page-state actions share one look on every page, the role editor included.
-// Each shows only when it would change something; both wait for Save. The
-// labels name their scope; the footer's Cancel covers every page.
-function actionBar(revert, restore, ids, what = "page") {
-  return h("div", { class: "head-actions" },
-    revert && h("button", { type: "button", class: "quiet", id: ids[0], onclick: () => { revert(); render(); },
-                            title: `Undo unsaved changes on this ${what} only. Other pages keep theirs.` }, `Revert this ${what}`),
-    restore && h("button", { type: "button", class: "quiet", id: ids[1], onclick: () => { restore(); render(); },
-                             title: `Back to the defaults for this ${what} only. Nothing changes until Save.` }, `Restore this ${what}'s defaults`));
-}
-
-function pageActions(p) {
-  const restore = RESTORE[p];
-  const noop = !restore || same(sliceOf(p, draft), sliceOf(p, (() => { const d = clone(draft); restore(d); return d; })()));
-  return actionBar(changed(p) && (() => REVERT[p](draft)), !noop && (() => restore(draft)), ["revertPage", "restorePage"]);
+// The role editor's own Revert and Restore, in the look of Kiso's page actions
+// (which every other page gets from pageActions). Each shows only when it would
+// change something; both wait for Save. Not .head-actions: Kiso redraws that one.
+function roleActions(revert, restore) {
+  return h("div", { class: "role-actions" },
+    revert && h("button", { type: "button", class: "quiet", id: "revertRole", onclick: () => { revert(); changed(true); },
+                            title: "Undo unsaved changes on this role only. Other pages keep theirs." }, "Revert this role"),
+    restore && h("button", { type: "button", class: "quiet", id: "resetRole", onclick: () => { restore(); changed(true); },
+                             title: "Back to the defaults for this role only. Nothing changes until Save." }, "Restore this role's defaults"));
 }
 
 function header(title, lead) {
   return h("header", { class: "page-head" },
     h("div", {}, h("h1", {}, title), lead && h("p", { class: "lead" }, lead)),
-    pageActions(page));
+    pageActions());
 }
 
 // ---------- fields ----------
@@ -227,20 +144,22 @@ function header(title, lead) {
 const field = (key) => S.fields.find((f) => f.key === key);
 const setNum = (obj, key) => (e) => { const n = Number(e.target.value); obj[key] = Number.isInteger(n) ? n : e.target.value; };
 
+// data-field: where a Save error naming this setting puts the focus (Kiso's save()).
 function input(f) {
   const v = draft.values[f.key];
   const set = (x) => { draft.values[f.key] = x; };
-  if (f.kind === "bool") return h("input", { type: "checkbox", id: f.key, checked: v, onchange: (e) => set(e.target.checked) });
+  const at = { id: f.key, "data-field": f.key };
+  if (f.kind === "bool") return h("input", { type: "checkbox", ...at, checked: v, onchange: (e) => set(e.target.checked) });
   if (f.kind === "int" || f.kind === "mib") {
-    return h("span", { class: "unit" }, h("input", { type: "number", id: f.key, min: f.minimum, max: f.maximum,
+    return h("span", { class: "unit" }, h("input", { type: "number", ...at, min: f.minimum, max: f.maximum,
       value: v, oninput: setNum(draft.values, f.key) }), f.kind === "mib" ? "MiB" : "");
   }
   if (f.kind === "choice") {
-    return h("select", { id: f.key, onchange: (e) => set(e.target.value) },
+    return h("select", { ...at, onchange: (e) => set(e.target.value) },
              f.choices.map((c) => h("option", { value: c, selected: c === v }, c)));
   }
-  if (f.kind === "cors_list") return h("textarea", { id: f.key, spellcheck: "false", value: v, oninput: (e) => set(e.target.value) });
-  return h("input", { type: "text", id: f.key, spellcheck: "false", value: v, oninput: (e) => set(e.target.value) });
+  if (f.kind === "cors_list") return h("textarea", { ...at, spellcheck: "false", value: v, oninput: (e) => set(e.target.value) });
+  return h("input", { type: "text", ...at, spellcheck: "false", value: v, oninput: (e) => set(e.target.value) });
 }
 
 function row(label, control, help, forId) {
@@ -309,7 +228,7 @@ function description(a) {
   return h("div", { class: "desc action-desc" },
     h("div", { class: long && !open ? "folded" : null }, a.description),
     long && link(open ? "Show less" : "Show full description",
-                 () => { open ? openDescriptions.delete(a.key) : openDescriptions.add(a.key); render(); },
+                 () => { open ? openDescriptions.delete(a.key) : openDescriptions.add(a.key); changed(true); },
                  { "aria-expanded": String(open), class: "link fold" }));
 }
 
@@ -326,7 +245,7 @@ function actionRows(a, shared) {
       h("td", { class: "approve" },
         h("input", { type: "checkbox", id, checked: on, disabled: read, "aria-label": "Enable " + a.title,
                      title: read ? "Reading is always enabled; the app's role decides" : null,
-                     onchange: (e) => { setApproval(a, e.target.checked); render(); } })),
+                     onchange: (e) => { setApproval(a, e.target.checked); changed(true); } })),
       h("td", { class: "name" }, h("label", { for: id }, a.title),
         a.impact === "destructive" && h("span", { class: "tag danger" }, "Destructive"),
         a.backup && h("span", { class: "tag" }, "Backs up first"),
@@ -353,7 +272,7 @@ function providerCard(p) {
       acts.length > 0 && h("span", { class: "muted small count" }, `${acts.filter((a) => approved(a)).length} of ${acts.length} enabled`),
       ready.length > 0 && h("button", { type: "button", class: "quiet", "data-approve-all": p.id,
         title: "Enable every action here except destructive ones, which you enable one by one.",
-        onclick: () => { ready.forEach((a) => setApproval(a, true)); render(); } }, "Enable all")),
+        onclick: () => { ready.forEach((a) => setApproval(a, true)); changed(true); } }, "Enable all")),
     h("div", { class: "addon-status desc" },
       p.unsupported ? h("span", { class: "warn-text" }, "Unavailable: " + p.unsupported + ". Its actions cannot run.")
                     : "Installed and loaded, so its actions can run.",
@@ -400,7 +319,7 @@ function usersOf(id) {
 
 function roleSelect(value, onchange, id, label) {
   return h("span", { class: "role-pick" },
-    h("select", { id, "aria-label": label, onchange: (e) => { onchange(e.target.value); render(); } },
+    h("select", { id, "aria-label": label, onchange: (e) => { onchange(e.target.value); changed(true); } },
       draft.roles.map((r) => h("option", { value: r.id, selected: r.id === value }, r.name)),
       roleById(value) ? null : h("option", { value, selected: true }, value + " (missing)")),
     link("View", () => go("roles", value), { title: "Open this role" }));
@@ -422,7 +341,7 @@ const PAGE = {
         h("div", { class: "check" }, input(field("enabled")),
           h("label", { for: "enabled" }, h("b", {}, "Run the Tsunagi server"),
             h("span", { class: "help inline" }, " When off, the API does not start with Anki."))),
-        row("Port", h("input", { type: "number", id: "port", min: 1, max: 65535, value: port, oninput: setPort }),
+        row("Port", h("input", { type: "number", id: "port", "data-field": "port", min: 1, max: 65535, value: port, oninput: setPort }),
           "Must be free: if another program is using it, Tsunagi doesn't start.", "port"),
         row("Host", input(field("host")),
           "127.0.0.1: this computer only. Any other address lets other devices connect; they need a key (see Requests without a key).", "host"),
@@ -440,13 +359,13 @@ const PAGE = {
   apps() {
     const rows = draft.apps.map((app, i) => {
       const open = openApps.has(i);
-      const toggle = () => { open ? openApps.delete(i) : openApps.add(i); render(); };
+      const toggle = () => { open ? openApps.delete(i) : openApps.add(i); changed(true); };
       const out = [h("tr", { class: app.enabled ? "app" : "app off" },
         h("td", { class: "approve" }, h("input", { type: "checkbox", class: "app-on", checked: app.enabled,
           "aria-label": "Turn " + app.name + " on", title: app.enabled
             ? "On. Untick to turn this app off: requests with its key are refused until you turn it back on"
             : "Off: requests with this key are refused. Tick to turn it back on",
-          onchange: (e) => { app.enabled = e.target.checked; render(); } })),
+          onchange: (e) => { app.enabled = e.target.checked; changed(true); } })),
         h("td", {}, h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name,
                                  oninput: (e) => { app.name = e.target.value; } })),
         h("td", {}, roleSelect(app.role, (v) => { app.role = v; }, null, "Role of " + app.name)),
@@ -466,7 +385,7 @@ const PAGE = {
                           onclick: async () => { app.key = await call("new_key"); copyKey(app.key); notify("New key copied. It works once you save; until then the old key stays active."); } }, "New key"),
             h("span", { class: "spacer" }),
             h("button", { type: "button", class: "danger", "aria-label": "Remove " + app.name,
-                          onclick: () => { draft.apps.splice(i, 1); openApps.clear(); render(); } }, "Remove app")))));
+                          onclick: () => { draft.apps.splice(i, 1); openApps.clear(); changed(true); } }, "Remove app")))));
       }
       return out;
     });
@@ -494,7 +413,7 @@ const PAGE = {
   },
 
   nokey() {
-    const remoteChanged = draft.no_key_remote_role !== "none" && draft.no_key_remote_role !== savedRemote;
+    const remoteChanged = draft.no_key_remote_role !== "none" && draft.no_key_remote_role !== saved.no_key_remote_role;
     return [
       header("Requests without a key", "A request with no key, or a key no app has, gets the role of where it comes from."),
       h("section", { class: "card flush" },
@@ -505,7 +424,7 @@ const PAGE = {
             h("td", {}, roleSelect(draft[r.setting], (v) => { draft[r.setting] = v; draft.confirm_remote = false; }, r.setting, r.label))))))),
       remoteChanged && h("div", { class: "warn" },
         h("div", { class: "check" },
-          h("input", { type: "checkbox", id: "confirmRemote", checked: draft.confirm_remote,
+          h("input", { type: "checkbox", id: "confirmRemote", "data-field": "confirmRemote", checked: draft.confirm_remote,
                        onchange: (e) => { draft.confirm_remote = e.target.checked; } }),
           h("label", { for: "confirmRemote" }, "Anyone who can reach this computer's port gets ",
             h("b", {}, roleName(draft.no_key_remote_role)), " without a key, including every device on your network. I understand."))),
@@ -656,7 +575,7 @@ function requestsBody() {
 // the part below the heading is replaced; the filter box keeps its focus.
 async function refreshRequests() {
   requests = await call("requests", requestFilter);
-  if (page !== "requests" || closing) return;
+  if (page !== "requests") return;
   const body = document.getElementById("requestsBody");
   if (!body) return render();
   const focused = document.activeElement && document.activeElement.id;
@@ -672,7 +591,7 @@ function roleEditor(r) {
   const isDefault = def && sameRole(def, r);
   const savedRole = saved.roles.find((x) => x.id === r.id);
   const users = usersOf(r.id);
-  const setGrants = (grants) => { r.grants = [...new Set(grants)].sort(); render(); };
+  const setGrants = (grants) => { r.grants = [...new Set(grants)].sort(); changed(true); };
   const rows = S.catalog.map((area) => {
     const names = areaNames(area);
     const st = areaState(r, area);
@@ -688,7 +607,7 @@ function roleEditor(r) {
       h("td", { class: "end" }, names.length
         ? [h("span", { class: "muted small" }, st.level !== "all" ? `${st.count} of ${names.length}`
              : addons && st.whole ? "all, including ones enabled later" : "all"), " ",
-           link(open ? "Done" : "Choose", () => { open ? openAreas.delete(area.area) : openAreas.add(area.area); render(); },
+           link(open ? "Done" : "Choose", () => { open ? openAreas.delete(area.area) : openAreas.add(area.area); changed(true); },
                 { "data-area": area.area, disabled: locked })]
         : addons ? [h("span", { class: "muted small" }, "none enabled"), " ", link("Add-ons", () => go("addons"))]
         : null))];
@@ -714,9 +633,8 @@ function roleEditor(r) {
         h("nav", { class: "crumbs", "aria-label": "Breadcrumb" }, link("Roles", () => go("roles"), { id: "backToRoles" }), h("span", {}, "/")),
         h("h1", {}, r.name || "(unnamed role)"),
         h("p", { class: "lead" }, users.length ? ["Used by ", userLinks(users)] : "Not used by any app or source yet.")),
-      actionBar(savedRole && !sameRole(savedRole, r) && (() => { r.name = savedRole.name; r.grants = [...savedRole.grants]; }),
-                def && !locked && !isDefault && (() => { r.name = def.name; r.grants = [...def.grants]; }),
-                ["revertRole", "resetRole"], "role")),
+      roleActions(savedRole && !sameRole(savedRole, r) && (() => { r.name = savedRole.name; r.grants = [...savedRole.grants]; }),
+                  def && !locked && !isDefault && (() => { r.name = def.name; r.grants = [...def.grants]; }))),
     h("section", { class: "card flush" },
       h("div", { class: "role-name" }, h("label", { for: "roleName" }, "Name"),
         h("input", { type: "text", id: "roleName", value: r.name, disabled: locked, oninput: (e) => { r.name = e.target.value; } })),
@@ -780,7 +698,7 @@ function addonParts(r, area, st, locked, setGrants) {
 // takeover saves at once, so it waits until nothing else is unsaved.
 function ankiConnectRow() {
   const ac = S.ankiconnect;
-  const dirty = PAGES.some(([id]) => changed(id));
+  const dirty = anyUnsaved();
   const why = !ac.config_available ? "AnkiConnect has no settings to import."
     : dirty ? "Save or discard your changes first." : null;
   const tookOver = !ac.enabled && ac.imported;
@@ -793,11 +711,11 @@ function ankiConnectRow() {
 }
 
 async function openTakeover(startup) {
-  if (!startup && PAGES.some(([id]) => changed(id))) return showErrors(["Save or discard your changes first."]);
+  if (!startup && anyUnsaved()) return showError("Save or discard your changes first.");
   const preview = await call("takeover_preview");
-  if (preview.error) return showErrors([preview.error]);
+  if (preview.error) return showError(preview.error);
   takeover = { startup, preview, busy: false, done: false };
-  render();
+  changed(true);
   document.getElementById("takeoverYes")?.focus();
 }
 
@@ -805,16 +723,17 @@ async function openTakeover(startup) {
 function endTakeover() {
   const startup = takeover.startup;
   takeover = null;
-  if (startup) call("close"); else render();
+  if (startup) call("close"); else changed(true);
 }
 
 async function applyTakeover() {
   takeover.busy = true;
-  render();
+  changed(true);
   const res = await call("takeover");
-  if (res.error) { takeover = null; render(); return showErrors([res.error]); }
+  if (res.error) { takeover = null; changed(true); return showError(res.error); }
   takeover.done = true;
   load(res.state);
+  changed(true);
   document.getElementById("takeoverDone")?.focus();
 }
 
@@ -834,7 +753,7 @@ function takeoverDialog() {
       h("p", { class: "next" }, link("Recent requests", () => { takeover = null; go("requests"); }, { id: "takeoverRequests" }),
         " shows which apps connect, and anything refused."),
       h("div", { class: "dialog-actions" },
-        takeover.startup && h("button", { type: "button", id: "takeoverSettings", onclick: () => { takeover = null; render(); } }, "Open settings"),
+        takeover.startup && h("button", { type: "button", id: "takeoverSettings", onclick: () => { takeover = null; changed(true); } }, "Open settings"),
         h("span", { class: "spacer" }),
         h("button", { type: "button", class: "primary", id: "takeoverDone", onclick: endTakeover }, "Done")));
   }
@@ -860,65 +779,19 @@ function takeoverDialog() {
         takeover.busy ? "Taking over…" : "Take over")));
 }
 
-// X or Esc with unsaved changes (Python calls askClose instead of closing).
-function closeDialog() {
-  const dirty = PAGES.filter(([id]) => changed(id)).map(([, title]) => title);
-  return h("div", { class: "overlay", role: "dialog", "aria-modal": "true", "aria-labelledby": "closeTitle" },
-    h("div", { class: "dialog" },
-      h("h2", { id: "closeTitle" }, "Save your changes?"),
-      h("p", {}, "You have unsaved changes on: " + dirty.join(", ") + "."),
-      h("div", { class: "dialog-actions" },
-        h("button", { type: "button", id: "keepEditing", onclick: () => { closing = false; render(); } }, "Keep editing"),
-        h("span", { class: "spacer" }),
-        h("button", { type: "button", id: "discardClose", onclick: () => call("close") }, "Discard"),
-        h("button", { type: "button", class: "primary", id: "saveClose", onclick: () => { closing = false; save(true); } }, "Save"))));
-}
-window.askClose = () => { closing = true; render(); document.getElementById("saveClose")?.focus(); };
-
-function showErrors(errors) {
-  const box = document.getElementById("errors");
-  box.hidden = !errors.length;
-  box.replaceChildren(h("ul", {}, errors.map((e) => h("li", {}, typeof e === "string" ? e : e.message))));
+// The takeover dialog draws from its own state on every redraw, in a layer of
+// its own under Kiso's #modal, where the close prompt opens over it.
+const takeoverLayer = h("div", { id: "takeoverLayer" });
+function renderTakeover() {
+  takeoverLayer.replaceChildren(...(takeover ? [takeoverDialog()] : []));
 }
 
-// Neither Save nor Cancel closes the window; only X/Esc does (asking first
-// when there are unsaved changes, and that prompt's Save also closes).
-// Save validates every page. On a problem it goes to the page that has it,
-// with the field focused; otherwise the saved state is the new baseline.
-async function save(close = false) {
-  showErrors([]);
-  const res = await call("save", { ...draft, close });
-  const errors = (res && res.errors) || (res && res.error ? [res.error] : []);
-  if (!errors.length) {
-    if (res && res.state) { load(res.state); discardDraft(); notify("Saved"); }
-    return;
-  }
-  showErrors(errors);
-  const first = errors.find((e) => e.page);
-  if (!first) return;
-  if (first.page !== page) go(first.page);
-  const el = first.field && document.getElementById(first.field);
-  if (el) { el.scrollIntoView({ block: "center" }); el.focus(); el.classList.add("flash"); }
-}
-
-// Cancel: throw away unsaved changes on every page (Revert this page is the
-// per-page version).
-function discardDraft() {
-  draft = draftFrom(S);
-  openApps.clear();
-  if (editing && !roleById(editing)) editing = null;
-  showErrors([]);
-}
-
-document.getElementById("save").addEventListener("click", () => save());
 // Fields update the draft in their own handlers; these run after them.
 for (const type of ["input", "change"]) {
-  document.getElementById("main").addEventListener(type, () => { if (S) renderChrome(); });
+  document.getElementById("main").addEventListener(type, () => { if (S) changed(false); });
 }
-document.getElementById("cancel").addEventListener("click", () => {
-  discardDraft();
-  notify("Unsaved changes on every page discarded");
-});
+// The sidebar leaves the role editor (Kiso's buttons then set `page` and redraw).
+document.getElementById("nav").addEventListener("click", () => { editing = null; }, true);
 
 // A wave from x=-len to past the indicator's right edge: shifting it by one
 // wavelength loops seamlessly. amp 0 draws the same commands flat, so the
@@ -998,10 +871,30 @@ async function pollServer() {
   if (first) requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove("instant")));
 }
 
-(function start() {
-  // pycmd exists once Anki's web channel is ready.
-  if (typeof pycmd !== "function") return setTimeout(start, 20);
-  call("state").then((state) => { load(state); window.tsunagiReady = true; });
-  pollServer();
-  setInterval(() => { pollServer(); if (page === "requests") refreshRequests(); }, 2000);
-})();
+let shownPage = null;
+Kiso.setup({
+  prefix: "tsunagi",
+  pages: PAGES.map(([id, title]) => ({
+    id, title, icon: id, render: () => PAGE[id](), slice: (d) => sliceOf(id, d),
+    revert: REVERT[id], restore: RESTORE[id], restoreLabel: "Restore this page's defaults",
+    restoreTitle: "Back to the defaults for this page only. Nothing changes until Save.",
+  })),
+  footer: () => [h("span", { id: "version", class: "muted" }), h("span", { id: "server", class: "server", role: "status" })],
+  onLoad: (state) => {
+    document.getElementById("version").textContent = "Tsunagi " + state.version;
+    document.getElementById("modal").before(takeoverLayer);
+    pollServer();
+    setInterval(() => { pollServer(); if (page === "requests") refreshRequests(); }, 2000);
+    if (state.offer_takeover) openTakeover(true);
+  },
+  beforeRender: () => {
+    if (page !== shownPage && page === "requests") refreshRequests();
+    shownPage = page;
+  },
+  afterRender: renderTakeover,
+  // Cancel drops unsaved edits on every page; what was open for them goes too.
+  onCancel: () => {
+    openApps.clear();
+    if (editing && !saved.roles.some((r) => r.id === editing)) editing = null;
+  },
+});

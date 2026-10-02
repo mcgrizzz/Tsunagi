@@ -10,94 +10,14 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Tsunagi supports the current Anki release and the one before it.
-        # The floor leg pins the oldest supported Anki on the Python it
-        # requires, proving we call nothing newer; the current leg runs the
-        # newest release on the Python that Anki's launcher ships.
-        include:
-          - python-version: "3.10"
-            anki-version: "==26.8.1"
-          - python-version: "3.13"
-            anki-version: ""
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache wheelhouse
-        uses: actions/cache@v6
-        with:
-          path: .wheelhouse
-          key: wheelhouse-${{ hashFiles('tools/requirements.lock.txt') }}
-
-      - name: Install dev tools
-        # anki is test-only: the suite runs against a real headless collection.
-        # It is deliberately NOT in tools/requirements.lock.txt, so it can never
-        # be vendored into the artifact.
-        run: python -m pip install pytest ruff httpx "anki${{ matrix.anki-version }}"
-
-      - name: Build addon (vendors lib/shared)
-        run: python tools/build_addon.py
-
-      - name: Lint
-        run: ruff check .
-
-      - name: Tests
-        run: python -m pytest -q
-
-      - name: Build smoke (artifact exists, pure-Python, deps importable)
-        run: |
-          python - <<'EOF'
-          import pathlib, sys, zipfile
-          zips = sorted(pathlib.Path("dist").glob("tsunagi-*.ankiaddon"))
-          assert zips, "no addon zip built"
-          names = zipfile.ZipFile(zips[-1]).namelist()
-          bad = [n for n in names if n.endswith((".pyd", ".so", ".dylib", ".pyc"))]
-          assert not bad, f"compiled/bytecode files in artifact: {bad}"
-          sys.path.insert(0, "lib/shared")
-          import fastapi, pydantic, starlette, uvicorn  # noqa: F401
-          assert pydantic.VERSION == "1.10.22", pydantic.VERSION
-          print("smoke OK:", zips[-1].name, len(names), "files")
-          EOF
-
-  qt:
-    uses: ./.github/workflows/qt.yml
-
-  audit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-
-      - name: Audit vendored dependencies
-        # Each ignored advisory is unreachable in Tsunagi today; recheck it when
-        # the named feature starts being used. Any other advisory fails CI.
-        run: |
-          python -m pip install -q pip-audit
-          ignore=(
-            # starlette form parsing (CVE-2026-54283): Tsunagi parses no forms and
-            # python-multipart is not vendored. Backlog 7.5. The fixes for this and
-            # the ones below are in starlette 1.x; the bundled FastAPI 0.125.0 requires
-            # starlette<0.51, and later FastAPI releases require pydantic 2.
-            PYSEC-2026-249
-            # starlette request.url rebuilt from Host/path (CVE-2026-48710, CVE-2026-54282):
-            # auth and routing read scope["path"]; the Host header is validated first.
-            PYSEC-2026-161 PYSEC-2026-248
-            # starlette StaticFiles on Windows (CVE-2026-48818), HTTPEndpoint methods
-            # (CVE-2026-48817): neither is used.
-            PYSEC-2026-2281 PYSEC-2026-2280
-          )
-          args=()
-          for id in "${ignore[@]}"; do args+=(--ignore-vuln "$id"); done
-          pip-audit -r tools/requirements.lock.txt --disable-pip --no-deps "${args[@]}"
+  ci:
+    # Kiso's add-on CI: ruff and the suite on the newest Anki and on 26.8.1 (the
+    # oldest supported, on the Python it requires), the real-Anki checks, the
+    # build (pure-Python only), and pip-audit on the vendored web stack
+    # (advisories that don't apply are in pyproject.toml's audit_ignore). Anki's
+    # deprecation notices for Tsunagi's own calls fail the run.
+    uses: mcgrizzz/Kiso/.github/workflows/addon-ci.yml@main
+    with:
+      floor-anki: "26.8.1"
+      qt-checks: tools/qt_checks.sh
+      test-packages: httpx

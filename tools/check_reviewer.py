@@ -1,7 +1,7 @@
 """Check real reviewer transitions, scheduling and undo in a disposable profile.
 
 Run with aqt installed (validated with 26.8.1):
-    python tools/check_reviewer.py --screenshot /tmp/tsunagi-reviewer.png
+    python tools/check_reviewer.py --screenshots /tmp
 
 Only the temporary collection receives answers/undo. Text-only cards do not
 exercise audible playback or Windows window focus.
@@ -12,11 +12,11 @@ import sys
 import time
 import traceback
 
-from qt_smoke import aqt, run, until
+from qt_smoke import aqt, run, tsunagi, until
 
 
 def check_reviewer(app, screenshot):
-    from tsunagi.http.compat.actions import gui
+    gui = tsunagi("http.compat.actions.gui")
 
     col = aqt.mw.col
     note = col.new_note(col.models.by_name("Basic"))

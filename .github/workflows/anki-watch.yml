@@ -77,27 +77,38 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - uses: mcgrizzz/Kiso@main
         with:
-          python-version: "3.13"
+          anki: "==${{ needs.check.outputs.version }}"
+          qt: "false"
 
-      - name: Install Anki ${{ needs.check.outputs.version }}
-        run: python -m pip install pytest httpx "anki==${{ needs.check.outputs.version }}"
+      - name: Test packages
+        run: python -m pip install -q httpx
 
-      - name: Build addon (vendors lib/shared)
-        run: python tools/build_addon.py
-
-      - name: Tests (strict about Anki deprecation notices)
+      - name: Tests (strict about Anki deprecation notices; pytest vendors lib/shared)
         env:
-          TSUNAGI_STRICT_ANKI_NOTICES: "1"
+          KISO_STRICT_ANKI_NOTICES: "1"
         run: python -m pytest -q
 
   qt:
     needs: check
     if: needs.check.outputs.version != ''
-    uses: ./.github/workflows/qt.yml
-    with:
-      anki-version: "==${{ needs.check.outputs.version }}"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      KISO_STRICT_ANKI_NOTICES: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mcgrizzz/Kiso@main
+        with:
+          anki: "==${{ needs.check.outputs.version }}"
+
+      - name: Test packages
+        run: python -m pip install -q httpx
+
+      - name: Qt checks
+        run: tools/qt_checks.sh
 
   report:
     needs: [check, suite, qt]

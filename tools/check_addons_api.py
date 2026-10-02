@@ -1,24 +1,37 @@
 """Check the add-on adapter against Anki's real AddonManager in a disposable profile.
 
 The headless suite (tests/test_v1_addons.py) uses a fake manager because it
-stubs aqt; this runs the same scenarios against the real one.
+stubs aqt; this runs the same scenarios against the real one, next to the
+installed Tsunagi.
 """
+import json
 import sys
 import traceback
 from pathlib import Path
 
-from qt_smoke import aqt, run
+from qt_smoke import aqt, run, tsunagi
+
+HELPER = "759844606"
+
+
+def _addon(root, name, meta, defaults=None):
+    folder = root / name
+    folder.mkdir()
+    (folder / "__init__.py").write_text("")
+    (folder / "meta.json").write_text(json.dumps(meta))
+    if defaults is not None:
+        (folder / "config.json").write_text(json.dumps(defaults))
 
 
 def check(app, screenshot):
-    from test_v1_addons import HELPER, populate
-
-    from tsunagi.adapters.anki import addons
-    from tsunagi.shared.errors import ResourceNotFoundError
+    addons = tsunagi("adapters.anki.addons")
+    ResourceNotFoundError = tsunagi("shared.errors").ResourceNotFoundError
 
     mgr = aqt.mw.addonManager
     root = Path(mgr.addonsFolder())
-    populate(root)
+    _addon(root, HELPER, {"name": "FSRS Helper"}, {"easy_dates": []})
+    _addon(root, "plain", {"name": "No Config"})
+    _addon(root, "off", {"name": "Disabled One", "disabled": True})
     mgr.setConfigAction(HELPER, lambda: None)
 
     items = {a["id"]: a for a in addons.list_addons()}
@@ -37,7 +50,6 @@ def check(app, screenshot):
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
     try:
         run(check, __doc__)
     except Exception:

@@ -17,7 +17,7 @@ from tsunagi.adapters.settings_dialog import (
 )
 
 HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_version",
-               "dev_watch_seconds", "gates", "ankiconnect_ignore_origins",
+               "gates", "ankiconnect_ignore_origins",
                # edited by the settings page's own sections (settings_page.py)
                "apps", "no_key_local_role", "no_key_remote_role", "roles",
                # approved on the settings page's Add-ons section (backlog 2b-P)
@@ -40,7 +40,6 @@ class TestFieldSpec:
     def test_restart_keys_match_config_md_contract(self):
         # config.md: server-level keys are only read at server startup, so
         # the dialog restarts the embedded server when one changes.
-        # dev_watch_seconds is startup-bound too but hidden from the form.
         # op_timeout_seconds is read on each request (ops.op_timeout).
         assert RESTART_KEYS == {"enabled", "host", "port", "prefer_port",
                                 "log_level"}
@@ -88,7 +87,6 @@ class TestRoundTrip:
         assert new_cfg["ankiconnect_imported_at"] == cfg["ankiconnect_imported_at"]
         assert new_cfg["ankiconnect_ignore_origins"] == cfg["ankiconnect_ignore_origins"]
         assert new_cfg["config_version"] == DEFAULTS["config_version"]
-        assert new_cfg["dev_watch_seconds"] == DEFAULTS["dev_watch_seconds"]
 
 
 class TestMediaMib:

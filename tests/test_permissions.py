@@ -59,7 +59,7 @@ def test_read_only_app_reads_but_cannot_write_through_v1(client, col, read_only)
     assert resp.json()["detail"] == (
         "Dashboard has the role 'Read-only', which does not allow write:decks; "
         "change it in Tsunagi's settings")
-    assert "Nope" not in col.decks.all_names()
+    assert "Nope" not in [d.name for d in col.decks.all_names_and_ids()]
 
 
 def test_read_only_app_reads_but_cannot_write_through_ankiconnect(client, col, read_only):
@@ -68,7 +68,7 @@ def test_read_only_app_reads_but_cannot_write_through_ankiconnect(client, col, r
     denied = client.post("/", json={"action": "createDeck", "version": 6, "key": "ro",
                                     "params": {"deck": "Nope"}}).json()
     assert denied["result"] is None and "does not allow write:decks" in denied["error"]
-    assert "Nope" not in col.decks.all_names()
+    assert "Nope" not in [d.name for d in col.decks.all_names_and_ids()]
 
 
 def test_an_app_turned_off_is_refused_and_does_not_fall_back_to_no_key(client, col, reset_settings):

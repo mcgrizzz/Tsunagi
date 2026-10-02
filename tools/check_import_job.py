@@ -6,18 +6,19 @@ from pathlib import Path
 from threading import Event
 from unittest.mock import patch
 
-from qt_smoke import aqt, run, until
+from qt_smoke import aqt, run, tsunagi, until
 
 
 def check(app, screenshot):
     from aqt import gui_hooks
 
-    from tsunagi.adapters import ops
-    from tsunagi.adapters.anki import collection as adapter
-    from tsunagi.adapters.events import ApiOp
-    from tsunagi.adapters.jobs import jobs
-    from tsunagi.http.v1 import collection as route
-    from tsunagi.shared.schemas.collection import ExportRequest, ImportRequest
+    ops = tsunagi("adapters.ops")
+    adapter = tsunagi("adapters.anki.collection")
+    ApiOp = tsunagi("adapters.events").ApiOp
+    jobs = tsunagi("adapters.jobs").jobs
+    route = tsunagi("http.v1.collection")
+    schemas = tsunagi("shared.schemas.collection")
+    ExportRequest, ImportRequest = schemas.ExportRequest, schemas.ImportRequest
 
     col = aqt.mw.col
     note = col.new_note(col.models.by_name('Basic'))

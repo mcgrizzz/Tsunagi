@@ -1,4 +1,3 @@
-import os
 import sys
 from pathlib import Path
 
@@ -6,12 +5,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Run tests against the exact vendored runtime stack. Build it first:
-#   python tools/build_addon.py
+# Run tests against the exact vendored runtime stack. Kiso's pytest plugin
+# vendors it when lib/shared isn't current (`kiso vendor` does it by hand).
 _SHARED = ROOT / "lib" / "shared"
 if not _SHARED.is_dir():
     raise RuntimeError(
-        "lib/shared missing - run `python tools/build_addon.py` before pytest"
+        "lib/shared missing - install Kiso (it vendors on pytest's start), or run `kiso vendor`"
     )
 
 for p in (str(_SHARED), str(ROOT), str(ROOT / "tests")):
@@ -39,36 +38,10 @@ import anki.lang  # noqa: E402
 
 anki.lang.set_lang("en_US")
 
-# Anki prints many deprecation notices instead of raising warnings. Record each
-# with the test that triggered it; TSUNAGI_STRICT_ANKI_NOTICES=1 (the Anki
-# watch) fails the run when any appear.
-import anki._legacy  # noqa: E402
-
-_ANKI_NOTICES = []
-_print_notice = anki._legacy.print_deprecation_warning
-
-
-def _record_notice(msg, frame=1):
-    _ANKI_NOTICES.append((os.environ.get("PYTEST_CURRENT_TEST", ""), msg))
-    return _print_notice(msg, frame + 1)
-
-
-# Modules such as anki.decks import the function by name, so rebind it there too.
-for _module in [anki._legacy, *sys.modules.values()]:
-    if getattr(_module, "print_deprecation_warning", None) is _print_notice:
-        _module.print_deprecation_warning = _record_notice
-
-
-def pytest_terminal_summary(terminalreporter):
-    if _ANKI_NOTICES:
-        terminalreporter.section("Anki deprecation notices")
-        for test, msg in _ANKI_NOTICES:
-            terminalreporter.line(f"{test}: {msg}")
-
-
-def pytest_sessionfinish(session):
-    if _ANKI_NOTICES and os.environ.get("TSUNAGI_STRICT_ANKI_NOTICES") == "1":
-        session.exitstatus = 1
+# Anki prints many deprecation notices instead of raising warnings. Kiso's
+# pytest plugin records each with the test that triggered it, and
+# KISO_STRICT_ANKI_NOTICES=1 (the Anki watch) fails the run when any appear.
+# It also bundles Kiso into tsunagi/_kiso before the tests import it.
 
 
 # Install fake aqt modules BEFORE any test module imports tsunagi's

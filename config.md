@@ -231,8 +231,6 @@ select Tsunagi, **View Files**) and change the `config` section of `meta.json`.
 - `ankiconnect_ignore_origins` (default none): websites whose AnkiConnect
   permission requests are refused without asking. Choosing **No** with
   **Ignore further requests** adds one. Remove it to let the site ask again.
-- `dev_watch_seconds` (default 0): for working on Tsunagi itself. Reloads the
-  server when the add-on's files change, every this many seconds.
 - `ankiconnect_import_offered`, `ankiconnect_imported_at`, `config_version`:
   bookkeeping; don't edit. Set `ankiconnect_import_offered` to `false` to be
   asked again, at the next start, whether to take over from AnkiConnect.

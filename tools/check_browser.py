@@ -1,9 +1,9 @@
 """Smoke-check the real Browser in an isolated, offscreen Anki profile.
 
 Run with an environment containing aqt (validated with 26.8.1):
-    python tools/check_browser.py --screenshot /tmp/tsunagi-browser.png
+    python tools/check_browser.py --screenshots /tmp
 
-No installed add-ons, existing profiles, or AnkiConnect checkout are used.
+Only Tsunagi is installed; no existing profiles or AnkiConnect checkout are used.
 This exercises Qt/editor readiness and adapter behavior, not OS window focus.
 """
 
@@ -11,11 +11,11 @@ import sys
 import time
 import traceback
 
-from qt_smoke import aqt, run, until, wait_for_editor
+from qt_smoke import aqt, run, tsunagi, until, wait_for_editor
 
 
 def check_browser(app, screenshot):
-    from tsunagi.adapters.anki import gui
+    gui = tsunagi("adapters.anki.gui")
 
     col = aqt.mw.col
     note = col.new_note(col.models.by_name("Basic"))

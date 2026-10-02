@@ -1,7 +1,7 @@
 """Check real Add Cards drafts and discard choices in an isolated Qt profile.
 
 Run with aqt installed (validated with 26.8.1):
-    python tools/check_add_cards.py --screenshot /tmp/tsunagi-add-cards.png
+    python tools/check_add_cards.py --screenshots /tmp
 
 The Discard/Keep Editing buttons are clicked only in this disposable process.
 """
@@ -11,19 +11,16 @@ import sys
 import traceback
 from pathlib import Path
 
-from qt_smoke import aqt, run, until, wait_for_editor
+from qt_smoke import aqt, run, tsunagi, until, wait_for_editor
 
 
 def check_add_cards(app, screenshot):
     from aqt.qt import QMessageBox, sip
 
-    from tsunagi.adapters.anki import gui
-    from tsunagi.http.compat.actions.gui import (
-        GuiAddCardsParams,
-        GuiAddNoteSetDataParams,
-        ac_guiAddCards,
-        ac_guiAddNoteSetData,
-    )
+    gui = tsunagi("adapters.anki.gui")
+    actions = tsunagi("http.compat.actions.gui")
+    GuiAddCardsParams, GuiAddNoteSetDataParams = actions.GuiAddCardsParams, actions.GuiAddNoteSetDataParams
+    ac_guiAddCards, ac_guiAddNoteSetData = actions.ac_guiAddCards, actions.ac_guiAddNoteSetData
 
     col = aqt.mw.col
 
