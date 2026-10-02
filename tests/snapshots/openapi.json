@@ -550,6 +550,7 @@
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "cardIds": {
+            "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
             },
@@ -567,6 +568,7 @@
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "cardIds": {
+            "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
             },
@@ -1067,6 +1069,7 @@
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "cardIds": {
+            "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
             },
@@ -2060,6 +2063,7 @@
         "description": "Body for the batch note verbs, as CardIds is for cards.",
         "properties": {
           "noteIds": {
+            "description": "A note id sent twice counts once; a missing note is skipped.",
             "items": {
               "type": "integer"
             },
@@ -2617,6 +2621,7 @@
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "cardIds": {
+            "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
             },
@@ -2789,6 +2794,7 @@
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "cardIds": {
+            "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
             },
@@ -2831,6 +2837,7 @@
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "cardIds": {
+            "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
             },
@@ -2985,8 +2992,10 @@
         "type": "object"
       },
       "TagBulkRequest": {
+        "description": "Body for the batch note verbs, as CardIds is for cards.",
         "properties": {
           "noteIds": {
+            "description": "A note id sent twice counts once; a missing note is skipped.",
             "items": {
               "type": "integer"
             },

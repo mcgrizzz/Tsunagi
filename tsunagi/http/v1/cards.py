@@ -246,6 +246,8 @@ def set_values(body: SetCardValuesRequest = Body(...)) -> VerbResult:
     except Exception as e:
         if type(e).__name__ == "NotFoundError":
             raise ResourceNotFoundError("card", body.card_id) from e
+        if isinstance(e, TypeError):  # the card's columns refused a value's type
+            raise ValidationError(f"values: {e}") from e
         raise
     return _result(1, start)
 

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
-from .notes import NoteField
+from .notes import NoteField, unique_ids
 
 # ----------------- Response Schemas -----------------
 
@@ -89,7 +89,11 @@ class CardIds(BaseModel):
     class Config:
         allow_population_by_field_name = True
 
-    card_ids: List[int] = Field(alias="cardIds")
+    card_ids: List[int] = Field(
+        alias="cardIds",
+        description="A card id sent twice counts once; a missing card is skipped.")
+
+    _unique = validator("card_ids", allow_reuse=True)(unique_ids)
 
 
 class ForgetRequest(CardIds):

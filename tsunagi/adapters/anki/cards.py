@@ -531,17 +531,27 @@ def set_flag(col: Collection, card_ids: Sequence[int], flag: int) -> int:
                             event_changes=lambda: {"cards": {"updated": list(card_ids)}})
 
 
+def _existing_card(col: Collection, card_id: Any) -> Any:
+    """The card, or None if there's none. get_card(0) builds a blank new card
+    instead of raising, which fails later when it is saved or answered."""
+    if not int(card_id):
+        return None
+    try:
+        return col.get_card(int(card_id))
+    except Exception as e:
+        if type(e).__name__ == "NotFoundError":
+            return None
+        raise
+
+
 def _set_ease(col: Collection, entries: Sequence[Dict[str, int]]) -> Any:
     out: List[bool] = []
     changes: Any = None
     for entry in entries:
-        try:
-            card = col.get_card(int(entry["id"]))
-        except Exception as e:
-            if type(e).__name__ == "NotFoundError":
-                out.append(False)
-                continue
-            raise
+        card = _existing_card(col, entry["id"])
+        if card is None:
+            out.append(False)
+            continue
         card.factor = int(entry["factor"])
         changes = col.update_card(card)
         out.append(True)
@@ -578,13 +588,10 @@ def set_memory_states(col: Collection, entries: Sequence[Dict[str, Any]]) -> Lis
         if not any(k in entry for k in writable):
             out.append(False)
             continue
-        try:
-            card = col.get_card(int(entry["id"]))
-        except Exception as e:
-            if type(e).__name__ == "NotFoundError":
-                out.append(False)
-                continue
-            raise
+        card = _existing_card(col, entry["id"])
+        if card is None:
+            out.append(False)
+            continue
         if "memory_state" in entry:
             state = entry["memory_state"]
             card.memory_state = None if state is None else FSRSMemoryState(
@@ -632,13 +639,10 @@ def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:
     changes: Any = None
     reviews_before = last_review_id(col)
     for entry in answers:
-        try:
-            card = col.get_card(int(entry["card_id"]))
-        except Exception as e:
-            if type(e).__name__ == "NotFoundError":
-                out.append(False)
-                continue
-            raise
+        card = _existing_card(col, entry["card_id"])
+        if card is None:
+            out.append(False)
+            continue
         # answerCard reads time_taken(), which explodes on the None a fresh
         # Card starts with - canonical starts the timer too.
         card.start_timer()

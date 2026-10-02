@@ -7,7 +7,7 @@ import logging
 import time
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, Dict, Iterator, TypeVar
+from typing import Any, Callable, Dict, FrozenSet, Iterator, TypeVar
 
 from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -191,7 +191,9 @@ def anki_error_detail(exc: Exception) -> str:
     return str(exc).translate(_ISOLATES)
 
 
-def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Callable[..., T]], Callable[..., T]]:
+def handle_mutation_errors(operation_name: str = "operation",
+                           client_errors: FrozenSet[str] = frozenset(),
+                           ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator to standardize mutation error handling.
 
@@ -204,6 +206,9 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
 
     Args:
         operation_name: Name of the operation for error messages (e.g., "create", "update")
+        client_errors: more Anki error names that are the client's mistake on
+            this route (a 400 with Anki's message), such as BackendIOError where
+            the client names the file
 
     Usage:
         @handle_mutation_errors("create")
@@ -215,7 +220,7 @@ def handle_mutation_errors(operation_name: str = "operation") -> Callable[[Calla
                             ConflictError, DuplicateNoteError, UnsupportedAnkiVersionError, JobConflictError,
                             SyncConflictError, SyncFailedError)):
             return HTTPException(status_code=exc.status_code, detail=str(exc))
-        if type(exc).__name__ in ANKI_CLIENT_ERRORS:
+        if type(exc).__name__ in ANKI_CLIENT_ERRORS | client_errors:
             # Anki's own message explains the problem far better than we could
             # ("Expected to find a field replacement on the front of the card").
             return HTTPException(status_code=400, detail=anki_error_detail(exc))

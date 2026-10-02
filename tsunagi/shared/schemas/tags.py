@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-from typing import List
+from pydantic import BaseModel
 
-from pydantic import BaseModel, Field
+from .notes import NoteIds
 
 
 class TagRename(BaseModel):
     name: str
 
 
-class TagBulkRequest(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
-
-    note_ids: List[int] = Field(alias="noteIds")
+class TagBulkRequest(NoteIds):
     # Space-separated, matching Anki's own bulk_add/bulk_remove signature.
     tags: str
 

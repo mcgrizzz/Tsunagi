@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, validator
 
 # ----------------- Response Schemas -----------------
 from .creation import CreationFailure, CreationResult
@@ -147,12 +147,21 @@ class NotePatch(NoteFiles):
     model_name: Optional[str] = Field(alias="modelName", default=None)
 
 
+def unique_ids(ids: List[int]) -> List[int]:
+    """An id sent twice counts once (Anki's batch ops fail on a repeat)."""
+    return list(dict.fromkeys(ids))
+
+
 class NoteIds(BaseModel):
     """Body for the batch note verbs, as CardIds is for cards."""
     class Config:
         allow_population_by_field_name = True
 
-    note_ids: List[int] = Field(alias="noteIds")
+    note_ids: List[int] = Field(
+        alias="noteIds",
+        description="A note id sent twice counts once; a missing note is skipped.")
+
+    _unique = validator("note_ids", allow_reuse=True)(unique_ids)
 
 
 # ----------------- Duplicate/empty check -----------------

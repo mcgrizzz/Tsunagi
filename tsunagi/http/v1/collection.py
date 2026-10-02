@@ -48,6 +48,10 @@ from ..discovery import native_features, native_operations
 
 router = APIRouter()
 
+# The client names the file, so Anki failing to open or create it is the
+# client's mistake (a missing folder, an empty path), not a 500.
+PATH_ERRORS = frozenset({"BackendIOError"})
+
 
 def _stats(start: float) -> dict:
     return {"duration_ms": round((time.perf_counter() - start) * 1000, 3)}
@@ -212,7 +216,7 @@ def sync() -> Union[SyncResult, JSONResponse]:
     tags=["Collection"],
     operation_id="exportPackage",
 )
-@handle_mutation_errors("export")
+@handle_mutation_errors("export", client_errors=PATH_ERRORS)
 def export(body: ExportRequest = Body(...)) -> CollectionActionResult:
     start = time.perf_counter()
     export_package(body.deck, body.path, body.with_scheduling, body.with_media)
@@ -261,7 +265,7 @@ def import_options() -> ImportPreferences:
     tags=["Collection"],
     operation_id="importPackage",
 )
-@handle_mutation_errors("import")
+@handle_mutation_errors("import", client_errors=PATH_ERRORS)
 def import_(body: ImportRequest = Body(...)) -> Union[ImportResult, JSONResponse]:
     start = time.perf_counter()
     job = jobs.create("import_package")

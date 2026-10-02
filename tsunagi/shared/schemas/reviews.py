@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 # ----------------- Response Schemas -----------------
 
@@ -47,6 +47,14 @@ class ReviewInfo(BaseModel):
     # How long the answer took, in milliseconds.
     time_ms: int = Field(alias="time", default=0)
     type: int = REVIEW_LEARN
+
+    @validator("*", allow_reuse=True)  # reload_addon defines it again
+    def _fits_a_column(cls, value: int) -> int:
+        # An SQLite integer column holds 64 bits. A larger number would be
+        # stored as a float, or refused for the id.
+        if not -(2 ** 63) <= value < 2 ** 63:
+            raise ValueError("must fit in 64 bits")
+        return value
 
 
 # ----------------- Request Schemas -----------------
