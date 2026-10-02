@@ -105,8 +105,12 @@ if mw is not None:
         tooltip("Tsunagi's server stopped.")
 
     def _start_again() -> None:
-        from .tsunagi.app import start_server
+        from aqt.utils import tooltip
+
+        from .tsunagi.app import server_url, start_server
         start_server(mw)
+        if server_url():   # a failed start shows its own message
+            tooltip("Tsunagi's server is running again.")
 
     # Registered at import time, so the settings work even when the server is
     # disabled or failed to start; the server itself starts at profile open.
