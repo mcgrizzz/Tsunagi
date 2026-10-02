@@ -31,14 +31,14 @@ from ...shared.errors import (
 )
 from ...shared.permissions import current_denial, permitted, requires
 from ...shared.planning import SourceCaps
-from ...shared.route_factory import ModelRow, create_resource_routes
+from ...shared.route_factory import create_resource_routes
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import (
     MediaCreateResponse,
     MediaDeletionResult,
+    MediaRow,
     MediaUpload,
 )
-from ...shared.schemas.wrappers import Paginated
 from ...shared.version import ADDON_VERSION
 
 # Query: GET /v1/media, POST /v1/media/query, with the parameters every list
@@ -47,7 +47,7 @@ router = create_resource_routes(
     path="/v1/media",
     caps=SourceCaps(fetch_all=lambda wants=None: [{"filename": n, "size": s, "mtime": m}
                                                   for n, s, m in list_media()], key_type=str),
-    response_model=Paginated[ModelRow],
+    row_model=MediaRow,
     id_getter=lambda row: row["filename"],
     resource_name="media file",
     resource_plural="media",

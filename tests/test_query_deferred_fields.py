@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from tsunagi.shared.planning import SearchSpec, SourceCaps
 from tsunagi.shared.route_factory import create_resource_routes, make_id_getter
+from tsunagi.shared.schemas.wrappers import ProjectedObject
 
 
 @pytest.fixture(params=[False, True], ids=["search-ids", "keyset"])
@@ -34,7 +35,7 @@ def query_client(request):
     )
     app = FastAPI()
     app.include_router(create_resource_routes(
-        path="/v1/things", caps=caps, response_model=None,
+        path="/v1/things", caps=caps, row_model=ProjectedObject,
         id_getter=make_id_getter("id"), resource_name="thing",
         resource_plural="things",
         permission_resource="notes", tag="Things",

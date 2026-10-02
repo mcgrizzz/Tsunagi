@@ -5,7 +5,7 @@ import os
 import unicodedata
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..errors import ValidationError
 from .creation import CreationResult
@@ -51,6 +51,13 @@ def sanitize_media_filename(name: object) -> str:
 
 
 # ----------------- Schemas -----------------
+
+
+class MediaRow(BaseModel):
+    """A row of GET /v1/media: one file in the media folder."""
+    filename: str
+    size: int = Field(..., description="Bytes")
+    mtime: int = Field(..., description="Last modified, Unix seconds")
 
 
 class MediaUpload(BaseModel):

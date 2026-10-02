@@ -28,7 +28,7 @@ from ...shared.planning import (
     SearchSpec,
     SourceCaps,
 )
-from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
+from ...shared.route_factory import create_resource_routes, make_id_getter
 from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import sanitize_media_filename
 from ...shared.schemas.notes import (
@@ -39,11 +39,12 @@ from ...shared.schemas.notes import (
     NoteCreateResponse,
     NoteFiles,
     NoteIds,
+    NoteInfo,
     NotePatch,
     NoteUpsert,
     NoteUpsertResponse,
 )
-from ...shared.schemas.wrappers import Paginated, VerbResult
+from ...shared.schemas.wrappers import VerbResult
 from .media import resolve_upload
 
 
@@ -121,7 +122,7 @@ caps = SourceCaps(
 router = create_resource_routes(
     path="/v1/notes",
     caps=caps,
-    response_model=Paginated[ModelRow],
+    row_model=NoteInfo,
     id_getter=make_id_getter("id"),
     resource_name="note",
     resource_plural="notes",

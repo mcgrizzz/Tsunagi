@@ -14,13 +14,14 @@ from typing import (
     Literal,
     Mapping,
     Optional,
+    Type,
     Union,
     get_args,
 )
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, create_model
 
 from ..shared.pagination import (
     decode_cursor,
@@ -608,11 +609,29 @@ def _query_page(
         logging.getLogger(__name__).exception("Query failed")
         raise HTTPException(status_code=500, detail="Internal error") from None
 
+def documented_rows(row_model: Type[BaseModel], resource_name: str) -> Any:
+    """
+    The page a list documents (6.72): its row's fields under their field names,
+    every one optional, since `select` keeps only the fields it names. Pages
+    are sent by render_query_page, so this shapes the API description only.
+    """
+    title = "".join(part.capitalize() for part in re.split(r"[ _-]", resource_name)) + "Row"
+    fields = {f.name: (Optional[f.outer_type_], Field(None, description=f.field_info.description))
+              for f in row_model.__fields__.values()}
+    row = create_model(title, **fields)
+    row.__doc__ = (f"A {resource_name.replace('_', ' ')} row. Without `select`, every field is "
+                   "present; with `select`, only those it names. With `shape=scalar`, each "
+                   "item is the selected field's bare value instead.")
+    if row_model.__config__.extra == "allow":
+        row.__config__.extra = "allow"
+    return Paginated[row]
+
+
 def create_resource_routes(
     path: str,
     *,
     caps: SourceCaps,
-    response_model: Any,
+    row_model: Type[BaseModel],
     id_getter: Callable[[Row], int] = lambda r: int(r["id"] if isinstance(r, Mapping) else r.id),
     resource_name: str,
     resource_plural: str,
@@ -627,7 +646,7 @@ def create_resource_routes(
     Args:
         path: Base path for resource (e.g., "/v1/models")
         caps: Source capabilities (queries + optional mutations)
-        response_model: Pydantic response model for query results
+        row_model: the model of one row, documented as the list's items
         id_getter: Function to extract ID from row for sorting/pagination
         resource_name: Singular resource name (e.g., "model", "deck", "card")
         resource_plural: Plural resource name (e.g., "models", "decks", "cards")
@@ -650,7 +669,7 @@ def create_resource_routes(
         router = create_resource_routes(
             path="/v1/models",
             caps=SourceCaps(...),
-            response_model=Paginated[ModelRow],
+            row_model=ModelInfo,
             id_getter=make_id_getter("id"),
             resource_name="model",
             resource_plural="models",
@@ -672,10 +691,12 @@ def create_resource_routes(
     read_permission = requires(f"read:{permission_resource}")
     write_permission = requires(f"write:{permission_resource}")
 
+    response_model = documented_rows(row_model, resource_name)
+
     def query_response(page):
-        # The shared query engine already validated this envelope. Preserve
-        # custom response models through FastAPI's normal validation path.
-        if response_model is Paginated[ModelRow] and type(page) is response_model:
+        # The shared query engine already validated and projected this
+        # envelope; response_model only documents the rows.
+        if type(page) is Paginated[ModelRow]:
             return Response(render_query_page(page), media_type="application/json")
         return page
 

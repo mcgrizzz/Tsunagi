@@ -37,12 +37,13 @@ from ...shared.errors import (
 )
 from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, OrderSpec, SearchSpec, SourceCaps
-from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
+from ...shared.route_factory import create_resource_routes, make_id_getter
 from ...shared.schemas.cards import (
     AnswerRequest,
     BatchRequest,
     BatchResult,
     CardIds,
+    CardInfo,
     ChangeDeckRequest,
     ForgetRequest,
     RepositionRequest,
@@ -52,7 +53,7 @@ from ...shared.schemas.cards import (
     SetFlagRequest,
     SetMemoryStateRequest,
 )
-from ...shared.schemas.wrappers import Paginated, VerbResult
+from ...shared.schemas.wrappers import VerbResult
 
 
 def _int_id(v: Any) -> Any:
@@ -85,7 +86,7 @@ caps = SourceCaps(
 router = create_resource_routes(
     path="/v1/cards",
     caps=caps,
-    response_model=Paginated[ModelRow],
+    row_model=CardInfo,
     id_getter=make_id_getter("id"),
     resource_name="card",
     resource_plural="cards",

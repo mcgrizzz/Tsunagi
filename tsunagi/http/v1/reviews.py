@@ -19,9 +19,12 @@ from ...adapters.anki.reviews import (
 from ...shared.errors import ConflictError, handle_mutation_errors
 from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, OrderSpec, SearchSpec, SourceCaps
-from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
-from ...shared.schemas.reviews import InsertReviewsRequest, InsertReviewsResult
-from ...shared.schemas.wrappers import Paginated
+from ...shared.route_factory import create_resource_routes, make_id_getter
+from ...shared.schemas.reviews import (
+    InsertReviewsRequest,
+    InsertReviewsResult,
+    ReviewInfo,
+)
 
 
 def _int_id(v: Any) -> Any:
@@ -57,7 +60,7 @@ caps = SourceCaps(
 router = create_resource_routes(
     path="/v1/reviews",
     caps=caps,
-    response_model=Paginated[ModelRow],
+    row_model=ReviewInfo,
     id_getter=make_id_getter("id"),
     resource_name="review",
     resource_plural="reviews",

@@ -7,8 +7,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from tsunagi.shared.planning import SearchSpec, SourceCaps
-from tsunagi.shared.route_factory import ModelRow, create_resource_routes
-from tsunagi.shared.schemas.wrappers import Paginated
+from tsunagi.shared.route_factory import create_resource_routes
+from tsunagi.shared.schemas.wrappers import ProjectedObject
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def source():
     app = FastAPI()
     app.include_router(create_resource_routes(
         "/things", caps=SourceCaps(search=SearchSpec(find_ids=find_ids, hydrate=hydrate, rows=search_rows)),
-        response_model=Paginated[ModelRow], resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
+        row_model=ProjectedObject, resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
     ))
     with TestClient(app) as client:
         yield client, calls

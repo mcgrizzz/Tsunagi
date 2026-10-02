@@ -5,6 +5,11 @@ from pydantic import BaseModel
 from .notes import NoteIds
 
 
+class TagRow(BaseModel):
+    """A row of GET /v1/tags."""
+    name: str
+
+
 class TagRename(BaseModel):
     name: str
 

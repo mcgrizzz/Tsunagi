@@ -8,8 +8,8 @@ from ...adapters.anki.deck_configs import (
     patch_deck_config,
 )
 from ...shared.planning import IndexSpec, MutationCaps, SourceCaps
-from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
-from ...shared.schemas.wrappers import Paginated
+from ...shared.route_factory import create_resource_routes, make_id_getter
+from ...shared.schemas.decks import DeckConfigRow
 
 
 def _int_id(v: Any) -> Any:
@@ -31,7 +31,7 @@ caps = SourceCaps(
 router = create_resource_routes(
     path="/v1/deck-configs",
     caps=caps,
-    response_model=Paginated[ModelRow],
+    row_model=DeckConfigRow,
     id_getter=make_id_getter("id"),
     resource_name="deck_config",
     resource_plural="deck_configs",

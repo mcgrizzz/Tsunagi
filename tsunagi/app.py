@@ -139,7 +139,36 @@ def openapi_with_auth():
             "detail": {"title": "Detail", "type": "string"},
             "errors": {**validation["properties"]["detail"], "title": "Errors"}}
         validation["required"] = ["detail", "errors"]
+    _show_field_names(schema.get("components", {}).get("schemas", {}))
     return schema
+
+
+def _models(cls):
+    for sub in cls.__subclasses__():
+        yield sub
+        yield from _models(sub)
+
+
+def _show_field_names(components):
+    """
+    Pydantic 1 writes schemas by alias (`cardIds`, `ivl`); answers and docs
+    use the field names, so the description shows those (6.72). Aliases are
+    still accepted on input.
+    """
+    for model in set(_models(BaseModel)):
+        if not model.__module__.startswith(__package__ + "."):
+            continue
+        names = {f.alias: f.name for f in model.__fields__.values() if f.alias != f.name}
+        if not names:
+            continue
+        own = model.schema()
+        for component in components.values():
+            if (component.get("title") == own.get("title")
+                    and component.get("properties", {}).keys() == own.get("properties", {}).keys()):
+                component["properties"] = {names.get(k, k): v
+                                           for k, v in component["properties"].items()}
+                if "required" in component:
+                    component["required"] = [names.get(k, k) for k in component["required"]]
 
 
 app.openapi = openapi_with_auth

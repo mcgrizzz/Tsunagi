@@ -29,6 +29,7 @@ from tsunagi.shared.route_factory import (
     create_resource_routes,
     make_id_getter,
 )
+from tsunagi.shared.schemas.wrappers import ProjectedObject
 
 SEED = [
     {"id": 1, "name": "Basic", "type": 0, "fields": [{"name": "Front", "ord": 0}, {"name": "Back", "ord": 1}]},
@@ -150,7 +151,7 @@ def client(store):
     app.include_router(create_resource_routes(
         path="/v1/things",
         caps=caps,
-        response_model=None,
+        row_model=ProjectedObject,
         id_getter=make_id_getter("id"),
         resource_name="thing",
         resource_plural="things",
@@ -243,7 +244,7 @@ class TestQueries:
         caps = SourceCaps(fetch_all=lambda wants=None: (_ for _ in ()).throw(RuntimeError("secret internals")))
         app = FastAPI()
         app.include_router(create_resource_routes(
-            path="/v1/boom", caps=caps, response_model=None,
+            path="/v1/boom", caps=caps, row_model=ProjectedObject,
             resource_name="boom", resource_plural="booms", tag="Boom", permission_resource="notes",
         ))
         resp = TestClient(app, raise_server_exceptions=False).get("/v1/boom")
@@ -267,7 +268,7 @@ class TestSearchParam:
         )
         app = FastAPI()
         app.include_router(create_resource_routes(
-            path="/v1/things", caps=caps, response_model=None,
+            path="/v1/things", caps=caps, row_model=ProjectedObject,
             id_getter=make_id_getter("id"),
             resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
@@ -320,7 +321,7 @@ class TestSearchParam:
                                             hydrate=hydrate))
         app = FastAPI()
         app.include_router(create_resource_routes(
-            path="/v1/things", caps=caps, response_model=None,
+            path="/v1/things", caps=caps, row_model=ProjectedObject,
             id_getter=make_id_getter("id"),
             resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
@@ -400,7 +401,7 @@ class TestAvailabilityErrors:
         app = FastAPI()
         register_exception_handlers(app)
         app.include_router(create_resource_routes(
-            path="/v1/things", caps=caps, response_model=None,
+            path="/v1/things", caps=caps, row_model=ProjectedObject,
             resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
         return TestClient(app, raise_server_exceptions=False)
@@ -516,7 +517,7 @@ class TestKeysetScan:
             find_ids=find_ids, hydrate=store.fetch_by_ids, page_ids=page_ids))
         app = FastAPI()
         app.include_router(create_resource_routes(
-            path="/v1/things", caps=caps, response_model=None,
+            path="/v1/things", caps=caps, row_model=ProjectedObject,
             id_getter=make_id_getter("id"),
             resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
@@ -600,7 +601,7 @@ class TestIdIndexPaging:
             IndexSpec(path=("id",), fetch_values=fetch, coerce=_int_or_none)])
         app = FastAPI()
         app.include_router(create_resource_routes(
-            path="/v1/things", caps=caps, response_model=None,
+            path="/v1/things", caps=caps, row_model=ProjectedObject,
             id_getter=make_id_getter("id"),
             resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))
@@ -642,7 +643,7 @@ class TestTwoPhaseHydrate:
         caps = SourceCaps(search=SearchSpec(find_ids=find_ids, hydrate=hydrate))
         app = FastAPI()
         app.include_router(create_resource_routes(
-            path="/v1/things", caps=caps, response_model=None,
+            path="/v1/things", caps=caps, row_model=ProjectedObject,
             id_getter=make_id_getter("id"),
             resource_name="thing", resource_plural="things", tag="Things", permission_resource="notes",
         ))

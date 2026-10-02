@@ -99,7 +99,8 @@ def test_query_routes_pass_omitted_limit_as_unlimited(client, monkeypatch, metho
 
     def execute_query(**kwargs):
         assert kwargs["limit"] is None
-        return {"items": list(range(1201)), "next_cursor": None, "stats": {}}
+        return route_factory.Paginated[route_factory.ModelRow](
+            items=list(range(1201)), next_cursor=None, stats={})
 
     monkeypatch.setattr(route_factory, "_execute_query", execute_query)
     response = (client.get("/v1/cards") if method == "GET" else

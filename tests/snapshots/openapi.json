@@ -160,7 +160,7 @@
       "AddCardsRequest": {
         "description": "Everything optional: an empty body just opens the dialog.",
         "properties": {
-          "deckName": {
+          "deck_name": {
             "title": "Deckname",
             "type": "string"
           },
@@ -171,7 +171,7 @@
             "title": "Fields",
             "type": "object"
           },
-          "modelName": {
+          "model_name": {
             "title": "Modelname",
             "type": "string"
           },
@@ -289,7 +289,7 @@
       },
       "AnswerEntry": {
         "properties": {
-          "cardId": {
+          "card_id": {
             "title": "Cardid",
             "type": "integer"
           },
@@ -301,7 +301,7 @@
           }
         },
         "required": [
-          "cardId",
+          "card_id",
           "ease"
         ],
         "title": "AnswerEntry",
@@ -549,7 +549,7 @@
       "CardIds": {
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
-          "cardIds": {
+          "card_ids": {
             "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
@@ -559,15 +559,163 @@
           }
         },
         "required": [
-          "cardIds"
+          "card_ids"
         ],
         "title": "CardIds",
+        "type": "object"
+      },
+      "CardRow": {
+        "description": "A card row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "buried": {
+            "title": "Buried",
+            "type": "boolean"
+          },
+          "css": {
+            "title": "Css",
+            "type": "string"
+          },
+          "custom_data": {
+            "title": "Custom Data",
+            "type": "string"
+          },
+          "decay": {
+            "title": "Decay",
+            "type": "number"
+          },
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "integer"
+          },
+          "deck_name": {
+            "title": "Deck Name",
+            "type": "string"
+          },
+          "desired_retention": {
+            "title": "Desired Retention",
+            "type": "number"
+          },
+          "due": {
+            "title": "Due",
+            "type": "integer"
+          },
+          "factor": {
+            "title": "Factor",
+            "type": "integer"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/NoteField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "flag": {
+            "title": "Flag",
+            "type": "integer"
+          },
+          "flags": {
+            "title": "Flags",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "interval": {
+            "title": "Interval",
+            "type": "integer"
+          },
+          "lapses": {
+            "title": "Lapses",
+            "type": "integer"
+          },
+          "last_review_time": {
+            "title": "Last Review Time",
+            "type": "integer"
+          },
+          "left": {
+            "title": "Left",
+            "type": "integer"
+          },
+          "memory_state": {
+            "$ref": "#/components/schemas/FsrsMemoryState"
+          },
+          "mod": {
+            "title": "Mod",
+            "type": "integer"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "next_reviews": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Next Reviews",
+            "type": "array"
+          },
+          "note_id": {
+            "title": "Note Id",
+            "type": "integer"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          },
+          "original_deck_id": {
+            "title": "Original Deck Id",
+            "type": "integer"
+          },
+          "original_due": {
+            "title": "Original Due",
+            "type": "integer"
+          },
+          "original_position": {
+            "title": "Original Position",
+            "type": "integer"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "queue": {
+            "title": "Queue",
+            "type": "integer"
+          },
+          "reps": {
+            "title": "Reps",
+            "type": "integer"
+          },
+          "retrievability": {
+            "title": "Retrievability",
+            "type": "number"
+          },
+          "suspended": {
+            "title": "Suspended",
+            "type": "boolean"
+          },
+          "type": {
+            "title": "Type",
+            "type": "integer"
+          },
+          "usn": {
+            "title": "Usn",
+            "type": "integer"
+          }
+        },
+        "title": "CardRow",
         "type": "object"
       },
       "ChangeDeckRequest": {
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
-          "cardIds": {
+          "card_ids": {
             "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
@@ -575,17 +723,17 @@
             "title": "Cardids",
             "type": "array"
           },
-          "deckId": {
+          "deck_id": {
             "title": "Deckid",
             "type": "integer"
           },
-          "deckName": {
+          "deck_name": {
             "title": "Deckname",
             "type": "string"
           }
         },
         "required": [
-          "cardIds"
+          "card_ids"
         ],
         "title": "ChangeDeckRequest",
         "type": "object"
@@ -792,6 +940,21 @@
         "title": "CurrentCardResult",
         "type": "object"
       },
+      "DeckConfigRow": {
+        "description": "A deck config row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "DeckConfigRow",
+        "type": "object"
+      },
       "DeckNameRequest": {
         "properties": {
           "name": {
@@ -808,7 +971,7 @@
       "DeckPatch": {
         "description": "Schema for patching a deck - all fields optional",
         "properties": {
-          "browserCollapsed": {
+          "browser_collapsed": {
             "title": "Browsercollapsed",
             "type": "boolean"
           },
@@ -816,15 +979,15 @@
             "title": "Collapsed",
             "type": "boolean"
           },
-          "conf": {
+          "config_id": {
             "title": "Conf",
             "type": "integer"
           },
-          "desc": {
+          "description": {
             "title": "Desc",
             "type": "string"
           },
-          "desiredRetention": {
+          "desired_retention": {
             "title": "Desiredretention",
             "type": "number"
           },
@@ -834,6 +997,113 @@
           }
         },
         "title": "DeckPatch",
+        "type": "object"
+      },
+      "DeckRow": {
+        "description": "A deck row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "browser_collapsed": {
+            "title": "Browser Collapsed",
+            "type": "boolean"
+          },
+          "collapsed": {
+            "title": "Collapsed",
+            "type": "boolean"
+          },
+          "config_id": {
+            "title": "Config Id",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "desired_retention": {
+            "title": "Desired Retention",
+            "type": "number"
+          },
+          "dynamic": {
+            "title": "Dynamic",
+            "type": "integer"
+          },
+          "extend_new": {
+            "title": "Extend New",
+            "type": "integer"
+          },
+          "extend_rev": {
+            "title": "Extend Rev",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "learn_count": {
+            "title": "Learn Count",
+            "type": "integer"
+          },
+          "learn_today": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Learn Today",
+            "type": "array"
+          },
+          "mod": {
+            "title": "Mod",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "new_count": {
+            "title": "New Count",
+            "type": "integer"
+          },
+          "new_limit": {
+            "title": "New Limit",
+            "type": "integer"
+          },
+          "new_today": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "New Today",
+            "type": "array"
+          },
+          "review_count": {
+            "title": "Review Count",
+            "type": "integer"
+          },
+          "review_limit": {
+            "title": "Review Limit",
+            "type": "integer"
+          },
+          "review_today": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Review Today",
+            "type": "array"
+          },
+          "time_today": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Time Today",
+            "type": "array"
+          },
+          "total_in_deck": {
+            "title": "Total In Deck",
+            "type": "integer"
+          },
+          "usn": {
+            "title": "Usn",
+            "type": "integer"
+          }
+        },
+        "title": "DeckRow",
         "type": "object"
       },
       "DeletionResult": {
@@ -865,19 +1135,19 @@
       "DuplicateScopeOptions": {
         "description": "AnkiConnect's duplicateScopeOptions, with the same names and defaults.",
         "properties": {
-          "checkAllModels": {
+          "check_all_models": {
             "default": false,
             "description": "Match notes of every note type, not just the candidate's.",
             "title": "Checkallmodels",
             "type": "boolean"
           },
-          "checkChildren": {
+          "check_children": {
             "default": false,
             "description": "Deck scope: also check the deck's subdecks.",
             "title": "Checkchildren",
             "type": "boolean"
           },
-          "deckName": {
+          "deck_name": {
             "description": "Deck scope: check this deck instead of the note's own deck.",
             "title": "Deckname",
             "type": "string"
@@ -972,7 +1242,7 @@
             "title": "Description",
             "type": "string"
           },
-          "excludeFromSearch": {
+          "exclude_from_search": {
             "title": "Excludefromsearch",
             "type": "boolean"
           },
@@ -984,11 +1254,11 @@
             "title": "Name",
             "type": "string"
           },
-          "plainText": {
+          "plain_text": {
             "title": "Plaintext",
             "type": "boolean"
           },
-          "preventDeletion": {
+          "prevent_deletion": {
             "title": "Preventdeletion",
             "type": "boolean"
           },
@@ -1030,7 +1300,7 @@
             "title": "Front",
             "type": "boolean"
           },
-          "modelName": {
+          "model_name": {
             "title": "Modelname",
             "type": "string"
           },
@@ -1068,7 +1338,7 @@
       "ForgetRequest": {
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
-          "cardIds": {
+          "card_ids": {
             "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
@@ -1076,19 +1346,19 @@
             "title": "Cardids",
             "type": "array"
           },
-          "resetCounts": {
+          "reset_counts": {
             "default": false,
             "title": "Resetcounts",
             "type": "boolean"
           },
-          "restorePosition": {
+          "restore_position": {
             "default": false,
             "title": "Restoreposition",
             "type": "boolean"
           }
         },
         "required": [
-          "cardIds"
+          "card_ids"
         ],
         "title": "ForgetRequest",
         "type": "object"
@@ -1582,6 +1852,27 @@
         "title": "MediaDeletionResult",
         "type": "object"
       },
+      "MediaFileRow": {
+        "description": "A media file row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "mtime": {
+            "description": "Last modified, Unix seconds",
+            "title": "Mtime",
+            "type": "integer"
+          },
+          "size": {
+            "description": "Bytes",
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "title": "MediaFileRow",
+        "type": "object"
+      },
       "MediaStored": {
         "properties": {
           "filename": {
@@ -1656,6 +1947,78 @@
         "title": "MemoryStateEntry",
         "type": "object"
       },
+      "ModelField": {
+        "properties": {
+          "collapsed": {
+            "default": false,
+            "title": "Collapsed",
+            "type": "boolean"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "exclude_from_search": {
+            "default": false,
+            "title": "Excludefromsearch",
+            "type": "boolean"
+          },
+          "font": {
+            "title": "Font",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "media": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Media",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          },
+          "plain_text": {
+            "default": false,
+            "title": "Plaintext",
+            "type": "boolean"
+          },
+          "prevent_deletion": {
+            "default": false,
+            "title": "Preventdeletion",
+            "type": "boolean"
+          },
+          "rtl": {
+            "default": false,
+            "title": "Rtl",
+            "type": "boolean"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "sticky": {
+            "default": false,
+            "title": "Sticky",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "ord"
+        ],
+        "title": "ModelField",
+        "type": "object"
+      },
       "ModelPatch": {
         "description": "Schema for patching a model - all fields optional",
         "properties": {
@@ -1667,7 +2030,7 @@
             "title": "Name",
             "type": "string"
           },
-          "sortf": {
+          "sort_field": {
             "title": "Sortf",
             "type": "integer"
           },
@@ -1677,6 +2040,157 @@
           }
         },
         "title": "ModelPatch",
+        "type": "object"
+      },
+      "ModelRow": {
+        "description": "A model row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "css": {
+            "title": "Css",
+            "type": "string"
+          },
+          "did": {
+            "title": "Did",
+            "type": "integer"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ModelField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "latex_post": {
+            "title": "Latex Post",
+            "type": "string"
+          },
+          "latex_pre": {
+            "title": "Latex Pre",
+            "type": "string"
+          },
+          "latex_svg": {
+            "title": "Latex Svg",
+            "type": "boolean"
+          },
+          "mod": {
+            "title": "Mod",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note_count": {
+            "description": "Read-only count of notes using this type, across all decks. Computed by native model queries; may be null in mutation replies.",
+            "title": "Note Count",
+            "type": "integer"
+          },
+          "original_id": {
+            "title": "Original Id",
+            "type": "integer"
+          },
+          "original_stock_kind": {
+            "title": "Original Stock Kind",
+            "type": "integer"
+          },
+          "req": {
+            "items": {
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                }
+              ],
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "title": "Req",
+            "type": "array"
+          },
+          "sort_field": {
+            "title": "Sort Field",
+            "type": "integer"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/ModelTemplate"
+            },
+            "title": "Templates",
+            "type": "array"
+          },
+          "type": {
+            "title": "Type",
+            "type": "integer"
+          },
+          "usn": {
+            "title": "Usn",
+            "type": "integer"
+          },
+          "vers": {
+            "items": {},
+            "title": "Vers",
+            "type": "array"
+          }
+        },
+        "title": "ModelRow",
+        "type": "object"
+      },
+      "ModelTemplate": {
+        "properties": {
+          "afmt": {
+            "title": "Afmt",
+            "type": "string"
+          },
+          "bafmt": {
+            "title": "Bafmt",
+            "type": "string"
+          },
+          "bqfmt": {
+            "title": "Bqfmt",
+            "type": "string"
+          },
+          "did": {
+            "title": "Did",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          },
+          "qfmt": {
+            "title": "Qfmt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "ord"
+        ],
+        "title": "ModelTemplate",
         "type": "object"
       },
       "MutationResult_Any_": {
@@ -1802,7 +2316,7 @@
       "NoteCreate": {
         "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
-          "allowDuplicate": {
+          "allow_duplicate": {
             "default": false,
             "title": "Allowduplicate",
             "type": "boolean"
@@ -1821,15 +2335,15 @@
             ],
             "title": "Audio"
           },
-          "deckId": {
+          "deck_id": {
             "title": "Deckid",
             "type": "integer"
           },
-          "deckName": {
+          "deck_name": {
             "title": "Deckname",
             "type": "string"
           },
-          "duplicateScope": {
+          "duplicate_scope": {
             "description": "Where to look for duplicates: the whole collection (default) or one deck.",
             "enum": [
               "collection",
@@ -1838,7 +2352,7 @@
             "title": "Duplicatescope",
             "type": "string"
           },
-          "duplicateScopeOptions": {
+          "duplicate_scope_options": {
             "allOf": [
               {
                 "$ref": "#/components/schemas/DuplicateScopeOptions"
@@ -1864,11 +2378,11 @@
             ],
             "title": "Fields"
           },
-          "modelId": {
+          "model_id": {
             "title": "Modelid",
             "type": "integer"
           },
-          "modelName": {
+          "model_name": {
             "title": "Modelname",
             "type": "string"
           },
@@ -2010,6 +2524,30 @@
         "title": "NoteCreated",
         "type": "object"
       },
+      "NoteField": {
+        "description": "One field of a note. Deliberately mirrors ModelField's shape so the query\nDSL reads the same on both resources: where=fields[].name==Front,\nselect=fields[].(name,value).",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "ord"
+        ],
+        "title": "NoteField",
+        "type": "object"
+      },
       "NoteFieldValue": {
         "description": "Array form of a field on write ('ord' accepted and ignored).",
         "properties": {
@@ -2062,7 +2600,7 @@
       "NoteIds": {
         "description": "Body for the batch note verbs, as CardIds is for cards.",
         "properties": {
-          "noteIds": {
+          "note_ids": {
             "description": "A note id sent twice counts once; a missing note is skipped.",
             "items": {
               "type": "integer"
@@ -2072,7 +2610,7 @@
           }
         },
         "required": [
-          "noteIds"
+          "note_ids"
         ],
         "title": "NoteIds",
         "type": "object"
@@ -2080,7 +2618,7 @@
       "NotePatch": {
         "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
-          "addTags": {
+          "add_tags": {
             "items": {
               "type": "string"
             },
@@ -2118,11 +2656,11 @@
             ],
             "title": "Fields"
           },
-          "modelId": {
+          "model_id": {
             "title": "Modelid",
             "type": "integer"
           },
-          "modelName": {
+          "model_name": {
             "title": "Modelname",
             "type": "string"
           },
@@ -2140,7 +2678,7 @@
             ],
             "title": "Picture"
           },
-          "removeTags": {
+          "remove_tags": {
             "items": {
               "type": "string"
             },
@@ -2170,6 +2708,62 @@
           }
         },
         "title": "NotePatch",
+        "type": "object"
+      },
+      "NoteRow": {
+        "description": "A note row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "cards": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/NoteField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "first_field": {
+            "title": "First Field",
+            "type": "string"
+          },
+          "guid": {
+            "title": "Guid",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mod": {
+            "title": "Mod",
+            "type": "integer"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "integer"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "usn": {
+            "title": "Usn",
+            "type": "integer"
+          }
+        },
+        "title": "NoteRow",
         "type": "object"
       },
       "NoteUpdated": {
@@ -2216,7 +2810,7 @@
       "NoteUpsert": {
         "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
-          "allowDuplicate": {
+          "allow_duplicate": {
             "default": false,
             "title": "Allowduplicate",
             "type": "boolean"
@@ -2235,15 +2829,15 @@
             ],
             "title": "Audio"
           },
-          "deckId": {
+          "deck_id": {
             "title": "Deckid",
             "type": "integer"
           },
-          "deckName": {
+          "deck_name": {
             "title": "Deckname",
             "type": "string"
           },
-          "duplicateScope": {
+          "duplicate_scope": {
             "description": "Where to look for duplicates: the whole collection (default) or one deck.",
             "enum": [
               "collection",
@@ -2252,7 +2846,7 @@
             "title": "Duplicatescope",
             "type": "string"
           },
-          "duplicateScopeOptions": {
+          "duplicate_scope_options": {
             "allOf": [
               {
                 "$ref": "#/components/schemas/DuplicateScopeOptions"
@@ -2281,15 +2875,15 @@
           "match": {
             "$ref": "#/components/schemas/UpsertMatch"
           },
-          "modelId": {
+          "model_id": {
             "title": "Modelid",
             "type": "integer"
           },
-          "modelName": {
+          "model_name": {
             "title": "Modelname",
             "type": "string"
           },
-          "onMatch": {
+          "on_match": {
             "$ref": "#/components/schemas/OnMatch"
           },
           "picture": {
@@ -2457,28 +3051,11 @@
         "title": "OptimalRetentionResult",
         "type": "object"
       },
-      "Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__": {
+      "Paginated_CardRow_": {
         "properties": {
           "items": {
             "items": {
-              "anyOf": [
-                {},
-                {
-                  "$ref": "#/components/schemas/ProjectedObject"
-                },
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                }
-              ]
+              "$ref": "#/components/schemas/CardRow"
             },
             "title": "Items",
             "type": "array"
@@ -2501,7 +3078,217 @@
           "items",
           "stats"
         ],
-        "title": "Paginated[Union[Any, ProjectedObject, str, int, float, bool, NoneType]]",
+        "title": "Paginated[CardRow]",
+        "type": "object"
+      },
+      "Paginated_DeckConfigRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeckConfigRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "Paginated[DeckConfigRow]",
+        "type": "object"
+      },
+      "Paginated_DeckRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeckRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "Paginated[DeckRow]",
+        "type": "object"
+      },
+      "Paginated_MediaFileRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaFileRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "Paginated[MediaFileRow]",
+        "type": "object"
+      },
+      "Paginated_ModelRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "Paginated[ModelRow]",
+        "type": "object"
+      },
+      "Paginated_NoteRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NoteRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "Paginated[NoteRow]",
+        "type": "object"
+      },
+      "Paginated_ReviewRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "Paginated[ReviewRow]",
+        "type": "object"
+      },
+      "Paginated_TagRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TagRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "string"
+          },
+          "stats": {
+            "title": "Stats",
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "title": "Paginated[TagRow]",
         "type": "object"
       },
       "ProfileList": {
@@ -2560,11 +3347,6 @@
         "title": "ProfileLoadResult",
         "type": "object"
       },
-      "ProjectedObject": {
-        "properties": {},
-        "title": "ProjectedObject",
-        "type": "object"
-      },
       "QueryRequest": {
         "properties": {
           "cursor": {
@@ -2620,7 +3402,7 @@
       "RepositionRequest": {
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
-          "cardIds": {
+          "card_ids": {
             "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
@@ -2633,24 +3415,24 @@
             "title": "Randomize",
             "type": "boolean"
           },
-          "shiftExisting": {
+          "shift_existing": {
             "default": false,
             "title": "Shiftexisting",
             "type": "boolean"
           },
-          "startingFrom": {
+          "starting_from": {
             "default": 0,
             "title": "Startingfrom",
             "type": "integer"
           },
-          "stepSize": {
+          "step_size": {
             "default": 1,
             "title": "Stepsize",
             "type": "integer"
           }
         },
         "required": [
-          "cardIds"
+          "card_ids"
         ],
         "title": "RepositionRequest",
         "type": "object"
@@ -2658,7 +3440,7 @@
       "ReviewInfo": {
         "description": "One revlog row, with human-readable names (Anki wire names as aliases).\n\nThe revlog is append-only history: every row is a fact about a review that\nhappened, so it is normally the scheduler's to write. The one exception is\nPOST /v1/reviews (AnkiConnect's insertReviews), which inserts rows for\nhistory imports - and reuses this model, so rows round-trip read<->write.",
         "properties": {
-          "cid": {
+          "card_id": {
             "title": "Cid",
             "type": "integer"
           },
@@ -2676,17 +3458,17 @@
             "title": "Id",
             "type": "integer"
           },
-          "ivl": {
+          "interval": {
             "default": 0,
             "title": "Ivl",
             "type": "integer"
           },
-          "lastIvl": {
+          "last_interval": {
             "default": 0,
             "title": "Lastivl",
             "type": "integer"
           },
-          "time": {
+          "time_ms": {
             "default": 0,
             "title": "Time",
             "type": "integer"
@@ -2704,9 +3486,52 @@
         },
         "required": [
           "id",
-          "cid"
+          "card_id"
         ],
         "title": "ReviewInfo",
+        "type": "object"
+      },
+      "ReviewRow": {
+        "description": "A review row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "card_id": {
+            "title": "Card Id",
+            "type": "integer"
+          },
+          "ease": {
+            "title": "Ease",
+            "type": "integer"
+          },
+          "factor": {
+            "title": "Factor",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "interval": {
+            "title": "Interval",
+            "type": "integer"
+          },
+          "last_interval": {
+            "title": "Last Interval",
+            "type": "integer"
+          },
+          "time_ms": {
+            "title": "Time Ms",
+            "type": "integer"
+          },
+          "type": {
+            "title": "Type",
+            "type": "integer"
+          },
+          "usn": {
+            "title": "Usn",
+            "type": "integer"
+          }
+        },
+        "title": "ReviewRow",
         "type": "object"
       },
       "SetAddNoteDataRequest": {
@@ -2718,7 +3543,7 @@
             "title": "Append",
             "type": "boolean"
           },
-          "deckName": {
+          "deck_name": {
             "title": "Deckname",
             "type": "string"
           },
@@ -2729,7 +3554,7 @@
             "title": "Fields",
             "type": "object"
           },
-          "modelName": {
+          "model_name": {
             "title": "Modelname",
             "type": "string"
           },
@@ -2769,7 +3594,7 @@
       },
       "SetCardValuesRequest": {
         "properties": {
-          "cardId": {
+          "card_id": {
             "title": "Cardid",
             "type": "integer"
           },
@@ -2784,7 +3609,7 @@
           }
         },
         "required": [
-          "cardId",
+          "card_id",
           "values"
         ],
         "title": "SetCardValuesRequest",
@@ -2793,7 +3618,7 @@
       "SetDueDateRequest": {
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
-          "cardIds": {
+          "card_ids": {
             "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
@@ -2801,7 +3626,7 @@
             "title": "Cardids",
             "type": "array"
           },
-          "configKey": {
+          "config_key": {
             "title": "Configkey",
             "type": "string"
           },
@@ -2811,7 +3636,7 @@
           }
         },
         "required": [
-          "cardIds",
+          "card_ids",
           "days"
         ],
         "title": "SetDueDateRequest",
@@ -2836,7 +3661,7 @@
       "SetFlagRequest": {
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
-          "cardIds": {
+          "card_ids": {
             "description": "A card id sent twice counts once; a missing card is skipped.",
             "items": {
               "type": "integer"
@@ -2852,7 +3677,7 @@
           }
         },
         "required": [
-          "cardIds",
+          "card_ids",
           "flag"
         ],
         "title": "SetFlagRequest",
@@ -2994,7 +3819,7 @@
       "TagBulkRequest": {
         "description": "Body for the batch note verbs, as CardIds is for cards.",
         "properties": {
-          "noteIds": {
+          "note_ids": {
             "description": "A note id sent twice counts once; a missing note is skipped.",
             "items": {
               "type": "integer"
@@ -3008,7 +3833,7 @@
           }
         },
         "required": [
-          "noteIds",
+          "note_ids",
           "tags"
         ],
         "title": "TagBulkRequest",
@@ -3044,6 +3869,17 @@
           "name"
         ],
         "title": "TagRename",
+        "type": "object"
+      },
+      "TagRow": {
+        "description": "A tag row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "TagRow",
         "type": "object"
       },
       "TemplatePatch": {
@@ -3709,7 +4545,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_CardRow_"
                 }
               }
             },
@@ -3766,7 +4602,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_CardRow_"
                 }
               }
             },
@@ -4909,7 +5745,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_DeckConfigRow_"
                 }
               }
             },
@@ -5017,7 +5853,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_DeckConfigRow_"
                 }
               }
             },
@@ -5286,7 +6122,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_DeckRow_"
                 }
               }
             },
@@ -5394,7 +6230,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_DeckRow_"
                 }
               }
             },
@@ -6882,7 +7718,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_MediaFileRow_"
                 }
               }
             },
@@ -7013,7 +7849,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_MediaFileRow_"
                 }
               }
             },
@@ -7263,7 +8099,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_ModelRow_"
                 }
               }
             },
@@ -7371,7 +8207,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_ModelRow_"
                 }
               }
             },
@@ -8255,7 +9091,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_NoteRow_"
                 }
               }
             },
@@ -8397,7 +9233,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_NoteRow_"
                 }
               }
             },
@@ -8949,7 +9785,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_ReviewRow_"
                 }
               }
             },
@@ -9055,7 +9891,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_ReviewRow_"
                 }
               }
             },
@@ -9206,7 +10042,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_TagRow_"
                 }
               }
             },
@@ -9263,7 +10099,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Paginated_Union_Any__ProjectedObject__str__int__float__bool__NoneType__"
+                  "$ref": "#/components/schemas/Paginated_TagRow_"
                 }
               }
             },

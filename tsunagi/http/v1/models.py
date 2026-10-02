@@ -34,15 +34,15 @@ from ...shared.planning import (
     SourceCaps,
     SubresourceMutations,
 )
-from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
+from ...shared.route_factory import create_resource_routes, make_id_getter
 from ...shared.schemas.models import (
     FieldPatch,
     FindReplaceRequest,
     FindReplaceResult,
+    ModelInfo,
     ModelPatch,
     TemplatePatch,
 )
-from ...shared.schemas.wrappers import Paginated
 
 mutation_caps = MutationCaps(
     create=create_model,
@@ -107,7 +107,7 @@ caps = SourceCaps(
 router = create_resource_routes(
     path="/v1/models",
     caps=caps,
-    response_model=Paginated[ModelRow],
+    row_model=ModelInfo,
     id_getter=make_id_getter("id"),
     resource_name="model",
     resource_plural="models",

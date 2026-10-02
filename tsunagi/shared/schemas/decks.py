@@ -63,6 +63,20 @@ class DeckInfo(BaseModel):
 # ----------------- Request Schemas -----------------
 
 
+class DeckConfigRow(BaseModel):
+    """
+    A deck preset as Anki stores it: `id`, `name` and Anki's own settings,
+    with Anki's names (`new`, `rev`, `lapse`, `desiredRetention`...), which
+    vary with the Anki version. Sent back whole, so a read-modify-write keeps
+    settings this API doesn't know.
+    """
+    class Config:
+        extra = "allow"
+
+    id: int
+    name: str
+
+
 class DeckCreate(BaseModel):
     """Schema for creating a deck ("::" nesting allowed)"""
     class Config:

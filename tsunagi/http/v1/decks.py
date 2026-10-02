@@ -8,9 +8,8 @@ from ...adapters.anki.decks import (
     patch_deck,
 )
 from ...shared.planning import IndexSpec, MutationCaps, SourceCaps
-from ...shared.route_factory import ModelRow, create_resource_routes, make_id_getter
-from ...shared.schemas.decks import DeckPatch
-from ...shared.schemas.wrappers import Paginated
+from ...shared.route_factory import create_resource_routes, make_id_getter
+from ...shared.schemas.decks import DeckInfo, DeckPatch
 
 mutation_caps = MutationCaps(
     create=create_deck,
@@ -45,7 +44,7 @@ caps = SourceCaps(
 router = create_resource_routes(
     path="/v1/decks",
     caps=caps,
-    response_model=Paginated[ModelRow],
+    row_model=DeckInfo,
     id_getter=make_id_getter("id"),
     resource_name="deck",
     resource_plural="decks",

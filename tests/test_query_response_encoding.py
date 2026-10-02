@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from tsunagi.shared import route_factory
 from tsunagi.shared.route_factory import ModelRow
-from tsunagi.shared.schemas.wrappers import Paginated
+from tsunagi.shared.schemas.wrappers import Paginated, ProjectedObject
 
 
 class NamedRow(BaseModel):
@@ -30,7 +30,7 @@ def test_query_encoding_matches_framework(method, monkeypatch):
     monkeypatch.setattr(route_factory, "_execute_query", lambda **kwargs: page)
     app = FastAPI()
     app.include_router(route_factory.create_resource_routes(
-        "/query", caps=SimpleNamespace(mutations=None), response_model=Paginated[ModelRow],
+        "/query", caps=SimpleNamespace(mutations=None), row_model=ProjectedObject,
         resource_name="item", resource_plural="items", tag="Test", permission_resource="notes",
     ))
 
@@ -45,21 +45,6 @@ def test_query_encoding_matches_framework(method, monkeypatch):
     assert actual.status_code == expected.status_code == 200
     assert actual.json() == expected.json()
     assert actual.headers["content-type"] == expected.headers["content-type"]
-
-
-def test_custom_query_response_still_validates(monkeypatch):
-    class StrictPage(BaseModel):
-        items: list[int]
-
-    page = Paginated[ModelRow](items=["invalid"], next_cursor=None, stats={})
-    monkeypatch.setattr(route_factory, "_execute_query", lambda **kwargs: page)
-    app = FastAPI()
-    app.include_router(route_factory.create_resource_routes(
-        "/query", caps=SimpleNamespace(mutations=None), response_model=StrictPage,
-        resource_name="item", resource_plural="items", tag="Test", permission_resource="notes",
-    ))
-    with TestClient(app, raise_server_exceptions=False) as client:
-        assert client.get("/query").status_code == 500
 
 
 def test_narrow_projection_keeps_validation_and_human_field_names():

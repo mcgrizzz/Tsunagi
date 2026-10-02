@@ -17,19 +17,19 @@ from ...adapters.anki.tags import (
 from ...shared.errors import ResourceNotFoundError, handle_mutation_errors
 from ...shared.permissions import requires
 from ...shared.planning import SourceCaps
-from ...shared.route_factory import ModelRow, create_resource_routes
+from ...shared.route_factory import create_resource_routes
 from ...shared.schemas.tags import (
     TagBulkRequest,
     TagMutationResult,
     TagRename,
+    TagRow,
 )
-from ...shared.schemas.wrappers import Paginated
 
 # Query: GET /v1/tags, POST /v1/tags/query, with the parameters every list takes.
 router = create_resource_routes(
     path="/v1/tags",
     caps=SourceCaps(fetch_all=lambda wants=None: [{"name": t} for t in all_tags()], key_type=str),
-    response_model=Paginated[ModelRow],
+    row_model=TagRow,
     id_getter=lambda row: row["name"],
     resource_name="tag",
     resource_plural="tags",
