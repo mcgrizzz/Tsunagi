@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import threading
 import uuid
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Optional
 
 from ..shared.errors import JobConflictError
 
@@ -37,6 +37,10 @@ class Job:
     # rust ThrottlingProgressHandler CLEARS want_abort when a computation
     # starts, so an abort raised before the op reaches the backend vanishes.
     abort_requested: bool = False
+    # Set when the job ends. A route that waits for it answers with the
+    # failure as raised, so it maps to the same status as without a job.
+    ended: threading.Event = field(default_factory=threading.Event, repr=False)
+    exception: Optional[BaseException] = field(default=None, repr=False)
 
 
 class JobStore:
@@ -60,6 +64,35 @@ class JobStore:
             self._jobs[job.id] = job
             return job
 
+    def start(self, kind: str, submit: Callable[[Job], None]) -> Job:
+        """
+        Create a job and hand it to `submit`, which starts its work, as one
+        step of the request's write (ops.recorded): a retry with the same
+        Idempotency-Key gets the same job, and nothing is submitted twice.
+        """
+        from . import ops
+
+        def begin(ok: Callable[[Any], None], fail: Callable[[BaseException], None]) -> None:
+            try:
+                job = self.create(kind)
+            except BaseException as exc:
+                fail(exc)
+                return
+            try:
+                submit(job)
+            except BaseException as exc:
+                self.fail(job.id, str(exc), exception=exc)
+                fail(exc)
+                return
+            ok(job)
+
+        # A job that failed is started again, as a failed write runs again.
+        return ops.recorded(begin, rerun_if=lambda job: job.status in ("failed", "aborted"))
+
+    def wait(self, job: Job, timeout: float) -> bool:
+        """True if the job ended within `timeout` seconds."""
+        return job.ended.wait(timeout)
+
     def mark_running(self, job_id: str) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
@@ -72,13 +105,17 @@ class JobStore:
             if job is not None:
                 job.status = "done"
                 job.result = result
+                job.ended.set()
 
-    def fail(self, job_id: str, error: str, *, aborted: bool = False) -> None:
+    def fail(self, job_id: str, error: str, *, aborted: bool = False,
+             exception: Optional[BaseException] = None) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is not None:
                 job.status = "aborted" if aborted else "failed"
                 job.error = error
+                job.exception = exception
+                job.ended.set()
 
     def mark_abort_requested(self, job_id: str) -> None:
         with self._lock:

@@ -68,10 +68,19 @@ def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
     """
     Create the job, then fire the computation without waiting on it. The op
     callbacks (Qt main thread) only flip the job record - nothing blocking.
+    A keyed retry gets the same job (jobs.start).
     """
-    job = jobs.create(kind)
+    def submit(job):
+        query_op_run_async(
+            lambda col: op(job, col),
+            on_success=lambda result: on_success(job, result),
+            on_failure=lambda exc: jobs.fail(
+                job.id, anki_error_detail(exc),
+                aborted=(isinstance(exc, _AbortedBeforeStart)
+                         or type(exc).__name__ == "Interrupted")),
+        )
 
-    def op(col):
+    def op(job, col):
         jobs.mark_running(job.id)
         # Anki's backend clears its global abort flag when a computation
         # starts, so an abort raised between submit and here would be lost.
@@ -80,7 +89,7 @@ def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
             raise _AbortedBeforeStart("aborted before the computation started")
         return run(col)
 
-    def on_success(result):
+    def on_success(job, result):
         # Anki's abort flag is unreliable around these computations (cleared
         # twice per run, and the revlog-load phase never checks it), so an
         # acknowledged abort could otherwise still end in `done` - a coin-flip
@@ -92,14 +101,7 @@ def _submit(kind: str, run: Callable, start: float) -> JobSubmitted:
         else:
             jobs.finish(job.id, result)
 
-    query_op_run_async(
-        op,
-        on_success=on_success,
-        on_failure=lambda exc: jobs.fail(
-            job.id, anki_error_detail(exc),
-            aborted=(isinstance(exc, _AbortedBeforeStart)
-                     or type(exc).__name__ == "Interrupted")),
-    )
+    job = jobs.start(kind, submit)
     current = jobs.get(job.id)
     return JobSubmitted(
         job_id=job.id,

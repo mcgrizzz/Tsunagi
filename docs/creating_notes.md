@@ -334,16 +334,14 @@ submitted input.
 ### Retry safely with an idempotency key
 
 Send an `Idempotency-Key` header, a new unique value (such as a UUID) per
-request, on a write that changes the collection in one step, and reuse it when
-you retry that request: creating notes and media, answering cards, a PATCH or
-DELETE, and the other note, card, deck, note type, tag, preset and review
-writes.
+request, on any write, and reuse it when you retry that request: creating
+notes and media, answering cards, a PATCH or DELETE, the other note, card,
+deck, note type, tag, preset and review writes, exports, jobs, switching
+profile, checking the database and actions on Anki's windows (`/v1/gui:…`).
 
-Not covered yet: jobs (anything that answers 202 with a job: import, export,
-sync, FSRS computations, add-on actions), switching profile, checking the
-database, and actions on Anki's windows (`/v1/gui:…`). A retried job can get a
-409 while the first one runs and start again after it finishes, so poll the
-job you were given (`GET /v1/jobs/{job_id}`) instead of retrying.
+A retried job (import, sync, FSRS computations, add-on actions) gets the same
+job, its result if it has finished or the same `job_id` to poll, so it never
+starts twice. A job that failed starts again.
 
 ```sh
 curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" -d '{...}'

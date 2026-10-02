@@ -15,9 +15,10 @@ forgotten, so its retry runs again.
 
 POST /v1/notes and POST /v1/media record their whole response (`run`). Every
 other write is covered by `Journal`: the middleware opens one per request with
-a key, and each collection write the request makes (ops.collection_op_call)
-records its result when Anki finishes it. A retry runs the route again, and
-each write returns its recorded result instead of running a second time.
+a key, and each step the request takes (ops.recorded: collection writes,
+main-thread calls, starting a job, an export) records its result when it
+ends. A retry runs the route again, and each step returns its recorded result
+instead of running a second time; a job's retry gets the same job (6.74).
 """
 from __future__ import annotations
 
@@ -164,7 +165,7 @@ class Journal:
         self._next = 0
 
     def run(self, start: Callable[[Callable[[Any], None], Callable[[BaseException], None]], None],
-            timeout: Optional[float]) -> Any:
+            timeout: Optional[float], rerun_if: Optional[Callable[[Any], bool]] = None) -> Any:
         """The write's result: recorded for a retry, else from `start(done, fail)`."""
         index, self._next = self._next, self._next + 1
         record = self.record
@@ -175,7 +176,8 @@ class Journal:
                                     "retry with the same key")
         with _journals.lock:
             write = record.writes[index] if index < len(record.writes) else None
-            new = write is None or (write.done.is_set() and write.error is not None)
+            new = write is None or (write.done.is_set() and (
+                write.error is not None or (rerun_if is not None and rerun_if(write.result))))
             if new:
                 write = _Write()   # a failed write runs again, as without a key
                 if index < len(record.writes):
@@ -191,7 +193,8 @@ class Journal:
                 write.error = error
                 write.done.set()
             start(done, fail)
-        if not write.done.wait(ops.OP_TIMEOUT if timeout is None else timeout):
+        limit = ops.OP_TIMEOUT if timeout is None else timeout
+        if not write.done.wait(None if limit == ops.FOREVER else limit):
             raise AnkiBusyError("Write operation timed out; Anki may be busy or blocked by a "
                                 "dialog. It may still complete: retry with the same Idempotency-Key")
         if write.error is not None:

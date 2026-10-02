@@ -262,11 +262,13 @@ def read(item: Item, params: Dict[str, Any]) -> Any:
 
 def submit(provider: Provider, item: Item, params: Dict[str, Any]) -> str:
     """Start an action as a job; returns the job id. The single job slot is
-    shared with FSRS computations and imports (409 when busy)."""
-    job = jobs.create(f"{ADDON}:{provider.id}/{item.name}")
-    threading.Thread(target=_work, args=(job.id, provider, item, params),
-                     name=f"tsunagi-{job.kind}", daemon=True).start()
-    return job.id
+    shared with FSRS computations and imports (409 when busy). A keyed retry
+    gets the same job (jobs.start)."""
+    def run(job):
+        threading.Thread(target=_work, args=(job.id, provider, item, params),
+                         name=f"tsunagi-{job.kind}", daemon=True).start()
+
+    return jobs.start(f"{ADDON}:{provider.id}/{item.name}", run).id
 
 
 def _work(job_id: str, provider: Provider, item: Item, params: Dict[str, Any]) -> None:

@@ -28,9 +28,13 @@ OP_TIMEOUT: float = 15.0
 FOREVER = float("inf")
 
 # The request's idempotency journal (adapters/idempotency.py), set by the
-# middleware when the request carries an Idempotency-Key: collection writes
-# record their results there, and a retry gets them back instead of writing.
+# middleware when the request carries an Idempotency-Key: each step a write
+# takes (`recorded`) records its result there, and a retry gets them back
+# instead of running them again.
 write_journal: ContextVar[Optional[Any]] = ContextVar("write_journal", default=None)
+# Inside a recorded step: steps it starts belong to it, not to the journal,
+# so a replay (which skips the step) leaves the later steps where they were.
+_in_step: ContextVar[bool] = ContextVar("_in_step", default=False)
 
 
 class ValueWithChanges:
@@ -68,6 +72,41 @@ def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], 
         raise box["exc"]
     return box.get("result")
 
+def recorded(begin: Callable[[Callable[[Any], None], Callable[[BaseException], None]], None],
+             timeout: Optional[float] = None, what: str = "Write operation",
+             rerun_if: Optional[Callable[[Any], bool]] = None) -> Any:
+    """
+    One step of a write: `begin(done, fail)` starts it and calls one of them
+    when it ends, however late. Waits `timeout` like any write (503 past it,
+    while the step carries on). Under an Idempotency-Key the step is recorded
+    in the request's journal (6.64, 6.74): a retry gets its result instead of
+    running it again, or waits for it while it still runs. A step that failed
+    runs again, as does one whose result `rerun_if` says failed later (a job).
+    """
+    journal = write_journal.get()
+    if journal is not None and not _in_step.get():
+        def step(ok: Callable[[Any], None], fail: Callable[[BaseException], None]) -> None:
+            token = _in_step.set(True)
+            try:
+                begin(ok, fail)
+            finally:
+                _in_step.reset(token)
+
+        return journal.run(step, timeout, rerun_if)
+    done = threading.Event()
+    box: dict[str, Any] = {}
+
+    def ok(result: Any) -> None:
+        box["result"] = result
+        done.set()
+
+    def fail(exc: BaseException) -> None:
+        box["exc"] = exc
+        done.set()
+
+    begin(ok, fail)
+    return _wait(done, box, timeout, what)
+
 def call_on_main(fn: Callable[P, R], /, *args: P.args, timeout: Optional[float] = None, **kwargs: P.kwargs) -> R:
     """
     Run `fn(*args, **kwargs)` on Anki's UI thread and return its result.
@@ -75,23 +114,24 @@ def call_on_main(fn: Callable[P, R], /, *args: P.args, timeout: Optional[float] 
     - Raises AnkiBusyError if the UI thread doesn't respond within `timeout`
       (default: OP_TIMEOUT; FOREVER waits as long as it takes).
     - Propagates the original exception from the UI thread.
+    - A step of the request's write (`recorded`): a keyed retry doesn't run
+      it again, even after a 503 whose call ran later.
     """
     if threading.current_thread() is threading.main_thread():
         return fn(*args, **kwargs)
 
-    done = threading.Event()
-    box: dict[str, Any] = {"result": None}
+    def begin(ok: Callable[[Any], None], fail: Callable[[BaseException], None]) -> None:
+        def _call() -> None:
+            try:
+                result = fn(*args, **kwargs)
+            except BaseException as e:
+                fail(e)
+            else:
+                ok(result)
 
-    def _call() -> None:
-        try:
-            box["result"] = fn(*args, **kwargs)
-        except BaseException as e:
-            box["exc"] = e
-        finally:
-            done.set()
+        mw.taskman.run_on_main(_call)
 
-    mw.taskman.run_on_main(_call)
-    return cast(R, _wait(done, box, timeout, "Main-thread call"))
+    return cast(R, recorded(begin, timeout, "Main-thread call"))
 
 def call_on_main_interactive(fn: Callable[[], R]) -> R:
     """Bound UI dispatch, then wait for user interaction without a deadline.
@@ -102,6 +142,18 @@ def call_on_main_interactive(fn: Callable[[], R]) -> R:
     if threading.current_thread() is threading.main_thread():
         return fn()
 
+    def begin(ok: Callable[[Any], None], fail: Callable[[BaseException], None]) -> None:
+        # Blocks until the user is done. A timed-out dispatch is cancelled,
+        # so recording it as failed (a retry runs it again) is safe.
+        try:
+            ok(_interactive(fn))
+        except BaseException as e:
+            fail(e)
+
+    return cast(R, recorded(begin, FOREVER))
+
+
+def _interactive(fn: Callable[[], R]) -> R:
     started = threading.Event()
     result: Future[R] = Future()
 
@@ -331,24 +383,8 @@ def collection_op_call(
     **kwargs: P.kwargs,
 ) -> R:
     """Wait for a CollectionOp result, retaining the ordinary operation deadline."""
-    journal = write_journal.get()
-    if journal is not None:
-        return cast(R, journal.run(lambda ok, fail: collection_op_run_async(
-            fn, *args, on_success=ok, on_failure=fail, event_details=event_details, **kwargs), timeout))
-    done = threading.Event()
-    box: dict[str, Any] = {}
-
-    def success(result: Any) -> None:
-        box["result"] = result
-        done.set()
-
-    def failure(exc: Exception) -> None:
-        box["exc"] = exc
-        done.set()
-
-    collection_op_run_async(fn, *args, on_success=success, on_failure=failure,
-                            event_details=event_details, **kwargs)
-    return cast(R, _wait(done, box, timeout, "Write operation"))
+    return cast(R, recorded(lambda ok, fail: collection_op_run_async(
+        fn, *args, on_success=ok, on_failure=fail, event_details=event_details, **kwargs), timeout))
 
 
 def as_collection_op(

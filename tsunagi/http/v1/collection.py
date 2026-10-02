@@ -6,7 +6,6 @@ the running application, not a resource with rows to plan a query over. They
 follow the `resource:verb` convention already used by /v1/cards:suspend and
 /v1/models:find-replace.
 """
-import threading
 import time
 from typing import Union
 
@@ -174,32 +173,32 @@ def load(body: ProfileLoad = Body(...)) -> ProfileLoadResult:
 @handle_mutation_errors("sync")
 def sync() -> Union[SyncResult, JSONResponse]:
     start = time.perf_counter()
-    job = jobs.create("sync")
-    done = threading.Event()
-    outcome = {}
 
-    def on_done(result, error):
-        if error is not None:
-            outcome["error"] = error
-            jobs.fail(job.id, str(error))
-        else:
-            out = SyncResult(status=result["status"], server_message=result["server_message"],
-                             stats=_stats(start))
-            outcome["result"] = out
-            jobs.finish(job.id, out.dict())
-        done.set()
+    def submit(job):
+        def on_done(result, error):
+            if error is not None:
+                jobs.fail(job.id, str(error), exception=error)
+            else:
+                jobs.finish(job.id, SyncResult(status=result["status"],
+                                               server_message=result["server_message"],
+                                               stats=_stats(start)).dict())
 
-    jobs.mark_running(job.id)
-    try:
+        jobs.mark_running(job.id)
         ops.call_on_main(start_sync, on_done)
-    except Exception as exc:
-        jobs.fail(job.id, anki_error_detail(exc))
-        raise
-    if done.wait(ops.OP_TIMEOUT):
-        if "error" in outcome:
-            raise outcome["error"]
-        return outcome["result"]
-    submitted = JobSubmitted(job_id=job.id, status="running", stats=_stats(start))
+
+    return _job_answer(jobs.start("sync", submit), SyncResult, start)
+
+
+def _job_answer(job, result_model, start: float):
+    """The job's result if it ends within op_timeout_seconds, else 202 to poll it.
+    A failure is raised as it happened, so it maps to its usual status."""
+    if jobs.wait(job, ops.OP_TIMEOUT):
+        if job.exception is not None:
+            raise job.exception
+        if job.status == "done":
+            return result_model(**job.result)
+    current = jobs.snapshot(job.id) or {"status": job.status}
+    submitted = JobSubmitted(job_id=job.id, status=current["status"], stats=_stats(start))
     return JSONResponse(status_code=202, content=submitted.dict(),
                         headers={"Location": f"/v1/jobs/{job.id}"})
 
@@ -219,7 +218,12 @@ def sync() -> Union[SyncResult, JSONResponse]:
 @handle_mutation_errors("export", client_errors=PATH_ERRORS)
 def export(body: ExportRequest = Body(...)) -> CollectionActionResult:
     start = time.perf_counter()
-    export_package(body.deck, body.path, body.with_scheduling, body.with_media)
+    # Writes a file outside the collection: one step, so a keyed retry after
+    # a 503 doesn't export again over the file still being written (6.74).
+    ops.recorded(lambda ok, fail: ops.query_op_run_async(
+        lambda col: export_package.__wrapped__(col, body.deck, body.path,
+                                               body.with_scheduling, body.with_media),
+        on_success=ok, on_failure=fail))
     return CollectionActionResult(stats=_stats(start))
 
 
@@ -268,40 +272,19 @@ def import_options() -> ImportPreferences:
 @handle_mutation_errors("import", client_errors=PATH_ERRORS)
 def import_(body: ImportRequest = Body(...)) -> Union[ImportResult, JSONResponse]:
     start = time.perf_counter()
-    job = jobs.create("import_package")
-    done = threading.Event()
-    outcome = {}
 
-    def success(out):
-        result = ImportResult(imported=out["imported"], updated=out["updated"],
-                              stats=_stats(start))
-        outcome["result"] = result
-        jobs.finish(job.id, result.dict())
-        done.set()
+    def submit(job):
+        def success(out):
+            jobs.finish(job.id, ImportResult(imported=out["imported"], updated=out["updated"],
+                                             stats=_stats(start)).dict())
 
-    def failure(exc):
-        outcome["error"] = exc
-        jobs.fail(job.id, anki_error_detail(exc))
-        done.set()
-
-    try:
         submit_import_package(
             body.path, **body.dict(exclude={"path"}, exclude_none=True),
-            on_started=lambda: jobs.mark_running(job.id),
-            on_success=success, on_failure=failure,
+            on_started=lambda: jobs.mark_running(job.id), on_success=success,
+            on_failure=lambda exc: jobs.fail(job.id, anki_error_detail(exc), exception=exc),
         )
-    except Exception as exc:
-        failure(exc)
 
-    if done.wait(ops.OP_TIMEOUT):
-        if "error" in outcome:
-            raise outcome["error"]
-        return outcome["result"]
-
-    current = jobs.snapshot(job.id) or {"status": job.status}
-    submitted = JobSubmitted(job_id=job.id, status=current["status"], stats=_stats(start))
-    return JSONResponse(status_code=202, content=submitted.dict(),
-                        headers={"Location": f"/v1/jobs/{job.id}"})
+    return _job_answer(jobs.start("import_package", submit), ImportResult, start)
 
 
 @router.post(

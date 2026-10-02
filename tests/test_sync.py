@@ -140,3 +140,15 @@ def test_ankiconnect_sync_waits_for_the_end(client, web, monkeypatch):
     body = client.post("/", json={"action": "sync", "version": 6}).json()
     assert body == {"result": None, "error": None}
     assert "did_finish" in web.calls
+
+
+def test_a_keyed_retry_syncs_once(client, web):
+    # A keyed retry gets the same job, so AnkiWeb is asked once (6.74).
+    from tsunagi.adapters import idempotency
+    idempotency._journals.reset()
+    first = client.post("/v1/collection:sync", headers={"Idempotency-Key": "s1"})
+    again = client.post("/v1/collection:sync", headers={"Idempotency-Key": "s1"})
+    assert first.status_code == again.status_code == 200
+    assert again.headers["idempotent-replayed"] == "true"
+    assert web.calls.count(("sync", True)) == 1
+    idempotency._journals.reset()
