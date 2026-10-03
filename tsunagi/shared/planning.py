@@ -98,6 +98,7 @@ class OrderSpec:
     sorts; reviews: SQL). Other resources are small and sorted in Python.
     """
     names: Callable[[], List[str]]                      # the sort names available now
+    documented: Sequence[str]                           # the names the API description lists (6.101)
     ordered_ids: Callable[[str, str, bool], List[int]]  # (search, name, descending) -> ids in order, ties by id
     # The sort is the column of the same name in the resource's ColumnSource
     # (reviews), so a page can start after the last row sent (backlog 8.1b).

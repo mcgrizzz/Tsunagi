@@ -30,7 +30,7 @@ from ...adapters.anki.cards import (
     unbury_cards,
     unsuspend_cards,
 )
-from ...adapters.anki.sorting import find_sorted, sort_names
+from ...adapters.anki.sorting import CARD_SORTS, find_sorted, sort_names
 from ...shared.errors import (
     ResourceNotFoundError,
     ValidationError,
@@ -75,7 +75,7 @@ caps = SourceCaps(
     # where clauses on card columns go into the id query (backlog 9.13).
     sql=CARD_SQL,
     # order= uses Anki's Browser sorts (backlog 8.1).
-    order=OrderSpec(names=lambda: sort_names(False),
+    order=OrderSpec(names=lambda: sort_names(False), documented=CARD_SORTS,
                     ordered_ids=lambda query, name, desc: find_sorted(query, name, desc, False)),
     expensive_groups=(NOTE_WANTS, RENDER_WANTS, frozenset({"next_reviews"}),
                       frozenset({"retrievability"})),

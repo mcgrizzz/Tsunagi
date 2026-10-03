@@ -682,7 +682,11 @@ def documented_rows(row_model: Type[BaseModel], resource_name: str) -> Any:
     are sent by render_query_page, so this shapes the API description only.
     """
     title = "".join(part.capitalize() for part in re.split(r"[ _-]", resource_name)) + "Row"
-    fields = {f.name: (Optional[f.outer_type_], Field(None, description=f.field_info.description))
+    # The row model's schema extras carry over (6.101): x-values says what a
+    # coded field's numbers mean, x-nullable that a present field can be null,
+    # since every field here is optional.
+    fields = {f.name: (Optional[f.outer_type_],
+                       Field(None, description=f.field_info.description, **f.field_info.extra))
               for f in row_model.__fields__.values()}
     row = create_model(title, **fields)
     row.__doc__ = (f"A {resource_name.replace('_', ' ')} row. Without `select`, every field is "
@@ -758,6 +762,11 @@ def create_resource_routes(
     write_permission = requires(f"write:{permission_resource}")
 
     response_model = documented_rows(row_model, resource_name)
+    # The sort names the API description lists (6.101): cards and notes take
+    # Anki's Browser sorts, reviews their columns, the rest any plain field.
+    order_spec = getattr(caps, "order", None)
+    sorts = (list(order_spec.documented) if order_spec is not None else
+             sorted(name for name, f in row_model.__fields__.items() if f.outer_type_ in (int, float, str, bool)))
     # Anki's deck presets keep keys this API doesn't list; their names aren't checked.
     fields = None if row_model.__config__.extra == "allow" else frozenset(row_model.__fields__)
 
@@ -792,7 +801,8 @@ def create_resource_routes(
             "note_modified, deck, note_type, sort_field, tags, position, card_type; difficulty, "
             "stability and retrievability on cards), and the row fields that sort the same (reps, "
             "mod; id on notes); other resources a field of their rows. Ties "
-            "in ascending id. Without it, rows come in ascending id.")),
+            "in ascending id. Without it, rows come in ascending id."),
+            json_schema_extra={"x-sorts": sorts}),
         distinct_on: Optional[str] = Query(default=None, description=(
             "One row per distinct value of this field: the first in `order`, like PostgreSQL's "
             "DISTINCT ON. distinct_on=card_id&order=id:desc on reviews is each card's latest review. "

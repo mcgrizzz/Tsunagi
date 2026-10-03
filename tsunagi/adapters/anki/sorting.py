@@ -27,6 +27,15 @@ FIELD_NAMES = {False: {"reps": "cardReps", "mod": "cardMod"},
                True: {"mod": "noteMod", "id": "noteCrt"}}
 
 
+# What the API description lists (6.101): the sorts every supported Anki has,
+# checked against the running Anki by tests/test_sorting.py.
+CARD_SORTS = ("card_modified", "card_type", "created", "deck", "difficulty", "due", "ease",
+              "interval", "lapses", "mod", "note_modified", "note_type", "position", "reps",
+              "retrievability", "reviews", "sort_field", "stability", "tags")
+NOTE_SORTS = ("card_modified", "card_type", "created", "deck", "due", "ease", "id", "interval",
+              "lapses", "mod", "note_modified", "note_type", "position", "reviews", "sort_field", "tags")
+
+
 def _sorts(col: Collection, notes: bool) -> Dict[str, Any]:
     """The sortable columns this Anki has; one it adds later is named by its label."""
     out = {}

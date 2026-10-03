@@ -16,7 +16,7 @@ from ...adapters.anki.notes import (
     page_note_ids,
     patch_note,
 )
-from ...adapters.anki.sorting import find_sorted, sort_names
+from ...adapters.anki.sorting import NOTE_SORTS, find_sorted, sort_names
 from ...adapters.ops import collection_op_run_async
 from ...shared.errors import ValidationError, handle_mutation_errors
 from ...shared.helpers import parse_include
@@ -108,7 +108,7 @@ caps = SourceCaps(
     # id query, with or without a search (backlog 9.13).
     sql=NOTE_SQL,
     # order= uses Anki's Browser sorts, in notes mode (backlog 8.1).
-    order=OrderSpec(names=lambda: sort_names(True),
+    order=OrderSpec(names=lambda: sort_names(True), documented=NOTE_SORTS,
                     ordered_ids=lambda query, name, desc: find_sorted(query, name, desc, True)),
     mutations=MutationCaps(
         patch=_patch_note,
