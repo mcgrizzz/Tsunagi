@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, StrictBool, validator
 # ----------------- Response Schemas -----------------
 from .creation import CreationFailure, CreationResult
 from .media import MediaStored, MediaUpload
+from .wrappers import RequestBody
 
 
 class NoteField(BaseModel):
@@ -50,20 +51,19 @@ class NoteInfo(BaseModel):
 # ----------------- Request Schemas -----------------
 
 
-class NoteFieldValue(BaseModel):
-    """Array form of a field on write ('ord' accepted and ignored)."""
-    class Config:
-        extra = "ignore"
-
+class NoteFieldValue(RequestBody):
+    """Array form of a field on write."""
     name: str
     value: str = ""
+    # So a field read from GET (name, value, ord) can be sent back as it is.
+    ord: Optional[int] = Field(None, description="Accepted and ignored: a field's position comes from its note type")
 
 
 # Writes accept either {"Front": "犬"} or [{"name": "Front", "value": "犬"}].
 FieldsInput = Union[Dict[str, str], List[NoteFieldValue]]
 
 
-class DuplicateScopeOptions(BaseModel):
+class DuplicateScopeOptions(RequestBody):
     """AnkiConnect's duplicateScopeOptions, with the same names and defaults."""
     class Config:
         allow_population_by_field_name = True
@@ -88,7 +88,7 @@ class NoteAttachment(MediaUpload):
 Attachments = Optional[Union[List[NoteAttachment], NoteAttachment]]
 
 
-class NoteFiles(BaseModel):
+class NoteFiles(RequestBody):
     """Files sent with a note, on creation and on PATCH."""
     # Stored with the note, with [sound:...] or <img src="..."> appended to
     # their fields: one object or a list each, as in AnkiConnect.
@@ -165,7 +165,7 @@ def unique_ids(ids: List[int]) -> List[int]:
     return list(dict.fromkeys(ids))
 
 
-class NoteIds(BaseModel):
+class NoteIds(RequestBody):
     """Body for the batch note verbs, as CardIds is for cards."""
     class Config:
         allow_population_by_field_name = True
@@ -180,7 +180,7 @@ class NoteIds(BaseModel):
 # ----------------- Duplicate/empty check -----------------
 
 
-class NoteCheckRequest(BaseModel):
+class NoteCheckRequest(RequestBody):
     class Config:
         allow_population_by_field_name = True
 
@@ -238,7 +238,7 @@ class NoteCreateResponse(CreationResult[NoteCreated]):
 FieldRule = Literal["keep", "replace", "replace_if_empty", "append"]
 
 
-class UpsertMatch(BaseModel):
+class UpsertMatch(RequestBody):
     field: Optional[str] = Field(
         default=None,
         description=("Field whose content identifies the note, compared exactly (case-insensitive) "
@@ -246,7 +246,7 @@ class UpsertMatch(BaseModel):
                      "HTML ignored), including duplicateScope and its options."))
 
 
-class OnMatch(BaseModel):
+class OnMatch(RequestBody):
     fields: Dict[str, FieldRule] = Field(
         default_factory=dict,
         description=("Per field: keep, replace (unless the new value is empty), replace_if_empty, "

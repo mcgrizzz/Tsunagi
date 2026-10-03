@@ -4,6 +4,8 @@ from typing import Any, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from .wrappers import RequestBody
+
 # ----------------- Models -----------------
 
 class ModelField(BaseModel):
@@ -75,7 +77,7 @@ class FieldCreate(BaseModel):
     prevent_deletion: bool = Field(alias="preventDeletion", default=False)
 
 
-class FieldPatch(BaseModel):
+class FieldPatch(RequestBody):
     """Schema for patching a field - all fields optional"""
     class Config:
         allow_population_by_field_name = True
@@ -105,7 +107,7 @@ class TemplateCreate(BaseModel):
     bafmt: Optional[str] = None
 
 
-class TemplatePatch(BaseModel):
+class TemplatePatch(RequestBody):
     """Schema for patching a template - all fields optional"""
     class Config:
         allow_population_by_field_name = True
@@ -133,7 +135,7 @@ class ModelCreate(BaseModel):
     type: Optional[int] = None
 
 
-class FindReplaceRequest(BaseModel):
+class FindReplaceRequest(RequestBody):
     """Literal (non-regex) replace across template sides and styling."""
     class Config:
         allow_population_by_field_name = True
@@ -153,7 +155,7 @@ class FindReplaceResult(BaseModel):
     stats: dict
 
 
-class ModelPatch(BaseModel):
+class ModelPatch(RequestBody):
     """Schema for patching a model - all fields optional"""
     class Config:
         allow_population_by_field_name = True

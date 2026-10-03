@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from .notes import NoteIds
+from .wrappers import RequestBody
 
 
 class TagRow(BaseModel):
@@ -10,7 +11,7 @@ class TagRow(BaseModel):
     name: str
 
 
-class TagRename(BaseModel):
+class TagRename(RequestBody):
     name: str
 
 

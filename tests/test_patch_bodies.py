@@ -34,8 +34,11 @@ def test_snake_and_camel_keys_both_reach_the_note(client, col, nid):
     assert sorted(note.tags) == ["a", "b"] and note["Back"] == "x"
 
 
-def test_unknown_keys_are_still_ignored(client, col, nid):
-    assert client.patch(f"/v1/notes/{nid}", json={"nope": 1}).status_code == 200
+def test_an_unknown_key_is_a_422_before_any_write(client, col, nid):
+    mod = col.get_note(nid).mod
+    r = client.patch(f"/v1/notes/{nid}", json={"nope": 1})
+    assert r.status_code == 422 and r.json()["errors"][0]["loc"] == ["body", "nope"]
+    assert col.get_note(nid).mod == mod
 
 
 def test_an_explicit_null_still_reaches_the_adapter(client, col):

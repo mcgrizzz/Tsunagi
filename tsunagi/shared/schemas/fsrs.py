@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from .wrappers import RequestBody
+
 # ----------------- Jobs -----------------
 
 
@@ -38,7 +40,7 @@ class JobSubmitted(BaseModel):
 # ----------------- Requests -----------------
 
 
-class ComputeParamsRequest(BaseModel):
+class ComputeParamsRequest(RequestBody):
     search: str = ""
     current_params: Optional[List[float]] = None
     ignore_revlogs_before_ms: Optional[int] = None
@@ -46,13 +48,13 @@ class ComputeParamsRequest(BaseModel):
     health_check: Optional[bool] = None
 
 
-class EvaluateParamsRequest(BaseModel):
+class EvaluateParamsRequest(RequestBody):
     params: List[float]
     search: str = ""
     ignore_revlogs_before_ms: Optional[int] = None
 
 
-class SimulateRequest(BaseModel):
+class SimulateRequest(RequestBody):
     """
     Raw passthrough to Anki's SimulateFsrsReviewRequest; omitted limits stay at
     the protobuf default 0, and Anki itself rejects an unsimulatable setup

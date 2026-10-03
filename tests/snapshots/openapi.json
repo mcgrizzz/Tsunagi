@@ -158,6 +158,7 @@
         "type": "object"
       },
       "AddCardsRequest": {
+        "additionalProperties": false,
         "description": "Everything optional: an empty body just opens the dialog.",
         "properties": {
           "deck_name": {
@@ -288,6 +289,7 @@
         "type": "object"
       },
       "AnswerEntry": {
+        "additionalProperties": false,
         "properties": {
           "card_id": {
             "title": "Cardid",
@@ -355,6 +357,7 @@
         "type": "object"
       },
       "BatchRequest": {
+        "additionalProperties": false,
         "properties": {
           "operations": {
             "items": {
@@ -397,6 +400,7 @@
         "type": "object"
       },
       "BrowseRequest": {
+        "additionalProperties": false,
         "properties": {
           "query": {
             "description": "Anki search to run in the Browser",
@@ -534,6 +538,7 @@
         "type": "object"
       },
       "CardIdRequest": {
+        "additionalProperties": false,
         "properties": {
           "card_id": {
             "title": "Card Id",
@@ -547,6 +552,7 @@
         "type": "object"
       },
       "CardIds": {
+        "additionalProperties": false,
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "card_ids": {
@@ -713,6 +719,7 @@
         "type": "object"
       },
       "ChangeDeckRequest": {
+        "additionalProperties": false,
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "card_ids": {
@@ -797,6 +804,7 @@
         "type": "object"
       },
       "ComputeParamsRequest": {
+        "additionalProperties": false,
         "properties": {
           "current_params": {
             "items": {
@@ -956,6 +964,7 @@
         "type": "object"
       },
       "DeckNameRequest": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "title": "Name",
@@ -969,6 +978,7 @@
         "type": "object"
       },
       "DeckPatch": {
+        "additionalProperties": false,
         "description": "Schema for patching a deck - all fields optional",
         "properties": {
           "browser_collapsed": {
@@ -1133,6 +1143,7 @@
         "type": "object"
       },
       "DuplicateScopeOptions": {
+        "additionalProperties": false,
         "description": "AnkiConnect's duplicateScopeOptions, with the same names and defaults.",
         "properties": {
           "check_all_models": {
@@ -1157,6 +1168,7 @@
         "type": "object"
       },
       "EaseEntry": {
+        "additionalProperties": false,
         "properties": {
           "factor": {
             "title": "Factor",
@@ -1175,6 +1187,7 @@
         "type": "object"
       },
       "EvaluateParamsRequest": {
+        "additionalProperties": false,
         "properties": {
           "ignore_revlogs_before_ms": {
             "title": "Ignore Revlogs Before Ms",
@@ -1200,6 +1213,7 @@
         "type": "object"
       },
       "ExportRequest": {
+        "additionalProperties": false,
         "properties": {
           "deck": {
             "description": "Name of the deck to export",
@@ -1232,6 +1246,7 @@
         "type": "object"
       },
       "FieldPatch": {
+        "additionalProperties": false,
         "description": "Schema for patching a field - all fields optional",
         "properties": {
           "collapsed": {
@@ -1279,6 +1294,7 @@
         "type": "object"
       },
       "FindReplaceRequest": {
+        "additionalProperties": false,
         "description": "Literal (non-regex) replace across template sides and styling.",
         "properties": {
           "back": {
@@ -1336,6 +1352,7 @@
         "type": "object"
       },
       "ForgetRequest": {
+        "additionalProperties": false,
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "card_ids": {
@@ -1364,6 +1381,7 @@
         "type": "object"
       },
       "FsrsMemoryState": {
+        "additionalProperties": false,
         "description": "FSRS's per-card memory model. Null until the card has been reviewed.",
         "properties": {
           "difficulty": {
@@ -1507,6 +1525,7 @@
         "type": "object"
       },
       "ImportFileRequest": {
+        "additionalProperties": false,
         "properties": {
           "path": {
             "description": "File to import; omit to let the user pick one",
@@ -1664,6 +1683,7 @@
         "type": "object"
       },
       "InsertReviewsRequest": {
+        "additionalProperties": false,
         "properties": {
           "reviews": {
             "items": {
@@ -1901,6 +1921,7 @@
         "type": "object"
       },
       "MediaUpload": {
+        "additionalProperties": false,
         "properties": {
           "data": {
             "title": "Data",
@@ -1923,6 +1944,7 @@
         "type": "object"
       },
       "MemoryStateEntry": {
+        "additionalProperties": false,
         "description": "Per-card FSRS state write. An omitted field is left unchanged; an explicit\nnull clears it. The route preserves that distinction by handing the\nadapter dicts built with exclude_unset.",
         "properties": {
           "decay": {
@@ -2020,6 +2042,7 @@
         "type": "object"
       },
       "ModelPatch": {
+        "additionalProperties": false,
         "description": "Schema for patching a model - all fields optional",
         "properties": {
           "css": {
@@ -2210,6 +2233,7 @@
         "type": "object"
       },
       "NoteAttachment": {
+        "additionalProperties": false,
         "description": "A file stored with the note, as in AnkiConnect's addNote.",
         "properties": {
           "data": {
@@ -2241,6 +2265,7 @@
         "type": "object"
       },
       "NoteCheckRequest": {
+        "additionalProperties": false,
         "properties": {
           "notes": {
             "items": {
@@ -2314,6 +2339,7 @@
         "type": "object"
       },
       "NoteCreate": {
+        "additionalProperties": false,
         "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
           "allow_duplicate": {
@@ -2549,11 +2575,17 @@
         "type": "object"
       },
       "NoteFieldValue": {
-        "description": "Array form of a field on write ('ord' accepted and ignored).",
+        "additionalProperties": false,
+        "description": "Array form of a field on write.",
         "properties": {
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "ord": {
+            "description": "Accepted and ignored: a field's position comes from its note type",
+            "title": "Ord",
+            "type": "integer"
           },
           "value": {
             "default": "",
@@ -2585,6 +2617,7 @@
         "type": "object"
       },
       "NoteIdRequest": {
+        "additionalProperties": false,
         "properties": {
           "note_id": {
             "title": "Note Id",
@@ -2598,6 +2631,7 @@
         "type": "object"
       },
       "NoteIds": {
+        "additionalProperties": false,
         "description": "Body for the batch note verbs, as CardIds is for cards.",
         "properties": {
           "note_ids": {
@@ -2616,6 +2650,7 @@
         "type": "object"
       },
       "NotePatch": {
+        "additionalProperties": false,
         "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
           "add_tags": {
@@ -2808,6 +2843,7 @@
         "type": "object"
       },
       "NoteUpsert": {
+        "additionalProperties": false,
         "description": "Files sent with a note, on creation and on PATCH.",
         "properties": {
           "allow_duplicate": {
@@ -2956,6 +2992,7 @@
         "type": "object"
       },
       "OnMatch": {
+        "additionalProperties": false,
         "properties": {
           "fields": {
             "additionalProperties": {
@@ -3317,6 +3354,7 @@
         "type": "object"
       },
       "ProfileLoad": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "description": "Profile to switch to",
@@ -3348,6 +3386,7 @@
         "type": "object"
       },
       "QueryRequest": {
+        "additionalProperties": false,
         "properties": {
           "cursor": {
             "title": "Cursor",
@@ -3400,6 +3439,7 @@
         "type": "object"
       },
       "RepositionRequest": {
+        "additionalProperties": false,
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "card_ids": {
@@ -3438,6 +3478,7 @@
         "type": "object"
       },
       "ReviewInfo": {
+        "additionalProperties": false,
         "description": "One revlog row, with human-readable names (Anki wire names as aliases).\n\nThe revlog is append-only history: every row is a fact about a review that\nhappened, so it is normally the scheduler's to write. The one exception is\nPOST /v1/reviews (AnkiConnect's insertReviews), which inserts rows for\nhistory imports - and reuses this model, so rows round-trip read<->write.",
         "properties": {
           "card_id": {
@@ -3535,6 +3576,7 @@
         "type": "object"
       },
       "SetAddNoteDataRequest": {
+        "additionalProperties": false,
         "description": "Everything optional: an empty body just opens the dialog.",
         "properties": {
           "append": {
@@ -3593,6 +3635,7 @@
         "type": "object"
       },
       "SetCardValuesRequest": {
+        "additionalProperties": false,
         "properties": {
           "card_id": {
             "title": "Cardid",
@@ -3616,6 +3659,7 @@
         "type": "object"
       },
       "SetDueDateRequest": {
+        "additionalProperties": false,
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "card_ids": {
@@ -3643,6 +3687,7 @@
         "type": "object"
       },
       "SetEaseRequest": {
+        "additionalProperties": false,
         "properties": {
           "cards": {
             "items": {
@@ -3659,6 +3704,7 @@
         "type": "object"
       },
       "SetFlagRequest": {
+        "additionalProperties": false,
         "description": "Base body for the batch scheduling verbs.",
         "properties": {
           "card_ids": {
@@ -3684,6 +3730,7 @@
         "type": "object"
       },
       "SetMemoryStateRequest": {
+        "additionalProperties": false,
         "properties": {
           "cards": {
             "items": {
@@ -3700,6 +3747,7 @@
         "type": "object"
       },
       "SimulateRequest": {
+        "additionalProperties": false,
         "description": "Raw passthrough to Anki's SimulateFsrsReviewRequest; omitted limits stay at\nthe protobuf default 0, and Anki itself rejects an unsimulatable setup\n(\"no cards to simulate\"), so there are no invented defaults here. Empty\n`params` means Anki's built-in FSRS defaults.",
         "properties": {
           "days_to_simulate": {
@@ -3817,6 +3865,7 @@
         "type": "object"
       },
       "TagBulkRequest": {
+        "additionalProperties": false,
         "description": "Body for the batch note verbs, as CardIds is for cards.",
         "properties": {
           "note_ids": {
@@ -3859,6 +3908,7 @@
         "type": "object"
       },
       "TagRename": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "title": "Name",
@@ -3883,6 +3933,7 @@
         "type": "object"
       },
       "TemplatePatch": {
+        "additionalProperties": false,
         "description": "Schema for patching a template - all fields optional",
         "properties": {
           "afmt": {
@@ -3910,6 +3961,7 @@
         "type": "object"
       },
       "UpsertMatch": {
+        "additionalProperties": false,
         "properties": {
           "field": {
             "description": "Field whose content identifies the note, compared exactly (case-insensitive) within the note type. Default: Anki's duplicate check (the first field, HTML ignored), including duplicateScope and its options.",
@@ -4041,6 +4093,7 @@
         "type": "object"
       },
       "tsunagi__shared__schemas__cards__AnswerRequest": {
+        "additionalProperties": false,
         "properties": {
           "answers": {
             "items": {
@@ -4057,6 +4110,7 @@
         "type": "object"
       },
       "tsunagi__shared__schemas__gui__AnswerRequest": {
+        "additionalProperties": false,
         "properties": {
           "ease": {
             "description": "Answer button, 1-4",

@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from .wrappers import RequestBody
+
 
 class ProfileList(BaseModel):
     """Every profile Anki knows about, and which one is open."""
@@ -12,7 +14,7 @@ class ProfileList(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ProfileLoad(BaseModel):
+class ProfileLoad(RequestBody):
     name: str = Field(..., description="Profile to switch to")
 
 
@@ -32,7 +34,7 @@ class SyncResult(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ExportRequest(BaseModel):
+class ExportRequest(RequestBody):
     deck: str = Field(..., description="Name of the deck to export")
     path: str = Field(..., description="Destination .apkg path, on the Anki machine")
     with_scheduling: bool = Field(

@@ -4,6 +4,8 @@ from typing import List
 
 from pydantic import BaseModel, Field, validator
 
+from .wrappers import RequestBody
+
 # ----------------- Response Schemas -----------------
 
 # revlog.type. Anki records why a row was written, which is the difference
@@ -16,7 +18,7 @@ REVIEW_MANUAL = 4
 REVIEW_RESCHEDULED = 5
 
 
-class ReviewInfo(BaseModel):
+class ReviewInfo(RequestBody):
     """
     One revlog row, with human-readable names (Anki wire names as aliases).
 
@@ -26,7 +28,6 @@ class ReviewInfo(BaseModel):
     history imports - and reuses this model, so rows round-trip read<->write.
     """
     class Config:
-        extra = "ignore"
         allow_population_by_field_name = True
 
     # Epoch milliseconds of the review, and the row's identity. Also the
@@ -60,7 +61,7 @@ class ReviewInfo(BaseModel):
 # ----------------- Request Schemas -----------------
 
 
-class InsertReviewsRequest(BaseModel):
+class InsertReviewsRequest(RequestBody):
     # Same shape GET /v1/reviews returns (aliases accepted), so a row read
     # from one collection can be posted into another unchanged. Only `id` and
     # `card_id` are required; everything else has the column's natural default.

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, validator
 
 from .notes import tags_without_spaces
+from .wrappers import RequestBody
 
 
 class GuiResult(BaseModel):
@@ -19,7 +20,7 @@ class GuiResult(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
-class BrowseRequest(BaseModel):
+class BrowseRequest(RequestBody):
     query: Optional[str] = Field(None, description="Anki search to run in the Browser")
     # Deliberately untyped: the shape is validated by hand so the error text
     # matches AnkiConnect's, which a pydantic type error would pre-empt.
@@ -32,11 +33,11 @@ class BrowseResult(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
-class CardIdRequest(BaseModel):
+class CardIdRequest(RequestBody):
     card_id: int
 
 
-class NoteIdRequest(BaseModel):
+class NoteIdRequest(RequestBody):
     note_id: int
 
 
@@ -45,7 +46,7 @@ class NoteIdList(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
-class AddCardsRequest(BaseModel):
+class AddCardsRequest(RequestBody):
     """Everything optional: an empty body just opens the dialog."""
     deck_name: Optional[str] = Field(None, alias="deckName")
     model_name: Optional[str] = Field(None, alias="modelName")
@@ -102,14 +103,14 @@ class CurrentCardResult(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
-class AnswerRequest(BaseModel):
+class AnswerRequest(RequestBody):
     ease: int = Field(..., ge=1, le=4, description="Answer button, 1-4")
 
 
-class DeckNameRequest(BaseModel):
+class DeckNameRequest(RequestBody):
     name: str
 
 
-class ImportFileRequest(BaseModel):
+class ImportFileRequest(RequestBody):
     path: Optional[str] = Field(
         None, description="File to import; omit to let the user pick one")

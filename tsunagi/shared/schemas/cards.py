@@ -5,11 +5,12 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, validator
 
 from .notes import NoteField, unique_ids
+from .wrappers import RequestBody
 
 # ----------------- Response Schemas -----------------
 
 
-class FsrsMemoryState(BaseModel):
+class FsrsMemoryState(RequestBody):
     """FSRS's per-card memory model. Null until the card has been reviewed."""
     stability: float
     difficulty: float
@@ -84,7 +85,7 @@ class CardInfo(BaseModel):
 # ----------------- Scheduling verb requests -----------------
 
 
-class CardIds(BaseModel):
+class CardIds(RequestBody):
     """Base body for the batch scheduling verbs."""
     class Config:
         allow_population_by_field_name = True
@@ -126,17 +127,17 @@ class SetFlagRequest(CardIds):
     flag: int = Field(ge=0, le=7)
 
 
-class EaseEntry(BaseModel):
+class EaseEntry(RequestBody):
     id: int
     # Anki stores ease x10 as an integer: 250% is 2500.
     factor: int
 
 
-class SetEaseRequest(BaseModel):
+class SetEaseRequest(RequestBody):
     cards: List[EaseEntry]
 
 
-class MemoryStateEntry(BaseModel):
+class MemoryStateEntry(RequestBody):
     """
     Per-card FSRS state write. An omitted field is left unchanged; an explicit
     null clears it. The route preserves that distinction by handing the
@@ -148,11 +149,11 @@ class MemoryStateEntry(BaseModel):
     decay: Optional[float] = None
 
 
-class SetMemoryStateRequest(BaseModel):
+class SetMemoryStateRequest(RequestBody):
     cards: List[MemoryStateEntry]
 
 
-class AnswerEntry(BaseModel):
+class AnswerEntry(RequestBody):
     class Config:
         allow_population_by_field_name = True
 
@@ -161,11 +162,11 @@ class AnswerEntry(BaseModel):
     ease: int = Field(ge=1, le=4)
 
 
-class AnswerRequest(BaseModel):
+class AnswerRequest(RequestBody):
     answers: List[AnswerEntry]
 
 
-class SetCardValuesRequest(BaseModel):
+class SetCardValuesRequest(RequestBody):
     class Config:
         allow_population_by_field_name = True
 
@@ -176,7 +177,7 @@ class SetCardValuesRequest(BaseModel):
     force: bool = False
 
 
-class BatchRequest(BaseModel):
+class BatchRequest(RequestBody):
     # Entries stay raw dicts here: each is validated against ITS verb's
     # request model by the route, keyed on "op".
     operations: List[dict]

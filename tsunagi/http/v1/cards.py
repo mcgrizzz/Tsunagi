@@ -304,7 +304,7 @@ def batch(body: BatchRequest = Body(...)) -> BatchResult:
                            f"unknown op {name!r}; expected one of {', '.join(sorted(BATCH_VERBS))}")
         model = BATCH_VERBS[name][0]
         try:
-            parsed.append((name, model.parse_obj(item)))
+            parsed.append((name, model.parse_obj({k: v for k, v in item.items() if k != "op"})))
         except PydanticValidationError as e:
             raise RequestValidationError(
                 [{**err, "loc": ("body", "operations", i) + field_loc(model, err["loc"])}

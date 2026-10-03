@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from ..errors import ValidationError
 from .creation import CreationResult
+from .wrappers import RequestBody
 
 # Windows reserved device names (a file named CON.png is unopenable there)
 _RESERVED = {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {
@@ -60,7 +61,7 @@ class MediaRow(BaseModel):
     mtime: int = Field(..., description="Last modified, Unix seconds")
 
 
-class MediaUpload(BaseModel):
+class MediaUpload(RequestBody):
     filename: Optional[str] = None
     data: Optional[str] = None   # base64
     path: Optional[str] = None   # server-local file (local_files permission)

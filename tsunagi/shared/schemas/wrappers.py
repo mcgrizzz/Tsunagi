@@ -6,6 +6,12 @@ from pydantic.generics import GenericModel
 # Scalars we may return when shape=scalar
 Scalar = Union[str, int, float, bool, None]
 
+# Every request body: a key the body doesn't have is a 422 naming it, not
+# quietly dropped (accept only what takes effect, 6.84).
+class RequestBody(BaseModel):
+    class Config:
+        extra = "forbid"
+
 # Free-form projected object (when select=... returns dicts)
 class ProjectedObject(BaseModel):
     class Config:
@@ -39,7 +45,7 @@ class DeletionResult(BaseModel):
     stats: dict
 
 # Wrapper for POST queries, for more complicated and/or structured
-class QueryRequest(BaseModel):
+class QueryRequest(RequestBody):
     select: Optional[str] = None
     where: Optional[List[str]] = None
     search: Optional[str] = None   # Anki search string (search-backed resources)
