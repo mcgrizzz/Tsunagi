@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from concurrent.futures import Future
 from contextvars import ContextVar
 from functools import wraps
@@ -23,6 +24,23 @@ R = TypeVar("R")
 # timeout=FOREVER waits for as long as it takes (sync, add-on jobs).
 # timeout=None means op_timeout().
 FOREVER = float("inf")
+
+# Set while a stop that blocks Anki's main thread (closing the profile) shuts
+# the server down: requests waiting on that thread can't finish, so they end
+# at once with a 503, not as 500s cut off by uvicorn's shutdown limit (6.80).
+closing = threading.Event()
+
+
+def wait(event: threading.Event, timeout: float) -> bool:
+    """event.wait(timeout), FOREVER for no limit; ended early by `closing` with
+    a 503. Requests wait on Anki through this."""
+    deadline = time.monotonic() + timeout
+    while not event.wait(max(0.0, min(0.05, deadline - time.monotonic()))):
+        if closing.is_set():
+            raise CollectionUnavailableError("Anki is closing the collection; the request didn't finish")
+        if time.monotonic() >= deadline:
+            return False
+    return True
 
 
 def op_timeout() -> float:
@@ -76,7 +94,7 @@ def _wait(done: threading.Event, box: dict[str, Any], timeout: Optional[float], 
                            "result; call it from another thread, or use the *_run_async form")
     limit = op_timeout() if timeout is None else timeout
     # Event.wait rejects an infinite timeout, so FOREVER is no timeout at all.
-    if not done.wait(None if limit == FOREVER else limit):
+    if not wait(done, limit):
         raise AnkiBusyError(f"{what} timed out; Anki may be busy or blocked by a dialog")
     if "exc" in box:
         raise box["exc"]
@@ -177,7 +195,7 @@ def _interactive(fn: Callable[[], R]) -> R:
             result.set_exception(exc)
 
     mw.taskman.run_on_main(run)
-    if not started.wait(op_timeout()) and result.cancel():
+    if not wait(started, op_timeout()) and result.cancel():
         raise AnkiBusyError("Main-thread dispatch timed out; Anki did not accept the dialog request")
     # If dispatch won the race with the timeout, it now owns the request.
     return result.result()

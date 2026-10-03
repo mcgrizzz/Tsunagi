@@ -4,7 +4,7 @@ again, and both say so."""
 
 # isort: off
 # kiso_dev.harness sets Qt up for offscreen use before aqt loads, so it comes first.
-from kiso_dev.harness import addon, run
+from kiso_dev.harness import addon, run, until
 
 import importlib
 import sys
@@ -28,6 +28,8 @@ def check(app, shots, base):
             patch.object(aqt.utils, "tooltip", lambda msg, **kw: shown.append(msg)):
         manager.toggleEnabled(name, False)
         assert url() is None and not manager.addon_meta(name).enabled
+        # Said once the server has stopped: the stop lets requests in progress finish (6.80).
+        until(app, lambda: shown, 10, "Stop now never said it stopped")
         assert shown == ["Tsunagi's server stopped."], shown
         print("PASS: turning Tsunagi off stops its server when asked", flush=True)
         manager.toggleEnabled(name, True)

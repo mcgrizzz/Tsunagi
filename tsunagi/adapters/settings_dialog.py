@@ -184,29 +184,33 @@ def _restart_server(mw: Any, *, enabled: bool) -> None:
     """
     Apply server-level keys live: stop uvicorn and start it again on the
     just-saved config (start_server re-reads everything, including
-    log_level). The one case that still needs an Anki restart is
-    a server thread that won't die - its port may still be held.
+    log_level). The stop doesn't block Anki, so requests in progress finish
+    first (6.80). The one case that still needs an Anki restart is a server
+    thread that won't die - its port may still be held.
     """
     from aqt.utils import showWarning, tooltip
 
-    from ..app import server_url, start_server, stop_server
+    from ..app import server_url, start_server, stop_server_then
 
-    if not stop_server():
-        showWarning("The previous Tsunagi server thread is still shutting "
-                    "down, so its port may still be held. Restart Anki to "
-                    "apply the server settings.")
-        return
-    start_server(mw)  # no-op (with a log line) when enabled is off
-    url = server_url()
-    if url:
-        tooltip(f"Tsunagi server restarted on {url}")
-    elif not enabled:
-        tooltip("Tsunagi server stopped")
-    else:
-        # start_server caught the failure and will show its own delayed
-        # tooltip with the reason; give immediate feedback too.
-        showWarning("The Tsunagi server did not restart - see the console "
-                    "for details.")
+    def stopped(ok: bool) -> None:
+        if not ok:
+            showWarning("The previous Tsunagi server thread is still shutting "
+                        "down, so its port may still be held. Restart Anki to "
+                        "apply the server settings.")
+            return
+        start_server(mw)  # no-op (with a log line) when enabled is off
+        url = server_url()
+        if url:
+            tooltip(f"Tsunagi server restarted on {url}")
+        elif not enabled:
+            tooltip("Tsunagi server stopped")
+        else:
+            # start_server caught the failure and will show its own delayed
+            # tooltip with the reason; give immediate feedback too.
+            showWarning("The Tsunagi server did not restart - see the console "
+                        "for details.")
+
+    stop_server_then(mw, stopped)
 
 
 def _check_handover_port(cfg: Dict[str, Any]) -> None:

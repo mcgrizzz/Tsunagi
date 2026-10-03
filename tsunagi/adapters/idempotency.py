@@ -125,7 +125,7 @@ def run(scope: Tuple[str, ...], request_fingerprint: str,
         except BaseException as exc:
             store.fail(scope, entry, exc)
             raise
-    if not entry.done.wait(ops.op_timeout()):
+    if not ops.wait(entry.done, ops.op_timeout()):
         raise AnkiBusyError("Write operation timed out; Anki may be busy or blocked by a "
                             "dialog. It may still complete: retry with the same Idempotency-Key")
     if entry.error is not None:
@@ -171,7 +171,7 @@ class Journal:
         record = self.record
         if self.retry and index >= len(record.writes) and not record.first_done.is_set():
             # The first attempt may still reach this write; wait for it to end.
-            if not record.first_done.wait(ops.op_timeout()):
+            if not ops.wait(record.first_done, ops.op_timeout()):
                 raise AnkiBusyError("The first request with this Idempotency-Key is still running; "
                                     "retry with the same key")
         with _journals.lock:
@@ -194,7 +194,7 @@ class Journal:
                 write.done.set()
             start(done, fail)
         limit = ops.op_timeout() if timeout is None else timeout
-        if not write.done.wait(None if limit == ops.FOREVER else limit):
+        if not ops.wait(write.done, limit):
             raise AnkiBusyError("Write operation timed out; Anki may be busy or blocked by a "
                                 "dialog. It may still complete: retry with the same Idempotency-Key")
         if write.error is not None:

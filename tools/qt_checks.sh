@@ -8,7 +8,7 @@ TSUNAGI_GUI_PYTHON="$(command -v python)" python -m pytest -q \
   tests/test_settings_dialog_qt.py tests/test_edit_dialog_lifecycle.py tests/test_permission_dialog_lifecycle.py
 for check in check_browser_startup check_browser check_add_cards check_edit_dialog \
   check_gui_media check_import_dispatch check_import_job check_reviewer check_settings_dialog \
-  check_addons_api check_vendor_clash check_reload check_addon_switch; do
+  check_addons_api check_vendor_clash check_reload check_addon_switch check_server_stops; do
   echo "::group::$check"
   timeout 300 python "tools/$check.py"
   echo "::endgroup::"

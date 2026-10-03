@@ -397,6 +397,8 @@ def _serve(server: Any, session_id: str) -> None:
 
 def start_server(mw) -> None:
     if _SERVER_STATE.started: return
+    from .adapters import ops
+    ops.closing.clear()   # requests wait on Anki again (stop_server set it)
     session_id = None
     try:
         cfg = load_config()
@@ -521,15 +523,33 @@ def begin_stop(reason: str = "shutdown") -> Callable[[], bool]:
     return lambda: thread is None or not thread.is_alive()
 
 
+def stop_server_then(mw: Any, then: Callable[[bool], None], reason: str = "shutdown") -> None:
+    """
+    Stop without blocking Anki's main thread, so requests waiting on it finish
+    (6.80); then(stopped) runs on the main thread once the server thread has
+    ended (the port is free), or then(False) if it hasn't within 30 s.
+    """
+    from ._kiso.ui import wait_until
+
+    wait_until(mw, begin_stop(reason), lambda: then(True), timeout=30.0, on_timeout=lambda: then(False))
+
+
 def stop_server(reason: str = "shutdown") -> bool:
     """
-    Signal uvicorn to exit and wait briefly; called on profile close.
-    `reason` is what open event streams are told in their close event.
+    Signal uvicorn to exit and wait briefly, blocking Anki's main thread; for
+    closing the profile, which must finish before the collection closes.
+    `reason` is what open event streams are told in their close event. Requests
+    waiting on the main thread can't finish meanwhile, so they end at once with
+    a 503 (ops.closing). Anywhere else, use stop_server_then().
 
     Returns False if the thread outlived the wait, which means the port may
     still be held.
     """
+    from .adapters import ops
+
     thread = _SERVER_STATE.thread
+    if thread is not None:
+        ops.closing.set()
     stopped = begin_stop(reason)
     if thread is not None:
         thread.join(5)

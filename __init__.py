@@ -98,11 +98,13 @@ if mw is not None:
         return server_url() is not None
 
     def _stop_now() -> None:
+        # Without blocking Anki: requests in progress finish first (6.80).
         from aqt.utils import tooltip
 
-        from .tsunagi.app import stop_server
-        stop_server("shutdown")
-        tooltip("Tsunagi's server stopped.")
+        from .tsunagi.app import stop_server_then
+        stop_server_then(mw, lambda ok: tooltip("Tsunagi's server stopped." if ok else
+                                                "Tsunagi's server is still stopping; restart Anki "
+                                                "if its port stays taken."))
 
     def _start_again() -> None:
         from aqt.utils import tooltip

@@ -4,7 +4,7 @@ import threading
 import pytest
 
 from tsunagi.adapters import ops
-from tsunagi.shared.errors import AnkiBusyError
+from tsunagi.shared.errors import AnkiBusyError, CollectionUnavailableError
 
 
 def later(seconds):
@@ -23,6 +23,20 @@ def test_forever_outlasts_op_timeout(monkeypatch):
     # A sync longer than op_timeout_seconds used to answer 503 while it ran on.
     monkeypatch.setattr(ops, "op_timeout", lambda: 0.05)
     assert ops._wait(later(0.3), {"result": "synced"}, ops.FOREVER, "Sync") == "synced"
+
+
+def test_closing_the_profile_ends_waits_with_a_503(monkeypatch):
+    # 6.80: a stop that blocks Anki's main thread (profile close) releases the
+    # requests waiting on it, instead of uvicorn cutting them off as 500s.
+    monkeypatch.setattr(ops, "op_timeout", lambda: 5)
+    threading.Timer(0.1, ops.closing.set).start()
+    try:
+        with pytest.raises(CollectionUnavailableError, match="closing the collection") as caught:
+            ops._wait(later(10), {}, None, "Read")
+        assert caught.value.status_code == 503
+    finally:
+        ops.closing.clear()
+    assert ops.wait(later(0.05), 1) and not ops.wait(later(1), 0.05)   # otherwise as before
 
 
 def test_a_collection_op_sees_the_requests_caller_on_its_own_thread(col, reset_settings, monkeypatch):
