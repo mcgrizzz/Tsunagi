@@ -97,8 +97,9 @@ For example:
 - `operations["POST /v1/cards:set-memory-state"]` reports whether the memory-state
   write permission is enabled. Its `options["cards[].decay"]` follows the same
   permission and also reports whether this Anki supports that field.
-- `operations["POST /v1/media"].options.path` reports the local-file permission.
-  Disabling this option leaves uploads through `data` or `url` available.
+- `options.path` on `POST /v1/media`, `POST /v1/notes` and
+  `PATCH /v1/notes/{id}` reports whether your app may send a file by its path
+  on this computer. Files sent as `data` or by `url` work either way.
 - `operations["POST /v1/fsrs:compute-params"]` reports optimization support,
   including any options that this backend cannot accept.
 - `features.fsrs_scheduling` reports the collection's FSRS scheduling switch.

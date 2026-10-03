@@ -29,12 +29,12 @@ def test_permissions_apply_to_the_operation_or_its_option(client, reset_settings
     reset_settings.update(no_key_local_role="everything" if enabled else "default")
     operations = report(client)["operations"]
     memory = operations["POST /v1/cards:set-memory-state"]
-    media = operations["POST /v1/media"]
     assert memory["status"] == ("available" if enabled else "disabled")
     assert memory["setting"] == "permissions.memory_state"
-    assert media["status"] == "available"
-    assert media["options"]["path"]["status"] == ("available" if enabled else "disabled")
-    assert media["options"]["path"]["setting"] == "permissions.local_files"
+    for key in ("POST /v1/media", "POST /v1/notes", "PATCH /v1/notes/{id}"):  # every body that takes files
+        assert operations[key]["status"] == "available"
+        assert operations[key]["options"]["path"]["status"] == ("available" if enabled else "disabled")
+        assert operations[key]["options"]["path"]["setting"] == "permissions.local_files"
     if memory["options"]["cards[].decay"]["status"] != "unsupported":
         assert memory["options"]["cards[].decay"]["status"] == memory["status"]
     if not enabled:

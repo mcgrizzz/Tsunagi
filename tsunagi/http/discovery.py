@@ -66,7 +66,8 @@ def native_operations(routes, support):
             if key == "POST /v1/cards:set-memory-state":
                 options["cards[].decay"] = permission_state("memory_state",
                                                             supported=support["card_decay"])
-            if key == "POST /v1/media":
+            # Every body that takes files: a file given by its path on this computer.
+            if key in {"POST /v1/media", "POST /v1/notes", "PATCH /v1/notes/{id}"}:
                 options["path"] = permission_state("local_files")
             if method in {"POST", "PATCH"} and route.path in {"/v1/decks", "/v1/decks/{id}"}:
                 options["desired_retention"] = state(supported=support["deck_desired_retention"])
