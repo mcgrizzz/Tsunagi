@@ -84,11 +84,25 @@ def test_delete_ids_mean_absent_including_already_missing(col, subscription, rec
     notes.delete_notes([saved.id, 123, saved.id])
     event = emit_last(recorded_ops, subscription)
     assert event["notes.deleted"]["ids"] == [saved.id, 123]
-    assert "ids" not in event["cards.stale"]  # removed card IDs are not known here
+    assert event["cards.deleted"]["ids"] == saved.cards
+    assert "cards.stale" not in event
     notes.delete_notes([saved.id])
     op = recorded_ops[-1]
     dispatch_op(op.result.changes, op.initiator)
     assert broker.drain(subscription) == []
+
+
+def test_ankiconnect_delete_names_every_card_of_the_note(client, col, subscription, recorded_ops):
+    saved = notes.create_note({"modelName": "Basic (and reversed card)", "deckName": "Default",
+                               "fields": {"Front": "word", "Back": "meaning"}})
+    assert len(saved.cards) == 2
+    response = client.post("/", json={"action": "deleteNotes", "version": 6,
+                                      "params": {"notes": [saved.id]}})
+    assert response.json() == {"result": None, "error": None}
+    event = emit_last(recorded_ops, subscription)
+    assert event["notes.deleted"]["ids"] == [saved.id]
+    assert sorted(event["cards.deleted"]["ids"]) == sorted(saved.cards)
+    assert "cards.stale" not in event
 
 
 @pytest.mark.parametrize("verb", [cards.suspend_cards, cards.unsuspend_cards,

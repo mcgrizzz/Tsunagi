@@ -9,6 +9,7 @@ AnkiConnect compat layer need exactly the same answer.
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from anki.collection import Collection
+from anki.utils import ids2str
 
 from ...shared.errors import DuplicateNoteError, ResourceNotFoundError, ValidationError
 from ...shared.schemas.media import MediaStored
@@ -510,9 +511,14 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any],
 @as_collection_op(event_details=lambda ids: {"note_ids": [int(i) for i in ids]})
 def delete_notes(col: Collection, ids: Sequence[int]) -> int:
     """Batch by design: one undoable op. Compat's deleteNotes reuses this."""
-    res = col.remove_notes([int(i) for i in ids])
+    nids = [int(i) for i in ids]
+    # The notes' cards go with them; read their IDs first so the event can
+    # name them, as Anki-side deletions do (change_scan reads graves).
+    cids = col.db.list("select id from cards where nid in " + ids2str(nids))
+    res = col.remove_notes(nids)
     return ValueWithChanges(int(getattr(res, "count", 0) or 0), res,
-                            event_changes=lambda: {"notes": {"deleted": list(ids)}})
+                            event_changes=lambda: {"notes": {"deleted": list(ids)},
+                                                   "cards": {"deleted": cids}})
 
 
 # ====================

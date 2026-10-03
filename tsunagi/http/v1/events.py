@@ -53,14 +53,14 @@ with review log IDs. decks.counts lists the decks whose due counts changed
 learn_count, review_count, total_in_deck} like /v1/decks rows. Other resources currently report stale notifications.
 No full notes, card contents or media are sent. Fetch any contents your app needs through the normal API, with select to choose fields.
 A resource with complete ID details does not also emit stale for that operation.
-Related resources can produce separate events: deleting a note can produce
-notes.deleted and cards.stale. Each notification has its own sequence number.
+Related resources can produce separate events: deleting a note produces
+notes.deleted and cards.deleted. Each notification has its own sequence number.
 
 ### Coverage
 
 Native and compatibility note creation/field updates provide note IDs. Native
-creation also provides generated card IDs. Note deletion provides IDs now absent;
-a batch may include IDs already absent. Individual suspend/unsuspend/bury/unbury
+creation also provides generated card IDs. Note deletion provides IDs now absent,
+for the notes and their cards; a batch may include note IDs already absent. Individual suspend/unsuspend/bury/unbury
 operations report cards.updated with their processed IDs; a batch can include
 cards already in the requested state. Empty/no-op operations produce no event.
 Changes made inside Anki (Browser, editor, Add dialog, reviewer) are reported
