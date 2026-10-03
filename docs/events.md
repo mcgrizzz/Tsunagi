@@ -73,14 +73,31 @@ Two things to watch:
 | Card answers | `?types=cards.answered` |
 | Sync start and finish | `?types=sync` |
 | Due counts for a deck list | `?types=decks.counts` |
+| Only to know when your access changes | `?types=access.changed` |
 
 To keep a list up to date, ask for the whole resource (`resources=notes`). An
 exact type such as `types=notes.deleted` leaves out `notes.stale`, so it can
 miss a deletion Tsunagi couldn't give IDs for.
 
-Your app must be allowed to read the collection. Card answers
-(`cards.answered`, `reviews.created`) go only to apps whose role allows **Each
-card you answer**; of the built-in roles, only Everything does.
+Your app must be allowed to read the collection, except to receive only
+`access.changed`. Card answers (`cards.answered`, `reviews.created`) go only to
+apps whose role allows **Each card you answer**; of the built-in roles, only
+Everything does. `GET /v1/capabilities` lists what the stream would send your
+app ([discovery](capabilities.md)).
+
+## Know when your access changes
+
+`access.changed` means what your app may do might have changed: fetch
+`GET /v1/capabilities` again. Every stream gets it, whatever you asked for:
+
+- When your app's key, role or the role's permissions change, it comes just
+  before `close` with reason `auth`. Reconnect, then fetch the report.
+- When add-on actions are enabled or disabled, or FSRS is turned on or off in
+  Anki, it comes on the open stream, which keeps going.
+
+It carries no details, only `type` and `ts`. An app that wants no other
+messages can open `?types=access.changed`; that needs no permission, like the
+capabilities report.
 
 ## The messages
 
@@ -177,6 +194,8 @@ without telling Anki are reported with the next change Anki does announce.
   few of those, treat the connection as dead and reconnect.
 - `gap`: your connection fell behind and `discarded` messages were lost.
   Reload what you show.
+- `access.changed`: fetch `GET /v1/capabilities` again
+  ([above](#know-when-your-access-changes)).
 - `close`: the server ended the stream. `reason` is `profile_closed` (the
   profile was closed; reconnect with a backoff until one is open again),
   `auth` (your key or permissions changed; reconnect), `shutdown`, or
@@ -217,7 +236,8 @@ data: {"reason": "timeout"}
 - The stream starts with `retry: 3000` (reconnect after 3 seconds) and a
   `: connected` comment.
 - Each message has an `event:` line, then an `id:` line on all but `ready`,
-  `gap` and `close`, then exactly one `data:` line holding a JSON object.
+  `gap`, `access.changed` and `close`, then exactly one `data:` line holding a
+  JSON object.
 - Lines starting with `:` are comments. `: ping` is the heartbeat, sent every
   `heartbeat_ms`; skip it.
 - `close` is the last message, and its `reason` says why.

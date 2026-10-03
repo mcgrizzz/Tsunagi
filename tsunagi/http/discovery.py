@@ -2,6 +2,7 @@
 from fastapi.routing import APIRoute
 
 from ..adapters import addon_actions
+from ..adapters.events import ACCESS_CHANGED, CHANGE_RESOURCES
 from ..shared.permissions import ADDON, PUBLIC, current_denial, permitted
 from ..shared.schemas.capabilities import CapabilityState, OperationCapability
 
@@ -45,6 +46,21 @@ def native_features(support):
     return features
 
 
+def event_options():
+    """What the event stream would send this app, by the name it asks with
+    (`resources=` and `types=` values, 6.83): the stream itself is open to any
+    accepted app for access.changed, so its status alone says little."""
+    def needs(permission):
+        # Everything but access.changed also needs to read the collection.
+        return (permission_state("read:collection") if not permitted("read:collection")
+                else permission_state(permission))
+    options = {ACCESS_CHANGED: state(), "sync": needs("read:collection"),
+               "cards.answered": needs("events:reviews")}
+    for resource in sorted(CHANGE_RESOURCES):
+        options[resource] = needs("events:reviews" if resource == "reviews" else "events:changes")
+    return options
+
+
 def native_operations(routes, support):
     operations = {}
     for route in routes:
@@ -69,6 +85,8 @@ def native_operations(routes, support):
             # Every body that takes files: a file given by its path on this computer.
             if key in {"POST /v1/media", "POST /v1/notes", "PATCH /v1/notes/{id}"}:
                 options["path"] = permission_state("local_files")
+            if key == "GET /v1/events":
+                options = event_options()
             if method in {"POST", "PATCH"} and route.path in {"/v1/decks", "/v1/decks/{id}"}:
                 options["desired_retention"] = state(supported=support["deck_desired_retention"])
             if key in {"POST /v1/collection:import", "GET /v1/collection/import-options"}:

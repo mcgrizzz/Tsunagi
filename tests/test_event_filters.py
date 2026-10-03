@@ -168,6 +168,9 @@ def test_filtered_streams_keep_close_controls(event_broker, reset_settings, reas
             reset_settings.update(no_key_local_role="read_only")
         else:
             event_broker.begin_drain()
+        if reason == "auth":
+            # Losing access says so first, so the app fetches its capabilities again (6.100).
+            assert parse_frames(await stream.__anext__())[0][0] == "access.changed"
         assert parse_frames(await stream.__anext__()) == [("close", {"reason": reason})]
         with pytest.raises(StopAsyncIteration):
             await stream.__anext__()

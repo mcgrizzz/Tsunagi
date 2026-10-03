@@ -16,12 +16,13 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Annotated, Any, AsyncIterator, Dict, FrozenSet, Optional
+from typing import Annotated, Any, AsyncIterator, Dict, FrozenSet, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from starlette.responses import StreamingResponse
 
 from ...adapters.events import (
+    ACCESS_CHANGED,
     CHANGE_RESOURCES,
     DATA_EVENT_TYPES,
     EVENT_TYPES,
@@ -30,7 +31,13 @@ from ...adapters.events import (
 )
 from ...adapters.settings import settings
 from ...shared.errors import CollectionUnavailableError
-from ...shared.permissions import current_caller, requires
+from ...shared.permissions import (
+    PUBLIC,
+    current_caller,
+    current_denial,
+    permitted,
+    requires,
+)
 
 router = APIRouter()
 
@@ -97,6 +104,15 @@ data resources and heartbeat_ms, how often a heartbeat comment is sent
 initial data after ready. cards.answered/sync-only subscriptions have an empty resources
 list. A new connection gets a new ready even when it uses the same session.
 
+access.changed (type and ts only) means what this app may do might have
+changed: fetch /v1/capabilities again. Every stream gets it, whatever its
+filters: before close with reason auth when this app's key, role or the role's
+permissions change, and on an open stream when add-on actions are enabled or
+disabled or FSRS is turned on or off. types=access.changed alone needs no
+permission, so any accepted app can watch for it; other filters need
+read:collection. The capabilities report lists what this stream would send
+the app under operations["GET /v1/events"].options.
+
 gap means queued notifications were lost (reason lagged, discarded count).
 Data clients can reload their displayed queries; answer counters should mark
 delivery incomplete. There is no separate refresh instruction or acknowledgement.
@@ -140,6 +156,16 @@ def _close_frame(reason: str) -> str:
     return f"event: close\ndata: {json.dumps({'reason': reason})}\n\n"
 
 
+def _closing(reason: str) -> List[str]:
+    """The last frames, one per chunk. Losing access says so first, so the app
+    fetches /v1/capabilities again (6.100)."""
+    return ([_sse_frame(_access_changed())] if reason == "auth" else []) + [_close_frame(reason)]
+
+
+def _access_changed() -> Dict[str, Any]:
+    return {"type": ACCESS_CHANGED, "ts": int(time.time() * 1000)}
+
+
 def _parse_filter(value: Optional[str], name: str,
                   allowed: FrozenSet[str]) -> Optional[FrozenSet[str]]:
     if value is None:
@@ -156,7 +182,9 @@ def _parse_filter(value: Optional[str], name: str,
 
 @router.get(
     "/v1/events",
-    openapi_extra=requires("read:collection"),
+    # Any accepted app may watch for access.changed alone (6.100), as it may
+    # read the capabilities report; everything else needs read:collection.
+    openapi_extra=requires(PUBLIC),
     response_model=None,
     responses={200: {"content": {"text/event-stream": {}},
                      "description": "An SSE stream of collection events."}},
@@ -190,6 +218,9 @@ def stream_events(
 ) -> StreamingResponse:
     selected_types = _parse_filter(types, "types", EVENT_TYPES)
     selected_resources = _parse_filter(resources, "resources", CHANGE_RESOURCES)
+    if (selected_types != {ACCESS_CHANGED} or selected_resources is not None) \
+            and not permitted("read:collection"):
+        raise HTTPException(status_code=403, detail=current_denial("read:collection"))
     if selected_resources is not None and selected_types is None:
         selected_types = frozenset({"change"})
     data_types = (DATA_EVENT_TYPES if selected_types is None or "change" in selected_types
@@ -224,6 +255,8 @@ def stream_events(
             yield _close_frame(broker.close_reason)
             return
 
+        approvals = settings.addon_enabled()
+
         def close_reason() -> Optional[str]:
             if broker.is_draining(token):
                 return broker.close_reason
@@ -238,7 +271,8 @@ def stream_events(
             ready = broker.ready(token)
             reason = close_reason()
             if reason or ready is None:
-                yield _close_frame(reason or broker.close_reason)
+                for frame in _closing(reason or broker.close_reason):
+                    yield frame
                 return
             yield _sse_frame({**ready, "resources": sorted(data_resources),
                               "heartbeat_ms": round(HEARTBEAT_SECONDS * 1000)})
@@ -247,18 +281,24 @@ def stream_events(
             while True:
                 reason = close_reason()
                 if reason:
-                    yield _close_frame(reason)
+                    for frame in _closing(reason):
+                        yield frame
                     return
+                # Add-on actions enabled or disabled change what any app can run.
+                if settings.addon_enabled() != approvals:
+                    approvals = settings.addon_enabled()
+                    yield _sse_frame(_access_changed())
                 woken.clear()
                 for event in broker.drain(token):
                     # A yield can suspend across shutdown, profile switch or
                     # key rotation. Never continue emitting a drained batch.
                     reason = close_reason()
                     if reason:
-                        yield _close_frame(reason)
+                        for frame in _closing(reason):
+                            yield frame
                         return
                     yield _sse_frame(event)
-                    if event["type"] == "gap":
+                    if event["type"] in ("gap", ACCESS_CHANGED):
                         continue
                     sent += 1
                     if max_events is not None and sent >= max_events:

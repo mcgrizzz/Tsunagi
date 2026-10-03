@@ -100,6 +100,12 @@ For example:
 - `options.path` on `POST /v1/media`, `POST /v1/notes` and
   `PATCH /v1/notes/{id}` reports whether your app may send a file by its path
   on this computer. Files sent as `data` or by `url` work either way.
+- `operations["GET /v1/events"]` is available to every app, because any app
+  may watch for `access.changed`. Its options say what the stream would send
+  yours, by the names you ask with (`resources=`, `types=`): `access.changed`,
+  `sync`, `cards.answered` and each resource (`notes`, `cards`, `reviews`, …).
+  Fetch the report again when `access.changed` arrives
+  ([events](events.md#know-when-your-access-changes)).
 - `operations["POST /v1/fsrs:compute-params"]` reports optimization support,
   including any options that this backend cannot accept.
 - `features.fsrs_scheduling` reports the collection's FSRS scheduling switch.

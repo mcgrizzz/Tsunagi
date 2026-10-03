@@ -122,6 +122,7 @@ def test_suspended_generator_discards_remaining_batch(transition, reset_settings
         else:
             reset_settings.update(no_key_local_role="read_only")
             reason = "auth"
+            assert "event: access.changed\n" in await gen.__anext__()  # 6.100
         final = await gen.__anext__()
         assert "event: close" in final
         assert json.loads(final.split("data: ")[1])["reason"] == reason

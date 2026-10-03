@@ -32,7 +32,10 @@ DATA_EVENT_TYPES = (frozenset(f"{resource}.stale" for resource in CHANGE_RESOURC
                     | frozenset(f"{resource}.{kind}" for resource in ("notes", "cards")
                                 for kind in ("created", "updated", "deleted"))
                     | {"reviews.created", "decks.counts"})
-EVENT_TYPES = DATA_EVENT_TYPES | {"change", "cards.answered", "sync"}
+# access.changed is a connection message, like ready and gap: every stream
+# gets it, and types=access.changed asks for nothing else (6.100).
+ACCESS_CHANGED = "access.changed"
+EVENT_TYPES = DATA_EVENT_TYPES | {"change", "cards.answered", "sync", ACCESS_CHANGED}
 
 
 def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
@@ -117,6 +120,8 @@ class EventBroker:
         self._collection: Any = None
         # ChangeScan for Anki-side changes; set by the app once a session starts.
         self.scanner: Any = None
+        # Whether FSRS was on at the last look; a change alters what apps can do.
+        self._fsrs: Optional[bool] = None
 
     def start_session(self, collection: Any) -> str:
         """Start a server/collection lifetime; old tokens stay closed forever."""
@@ -127,6 +132,7 @@ class EventBroker:
             self._collection = collection
             self._seq = 0
             self._draining = False
+            self._fsrs = _fsrs_enabled(collection)
             return self._session_id
 
     def subscribe(self, *, types: Optional[FrozenSet[str]] = None,
@@ -200,6 +206,29 @@ class EventBroker:
             sub.queue.append(event)
             sub.wake()
 
+    def publish_access(self) -> None:
+        """Tell every stream to fetch /v1/capabilities again; no details."""
+        with self._lock:
+            if self._draining:
+                return
+            for sub in self._subscribers.values():
+                if len(sub.queue) == sub.queue.maxlen:
+                    sub.dropped += 1
+                sub.queue.append({"type": ACCESS_CHANGED, "ts": int(time.time() * 1000)})
+                sub.wake()
+
+    def check_fsrs(self) -> None:
+        """Main thread, after a config change: FSRS on or off changes the report."""
+        with self._lock:
+            collection, before = self._collection, self._fsrs
+        now = _fsrs_enabled(collection)
+        if now is None or now == before:
+            return
+        with self._lock:
+            self._fsrs = now
+        if before is not None:
+            self.publish_access()
+
     def drain(self, token: int) -> List[Dict[str, Any]]:
         """Pending events, or a gap replacing the incomplete subscriber backlog."""
         with self._lock:
@@ -240,6 +269,15 @@ class EventBroker:
     def reset(self) -> None:
         """Test helper: start an isolated, unbound session with no subscribers."""
         self.start_session(None)
+
+
+def _fsrs_enabled(collection: Any) -> Optional[bool]:
+    if collection is None:
+        return None
+    try:
+        return bool(collection.get_config("fsrs", default=False))
+    except Exception:  # closing, or a stand-in collection
+        return None
 
 
 def event_permitted(grants: FrozenSet[str], type: str) -> bool:
@@ -320,6 +358,8 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     flags = _changed_flags(changes)
     if not flags:
         return
+    if {"config", "deck_config"}.intersection(flags):
+        broker.check_fsrs()
     scanner = broker.scanner
     total = sum(1 for f in changes.DESCRIPTOR.fields if f.name != "kind")
     if handler is None and len(flags) == total:

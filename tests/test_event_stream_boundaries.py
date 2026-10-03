@@ -161,6 +161,7 @@ def test_gap_cannot_resume_a_closed_connection(event_broker, reset_settings, tra
         else:
             reset_settings.update(no_key_local_role="read_only")
             reason = "auth"
+            assert (await next_event(stream))[0] == "access.changed"  # 6.100
         assert (await next_event(stream))[:2] == ("close", {"reason": reason})
         with pytest.raises(StopAsyncIteration):
             await stream.__anext__()
