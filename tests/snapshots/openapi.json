@@ -433,19 +433,35 @@
         "type": "object"
       },
       "CallerInfo": {
+        "description": "Who a request counts as: the same in health and capabilities (6.86).",
         "properties": {
+          "enabled": {
+            "description": "False for an app turned off in settings: it is granted nothing",
+            "title": "Enabled",
+            "type": "boolean"
+          },
           "host": {
             "description": "The Host header as Tsunagi received it (useful behind a proxy)",
             "title": "Host",
             "type": "string"
           },
+          "key": {
+            "description": "valid: the key belongs to `name`. unknown: a key was sent but matches no app, so it counts as no key. none: no key was sent",
+            "enum": [
+              "valid",
+              "unknown",
+              "none"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
           "name": {
-            "description": "The app the key belongs to, or the No key row the request fell in",
+            "description": "The app the request's key belongs to, or the No key row it counts as (no key, or a key that matches no app)",
             "title": "Name",
             "type": "string"
           },
           "role": {
-            "description": "The role's display name",
+            "description": "The role that applies, by its display name",
             "title": "Role",
             "type": "string"
           },
@@ -458,6 +474,8 @@
         "required": [
           "name",
           "role",
+          "enabled",
+          "key",
           "this_computer",
           "host"
         ],
@@ -1442,7 +1460,7 @@
           "caller": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/HealthCaller"
+                "$ref": "#/components/schemas/CallerInfo"
               }
             ],
             "description": "Who this request counts as, and what became of its key (X-API-Key or a Bearer token). Needs no profile open",
@@ -1485,43 +1503,6 @@
           "caller"
         ],
         "title": "Health",
-        "type": "object"
-      },
-      "HealthCaller": {
-        "properties": {
-          "app": {
-            "description": "The app the request's key belongs to, or the No key row it counts as (no key, or a key that matches no app)",
-            "title": "App",
-            "type": "string"
-          },
-          "enabled": {
-            "description": "False for an app turned off in settings: it is granted nothing",
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "key": {
-            "description": "valid: the key belongs to `app`. unknown: a key was sent but matches no app, so it counts as no key. none: no key was sent",
-            "enum": [
-              "valid",
-              "unknown",
-              "none"
-            ],
-            "title": "Key",
-            "type": "string"
-          },
-          "role": {
-            "description": "The role that applies, by its display name",
-            "title": "Role",
-            "type": "string"
-          }
-        },
-        "required": [
-          "app",
-          "role",
-          "enabled",
-          "key"
-        ],
-        "title": "HealthCaller",
         "type": "object"
       },
       "ImportFileRequest": {

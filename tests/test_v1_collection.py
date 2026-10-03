@@ -210,14 +210,15 @@ class TestCapabilities:
             {"name": "Yomine", "key": "y" * 32, "role": "read_only"},
             {"name": "Old script", "key": "o" * 32, "role": "default", "enabled": False}]}, persist=None)
         monkeypatch.setattr(aqt.mw, "col", None)
+        here = {"this_computer": True, "host": "127.0.0.1"}
         health = lambda **headers: client.get("/v1/health", headers=headers).json()["caller"]
-        assert health() == {"app": "No key, this computer", "role": "Default", "enabled": True, "key": "none"}
+        assert health() == {"name": "No key, this computer", "role": "Default", "enabled": True, "key": "none", **here}
         assert health(**{"X-API-Key": "y" * 32}) == {
-            "app": "Yomine", "role": "Read-only", "enabled": True, "key": "valid"}
+            "name": "Yomine", "role": "Read-only", "enabled": True, "key": "valid", **here}
         assert health(Authorization="Bearer " + "o" * 32)["enabled"] is False
         # An unknown key counts as no key; health says so, and which row applies.
         assert health(**{"X-API-Key": "nope"}) == {
-            "app": "No key, this computer", "role": "Default", "enabled": True, "key": "unknown"}
+            "name": "No key, this computer", "role": "Default", "enabled": True, "key": "unknown", **here}
 
     def test_health_reports_ready_collection(self, client):
         assert client.get("/v1/health").json()["collection"] == {

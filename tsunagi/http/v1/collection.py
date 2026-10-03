@@ -44,6 +44,7 @@ from ...shared.schemas.collection import (
 )
 from ...shared.schemas.fsrs import JobSubmitted
 from ..discovery import native_features, native_operations
+from ..middleware import provided_key
 
 router = APIRouter()
 
@@ -82,8 +83,7 @@ def capabilities(request: Request) -> Capabilities:
     start = time.perf_counter()
     support = collection_capabilities()
     caller = current_caller.get()
-    who = CallerInfo(name=caller.name, role=caller.role_name, this_computer=caller.local,
-                     host=request.headers.get("host", ""))
+    who = CallerInfo.of(caller, provided_key(request.scope), request.headers.get("host", ""))
     return Capabilities(versions=runtime_versions(), caller=who,
                         operations=native_operations(request.app.routes, support),
                         features=native_features(support), stats=_stats(start))

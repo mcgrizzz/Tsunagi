@@ -26,10 +26,24 @@ class OperationCapability(CapabilityState):
 
 
 class CallerInfo(BaseModel):
-    name: str = Field(description="The app the key belongs to, or the No key row the request fell in")
-    role: str = Field(description="The role's display name")
+    """Who a request counts as: the same in health and capabilities (6.86)."""
+    name: str = Field(description=(
+        "The app the request's key belongs to, or the No key row it counts as (no key, or "
+        "a key that matches no app)"))
+    role: str = Field(description="The role that applies, by its display name")
+    enabled: bool = Field(description="False for an app turned off in settings: it is granted nothing")
+    key: Literal["valid", "unknown", "none"] = Field(description=(
+        "valid: the key belongs to `name`. unknown: a key was sent but matches no app, so it "
+        "counts as no key. none: no key was sent"))
     this_computer: bool = Field(description="Counted as this computer: loopback peer and loopback Host")
     host: str = Field(description="The Host header as Tsunagi received it (useful behind a proxy)")
+
+    @classmethod
+    def of(cls, who, sent_key, host: str) -> "CallerInfo":
+        """From the resolved caller and the key the request carried, if any."""
+        return cls(name=who.name, role=who.role_name, enabled=who.enabled,
+                   key="none" if not sent_key else "valid" if who.key is not None else "unknown",
+                   this_computer=who.local, host=host)
 
 
 class Capabilities(BaseModel):

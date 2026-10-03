@@ -2,7 +2,7 @@
 import json
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Callable, Optional
 
 from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel, Field
@@ -48,7 +48,7 @@ from .http.v1.tags import router as tags_router
 from .log import log
 from .shared.errors import register_exception_handlers
 from .shared.permissions import PUBLIC, requires
-from .shared.schemas.capabilities import Versions, runtime_versions
+from .shared.schemas.capabilities import CallerInfo, Versions, runtime_versions
 from .shared.version import ADDON_VERSION
 
 
@@ -326,17 +326,6 @@ class CollectionHealth(BaseModel):
         "A 503 body carries the same value as reason"))
 
 
-class HealthCaller(BaseModel):
-    app: str = Field(description=(
-        "The app the request's key belongs to, or the No key row it counts as (no key, or "
-        "a key that matches no app)"))
-    role: str = Field(description="The role that applies, by its display name")
-    enabled: bool = Field(description="False for an app turned off in settings: it is granted nothing")
-    key: Literal["valid", "unknown", "none"] = Field(description=(
-        "valid: the key belongs to `app`. unknown: a key was sent but matches no app, so it "
-        "counts as no key. none: no key was sent"))
-
-
 class Health(BaseModel):
     ok: bool = Field(description="Whether the server is running")
     server: str = Field(description="Server name")
@@ -344,7 +333,7 @@ class Health(BaseModel):
     versions: Versions
     port: int = Field(description="Port number the server is listening on")
     collection: CollectionHealth
-    caller: HealthCaller = Field(description=(
+    caller: CallerInfo = Field(description=(
         "Who this request counts as, and what became of its key (X-API-Key or a Bearer "
         "token). Needs no profile open"))
 
@@ -373,8 +362,7 @@ def health(request: Request) -> Health:
     from aqt import mw
     sent = provided_key(request.scope)
     who = settings.resolve_caller(sent, is_local_request(request.scope))
-    caller = HealthCaller(app=who.name, role=who.role_name, enabled=who.enabled,
-                          key="none" if not sent else "valid" if who.key is not None else "unknown")
+    caller = CallerInfo.of(who, sent, request.headers.get("host", ""))
     return Health(
         ok=True,
         server="tsunagi",

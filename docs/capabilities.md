@@ -14,7 +14,7 @@ what's left out here:
 ```json
 {
   "versions": {"api": "v1", "addon": "0.5.1", "anki": "26.08.1"},
-  "caller": {"name": "No key, this computer", "role": "Default", "this_computer": true, "host": "127.0.0.1"},
+  "caller": {"name": "No key, this computer", "role": "Default", "enabled": true, "key": "none", "this_computer": true, "host": "127.0.0.1"},
   "operations": {
     …
     "GET /v1/notes": {
@@ -84,7 +84,7 @@ exists: if a future Anki removed one, that operation would report
 | Field | Contents |
 | --- | --- |
 | `versions` | Tsunagi API identifier, Tsunagi release and running Anki version. |
-| `caller` | Who Tsunagi took the request to be: `name` (the app, or the No key row), `role`, `this_computer`, and the `host` it received. Useful to check a proxy such as Tailscale Serve. |
+| `caller` | Who Tsunagi took the request to be, the same as in health (below). `this_computer` and `host` help check a proxy such as Tailscale Serve. |
 | `operations` | Tsunagi API operations keyed by `METHOD /path`, using the path templates from OpenAPI. |
 | `operations.<key>.operation_id` | The operation's OpenAPI identifier. |
 | `operations.<key>.options` | Conditional request options with their own status, reason and setting. Other inputs follow the operation's schema. |
@@ -133,14 +133,15 @@ did not answer a trivial read within a second). Every 503 from any route
 carries the same value as `reason`, so a client can say "Anki is syncing" rather than "request
 failed".
 
-Health's `caller` says who the request counts as, with no profile open needed:
-the `app` (or the No key row), its `role`, whether the app is `enabled`, and
-what became of the key: `valid`, `unknown` (sent but matching no app, so it
-counts as no key, as in AnkiConnect) or `none` (not sent). Send your key to
-check it:
+Health's `caller` says who the request counts as, with no profile open
+needed, in the same shape as the capabilities report's: the app's `name` (or
+the No key row), its `role`, whether the app is `enabled`, what became of the
+key, whether the request counted as `this_computer`, and the `host` it was
+sent to. The key is `valid`, `unknown` (sent but matching no app, so it counts
+as no key, as in AnkiConnect) or `none` (not sent). Send your key to check it:
 
 ```json
-"caller": {"app": "No key, this computer", "role": "Default", "enabled": true, "key": "unknown"}
+"caller": {"name": "No key, this computer", "role": "Default", "enabled": true, "key": "unknown", "this_computer": true, "host": "127.0.0.1"}
 ```
 
 Both endpoints carry the same `versions` identifiers:

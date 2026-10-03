@@ -82,8 +82,17 @@ def test_import_restrictions_are_in_the_same_report(client):
 
 def test_capabilities_say_who_the_caller_was_taken_to_be(client):
     caller = client.get("/v1/capabilities").json()["caller"]
-    assert caller == {"name": "No key, this computer", "role": "Default",
-                      "this_computer": True, "host": "127.0.0.1"}
+    assert caller == {"name": "No key, this computer", "role": "Default", "enabled": True,
+                      "key": "none", "this_computer": True, "host": "127.0.0.1"}
+
+
+def test_health_and_capabilities_describe_the_caller_alike(client, reset_settings):
+    # One shape in both (6.86), so an app can tell its key wasn't recognized from either.
+    reset_settings.update(apps=[{"name": "Yomine", "key": "y" * 32, "role": "read_only"}])
+    for headers in ({}, {"X-Api-Key": "y" * 32}, {"X-Api-Key": "not-a-key"}):
+        health = client.get("/v1/health", headers=headers).json()["caller"]
+        assert client.get("/v1/capabilities", headers=headers).json()["caller"] == health
+    assert health["key"] == "unknown" and health["name"] == "No key, this computer"
 
 
 def test_an_app_without_reads_still_gets_the_report(client, reset_settings):
