@@ -56,6 +56,7 @@ Qt checks with this environment active.
 | Qt tests and real-Anki checks | a Python with `aqt` and Qt | `tools/qt_checks.sh` (offscreen, what CI runs) |
 | A single Qt check | the same | `python tools/check_add_cards.py`, etc. |
 | Browser check of the API reference | Playwright and Chromium in their own environment | `TSUNAGI_BROWSER_PYTHON=/path/to/python python -m pytest -q tests/test_playground.py` |
+| TypeScript client | Node 22 | `npm ci && npm test` in `packages/typescript`; then `python -m pytest -q tests/test_typescript_client.py` runs the built client against the server (skipped until it's built) |
 | Media and FSRS Helper checks | the same; for the second, a copy of FSRS Helper | `python tools/check_media.py`, `FSRS_HELPER_DIR=/path/to/addons21/759844606 python tools/check_fsrs_helper_provider.py` (by hand, not in CI) |
 
 - The real-Anki checks run on Kiso's harness (`tools/qt_smoke.py`): Anki starts
@@ -106,6 +107,11 @@ Qt checks with this environment active.
   `pyproject.toml` (`audit_ignore`); any other one fails CI. So does a
   deprecation notice for Tsunagi's own call to an old Anki API (one raised
   inside Anki's own code is only listed).
+- The same workflow tests the TypeScript client (`packages/typescript`): its
+  own tests, including a check that every field and sort it uses is in
+  `tests/snapshots/openapi.json`, then the built client against the real
+  server (`tests/test_typescript_client.py`). An API change that breaks the
+  client fails CI in the same push.
 - The [Anki watch](../.github/workflows/anki-watch.yml) runs daily. When PyPI
   has an Anki release, beta or RC it hasn't tested, it runs the suite and Qt
   checks against it and records the result as an `anki-watch` issue (closed if
@@ -140,8 +146,10 @@ kiso sync --watch     # or KISO_ADDON_DIR=/path/to/Anki2/addons21/tsunagi kiso s
 
 ## Package for AnkiWeb
 
-Keep the version the same in `pyproject.toml` and `tsunagi/shared/version.py`
-(a test checks), then run `kiso build`. It writes:
+Keep the version the same in `pyproject.toml`, `tsunagi/shared/version.py`
+and the client's `packages/typescript/package.json` and `package-lock.json`
+(a test checks; each client is released with the add-on it was tested
+against), then run `kiso build`. It writes:
 
 | File | Purpose |
 | --- | --- |
@@ -158,7 +166,7 @@ Keep the version the same in `pyproject.toml` and `tsunagi/shared/version.py`
 
 ## GitHub releases
 
-Commit matching versions in the two files above and push. Then either:
+Commit matching versions in the files above and push. Then either:
 
 - open **Actions → Release → Run workflow** on `main` (it uses the declared
   version, so `0.1.0` becomes `v0.1.0`), or
@@ -167,7 +175,7 @@ Commit matching versions in the two files above and push. Then either:
 The [Release workflow](../.github/workflows/release.yml):
 
 1. runs CI: the suite on both Anki versions, the Qt checks, the
-   dependency audit, and the test that the two versions agree;
+   dependency audit, the client's tests, and the test that the versions agree;
 2. checks the tag matches `pyproject.toml`'s version (Kiso's `addon-release`);
 3. builds the package with `kiso build`;
 4. creates the tag at the tested commit if a manual run needs one;

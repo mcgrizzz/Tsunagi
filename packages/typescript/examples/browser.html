@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tsunagi draft client</title>
+<style>
+  body { max-width: 50rem; margin: 3rem auto; padding: 0 1rem; font: 1rem system-ui; }
+  label { display: block; margin: 1rem 0; }
+  input { display: block; box-sizing: border-box; width: 100%; padding: .6rem; }
+  button { padding: .6rem 1rem; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+<h1>Tsunagi draft client</h1>
+<p>Read up to 20 due cards. This example makes no changes to Anki.</p>
+<form id="connection">
+  <label>Server URL <input id="url" type="url" required placeholder="Your Tsunagi server URL"></label>
+  <label>API key <input id="key" type="password" autocomplete="off"></label>
+  <button id="read" type="submit">Read due cards</button>
+  <button id="cancel" type="button" disabled>Cancel read</button>
+</form>
+<p id="status" role="status"></p>
+<pre id="results"></pre>
+<script type="module" src="./browser.mjs"></script>
+</html>

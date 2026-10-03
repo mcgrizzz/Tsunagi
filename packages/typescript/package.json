@@ -1,0 +1,26 @@
+{
+  "name": "@tsunagi/client-draft",
+  "version": "0.5.1",
+  "private": true,
+  "description": "Experimental TypeScript client for Tsunagi; API subject to change",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.check.json",
+    "test": "npm run build && npm run check && node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

@@ -21,3 +21,25 @@ jobs:
       floor-anki: "26.8.1"
       qt-checks: tools/qt_checks.sh
       test-packages: httpx
+
+  client:
+    # The clients move with the API (packages/<language>). TypeScript: its own
+    # tests, including the check against tests/snapshots/openapi.json, then the
+    # built client against the real server (tests/test_typescript_client.py).
+    name: TypeScript client
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Client tests
+        working-directory: packages/typescript
+        run: npm ci && npm test
+      - uses: mcgrizzz/Kiso@main
+      - name: Test packages
+        run: python -m pip install -q httpx
+      - name: Against the server
+        run: python -m pytest -q -rs tests/test_typescript_client.py
