@@ -44,7 +44,7 @@ checks need a second environment with Anki's GUI package, as CI makes it:
 ```sh
 python -m venv .venv-qt
 . .venv-qt/bin/activate               # Windows PowerShell: .\.venv-qt\Scripts\Activate.ps1
-python -m pip install pytest httpx "aqt[qt6]" "kiso-anki @ git+https://github.com/mcgrizzz/Kiso.git"
+python -m pip install pytest httpx "aqt[qt]" "kiso-anki @ git+https://github.com/mcgrizzz/Kiso.git"
 ```
 
 On Linux, Qt also needs some system libraries; the list CI installs is in
@@ -56,17 +56,18 @@ Qt checks with this environment active.
 | Qt tests and real-Anki checks | a Python with `aqt` and Qt | `tools/qt_checks.sh` (offscreen, what CI runs) |
 | A single Qt check | the same | `python tools/check_add_cards.py`, etc. |
 | Browser check of the API reference | Playwright and Chromium in their own environment | `TSUNAGI_BROWSER_PYTHON=/path/to/python python -m pytest -q tests/test_playground.py` |
-| Media and FSRS Helper checks | a real Anki; FSRS Helper installed for the second | `python tools/check_media.py`, `python tools/check_fsrs_helper_provider.py` (by hand, not in CI) |
+| Media and FSRS Helper checks | the same; for the second, a copy of FSRS Helper | `python tools/check_media.py`, `FSRS_HELPER_DIR=/path/to/addons21/759844606 python tools/check_fsrs_helper_provider.py` (by hand, not in CI) |
 
 - The real-Anki checks run on Kiso's harness (`tools/qt_smoke.py`): Anki starts
   offscreen in a throwaway profile with Tsunagi installed through its root
   `__init__.py`, server and all. `--screenshots DIR` keeps the images of the
   checks that take them.
-- Set `TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` to include the Qt and
-  browser checks in a full `pytest` run. Tests for another Anki version still
-  skip.
-- Set `KISO_STRICT_ANKI_NOTICES=1` to fail on any deprecation notice Anki
-  prints. Notices are always listed at the end of the run.
+- Set `TSUNAGI_GUI_PYTHON` and `TSUNAGI_BROWSER_PYTHON` to include the Qt
+  tests and the browser check in a full `pytest` run. Tests for another Anki
+  version still skip.
+- Set `KISO_STRICT_ANKI_NOTICES=1` to fail on a deprecation notice Anki prints
+  for Tsunagi's own call (CI does). Notices are always listed at the end of
+  the run.
 - **API contract.** `tests/snapshots/openapi.json` records the published
   schema, so any change shows up as a diff. After an intended change,
   regenerate it with
@@ -83,9 +84,10 @@ Qt checks with this environment active.
 <summary>AnkiConnect comparisons</summary>
 
 - To see whether upstream AnkiConnect gained or dropped actions, pull a local
-  checkout of it and run `python tools/check_parity.py` (the weekly checks
-  also do this). The routine tests only compare the
-  [compatibility page](ankiconnect_parity.md) with Tsunagi's own actions.
+  checkout of it and run `python tools/check_parity.py`, adding `--clone DIR`
+  if it isn't in `~/refs/anki-connect` (the weekly checks also do this). The
+  routine tests only compare the [compatibility page](ankiconnect_parity.md)
+  with Tsunagi's own actions.
 - The broad comparison suite against upstream is archived in Git at `3c8e2dd`
   (`tests/test_upstream_*.py`, `tests/upstream_support.py`). To run it again,
   check out that revision separately and set `TSUNAGI_ANKICONNECT_CHECKOUT` to
@@ -101,7 +103,7 @@ Qt checks with this environment active.
   suite on both supported Anki versions, the Qt checks (`tools/qt_checks.sh`)
   on the newest, the build, and `pip-audit` on the bundled dependencies.
   Advisories that don't apply are listed with their reason in
-  `pyproject.toml` (`audit_ignore`); any new one fails the build. So does a
+  `pyproject.toml` (`audit_ignore`); any other one fails CI. So does a
   deprecation notice for Tsunagi's own call to an old Anki API (one raised
   inside Anki's own code is only listed).
 - The [Anki watch](../.github/workflows/anki-watch.yml) runs daily. When PyPI
@@ -128,10 +130,10 @@ kiso sync --watch     # or KISO_ADDON_DIR=/path/to/Anki2/addons21/tsunagi kiso s
   as you edit.
 - To reload by hand, run `import tsunagi; tsunagi.reload_addon()` in Anki's
   debug console (Ctrl+Shift+;).
-- Changes to the root `__init__.py` or to `lib/` need an Anki restart. A plain
-  `kiso sync` (without `--watch`) copies `lib/` when it changed.
-- Tsunagi logs to Anki's log folder for the add-on (`logs/addons/` in Anki's
-  data folder), not the console.
+- Changes to the root `__init__.py` or to `lib/` need an Anki restart.
+  `--watch` doesn't copy `lib/` as you edit; run `kiso sync` again to copy it.
+- Tsunagi logs to the console and to its file in Anki's log folder
+  (`logs/addons/tsunagi/` in Anki's data folder).
 - If another add-on has already loaded a different version of FastAPI,
   Starlette, pydantic or uvicorn, Tsunagi refuses to start and names it.
   `tools/check_vendor_clash.py` tests that in a real Anki.
@@ -139,7 +141,7 @@ kiso sync --watch     # or KISO_ADDON_DIR=/path/to/Anki2/addons21/tsunagi kiso s
 ## Package for AnkiWeb
 
 Keep the version the same in `pyproject.toml` and `tsunagi/shared/version.py`
-(a test checks), then run `kiso build`. It prints where it put:
+(a test checks), then run `kiso build`. It writes:
 
 | File | Purpose |
 | --- | --- |
@@ -192,7 +194,8 @@ The [Release workflow](../.github/workflows/release.yml):
   `adapters/settings_page.py`.
 - `tsunagi/shared/`: schemas, permissions, and shared query and error
   handling.
-- `tools/`: packaging, development sync, checks and benchmarks.
+- `tools/`: the real-Anki checks, benchmarks, the settings screenshots and
+  the lockfile of bundled libraries.
 
 Prefer Anki's public APIs, and keep any direct database access in the adapter
 layer. Account for the running Anki version. Use the existing operation

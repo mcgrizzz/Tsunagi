@@ -7,7 +7,9 @@
 Windows only. Asks the running API to close Anki (AnkiConnect's
 guiExitAnki, which Tsunagi also answers; Tsunagi needs a key with the manage
 permission in TSUNAGI_BENCH_API_KEY, and an AnkiConnect with a key of its own
-needs it in ANKICONNECT_API_KEY), waits for Anki to exit, sets the two
+needs it in ANKICONNECT_API_KEY). If Anki is still open a few seconds later
+(AnkiConnect's guiExitAnki left it open, 2026-10-03), it asks Windows to
+close Anki's window (taskkill without /f, like clicking X). It waits for Anki to exit, sets the two
 add-ons' "disabled" flags in their meta.json, starts Anki on the profile and
 waits until the chosen API answers. It never kills Anki: if Anki doesn't
 close, it stops and says so.
@@ -91,6 +93,12 @@ def main():
         # Anki can close before it answers, so judge by whether it exits.
         for api in PORTS:
             ask(api, "guiExitAnki")
+        deadline = time.monotonic() + 5
+        while anki_running() and time.monotonic() < deadline:
+            time.sleep(0.5)
+        if anki_running():
+            # A normal close request, as clicking X: Anki unloads the profile itself.
+            subprocess.run(["taskkill", "/IM", "anki.exe"], capture_output=True)
         wait(lambda: not anki_running(), 120,
              "Anki to close. A sync on close can take a while. Closing needs Tsunagi's key "
              "(TSUNAGI_BENCH_API_KEY, with the manage permission) or AnkiConnect's, if it has one "

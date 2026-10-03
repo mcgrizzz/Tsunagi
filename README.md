@@ -94,8 +94,8 @@ reviews also accept Anki browser search syntax to narrow your results.
 > to bring over your connection settings.
 
 1. Open **Tools → Tsunagi Settings**.
-2. On **Server**, leave **Run the Tsunagi server** checked and keep the default
-   host and preferred port. Click **Save**.
+2. On **Server**, check that **Run the Tsunagi server** is ticked, and keep the
+   default host and port.
 3. Open **<http://127.0.0.1:7777/>**. The interactive API reference confirms that
    Tsunagi is reachable.
 4. In your tool, set the Anki connection address to **`http://127.0.0.1:7777`**.
@@ -124,7 +124,7 @@ Open **Tools → Tsunagi Settings** to change:
 | **Server** | Server on/off, port, who can connect (host), limits, timeouts and logging. Taking over from AnkiConnect. |
 | **Apps & keys** | Each tool's key and role, and a switch to turn it off. |
 | **Requests without a key** | The role for keyless requests from this computer and from other devices. |
-| **Websites & Anki pages** | Allowed website origins, and whether card templates may use the API. |
+| **Websites & Anki pages** | Allowed website origins, and whether card templates and add-on pages may use the API. |
 | **Add-ons** | Which actions other add-ons offer that apps may run. |
 | **Roles** | What each role allows, and who uses it. |
 | **Recent requests** | Requests since Anki started, per client (app, website or no key), with totals and filters, so you can see who is calling and what failed. Memory only; no keys or contents. |

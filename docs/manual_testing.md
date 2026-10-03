@@ -11,13 +11,14 @@ results are in the [archived manual log](archive/manual_test_plan.md).
 
 ## Install and settings
 
-- [ ] Install the candidate `.ankiaddon`, restart Anki and open **Tools →
-  Tsunagi Settings**.
+- [ ] Install the candidate `.ankiaddon` (from `kiso build` or the draft
+  release), restart Anki and open **Tools → Tsunagi Settings...**.
 - [ ] The bottom of the window shows the candidate version and that the server
   is running.
-- [ ] Change a setting and click **Cancel**; close and reopen: it wasn't saved.
-  Save a change: it's kept. Close with an unsaved change: the window asks
-  first.
+- [ ] Change a setting: the bottom of the window says there are unsaved
+  changes. Click **Cancel**: the change is undone. Save a change, close and
+  reopen: it's kept. Close with an unsaved change: the window asks first and
+  names the pages with changes.
 - [ ] Change the port: the API answers at the new address. Change it back.
 - [ ] Open the API reference at that address; try a health check and a small
   notes query.
@@ -27,6 +28,10 @@ results are in the [archived manual log](archive/manual_test_plan.md).
   under the app's name.
 - [ ] Anki's add-on log (`logs/addons/` in Anki's data folder) has Tsunagi's
   start line.
+- [ ] Turn Tsunagi off in **Tools → Add-ons**: Anki asks whether to stop the
+  server. **Stop the server now**: the API stops answering and a tooltip says
+  so. Turn Tsunagi back on: the API answers again and a tooltip says the
+  server is running.
 
 ## A real tool
 
@@ -34,22 +39,25 @@ results are in the [archived manual log](archive/manual_test_plan.md).
   key, if you set one).
 - [ ] Its deck and note-type lists load; add a sample note.
 - [ ] The note's fields, tags and media are right in Anki.
-- [ ] *Only when testing the switch from AnkiConnect:* import its settings on
-  the **AnkiConnect** page, review them and Save. Tsunagi takes over its port, your
-  allowed websites are kept, AnkiConnect is turned off, and the last-import
-  date updates.
+- [ ] *Only when testing the switch from AnkiConnect:* on the **Server** page,
+  click **Take over from AnkiConnect…**, check what the dialog lists and click
+  **Take over**. Tsunagi moves to AnkiConnect's port, AnkiConnect's key and
+  allowed websites carry over, AnkiConnect is turned off, and the Server page
+  says when Tsunagi took over. (When AnkiConnect is installed, Tsunagi's first
+  start offers this by itself.)
 
 ## Windows and desktop
 
-- [ ] Open the Browser, Add Cards and a note preview through the API, with
-  sample data.
+- [ ] Open the Browser, Add Cards and the note editor (`guiEditNote`) through
+  the API, with sample data. In the note editor, open **Preview**.
 - [ ] Try it with Anki covered by another window, and with Anki minimized. The
   window opens and, once you switch to it, typing goes into one of the note's
   fields, not elsewhere. Windows may flash the taskbar
   button instead of bringing Anki forward; that's fine. A window that doesn't
   open, or typing that lands in the wrong field, is a release problem.
-- [ ] Open the import picker through the API, leave it, then cancel. The API
-  answers once the picker opens; it doesn't wait for an import.
+- [ ] Open the import picker with `POST /v1/gui:import-file`, leave it, then
+  cancel. The API answers as soon as Anki accepts the request; it doesn't wait
+  for an import.
 - [ ] Close and reopen Anki: the server starts and the tool reconnects.
 
 Test sync, profile switching or closing Anki only when that's the point of the
@@ -57,7 +65,11 @@ test and won't disturb other work.
 
 ## Anki's experimental editor
 
-If you use Anki's experimental editor: with it turned on, open the Browser and
-Edit Current through the API and edit a note; both should work. The Add
-window isn't supported yet (Add Cards actions through the API answer with an
-"unsupported editor" error), so there's nothing to check there.
+If you use Anki's experimental editor, turn it on and:
+
+- [ ] Open the Browser through the API and edit a note in it.
+- [ ] With the Browser or Edit Current showing a note, change that note
+  through the API: the editor shows the change.
+- [ ] With Anki's experimental Add window open, an Add Cards action through
+  the API answers with an error asking you to close that window, and what you
+  typed there stays.

@@ -209,9 +209,8 @@ class TestTemplateEdits:
             "Name": "Reverse", "Front": "{{Back}}", "Back": "{{Front}}"}})
         assert templates_of(client) == ["Card 1", "Reverse"]
 
-    def test_add_existing_template_persists_the_update(self, client):
-        # DEVIATION: canonical returns without saving here, silently discarding
-        # the update.
+    def test_add_existing_template_updates_the_cache(self, client):
+        # As canonical: the cached note type changes, but it isn't saved.
         rpc(client, "modelTemplateAdd", {"modelName": "Basic", "template": {
             "Name": "Card 1", "Front": "{{Front}} CHANGED", "Back": "{{Back}} ALSO"}})
         assert rpc(client, "modelTemplates", {"modelName": "Basic"})["result"] == {

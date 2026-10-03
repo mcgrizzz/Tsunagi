@@ -39,7 +39,7 @@ from tools.connection_bench import Endpoint, action_request, exchange, wire_requ
 DECK = "Tsunagi Benchmark"
 TAG = "tsunagi-benchmark"
 PREFIX = "tsunagi_bench_"
-MODEL = "Kiku+"
+MODEL = "Kiku"
 TERM_FIELD = "Expression"
 BENCH_SEARCH = f'"deck:{DECK}"'
 TIMEOUT = 120
@@ -160,7 +160,7 @@ class LookupDuplicates(Workload):
                           for w in words]}
         if self.options.get("checkAllModels"):
             # The check's scope already covers every note type: its IDs are the list.
-            results = (await c.rest("POST", "/v1/notes:check", body))["results"]
+            results = (await c.rest("POST", "/v1/notes:check", body, include="duplicate_ids"))["results"]
             return {w: {"duplicate": r["state"] == "duplicate",
                         "ids": sorted(r["duplicate_note_ids"])} for w, r in zip(words, results)}
         # Yomitan decides "duplicate" within the note type but lists every note
@@ -277,7 +277,7 @@ class KnownWordsSnapshot(Workload):
               "of every note of a mapped note type, then its first card's latest interval")
     # The owner's Yomine mapping: note type -> term, reading and sentence fields.
     mapping = {"Kiku": (TERM_FIELD, "ExpressionReading", "Sentence"),
-               MODEL: (TERM_FIELD, "ExpressionReading", "Sentence")}
+               "Kiku+": (TERM_FIELD, "ExpressionReading", "Sentence")}
 
     def vocab(self, notes):
         """What Yomine reads from each mapped note; a term and a reading make it vocab."""
@@ -737,6 +737,9 @@ async def run(args, report):
             terms.append(term)
         if len(terms) == 10:
             break
+    if len(terms) < 10:
+        raise RuntimeError(f"Found {len(terms)} of 10 plain {TERM_FIELD} values among the first 200 "
+                           f"{MODEL!r} notes; the duplicate workloads need saved words")
     ctx = {"existing_terms": terms}
     report["existing_terms"] = terms
     await c.action("createDeck", deck=DECK)

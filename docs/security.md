@@ -2,7 +2,7 @@
 
 What Tsunagi protects, from whom, how, and where the gaps are. Findings marked
 **verified** were checked against the code or with real requests. Last
-reviewed 2026-09-28 against Tsunagi `main` and Anki 26.09.
+reviewed 2026-10-03 against Tsunagi 0.5.1 and Anki 26.09.
 
 ## In short
 
@@ -10,9 +10,12 @@ reviewed 2026-09-28 against Tsunagi `main` and Anki 26.09.
 - Public websites are blocked unless you allow them. Browser extensions and
   pages served from this computer are allowed, as in AnkiConnect.
 - Other devices are blocked unless you set up access: an app's key, or a role
-  for "No key, other devices".
+  for other devices under **Requests without a key**.
 - Each app's key and role decide what it may do. Untick an app's **On** box or
   give it a **New key** to stop it.
+- A tool you haven't given a role of its own gets the Default role. It allows
+  what AnkiConnect allows, except reading files on this computer, and leaves
+  out a few other risky things ([what's off by default](#whats-off-by-default)).
 - Card templates and other add-ons' pages inside Anki can't use it unless you
   turn that on.
 
@@ -21,8 +24,8 @@ reviewed 2026-09-28 against Tsunagi `main` and Anki 26.09.
 - **The collection:** notes, cards, review history and scheduling. Most writes
   can be undone in Anki, but a client can make many quickly. Media files and
   add-on actions aren't undone that way.
-- **Files on the computer:** an app with the `local_files` permission can have
-  Anki read any file you can, store it as media and fetch it back.
+- **Files on the computer:** an app allowed to read files on this computer can
+  have Anki read any file you can, store it as media and fetch it back.
 - **The local network:** a media `url` upload makes Anki fetch that address
   and store the answer, which the caller can read back.
 - **Anki's windows:** GUI actions open dialogs, switch profiles and answer
@@ -36,13 +39,56 @@ reviewed 2026-09-28 against Tsunagi `main` and Anki 26.09.
 
 | Caller | Default access | Why |
 | --- | --- | --- |
-| Program on this computer (script, desktop tool) | Default role (everything AnkiConnect allows) | It already runs as you and could open the collection directly. The "No key, this computer" row can be set to another role. |
+| Program on this computer (script, desktop tool) | Default role | It already runs as you and could open the collection directly. **Requests without a key → Programs on this computer** can be set to another role. |
 | Browser extension | Default role | The default allowed origin `http://localhost` also allows every extension, as in AnkiConnect, so Yomitan works with no setup. |
 | Web page served from `127.0.0.1`, any port | Default role | Same rule. Includes local dev servers and other apps' web pages. |
 | Anki's own pages (reviewer, previewer, add-on pages) | None, unless **Allow card templates and add-on pages** is on | Card templates run JavaScript there. See [check 4](#how-the-checks-work). |
 | Web page on another site | None, unless you allow it | Refused before anything runs. You allow a site by adding it under **Allowed website origins**, or by approving its `requestPermission` dialog. After that, its requests come from your browser on this computer, so without a key it gets the Default role, like a local page. |
-| Another device on the network | Only with an app's key | The default host `127.0.0.1` isn't reachable from it. With another host, keyless requests get the "No key, other devices" role: No access unless you change it. Tsunagi serves plain HTTP, so the connection doesn't encrypt the key or your data; someone able to intercept that traffic could read them. |
+| Another device on the network | Only with an app's key | The default host `127.0.0.1` isn't reachable from it. With another host, keyless requests get the role for other devices under **Requests without a key**: No access unless you change it. Tsunagi serves plain HTTP, so the connection doesn't encrypt the key or your data; someone able to intercept that traffic could read them. |
 | Another device through a proxy on this computer (Tailscale Serve) | Only with an app's key | The proxy's name must be under **Other host names**, and forwarded requests always count as other devices. Tailscale encrypts the traffic between devices, so this is the safer way to connect from elsewhere. |
+
+## What's off by default
+
+The Default role is what a tool gets unless you give it another. It allows
+what AnkiConnect allows, so AnkiConnect clients keep working, with the
+exceptions below: things a tool you never thought about could do real damage
+with. Give each one only to a tool that needs it, through its role on the
+**Roles** page. Card templates have a switch of their own instead, on
+**Websites & Anki pages**.
+
+- **Reading files on this computer.** AnkiConnect lets a client store media by
+  naming a file's path: Anki copies the file into its media folder, and the
+  client reads it back as media. Any client that can reach the API, including
+  a website you allowed, could read any file your account can (SSH keys,
+  browser password databases, documents), and media sync could upload it to
+  AnkiWeb. Browsers stop websites reading your files; this would get around
+  that.
+  - Cost: a client that names a path is refused. A screenshot or recording
+    tool that has just written a file is the usual one. It can send the
+    file's contents (`data`) or a `url` instead.
+- **Card templates and add-on pages.** Scripts in Anki's own pages, including
+  the card templates of shared decks you downloaded, could read, change or
+  delete your collection while you study.
+  - Cost: an interactive card template, or an add-on page that uses the API,
+    needs **Allow card templates and add-on pages** turned on. Then you have
+    to trust every deck you study and every add-on page you open.
+    AnkiConnect lets them all in.
+- **Rewriting FSRS memory state.** It overwrites what FSRS knows about your
+  cards. A faulty tool could quietly damage your scheduling, and you might
+  not notice for weeks.
+  - Cost: none for AnkiConnect clients; AnkiConnect can't do this.
+- **Running add-on actions.** Each action another add-on offers stays off
+  until you enable it on the **Add-ons** page, and some are destructive. One
+  you enable that can be undone joins the Default role; a destructive one
+  joins only Everything ([add-on actions](#add-on-actions)).
+  - Cost: none for AnkiConnect clients; these are Tsunagi's own.
+- **Each card you answer, live.** The event stream can report every review:
+  which card, how you answered and when. Nothing needs it by default: a
+  client should get it because it uses it, not because it's there. The
+  Default role still gets changes to your collection.
+  - Cost: a study tracker, stream overlay or companion app that reacts as you
+    review needs a role with it. None for AnkiConnect clients; AnkiConnect
+    has no event stream.
 
 ## What stops a hostile web page (verified)
 
@@ -88,8 +134,8 @@ response without CORS headers.
      and addressed to it) or "No key, other devices".
    - Each has a role. Every route and AnkiConnect action declares the
      permission it needs; a test fails if one is missing.
-   - Local file paths and FSRS memory-state writes need permissions only the
-     Everything role has by default.
+   - A few permissions are left out of the Default role
+     ([what's off by default](#whats-off-by-default)).
 4. **Anki's own pages.** Anki serves the reviewer, previewer and add-on pages
    from `http://127.0.0.1:<its media port>`, where card-template JavaScript
    can make network requests.
@@ -161,13 +207,13 @@ Most likely to matter first.
    - Anki's own editor and AnkiConnect don't restrict addresses either, and
      local audio servers rely on `localhost` URLs, so it stays.
    - Tsunagi adds a size limit and timeout, and redirects must stay on
-     `http(s)`. On a cloud server, blocking `169.254.0.0/16` (cloud metadata)
-     would be worth adding.
+     `http(s)`.
 2. **Every local page and every extension is trusted.** Any page served from
    `127.0.0.1` on any port, and any installed browser extension, gets the
-   Default role without a key (everything AnkiConnect allows). It's the AnkiConnect-compatible default that makes
-   Yomitan work. To narrow it, give each tool its own key and set "No key,
-   this computer" to a smaller role or No access.
+   Default role without a key, so it can read and change your collection.
+   It's the AnkiConnect-compatible default that makes Yomitan work. To narrow
+   it, give each tool its own key and set **Requests without a key → Programs
+   on this computer** to a smaller role or No access.
 3. **Proxies and "this computer".** A request counts as local only when it
    comes from this computer, is addressed to a loopback name, and carries no
    proxy header (`Tailscale-User-Login`, `Forwarded`, `X-Forwarded-For`,
@@ -189,10 +235,10 @@ Accepted by design:
 - Programs running as you have full access: a key wouldn't stop them opening
   the collection directly.
 - The bundled Starlette library carries known advisories, each listed with
-  its reason in [CI](../.github/workflows/ci.yml): form parsing (Tsunagi
-  parses no forms), URLs rebuilt from the `Host` header (Tsunagi checks `Host`
-  first and routes on the path), and `StaticFiles` and `HTTPEndpoint` (not
-  used). The fixes are in Starlette 1.x. Tsunagi bundles FastAPI 0.125.0,
+  its reason under `audit_ignore` in [`pyproject.toml`](../pyproject.toml),
+  which CI's audit skips: form parsing (Tsunagi parses no forms), URLs
+  rebuilt from the `Host` header (Tsunagi checks `Host` first and routes on
+  the path), and `StaticFiles` and `HTTPEndpoint` (not used). The fixes are in Starlette 1.x. Tsunagi bundles FastAPI 0.125.0,
   which requires Starlette below 0.51; later FastAPI releases require
   pydantic 2, which isn't pure Python and can't be bundled.
 
@@ -225,7 +271,7 @@ Where Tsunagi differs:
 
 - It checks `Host`, which defeats DNS rebinding.
 - It answers disallowed preflights with 403 rather than 200.
-- File paths need the `local_files` permission.
+- Reading a file by its path is off by default.
 - It refuses Anki's own pages. Otherwise it keeps AnkiConnect's origin rule,
   so gap 2 applies to both.
 

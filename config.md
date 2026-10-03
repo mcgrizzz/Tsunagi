@@ -8,10 +8,15 @@ Each section below is one page of the settings window, with the setting's
 key in the add-on's saved configuration for reference.
 
 - **Save** applies your changes and keeps the window open. Changes to the
-  server (on/off, port, host, log level) restart it right away.
+  server (on/off, port, host, log level) restart it right away. If something
+  can't be saved, Save opens the page of the first problem and says what's
+  wrong.
 - **Cancel** discards unsaved changes on every page.
-- Closing the window with unsaved changes asks first. Each page can also undo
-  its own changes or restore its defaults.
+- Until you save, the footer says how many pages have unsaved changes, and
+  the sidebar marks each one with a dot. Each page can also undo its own
+  changes or restore its defaults.
+- Closing the window (X or Esc) with unsaved changes asks first and names the
+  pages: keep editing, discard the changes, or save and close.
 
 ## Server
 
@@ -43,7 +48,8 @@ key in the add-on's saved configuration for reference.
   or `X-Real-IP`) never counts as this computer, so without a key it gets the
   role for other devices.
 - **Timeouts.** Every 503 says why in `reason`: `busy`, `syncing` or `closed`
-  (no profile open); `GET /v1/health` reports the same as `collection.state`.
+  (no profile open, or Anki closed it while the request waited);
+  `GET /v1/health` reports the same as `collection.state`.
   A timeout doesn't cancel the work: a write can still finish after the 503.
   Send an `Idempotency-Key` with any write so a retry is safe
   ([Creating notes](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/creating_notes.md)).
@@ -73,7 +79,8 @@ that port, so your tools keep working unchanged.
 - If the port is still taken, nothing changes and AnkiConnect keeps running.
 - If Tsunagi can't turn this AnkiConnect version off itself, it says so:
   disable AnkiConnect in **Tools → Add-ons**, restart Anki, then take over.
-- The button waits until other changes on the page are saved or discarded.
+- The button waits until your other changes, on any page, are saved or
+  discarded.
 
 ## Apps & keys
 
@@ -109,7 +116,7 @@ Saved as `apps`:
 
 | From | Key | Default role |
 | --- | --- | --- |
-| Programs on this computer | `no_key_local_role` | Default (everything AnkiConnect allows) |
+| Programs on this computer | `no_key_local_role` | Default |
 | Other devices | `no_key_remote_role` | No access |
 
 - **This computer** means the connection comes from this computer and is
@@ -167,15 +174,19 @@ Saved as `addon_enabled`:
 
 ![The Roles page](docs/images/settings-roles.png)
 
-A role is what an app may do. Four are built in; you can edit them (and reset
-them) or make your own.
+A role is what an app may do. Four are built in; you can edit them (all but
+No access) and reset them, or make your own.
 
 | Role | Allows |
 | --- | --- |
-| Default | Everything AnkiConnect allows: reading and changing the collection, Anki's windows, sync, import/export and profiles, change events, enabled add-on actions |
+| Default | What AnkiConnect allows, except reading files on this computer: reading and changing the collection, Anki's windows, sync, import/export and profiles, change events, enabled add-on actions that can be undone |
 | Read-only | Reading, and change events |
 | Everything | All of it, including local files, FSRS memory state, review events and destructive add-on actions |
 | No access | Nothing |
+
+Why Default leaves out local files, FSRS memory state, review events and
+destructive add-on actions:
+[What's off by default](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/security.md#whats-off-by-default).
 
 A request its role doesn't allow gets 403 naming the app, the role and what's
 missing. Changes apply at once; an app's open event stream closes (reason

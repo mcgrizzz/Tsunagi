@@ -1,16 +1,55 @@
 # Tsunagi API discovery
 
-`GET /v1/capabilities` is the Tsunagi API's discovery endpoint. It reports all
-registered Tsunagi API operations, their current status, and settings or version
-restrictions on individual options. AnkiConnect's action list remains at
-`GET /actions`.
+`GET /v1/capabilities` reports which Tsunagi API operations your app can use
+right now, and why it can't use the others.
 
-It needs no permission, so an app whose role is missing something can see what
-and why. Two features say something about your collection, so an app without
-the permission to read it sees them as `disabled`, with `setting` naming the
-permission: `features.fsrs_scheduling` (`read:collection`) and
-`features["addon_actions.<provider>"]` (`read:addons`). It still needs a
-profile open; `GET /v1/health` answers without one.
+```sh
+curl "http://127.0.0.1:7777/v1/capabilities"
+```
+
+An excerpt of the answer, for a request without a key from this computer
+(role Default). The full answer lists every operation and feature; `…` marks
+what's left out here:
+
+```json
+{
+  "versions": {"api": "v1", "addon": "0.5.1", "anki": "26.08.1"},
+  "caller": {"name": "No key, this computer", "role": "Default", "this_computer": true, "host": "127.0.0.1"},
+  "operations": {
+    …
+    "GET /v1/notes": {
+      "status": "available",
+      "reason": null,
+      "setting": "permissions.read:notes",
+      "operation_id": "listNotes",
+      "options": {}
+    },
+    "POST /v1/media": {
+      "status": "available",
+      "reason": null,
+      "setting": "permissions.write:media",
+      "operation_id": "storeMedia",
+      "options": {
+        "path": {
+          "status": "disabled",
+          "reason": "No key, this computer has the role 'Default', which does not allow local_files; change it in Tsunagi's settings",
+          "setting": "permissions.local_files"
+        }
+      }
+    },
+    …
+  },
+  "features": {
+    "fsrs_scheduling": {"status": "disabled", "reason": "Available but disabled in settings", "setting": "anki.fsrs"},
+    …
+  },
+  "stats": {"duration_ms": 2.56}
+}
+```
+
+This app may list notes and upload media, but not upload a file by its path
+on this computer, and FSRS is off in the collection. AnkiConnect's actions are
+listed separately at `GET /actions`.
 
 ## Read a capability
 
@@ -19,37 +58,33 @@ Every operation, conditional option and collection feature uses the same status:
 | Status | Meaning |
 | --- | --- |
 | `available` | Your app is allowed to use it. |
-| `disabled` | Your app lacks permission (or is turned off). `setting` names the permission. |
+| `disabled` | Your app lacks permission or is turned off, or FSRS is off in Anki. `setting` names what to change. |
 | `unsupported` | This Anki version can't do it. No setting will change that. |
-
-A disabled capability has these fields:
-
-```json
-{
-  "status": "disabled",
-  "reason": "No key, this computer has the role 'Default', which does not allow memory_state; change it in Tsunagi's settings",
-  "setting": "permissions.memory_state"
-}
-```
 
 The report is for the app that asks: the same request with another key can
 show different statuses.
 
 `available` only means the operation can run for your app. The request itself
-can still fail, for example on invalid input or while Anki is busy.
+can still fail, for example on invalid input (a simulation with no cards) or
+while Anki is busy.
 
-Every supported Anki version provides all FSRS operations and options, so they
-report as available. Tsunagi still checks that each backend method exists: if a
-future Anki removed one, that operation would report unsupported and requests
-to it would receive HTTP 501 instead of failing. An available operation can
-still reject its input, for example a simulation with no cards.
+The report needs no permission, so an app whose role is missing something can
+see what and why. Two features would tell an app something its role may not
+let it read, so an app without that permission sees them as `disabled`, with
+`setting` naming the permission: `features.fsrs_scheduling`
+(`read:collection`) and `features["addon_actions.<provider>"]` (`read:addons`).
+
+Every supported Anki version provides all FSRS operations and options, so none
+of them reports `unsupported`. Tsunagi still checks that each backend method
+exists: if a future Anki removed one, that operation would report
+`unsupported` and requests to it would get HTTP 501.
 
 ## Response layout
 
 | Field | Contents |
 | --- | --- |
 | `versions` | Tsunagi API identifier, Tsunagi release and running Anki version. |
-| `caller` | Who Tsunagi took the request to be: the app (or No key row), its role, whether it counted as this computer, and the `Host` it received. Useful to check a proxy such as Tailscale Serve. |
+| `caller` | Who Tsunagi took the request to be: `name` (the app, or the No key row), `role`, `this_computer`, and the `host` it received. Useful to check a proxy such as Tailscale Serve. |
 | `operations` | Tsunagi API operations keyed by `METHOD /path`, using the path templates from OpenAPI. |
 | `operations.<key>.operation_id` | The operation's OpenAPI identifier. |
 | `operations.<key>.options` | Conditional request options with their own status, reason and setting. Other inputs follow the operation's schema. |
@@ -60,8 +95,8 @@ For example:
 
 - `operations["GET /v1/notes"]` reports note queries.
 - `operations["POST /v1/cards:set-memory-state"]` reports whether the memory-state
-  write permission is enabled. Its `options["cards[].decay"]` reports Anki's
-  support for that field.
+  write permission is enabled. Its `options["cards[].decay"]` follows the same
+  permission and also reports whether this Anki supports that field.
 - `operations["POST /v1/media"].options.path` reports the local-file permission.
   Disabling this option leaves uploads through `data` or `url` available.
 - `operations["POST /v1/fsrs:compute-params"]` reports optimization support,
@@ -82,14 +117,10 @@ can read each entry directly without combining separate support and enabled flag
 Clients should use the returned statuses instead of maintaining a version table.
 
 Package-import option restrictions and per-deck desired-retention write support
-are included as well. `/v1/collection/import-options` remains the place to read
+are included as well. `/v1/collection/import-options` is the place to read
 saved import choices; clients do not need it to discover unsupported options.
 
 ## Request the report
-
-```sh
-curl "http://127.0.0.1:7777/v1/capabilities"
-```
 
 Send your app's key, if it has one. The report needs a profile open in Anki
 (503 otherwise). Ask again after switching profiles or changing settings.

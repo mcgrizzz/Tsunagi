@@ -59,19 +59,79 @@ tests cover them. Inputs or window states they don't cover may still differ.
   comparison tests are archived in Git at `3c8e2dd`
   (`tests/test_upstream_*.py`, `tests/upstream_support.py`).
 
-## Two discrepancies in AnkiConnect's own documentation
+## Where AnkiConnect is broken or mislabeled
 
-**Six actions are undocumented.** `canAddNote`, `canAddNoteWithErrorDetail`,
-`deckNameFromId`, `modelNameFromId`, `guiReviewActive` and `guiSelectNote`
-answer over the wire but appear under no README heading. They are marked
-below.
+Things AnkiConnect gets wrong, or documents differently from what it does,
+read from its source at the commit above. Tsunagi fixes the ones a client
+can't be relying on, and keeps the rest so existing clients behave the same.
 
-**`removeEmptyNotes` does not do what its name says.** The README promises
-"Removes all the empty notes for the current user", but the code removes note
-*types* that no note uses (`models.use_count(m) == 0 → models.remove(...)`).
-It's most likely loose wording rather than a bug, so Tsunagi follows
-AnkiConnect and removes unused note types, despite the name. No notes are
-lost, but each removed note type's fields, templates and styling are.
+**Fixed in Tsunagi:**
+
+- **`guiExitAnki` doesn't close Anki.** AnkiConnect answers success, then
+  starts a timer it keeps no reference to (`plugin/__init__.py:2121`); inside
+  Anki that timer never fires, so Anki stays open (seen on Anki 26.09.2,
+  2026-10-03). Tsunagi closes Anki a second after answering.
+- **Edits wipe Anki's undo history.** `updateNoteFields`, `updateNote`,
+  `updateNoteModel`, `replaceTags`, `replaceTagsInAllNotes`, `setEaseFactors`,
+  `setSpecificValueOfCard`, `relearnCards` and `changeDeck` write without an
+  undo step, or with raw SQL, and either one clears everything you could undo
+  in Anki. In Tsunagi each of them is one step in **Edit → Undo**.
+- **Card IDs go straight into SQL.** `relearnCards`, `cardsToNotes` and
+  `changeDeck` paste the IDs they're given into a query, so a crafted "ID"
+  can relearn every card or read every note's text. Tsunagi refuses anything
+  that isn't a number.
+- **`getMediaFilesNames` looks outside the media folder.** A pattern such as
+  `../*` or an absolute path lists files elsewhere on the computer. Tsunagi
+  only matches names in the media folder.
+- **`deckNameFromId` answers `"Default"` for a deck that doesn't exist.** Its
+  "deck was not found" error can never happen, because Anki's lookup falls
+  back to the Default deck. Tsunagi returns the error.
+- **`guiDeckReview` can leave you on the deck page.** It opens the deck
+  overview and then the reviewer, and the overview can repaint over the
+  reviewer. Tsunagi goes straight to the reviewer.
+- **`sync` syncs twice.** It syncs the collection, then starts a second sync
+  through Anki's sync button. Tsunagi runs one sync and waits for it.
+- **`insertReviews` runs values as SQL.** Each value is pasted into the
+  insert, so a value can be any SQL expression. Tsunagi accepts plain values
+  only.
+
+**Kept as AnkiConnect does it:**
+
+- **`removeEmptyNotes` removes note types, not notes.** The README promises
+  "Removes all the empty notes for the current user", but the code removes
+  note *types* that no note uses. No notes are lost, but each removed note
+  type's fields, templates and styling are.
+- **Return values that differ from the README:**
+  - `unsuspend` returns `null`, not `true`/`false`.
+  - `suspend` can return `true` when every card was already suspended: it
+    removes items from the list it's looping over, so it skips some.
+  - `setEaseFactors` returns a list, not `true`/`false`.
+  - `setSpecificValueOfCard` returns at most a one-item list; the README's
+    example (`[true, true]`) can't happen.
+  - `requestPermission` answers `requireApikey`, not the README's
+    `requireApiKey`.
+  - `getDeckStats` names each deck by its last part (`JLPT N5`), not its full
+    name (`Japanese::JLPT N5`).
+  - `reloadCollection` does nothing on supported Anki versions.
+- **Reads that change things:**
+  - `getDeckStats`, `cardReviews` and `getLatestReviewID` create a deck they're
+    asked about if it doesn't exist.
+  - `canAddNote`, `canAddNotes` and their `WithErrorDetail` forms store the
+    note's media files before checking whether the note can be added.
+  - `modelTemplateAdd` with an existing template's name changes the cached
+    template without saving it.
+- **Other quirks:**
+  - `getDecks` lists unknown card IDs under `Default`.
+  - `notesInfo` repeats a note's card IDs once for each batch of 999 note IDs
+    it was found in.
+  - `areDue` and `getIntervals` fail with "list index out of range" for a
+    card with no review history or an ID that doesn't exist.
+  - `guiSelectNote` takes a card ID, despite its name.
+  - `addTags` takes an undocumented `add` argument.
+- **Six actions are undocumented:** `canAddNote`, `canAddNoteWithErrorDetail`,
+  `deckNameFromId`, `modelNameFromId`, `guiReviewActive` and `guiSelectNote`
+  answer over the wire but appear under no README heading. They are marked
+  below.
 
 ## Status
 
@@ -205,7 +265,7 @@ and its existing media side effects.
 | `multi` | implemented |  |
 | `reloadCollection` | implemented | Returns `null` with an open collection. This is a no-op on supported Anki versions: it leaves caches and undo history intact. The Tsunagi API's reload endpoint is deprecated for the same reason. |
 | `requestPermission` | implemented | Deviation: Anki's own pages (card templates, add-on pages) are denied without a dialog and cannot use either API unless `gates.anki_page_scripts` is on. |
-| `sync` | implemented | Runs Anki's sync path (hooks, media, refresh) without its dialogs and waits for the end; `tests/test_sync.py` with stand-ins, live AnkiWeb by hand. Deviation: canonical then calls `mw.onSync()`, which no longer exists; a full sync required is an error instead of Anki's prompt. |
+| `sync` | implemented | Runs Anki's sync path (hooks, media, refresh) without its dialogs and waits for the end; `tests/test_sync.py` with stand-ins, live AnkiWeb by hand. Deviation: canonical then starts a second sync through Anki's sync button (`mw.onSync()`); a full sync required is an error instead of Anki's prompt. |
 | `version` | implemented |  |
 
 ### Graphical Actions
@@ -222,7 +282,7 @@ and its existing media side effects.
 | `guiDeckOverview` | implemented | Manual verification only (needs a live main window). |
 | `guiDeckReview` | implemented | Goes straight to the reviewer. Canonical routes through the overview first, which races the reviewer and can leave you on the deck page. |
 | `guiEditNote` | implemented | Opens a reusable standalone Anki editor with save-before-switch/close, history, Browser search and card preview. HTTP routing and Qt lifecycle are tested; a disposable Anki 26.08.1 app smoke check also passed editor open, preview and save/close. Complete visual equivalence remains unverified. The Tsunagi API's edit-note route still opens the Browser. |
-| `guiExitAnki` | implemented | Manual verification only (needs a live main window). |
+| `guiExitAnki` | implemented | Closes Anki, where upstream answers success and leaves it open ([above](#where-ankiconnect-is-broken-or-mislabeled)). Checked by hand (needs a live main window). |
 | `guiImportFile` | implemented | Waits for Anki's initial GUI call, not confirmed import completion. Dispatch has an operation timeout; accepted dialog interaction does not. Client HTTP timeouts still apply. |
 | `guiPlayAudio` | implemented | Manual verification only (needs a live main window). |
 | `guiReviewActive` | implemented | Manual verification only (needs a live main window). |

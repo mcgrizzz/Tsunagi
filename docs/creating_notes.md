@@ -95,8 +95,9 @@ either being silently ignored.
 ## Create, or add to the note you already have
 
 "I already have this word; add the new sentence to it" is one request with
-**`POST /v1/notes:upsert`**. It takes the same notes as creation, plus how to
-find the existing note and how to merge into it:
+**`POST /v1/notes:upsert`**. It takes the same notes as creation, without files
+(upload those with `POST /v1/media`), plus how to find the existing note and
+how to merge into it:
 
 ```json
 {
@@ -165,15 +166,16 @@ If 犬 already exists and there is no deck called Nope:
 
 ```json
 {"results": [
-  {"index": 0, "can_add": false, "state": "duplicate", "reason": "duplicate", "duplicate_note_ids": [1789200000000]},
-  {"index": 1, "can_add": false, "state": "invalid", "reason": "Unknown deck 'Nope'", "duplicate_note_ids": []}
-]}
+  {"index": 0, "can_add": false, "state": "duplicate", "reason": "duplicate", "duplicate_note_ids": null},
+  {"index": 1, "can_add": false, "state": "invalid", "reason": "Unknown deck 'Nope'", "duplicate_note_ids": null}
+], "stats": {"duration_ms": 0.16}}
 ```
 
 `state` is one of:
 
 - `normal`: it can be added.
-- `duplicate`: a matching note exists; `duplicate_note_ids` lists it.
+- `duplicate`: a matching note exists; `duplicate_note_ids` lists it if you
+  ask (below).
 - `empty`: the first field is empty.
 - `missing_cloze`: a cloze note without a cloze.
 - `invalid`: something else is wrong, such as an unknown note type or deck;
@@ -225,7 +227,7 @@ pictures, in the same form `POST /v1/media` returns:
 ```json
 {"index": 0, "id": 1790000000000,
  "files": [{"filename": "inu.mp3", "requested_filename": "inu.mp3", "renamed": false, "size": 5120},
-           {"filename": "inu-1a2b3c.png", "requested_filename": "inu.png", "renamed": true, "size": 20480}]}
+           {"filename": "inu-187b733b8c6ec3c0e7701da8b57b7add487eaa07.png", "requested_filename": "inu.png", "renamed": true, "size": 20480}]}
 ```
 
 Anki renames a file when its name already holds different bytes. The
@@ -238,7 +240,8 @@ Each file takes exactly one source:
 - `data`: the file's contents, base64-encoded;
 - `url`: an `http` or `https` address Anki downloads;
 - `path`: a file on this computer. Off by default, because it lets an app read
-  any file you can; only apps with the Everything role may use it.
+  any file you can; only apps whose role allows **Read files on this
+  computer** may use it (Everything does).
 
 Base64 files need a `filename`; URL and path files can derive it from the
 source. The configured upload-size limit applies to each file.
@@ -344,7 +347,8 @@ job, its result if it has finished or the same `job_id` to poll, so it never
 starts twice. A job that failed starts again.
 
 ```sh
-curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" -d '{...}'
+curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" \
+  -H "Content-Type: application/json" -d '{...}'
 ```
 
 - A retry with the same key returns the first attempt's response instead of
@@ -367,10 +371,29 @@ curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" -d '{.
 - A 200 response is recorded even when some items are in `failed`. To retry
   just those items with corrected input, send a new request with a new key.
 - Some writes are safe to repeat without a key: an upsert updates the same
-  note and changes nothing more, and setting tags, flags or fields to the same
-  values changes nothing. Answering a card, repositioning with
-  `shift_existing`, or adding a file to a note with PATCH are not, so send a
-  key with those.
+  note and changes nothing more, setting tags, flags or fields to the same
+  values changes nothing, and adding a file to a note with PATCH doesn't add
+  a second reference. Answering a card or repositioning with `shift_existing`
+  is not, so send a key with those.
+
+## Add many notes
+
+Send notes in requests of about 10 to 25, each with its own files attached.
+In a test on the Anki desktop, 100 mined notes with about 270 KB of files each
+took 3.4 to 3.7 s that way, and the first notes were saved in under a second.
+
+- **One request per note** is nearly as fast (3.9 s for 100 notes), and suits a
+  tool that adds each note as the user mines it.
+- **One request for everything** is no faster. Nothing is saved until the
+  whole request finishes, and other requests that read the collection wait for
+  it: during a 100-note request, reads waited up to 6 s. With files, a few
+  hundred notes in one request take longer than the operation timeout, and the
+  request answers 503 while the write carries on (see [Undo](#undo)).
+- **Files take most of the time.** Adding a note took about 5 ms; storing its
+  files took the rest of its 35 to 40 ms.
+
+The measurements are in
+[performance notes](performance_notes.md#adding-mined-notes-in-batches).
 
 ## How batching reduces repeated work
 

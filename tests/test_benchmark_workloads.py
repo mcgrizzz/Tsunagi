@@ -1,7 +1,7 @@
 """The end-to-end benchmark workloads give the same answer through both Tsunagi APIs.
 
 Runs the real runner against the real app over HTTP, on a disposable collection
-shaped like the testing profile (Kiku+ in a Mining deck). Timings here mean
+shaped like the testing profile (Kiku in a Mining deck). Timings here mean
 nothing; the live desktop run is in docs/benchmarks.md.
 """
 import asyncio
@@ -23,7 +23,7 @@ def server(col, reset_settings, monkeypatch):
     from tsunagi.app import app
     monkeypatch.setattr(aqt.mw, "pm", SimpleNamespace(name="Bench"), raising=False)
     mm = col.models
-    for model_name in (bw.MODEL, "Kiku"):   # the profile also has an older note type
+    for model_name in (bw.MODEL, "Kiku+"):   # the profile also has a second note type
         model = mm.new(model_name)
         for name in (bw.TERM_FIELD, "ExpressionReading", "Sentence", "ExpressionAudio", "Picture"):
             mm.add_field(model, mm.new_field(name))
@@ -37,7 +37,7 @@ def server(col, reset_settings, monkeypatch):
         note[bw.TERM_FIELD] = f"word{i}"
         col.add_note(note, mining)
     # Saved under both note types, like よし: Yomitan lists both notes.
-    old = col.new_note(mm.by_name("Kiku"))
+    old = col.new_note(mm.by_name("Kiku+"))
     old[bw.TERM_FIELD] = "word3"
     col.add_note(old, mining)
     sock = socket.socket()
