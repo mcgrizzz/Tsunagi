@@ -1,9 +1,20 @@
 """Collection operations whose observable quirks belong only to AnkiConnect."""
 
 import importlib
+import re
 
 from ..events import publish_review
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
+
+_NUMBER = re.compile(r"[-+]?[0-9.eE]+")
+
+
+def _sql_ids(values) -> str:
+    """Upstream's ids2str pastes each value into the SQL; only numbers may go in."""
+    parts = [str(v) for v in values]
+    if not all(_NUMBER.fullmatch(p) for p in parts):
+        raise ValueError("cards must be card IDs")
+    return "(" + ",".join(parts) + ")"
 
 
 @as_collection_op
@@ -502,10 +513,8 @@ def reschedule_cards_raw(col, cards, action, days=None):
             changes = col.sched.schedule_cards_as_new(
                 cards, restore_position=True, reset_counts=False)
         elif action == "relearn":
-            from anki.utils import ids2str
-
             # Upstream's raw UPDATE, as a card update: raw SQL would wipe Anki's undo history.
-            found = [col.get_card(cid) for cid in col.db.list("select id from cards where id in " + ids2str(cards))]
+            found = [col.get_card(cid) for cid in col.db.list("select id from cards where id in " + _sql_ids(cards))]
             if not found:
                 return None
             for card in found:
@@ -621,10 +630,8 @@ def read_ease_factors_raw(col, cards):
 @as_query_op
 def notes_of_cards_raw(col, cards):
     """Use upstream's integer conversion and one SQL query for distinct notes."""
-    from anki.utils import ids2str
-
     try:
-        return col.db.list("select distinct nid from cards where id in " + ids2str(cards))
+        return col.db.list("select distinct nid from cards where id in " + _sql_ids(cards))
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 

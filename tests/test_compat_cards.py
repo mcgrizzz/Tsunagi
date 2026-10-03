@@ -163,6 +163,13 @@ class TestCardsToNotes:
         result = rpc(client, "cardsToNotes", {"cards": cids + [MISSING]})["result"]
         assert len(result) == 2
 
+    def test_refuses_sql_in_card_ids(self, cards):
+        # Upstream pastes the IDs into its SQL; this one would return every note's text.
+        client, _ = cards
+        answer = rpc(client, "cardsToNotes", {"cards": ["0) union select flds from notes where (1=1"]})
+        assert answer == {"result": None, "error": "cards must be card IDs"}
+        assert rpc(client, "cardsToNotes", {"cards": [str(cid) for cid in cards[1]]})["result"]
+
 
 class TestRescheduling:
     def test_set_due_date_returns_true(self, cards):
@@ -184,6 +191,14 @@ class TestRescheduling:
         (info,) = rpc(client, "cardsInfo", {"cards": [cids[0]]})["result"]
         # The one action with no Anki API: upstream sets type=3, queue=1 directly.
         assert (info["type"], info["queue"]) == (3, 1)
+
+    def test_relearn_refuses_sql_in_card_ids(self, cards):
+        # Upstream pastes the IDs into its SQL; this one would relearn every card.
+        client, cids = cards
+        answer = rpc(client, "relearnCards", {"cards": ["0) or (1=1"]})
+        assert answer == {"result": None, "error": "cards must be card IDs"}
+        infos = rpc(client, "cardsInfo", {"cards": cids})["result"]
+        assert all(info["queue"] != 1 for info in infos)
 
 
 class TestAnswerCards:
