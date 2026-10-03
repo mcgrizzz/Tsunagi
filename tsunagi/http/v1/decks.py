@@ -9,10 +9,11 @@ from ...adapters.anki.decks import (
 )
 from ...shared.planning import IndexSpec, MutationCaps, SourceCaps
 from ...shared.route_factory import create_resource_routes, make_id_getter
-from ...shared.schemas.decks import DeckInfo, DeckPatch
+from ...shared.schemas.decks import DeckCreate, DeckInfo, DeckPatch
 
 mutation_caps = MutationCaps(
     create=create_deck,
+    create_body=DeckCreate,
     patch=patch_deck,
     patch_body=DeckPatch,
     delete=delete_deck,

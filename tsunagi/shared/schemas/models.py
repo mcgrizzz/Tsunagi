@@ -59,7 +59,7 @@ ReqEntry = Tuple[int, str, List[int]]
 # These mirror the response models but are used for parsing request bodies
 # They support both clean names and Anki's abbreviated names via aliasing
 
-class FieldCreate(BaseModel):
+class FieldCreate(RequestBody):
     """Schema for creating a field in a model"""
     class Config:
         allow_population_by_field_name = True
@@ -69,7 +69,7 @@ class FieldCreate(BaseModel):
     sticky: bool = False
     rtl: bool = False
     font: Optional[str] = None
-    size: Optional[int] = None
+    size: Optional[int] = Field(None, ge=0, le=65535)  # Anki stores a 16-bit size
     description: str = ""
     plain_text: bool = Field(alias="plainText", default=False)
     collapsed: bool = False
@@ -86,7 +86,7 @@ class FieldPatch(RequestBody):
     sticky: Optional[bool] = None
     rtl: Optional[bool] = None
     font: Optional[str] = None
-    size: Optional[int] = None
+    size: Optional[int] = Field(None, ge=0, le=65535)  # Anki stores a 16-bit size
     description: Optional[str] = None
     plain_text: Optional[bool] = Field(alias="plainText", default=None)
     collapsed: Optional[bool] = None
@@ -94,7 +94,7 @@ class FieldPatch(RequestBody):
     prevent_deletion: Optional[bool] = Field(alias="preventDeletion", default=None)
 
 
-class TemplateCreate(BaseModel):
+class TemplateCreate(RequestBody):
     """Schema for creating a template in a model"""
     class Config:
         allow_population_by_field_name = True
@@ -119,7 +119,7 @@ class TemplatePatch(RequestBody):
     bafmt: Optional[str] = None
 
 
-class ModelCreate(BaseModel):
+class ModelCreate(RequestBody):
     """Schema for creating a model"""
     class Config:
         allow_population_by_field_name = True

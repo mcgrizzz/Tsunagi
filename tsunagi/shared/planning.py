@@ -112,6 +112,7 @@ class SubresourceMutations:
     id_field: str = "name"                             # Field to use as identifier (e.g., "name", "ord", "id")
     id_type: str = "str"                               # Type for path parameter: "str" or "int"
     create: Optional[SubresourceCreateFn] = None
+    create_body: Optional[type] = None                 # POST body schema (see MutationCaps)
     patch: Optional[SubresourcePatchFn] = None
     patch_body: Optional[type] = None                  # PATCH body schema (see MutationCaps)
     delete: Optional[SubresourceDeleteFn] = None
@@ -121,6 +122,9 @@ class SubresourceMutations:
 @dataclass
 class MutationCaps:
     create: Optional[CreateFn] = None
+    # POST body schema, like patch_body (6.99). None: an untyped object, for
+    # bodies whose keys aren't Tsunagi's (deck presets carry Anki's own).
+    create_body: Optional[type] = None
     patch: Optional[PatchFn] = None
     # PATCH body schema: shown in OpenAPI and validated (422) before `patch`,
     # which still gets a dict of only the keys sent. None: an untyped object.

@@ -291,14 +291,14 @@ def _paged_scan(
 
 # ----- PATCH bodies (backlog 6.57) -----
 
-def _declare_body(fn: Callable, model: Optional[type]) -> None:
-    """Type fn's `updates` as `model`, so OpenAPI shows it and FastAPI validates it."""
+def _declare_body(fn: Callable, model: Optional[type], name: str = "updates") -> None:
+    """Type fn's body parameter as `model`, so OpenAPI shows it and FastAPI validates it."""
     if model is None:
         return
     import inspect
     sig = inspect.signature(fn)
     fn.__signature__ = sig.replace(parameters=[
-        p.replace(annotation=model) if p.name == "updates" else p for p in sig.parameters.values()])
+        p.replace(annotation=model) if p.name == name else p for p in sig.parameters.values()])
 
 
 def _sent(updates: Any) -> Any:
@@ -851,7 +851,16 @@ def create_resource_routes(
     if caps.mutations:
         # POST {path} - Create
         if caps.mutations.create:
-            @router.post(
+            def _create(
+                data: Dict[str, Any] = Body(..., description=f"{resource_name_title} data to create"),
+            ) -> MutationResult[Any]:
+                """Create a new resource."""
+                with track_operation("create") as stats:
+                    result = caps.mutations.create(_sent(data))
+                    return MutationResult(result=_plain(result), stats=stats)
+
+            _declare_body(_create, caps.mutations.create_body, "data")
+            router.post(
                 path,
                 response_model=MutationResult[Any],
                 response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
@@ -861,15 +870,7 @@ def create_resource_routes(
                 tags=[tag],
                 operation_id=f"create{resource_name_title}",
                 openapi_extra=write_permission,
-            )
-            @handle_mutation_errors("create")
-            def _create(
-                data: Dict[str, Any] = Body(..., description=f"{resource_name_title} data to create"),
-            ) -> MutationResult[Any]:
-                """Create a new resource."""
-                with track_operation("create") as stats:
-                    result = caps.mutations.create(data)
-                    return MutationResult(result=_plain(result), stats=stats)
+            )(handle_mutation_errors("create")(_create))
 
         # PATCH {path}/{id} - Partial update
         if caps.mutations.patch:
@@ -995,7 +996,7 @@ def _add_subresource_routes(
             @handle_mutation_errors(f"create_{subres_name}")
             def handler(**kwargs):
                 parent_id = kwargs.get(parent_param_name)
-                data = kwargs.get('data')
+                data = _sent(kwargs.get('data'))
                 with track_operation(f"create_{subres_name}") as stats:
                     result = caps.create(parent_id, data)
                     return MutationResult(result=_plain(result), stats=stats)
@@ -1006,7 +1007,8 @@ def _add_subresource_routes(
                 inspect.Parameter(parent_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                 annotation=int, default=Path(..., description=f"{parent_resource_name.title()} ID")),
                 inspect.Parameter('data', inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=Dict[str, Any], default=Body(..., description="Subresource data"))
+                                annotation=caps.create_body or Dict[str, Any],
+                                default=Body(..., description="Subresource data"))
             ])
             return handler
 

@@ -109,8 +109,9 @@ class TestMutations:
         client.post("/v1/decks", json={"name": "Japanese"})
         assert client.post("/v1/decks", json={"name": "Japanese"}).status_code == 409
 
-    def test_create_missing_name_is_400(self, client):
-        assert client.post("/v1/decks", json={"description": "x"}).status_code == 400
+    def test_create_missing_name_is_422(self, client):
+        r = client.post("/v1/decks", json={"description": "x"})
+        assert r.status_code == 422 and r.json()["errors"][0]["loc"] == ["body", "name"]
 
     def test_patch_rename_children_follow(self, client):
         deck_id = client.post("/v1/decks", json={"name": "A::B"}).json()["result"]["id"]

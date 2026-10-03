@@ -981,6 +981,25 @@
         "title": "DeckConfigRow",
         "type": "object"
       },
+      "DeckCreate": {
+        "additionalProperties": false,
+        "description": "Schema for creating a deck (\"::\" nesting allowed)",
+        "properties": {
+          "description": {
+            "title": "Desc",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DeckCreate",
+        "type": "object"
+      },
       "DeckNameRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1263,6 +1282,70 @@
         "title": "ExportRequest",
         "type": "object"
       },
+      "FieldCreate": {
+        "additionalProperties": false,
+        "description": "Schema for creating a field in a model",
+        "properties": {
+          "collapsed": {
+            "default": false,
+            "title": "Collapsed",
+            "type": "boolean"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "exclude_from_search": {
+            "default": false,
+            "title": "Excludefromsearch",
+            "type": "boolean"
+          },
+          "font": {
+            "title": "Font",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          },
+          "plain_text": {
+            "default": false,
+            "title": "Plaintext",
+            "type": "boolean"
+          },
+          "prevent_deletion": {
+            "default": false,
+            "title": "Preventdeletion",
+            "type": "boolean"
+          },
+          "rtl": {
+            "default": false,
+            "title": "Rtl",
+            "type": "boolean"
+          },
+          "size": {
+            "maximum": 65535.0,
+            "minimum": 0.0,
+            "title": "Size",
+            "type": "integer"
+          },
+          "sticky": {
+            "default": false,
+            "title": "Sticky",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "FieldCreate",
+        "type": "object"
+      },
       "FieldPatch": {
         "additionalProperties": false,
         "description": "Schema for patching a field - all fields optional",
@@ -1300,6 +1383,8 @@
             "type": "boolean"
           },
           "size": {
+            "maximum": 65535.0,
+            "minimum": 0.0,
             "title": "Size",
             "type": "integer"
           },
@@ -1948,6 +2033,50 @@
           "id"
         ],
         "title": "MemoryStateEntry",
+        "type": "object"
+      },
+      "ModelCreate": {
+        "additionalProperties": false,
+        "description": "Schema for creating a model",
+        "properties": {
+          "css": {
+            "title": "Css",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldCreate"
+            },
+            "title": "Flds",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_field": {
+            "default": 0,
+            "title": "Sortf",
+            "type": "integer"
+          },
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateCreate"
+            },
+            "title": "Tmpls",
+            "type": "array"
+          },
+          "type": {
+            "title": "Type",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "fields",
+          "templates"
+        ],
+        "title": "ModelCreate",
         "type": "object"
       },
       "ModelField": {
@@ -3911,6 +4040,41 @@
           }
         },
         "title": "TagRow",
+        "type": "object"
+      },
+      "TemplateCreate": {
+        "additionalProperties": false,
+        "description": "Schema for creating a template in a model",
+        "properties": {
+          "afmt": {
+            "title": "Afmt",
+            "type": "string"
+          },
+          "bafmt": {
+            "title": "Bafmt",
+            "type": "string"
+          },
+          "bqfmt": {
+            "title": "Bqfmt",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          },
+          "qfmt": {
+            "title": "Qfmt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TemplateCreate",
         "type": "object"
       },
       "TemplatePatch": {
@@ -6195,9 +6359,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DeckCreate"
+                  }
+                ],
                 "description": "Deck data to create",
-                "title": "Data",
-                "type": "object"
+                "title": "Data"
               }
             }
           },
@@ -8172,9 +8340,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ModelCreate"
+                  }
+                ],
                 "description": "Model data to create",
-                "title": "Data",
-                "type": "object"
+                "title": "Data"
               }
             }
           },
@@ -8417,9 +8589,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/FieldCreate"
+                  }
+                ],
                 "description": "Subresource data",
-                "title": "Data",
-                "type": "object"
+                "title": "Data"
               }
             }
           },
@@ -8697,9 +8873,13 @@
           "content": {
             "application/json": {
               "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/TemplateCreate"
+                  }
+                ],
                 "description": "Subresource data",
-                "title": "Data",
-                "type": "object"
+                "title": "Data"
               }
             }
           },

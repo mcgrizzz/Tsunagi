@@ -58,3 +58,29 @@ def test_a_batch_step_takes_its_op_but_no_unknown_key(client):
     r = client.post("/v1/cards:batch", json={"operations": [{**step, "nope": 1}]})
     assert r.status_code == 422
     assert r.json()["errors"][0]["loc"] == ["body", "operations", 0, "nope"]
+
+
+def test_create_bodies_are_documented_and_refuse_unknown_keys(client):
+    # 6.99: decks, note types, fields and templates were untyped objects.
+    paths = client.get("/openapi.json").json()["paths"]
+    for path, schema in [("/v1/decks", "DeckCreate"), ("/v1/models", "ModelCreate"),
+                         ("/v1/models/{model_id}/fields", "FieldCreate"),
+                         ("/v1/models/{model_id}/templates", "TemplateCreate")]:
+        body = paths[path]["post"]["requestBody"]["content"]["application/json"]["schema"]
+        assert body == {"$ref": f"#/components/schemas/{schema}"} or body.get("allOf") == [
+            {"$ref": f"#/components/schemas/{schema}"}], path
+    r = client.post("/v1/decks", json={"name": "Typo", "descripton": "x"})
+    assert r.status_code == 422 and r.json()["errors"][0]["loc"] == ["body", "descripton"]
+    model = {"name": "Typed", "fields": [{"name": "Front", "sticky": True, "colour": 1}],
+             "templates": [{"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{Front}}"}]}
+    r = client.post("/v1/models", json=model)
+    assert r.status_code == 422 and r.json()["errors"][0]["loc"] == ["body", "fields", 0, "colour"]
+    del model["fields"][0]["colour"]
+    created = client.post("/v1/models", json=model)
+    assert created.status_code == 201
+    mid = created.json()["result"]["id"]
+    assert client.post(f"/v1/models/{mid}/fields", json={"name": "Back", "size": 70000}).status_code == 422
+    assert client.post(f"/v1/models/{mid}/fields", json={"name": "Back", "size": 18}).status_code == 201
+    assert client.post(f"/v1/models/{mid}/templates", json={"name": "Card 2", "qfmt": "{{Back}}",
+                                                           "afmt": "{{Back}}", "extra": 1}).status_code == 422
+    assert client.post("/v1/decks", json={"name": "Typed", "description": "ok"}).status_code == 201

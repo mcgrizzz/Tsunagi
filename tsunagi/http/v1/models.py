@@ -36,16 +36,20 @@ from ...shared.planning import (
 )
 from ...shared.route_factory import create_resource_routes, make_id_getter
 from ...shared.schemas.models import (
+    FieldCreate,
     FieldPatch,
     FindReplaceRequest,
     FindReplaceResult,
+    ModelCreate,
     ModelInfo,
     ModelPatch,
+    TemplateCreate,
     TemplatePatch,
 )
 
 mutation_caps = MutationCaps(
     create=create_model,
+    create_body=ModelCreate,
     patch=patch_model,
     patch_body=ModelPatch,
     delete=delete_model,
@@ -56,6 +60,7 @@ mutation_caps = MutationCaps(
             id_field="name",
             id_type="str",
             create=create_field,
+            create_body=FieldCreate,
             patch=patch_field,
             patch_body=FieldPatch,
             delete=delete_field,
@@ -67,6 +72,7 @@ mutation_caps = MutationCaps(
             id_field="name",
             id_type="str",
             create=create_template,
+            create_body=TemplateCreate,
             patch=patch_template,
             patch_body=TemplatePatch,
             delete=delete_template,
