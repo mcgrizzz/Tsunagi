@@ -6,14 +6,6 @@ declare function hide(ids: number[]): void;
 
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777" });
 
-// Mine 食べる, or add the sentence to the note you already have for it.
-await anki.notes.upsert({
-  deck: "Mining", noteType: "Mining",
-  fields: { Expression: "食べる", Sentence: "もう食べた。" },
-  matchField: "Expression",
-  fieldRules: { Sentence: "append", "*": "keep" },
-});
-
 // Named values, not Anki's codes: a suspended card's queue is "suspended", not -1.
 const suspended = await anki.cards.search("deck:Mining").where("queue", "eq", "suspended").count();
 
