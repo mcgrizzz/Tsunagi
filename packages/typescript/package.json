@@ -1,6 +1,6 @@
 {
   "name": "@tsunagi/client-draft",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "description": "Experimental TypeScript client for Tsunagi; API subject to change",
   "type": "module",

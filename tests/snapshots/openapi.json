@@ -4426,7 +4426,7 @@
       "Versions": {
         "properties": {
           "addon": {
-            "default": "0.5.1",
+            "default": "0.6.0",
             "description": "Tsunagi release version",
             "type": "string"
           },
