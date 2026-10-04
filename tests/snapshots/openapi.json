@@ -1,6 +1,29 @@
 {
   "components": {
     "schemas": {
+      "AccessChanged": {
+        "additionalProperties": false,
+        "description": "`access.changed`: fetch GET /v1/capabilities again.",
+        "properties": {
+          "ts": {
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "access.changed"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "ts"
+        ],
+        "title": "AccessChanged",
+        "type": "object"
+      },
       "ActionInfo": {
         "properties": {
           "backup": {
@@ -204,8 +227,10 @@
       "AddonInfo": {
         "properties": {
           "ankiweb_id": {
+            "description": "AnkiWeb id; null when the folder name isn't a number (not installed from AnkiWeb).",
             "title": "Ankiweb Id",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "compatible": {
             "description": "Whether it declares support for this Anki version",
@@ -213,6 +238,7 @@
             "type": "boolean"
           },
           "enabled": {
+            "description": "Whether the add-on is enabled.",
             "title": "Enabled",
             "type": "boolean"
           },
@@ -227,8 +253,10 @@
             "type": "boolean"
           },
           "homepage": {
+            "description": "Homepage the add-on gives; null when none.",
             "title": "Homepage",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "id": {
             "description": "Folder name; the AnkiWeb ID for AnkiWeb installs",
@@ -236,23 +264,26 @@
             "type": "string"
           },
           "installed_at": {
-            "description": "Unix seconds",
+            "description": "Timestamp of the installed version (AnkiWeb's upload time for AnkiWeb installs), Unix seconds; 0 if unknown.",
             "title": "Installed At",
             "type": "integer"
           },
           "name": {
+            "description": "Display name; the folder name when the add-on gives none.",
             "title": "Name",
             "type": "string"
           },
           "provider": {
-            "description": "Id of the Tsunagi provider offering this add-on's actions, if any; see GET /v1/addons/{provider}/actions",
+            "description": "Id of the Tsunagi provider offering this add-on's actions; null when none. See GET /v1/addons/{provider}/actions",
             "title": "Provider",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "version": {
-            "description": "The author's version label, if any",
+            "description": "The author's version label; null when none.",
             "title": "Version",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           }
         },
         "required": [
@@ -312,9 +343,10 @@
       "AttachmentRef": {
         "properties": {
           "filename": {
-            "description": "The filename sent, if any.",
+            "description": "The filename sent; null when none was.",
             "title": "Filename",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "kind": {
             "enum": [
@@ -532,13 +564,16 @@
       "CapabilityState": {
         "properties": {
           "reason": {
+            "description": "Why it is disabled or unsupported, or what limits it; null when nothing does",
             "title": "Reason",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "setting": {
-            "description": "Setting controlling this capability, when applicable",
+            "description": "Setting controlling this capability; null when none does",
             "title": "Setting",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "status": {
             "default": "available",
@@ -553,6 +588,117 @@
           }
         },
         "title": "CapabilityState",
+        "type": "object"
+      },
+      "CardAnswered": {
+        "additionalProperties": false,
+        "description": "`cards.answered`: a card was answered, in Anki or through either API; its new state.",
+        "properties": {
+          "anki": {
+            "description": "Anki's own description of the change, for debugging; don't rely on it",
+            "title": "Anki",
+            "type": "object",
+            "x-nullable": true
+          },
+          "card_id": {
+            "title": "Card Id",
+            "type": "integer"
+          },
+          "client": {
+            "description": "For origin api: the app that made it; null otherwise",
+            "title": "Client",
+            "type": "string",
+            "x-nullable": true
+          },
+          "due": {
+            "description": "The card's new due value (see /v1/cards).",
+            "title": "Due",
+            "type": "integer"
+          },
+          "ease": {
+            "description": "The answer button.",
+            "title": "Ease",
+            "type": "integer",
+            "x-values": {
+              "1": "again",
+              "2": "hard",
+              "3": "good",
+              "4": "easy"
+            }
+          },
+          "interval": {
+            "description": "The card's new interval, days.",
+            "title": "Interval",
+            "type": "integer"
+          },
+          "memory_state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FsrsMemoryState"
+              }
+            ],
+            "description": "FSRS memory state; null for cards FSRS hasn't scheduled",
+            "title": "Memory State",
+            "x-nullable": true
+          },
+          "origin": {
+            "description": "api: made through either API; ui: made in Anki; null when unknown",
+            "enum": [
+              "ui",
+              "api"
+            ],
+            "title": "Origin",
+            "type": "string",
+            "x-nullable": true
+          },
+          "queue": {
+            "description": "The card's new queue.",
+            "title": "Queue",
+            "type": "integer",
+            "x-values": {
+              "-1": "suspended",
+              "-2": "sibling_buried",
+              "-3": "manually_buried",
+              "0": "new",
+              "1": "learning",
+              "2": "review",
+              "3": "day_learning",
+              "4": "preview"
+            }
+          },
+          "seq": {
+            "description": "Its number in the session; the SSE `id:` is `<session_id>:<seq>`.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "The server session; a new one after a restart or profile switch.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "description": "When it was sent, Unix milliseconds.",
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "description": "The message's name, also its SSE `event:`.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "session_id",
+          "ts",
+          "card_id",
+          "ease",
+          "interval",
+          "due",
+          "queue"
+        ],
+        "title": "CardAnswered",
         "type": "object"
       },
       "CardIdRequest": {
@@ -592,143 +738,238 @@
         "description": "A card row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "answer": {
+            "description": "The card's back, rendered as HTML.",
             "title": "Answer",
-            "type": "string"
+            "type": "string",
+            "x-from": [
+              "notes",
+              "models",
+              "decks"
+            ]
           },
           "buried": {
+            "description": "True when the card is buried, by a sibling or by the user (queue -2 or -3).",
             "title": "Buried",
             "type": "boolean"
           },
           "css": {
+            "description": "The note type's styling.",
             "title": "Css",
-            "type": "string"
+            "type": "string",
+            "x-from": [
+              "models"
+            ]
           },
           "custom_data": {
+            "description": "A JSON object string that custom scheduling code stores on the card; \"\" when none.",
             "title": "Custom Data",
             "type": "string"
           },
           "decay": {
+            "description": "FSRS decay parameter used for the card; null until FSRS has scheduled it.",
             "title": "Decay",
-            "type": "number"
+            "type": "number",
+            "x-nullable": true
           },
           "deck_id": {
+            "description": "Id of the deck the card is in now; a filtered deck's id while it sits in one.",
             "title": "Deck Id",
             "type": "integer"
           },
           "deck_name": {
+            "description": "Full name of the deck in deck_id, with \"::\" between levels.",
             "title": "Deck Name",
-            "type": "string"
+            "type": "string",
+            "x-from": [
+              "decks"
+            ]
           },
           "desired_retention": {
+            "description": "Desired retention (0-1) in effect when the card was last scheduled; null if none recorded.",
             "title": "Desired Retention",
-            "type": "number"
+            "type": "number",
+            "x-nullable": true
           },
           "due": {
+            "description": "New: position in the new queue. Learning: epoch seconds. Review: days since the collection was created.",
             "title": "Due",
             "type": "integer"
           },
           "factor": {
+            "description": "SM-2 ease in permille (2500 = 250%); 0 until the card graduates. FSRS doesn't use it.",
             "title": "Factor",
             "type": "integer"
           },
           "fields": {
+            "description": "The note's fields, in note type order.",
             "items": {
               "$ref": "#/components/schemas/NoteField"
             },
             "title": "Fields",
-            "type": "array"
+            "type": "array",
+            "x-from": [
+              "notes",
+              "models"
+            ]
           },
           "flag": {
+            "description": "The card's flag colour.",
             "title": "Flag",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "none",
+              "1": "red",
+              "2": "orange",
+              "3": "green",
+              "4": "blue",
+              "5": "pink",
+              "6": "turquoise",
+              "7": "purple"
+            }
           },
           "flags": {
+            "description": "Raw flags column. Anki uses only the low 3 bits, which are `flag`.",
             "title": "Flags",
             "type": "integer"
           },
           "id": {
+            "description": "Card id: its creation time in epoch milliseconds.",
             "title": "Id",
             "type": "integer"
           },
           "interval": {
+            "description": "Current interval in days; 0 for new and learning cards.",
             "title": "Interval",
             "type": "integer"
           },
           "lapses": {
+            "description": "How many times the card was forgotten (Again on a review card).",
             "title": "Lapses",
             "type": "integer"
           },
           "last_review_time": {
+            "description": "When the card was last answered, Unix seconds; null if never, or before Anki recorded it.",
             "title": "Last Review Time",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "left": {
+            "description": "Learning steps left: the last three digits count them; higher digits are an older steps-today count.",
             "title": "Left",
             "type": "integer"
           },
           "memory_state": {
-            "$ref": "#/components/schemas/FsrsMemoryState"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FsrsMemoryState"
+              }
+            ],
+            "description": "FSRS memory state; null until FSRS has scheduled the card.",
+            "title": "Memory State",
+            "x-nullable": true
           },
           "mod": {
+            "description": "Last modified, Unix seconds.",
             "title": "Mod",
             "type": "integer"
           },
           "model_name": {
+            "description": "Name of the card's note type.",
             "title": "Model Name",
-            "type": "string"
+            "type": "string",
+            "x-from": [
+              "models"
+            ]
           },
           "next_reviews": {
+            "description": "Next interval for each answer button, Again to Easy, as Anki shows them (e.g. \"10m\", \"4d\"); null if Anki couldn't work them out.",
             "items": {
               "type": "string"
             },
             "title": "Next Reviews",
-            "type": "array"
+            "type": "array",
+            "x-nullable": true
           },
           "note_id": {
+            "description": "Id of the note the card belongs to.",
             "title": "Note Id",
             "type": "integer"
           },
           "ord": {
+            "description": "Which template made the card, from 0; on a cloze note type, the cloze number minus 1.",
             "title": "Ord",
             "type": "integer"
           },
           "original_deck_id": {
+            "description": "Home deck id while the card is in a filtered deck; 0 otherwise.",
             "title": "Original Deck Id",
             "type": "integer"
           },
           "original_due": {
+            "description": "The card's due value in its home deck while it is in a filtered deck; 0 otherwise.",
             "title": "Original Due",
             "type": "integer"
           },
           "original_position": {
+            "description": "Where the card was in the new queue before it was first studied; null if Anki didn't record it.",
             "title": "Original Position",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "question": {
+            "description": "The card's front, rendered as HTML.",
             "title": "Question",
-            "type": "string"
+            "type": "string",
+            "x-from": [
+              "notes",
+              "models",
+              "decks"
+            ]
           },
           "queue": {
+            "description": "The queue the card is in, which also says what `due` means: new (a position), learning and preview (epoch seconds), review and day_learning (a day number; day_learning is learning whose next step is on a later day); suspended, sibling_buried (buried automatically with a sibling) and manually_buried keep `due` from before.",
             "title": "Queue",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "-1": "suspended",
+              "-2": "sibling_buried",
+              "-3": "manually_buried",
+              "0": "new",
+              "1": "learning",
+              "2": "review",
+              "3": "day_learning",
+              "4": "preview"
+            }
           },
           "reps": {
+            "description": "How many times the card has been answered.",
             "title": "Reps",
             "type": "integer"
           },
           "retrievability": {
+            "description": "FSRS estimate (0-1) that the card would be recalled now; null if FSRS hasn't scored it.",
             "title": "Retrievability",
-            "type": "number"
+            "type": "number",
+            "x-nullable": true
           },
           "suspended": {
+            "description": "True when the card is suspended (queue -1).",
             "title": "Suspended",
             "type": "boolean"
           },
           "type": {
+            "description": "The card's scheduling stage.",
             "title": "Type",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "new",
+              "1": "learning",
+              "2": "review",
+              "3": "relearning"
+            }
           },
           "usn": {
+            "description": "Update sequence number for syncing; -1 means changed since the last sync.",
             "title": "Usn",
             "type": "integer"
           }
@@ -763,6 +1004,28 @@
         "title": "ChangeDeckRequest",
         "type": "object"
       },
+      "Close": {
+        "additionalProperties": false,
+        "description": "`close`: the server ended the stream (the last message).",
+        "properties": {
+          "reason": {
+            "enum": [
+              "profile_closed",
+              "shutdown",
+              "auth",
+              "timeout",
+              "max_events"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "Close",
+        "type": "object"
+      },
       "CollectionActionResult": {
         "description": "Result of a collection-level command that either worked or raised.",
         "properties": {
@@ -782,12 +1045,19 @@
       "CollectionHealth": {
         "properties": {
           "profile": {
-            "description": "Open profile name",
+            "description": "Open profile name; null when none is open",
             "title": "Profile",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "state": {
             "description": "ready; syncing; closed (no collection, e.g. during a full sync); busy (Anki did not answer a trivial read within a second). A 503 body carries the same value as reason",
+            "enum": [
+              "ready",
+              "syncing",
+              "closed",
+              "busy"
+            ],
             "title": "State",
             "type": "string"
           }
@@ -850,30 +1120,6 @@
           }
         },
         "title": "ComputeParamsRequest",
-        "type": "object"
-      },
-      "CreationFailure": {
-        "properties": {
-          "code": {
-            "title": "Code",
-            "type": "string"
-          },
-          "index": {
-            "description": "Zero-based position in the submitted array; 0 for one object.",
-            "title": "Index",
-            "type": "integer"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          }
-        },
-        "required": [
-          "index",
-          "code",
-          "message"
-        ],
-        "title": "CreationFailure",
         "type": "object"
       },
       "CurrentCard": {
@@ -970,15 +1216,52 @@
         "description": "A deck config row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "id": {
+            "description": "Preset id; 1 is the Default preset.",
             "title": "Id",
             "type": "integer"
           },
           "name": {
+            "description": "Preset name. Other keys are Anki's own settings, as Anki names them.",
             "title": "Name",
             "type": "string"
           }
         },
         "title": "DeckConfigRow",
+        "type": "object"
+      },
+      "DeckCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "The deck's id.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "learn_count": {
+            "title": "Learn Count",
+            "type": "integer"
+          },
+          "new_count": {
+            "title": "New Count",
+            "type": "integer"
+          },
+          "review_count": {
+            "title": "Review Count",
+            "type": "integer"
+          },
+          "total_in_deck": {
+            "title": "Total In Deck",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "new_count",
+          "learn_count",
+          "review_count",
+          "total_in_deck"
+        ],
+        "title": "DeckCounts",
         "type": "object"
       },
       "DeckCreate": {
@@ -1050,46 +1333,63 @@
         "description": "A deck row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "browser_collapsed": {
+            "description": "Whether the deck's subdecks are collapsed in the browser sidebar.",
             "title": "Browser Collapsed",
             "type": "boolean"
           },
           "collapsed": {
+            "description": "Whether the deck's subdecks are collapsed in the deck list.",
             "title": "Collapsed",
             "type": "boolean"
           },
           "config_id": {
+            "description": "Id of the deck's options preset (see /v1/deck-configs); null for filtered decks.",
             "title": "Config Id",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "description": {
+            "description": "The deck's description, shown on its overview screen.",
             "title": "Description",
             "type": "string"
           },
           "desired_retention": {
+            "description": "This deck's FSRS desired retention (0-1), overriding its preset; null when unset or filtered.",
             "title": "Desired Retention",
-            "type": "number"
+            "type": "number",
+            "x-nullable": true
           },
           "dynamic": {
+            "description": "Whether this is a filtered deck.",
             "title": "Dynamic",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "normal",
+              "1": "filtered"
+            }
           },
           "extend_new": {
+            "description": "Last amount entered in Custom Study's \"increase today's new card limit\"; 0 for filtered decks.",
             "title": "Extend New",
             "type": "integer"
           },
           "extend_rev": {
+            "description": "Last amount entered in Custom Study's \"increase today's review limit\"; 0 for filtered decks.",
             "title": "Extend Rev",
             "type": "integer"
           },
           "id": {
+            "description": "Deck id.",
             "title": "Id",
             "type": "integer"
           },
           "learn_count": {
+            "description": "Learning cards due today, subdecks included, as the deck list shows them.",
             "title": "Learn Count",
             "type": "integer"
           },
           "learn_today": {
+            "description": "[day, count]: learning cards studied on that day; day counts from the collection's creation.",
             "items": {
               "type": "integer"
             },
@@ -1097,22 +1397,28 @@
             "type": "array"
           },
           "mod": {
+            "description": "Last modified, Unix seconds.",
             "title": "Mod",
             "type": "integer"
           },
           "name": {
+            "description": "Full deck name, with \"::\" between levels.",
             "title": "Name",
             "type": "string"
           },
           "new_count": {
+            "description": "New cards to study today, subdecks included, as the deck list shows them.",
             "title": "New Count",
             "type": "integer"
           },
           "new_limit": {
+            "description": "This deck's own daily new card limit, overriding its preset; null when it has none.",
             "title": "New Limit",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "new_today": {
+            "description": "[day, count]: new cards studied on that day; count drops when today's limit is extended.",
             "items": {
               "type": "integer"
             },
@@ -1120,14 +1426,18 @@
             "type": "array"
           },
           "review_count": {
+            "description": "Review cards due today, subdecks included, as the deck list shows them.",
             "title": "Review Count",
             "type": "integer"
           },
           "review_limit": {
+            "description": "This deck's own daily review limit, overriding its preset; null when it has none.",
             "title": "Review Limit",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "review_today": {
+            "description": "[day, count]: review cards studied on that day; count drops when today's limit is extended.",
             "items": {
               "type": "integer"
             },
@@ -1135,6 +1445,7 @@
             "type": "array"
           },
           "time_today": {
+            "description": "[day, milliseconds]: time spent studying the deck on that day.",
             "items": {
               "type": "integer"
             },
@@ -1142,15 +1453,59 @@
             "type": "array"
           },
           "total_in_deck": {
+            "description": "Cards in this deck itself, not counting subdecks.",
             "title": "Total In Deck",
             "type": "integer"
           },
           "usn": {
+            "description": "Update sequence number for syncing; -1 means changed since the last sync.",
             "title": "Usn",
             "type": "integer"
           }
         },
         "title": "DeckRow",
+        "type": "object"
+      },
+      "DecksCounts": {
+        "additionalProperties": false,
+        "description": "`decks.counts`: decks whose due counts changed, as /v1/decks rows count them.",
+        "properties": {
+          "decks": {
+            "items": {
+              "$ref": "#/components/schemas/DeckCounts"
+            },
+            "title": "Decks",
+            "type": "array"
+          },
+          "seq": {
+            "description": "Its number in the session; the SSE `id:` is `<session_id>:<seq>`.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "The server session; a new one after a restart or profile switch.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "description": "When it was sent, Unix milliseconds.",
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "description": "The message's name, also its SSE `event:`.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "session_id",
+          "ts",
+          "decks"
+        ],
+        "title": "DecksCounts",
         "type": "object"
       },
       "DeletionResult": {
@@ -1221,6 +1576,31 @@
           "factor"
         ],
         "title": "EaseEntry",
+        "type": "object"
+      },
+      "ErrorBody": {
+        "properties": {
+          "detail": {
+            "description": "What went wrong, for the app to show; it can quote note content. Never parse it",
+            "title": "Detail",
+            "type": "string"
+          },
+          "reason": {
+            "description": "On a 503, why Anki can't answer now: busy (it didn't answer in time), closed (no collection is open, e.g. during a full sync) or syncing; null otherwise",
+            "enum": [
+              "busy",
+              "closed",
+              "syncing"
+            ],
+            "title": "Reason",
+            "type": "string",
+            "x-nullable": true
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorBody",
         "type": "object"
       },
       "EvaluateParamsRequest": {
@@ -1488,10 +1868,12 @@
         "description": "FSRS's per-card memory model. Null until the card has been reviewed.",
         "properties": {
           "difficulty": {
+            "description": "How hard the card is, from 1 (easiest) to 10 (hardest).",
             "title": "Difficulty",
             "type": "number"
           },
           "stability": {
+            "description": "FSRS memory stability, in days.",
             "title": "Stability",
             "type": "number"
           }
@@ -1501,6 +1883,53 @@
           "difficulty"
         ],
         "title": "FsrsMemoryState",
+        "type": "object"
+      },
+      "Gap": {
+        "additionalProperties": false,
+        "description": "`gap`: this connection fell behind and messages were lost; reload what you show.",
+        "properties": {
+          "after_seq": {
+            "title": "After Seq",
+            "type": "integer"
+          },
+          "discarded": {
+            "description": "How many messages were lost.",
+            "title": "Discarded",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "lagged"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "gap"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "after_seq",
+          "session_id",
+          "ts",
+          "reason",
+          "discarded"
+        ],
+        "title": "Gap",
         "type": "object"
       },
       "GuiResult": {
@@ -1786,8 +2215,10 @@
       "JobInfo": {
         "properties": {
           "error": {
+            "description": "When failed or aborted: why; null otherwise",
             "title": "Error",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "id": {
             "title": "Id",
@@ -1798,17 +2229,33 @@
             "type": "string"
           },
           "progress": {
-            "$ref": "#/components/schemas/JobProgress"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JobProgress"
+              }
+            ],
+            "description": "Best-effort progress, only while running; null otherwise",
+            "title": "Progress",
+            "x-nullable": true
           },
           "result": {
+            "description": "When done: the result, shaped by the job's kind (see the route that started it); null before",
             "title": "Result",
-            "type": "object"
+            "type": "object",
+            "x-nullable": true
           },
           "stats": {
             "title": "Stats",
             "type": "object"
           },
           "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "aborted"
+            ],
             "title": "Status",
             "type": "string"
           }
@@ -1851,6 +2298,13 @@
             "type": "object"
           },
           "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "aborted"
+            ],
             "title": "Status",
             "type": "string"
           }
@@ -1861,6 +2315,36 @@
           "stats"
         ],
         "title": "JobSubmitted",
+        "type": "object"
+      },
+      "MediaCreateFailure": {
+        "properties": {
+          "code": {
+            "description": "invalid_media: the file can't be stored as sent, such as a bad filename or base64 (see message). storage_error: Anki couldn't write it. source_error: its url or path couldn't be read.",
+            "enum": [
+              "invalid_media",
+              "storage_error",
+              "source_error"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "index": {
+            "description": "Zero-based position in the submitted array; 0 for one object.",
+            "title": "Index",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "code",
+          "message"
+        ],
+        "title": "MediaCreateFailure",
         "type": "object"
       },
       "MediaCreateResponse": {
@@ -1874,7 +2358,7 @@
           },
           "failed": {
             "items": {
-              "$ref": "#/components/schemas/CreationFailure"
+              "$ref": "#/components/schemas/MediaCreateFailure"
             },
             "title": "Failed",
             "type": "array"
@@ -1899,8 +2383,10 @@
             "type": "boolean"
           },
           "requested_filename": {
+            "description": "The filename sent; null when none was.",
             "title": "Requested Filename",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "size": {
             "title": "Size",
@@ -1942,16 +2428,17 @@
         "description": "A media file row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "filename": {
+            "description": "File name in the media folder.",
             "title": "Filename",
             "type": "string"
           },
           "mtime": {
-            "description": "Last modified, Unix seconds",
+            "description": "Last modified, Unix seconds.",
             "title": "Mtime",
             "type": "integer"
           },
           "size": {
-            "description": "Bytes",
+            "description": "File size in bytes.",
             "title": "Size",
             "type": "integer"
           }
@@ -1971,8 +2458,10 @@
             "type": "boolean"
           },
           "requested_filename": {
+            "description": "The filename sent; null when none was.",
             "title": "Requested Filename",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "size": {
             "title": "Size",
@@ -2083,28 +2572,35 @@
         "properties": {
           "collapsed": {
             "default": false,
+            "description": "Collapse the field in the editor by default.",
             "title": "Collapsed",
             "type": "boolean"
           },
           "description": {
             "default": "",
+            "description": "Text shown inside the field in the editor while it is empty.",
             "title": "Description",
             "type": "string"
           },
           "exclude_from_search": {
             "default": false,
+            "description": "Leave the field out of searches that don't name a field.",
             "title": "Excludefromsearch",
             "type": "boolean"
           },
           "font": {
+            "description": "Font used for the field in the editor.",
             "title": "Font",
             "type": "string"
           },
           "id": {
+            "description": "Stable field id Anki uses to merge note types on import; null on fields from older versions.",
             "title": "Id",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "media": {
+            "description": "Legacy key from older Anki versions; usually empty.",
             "items": {
               "type": "string"
             },
@@ -2112,34 +2608,41 @@
             "type": "array"
           },
           "name": {
+            "description": "Field name.",
             "title": "Name",
             "type": "string"
           },
           "ord": {
+            "description": "Field position, from 0.",
             "title": "Ord",
             "type": "integer"
           },
           "plain_text": {
             "default": false,
+            "description": "Open the field in the HTML editor by default.",
             "title": "Plaintext",
             "type": "boolean"
           },
           "prevent_deletion": {
             "default": false,
+            "description": "The field can't be deleted (required by the note type, e.g. Image Occlusion).",
             "title": "Preventdeletion",
             "type": "boolean"
           },
           "rtl": {
             "default": false,
+            "description": "Edit the field right to left.",
             "title": "Rtl",
             "type": "boolean"
           },
           "size": {
+            "description": "Font size used for the field in the editor.",
             "title": "Size",
             "type": "integer"
           },
           "sticky": {
             "default": false,
+            "description": "Keep the field's last value when adding the next note.",
             "title": "Sticky",
             "type": "boolean"
           }
@@ -2179,14 +2682,18 @@
         "description": "A model row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "css": {
+            "description": "Styling shared by all the note type's cards.",
             "title": "Css",
             "type": "string"
           },
           "did": {
+            "description": "Legacy last-used deck id. Current Anki stores that elsewhere; null when unset.",
             "title": "Did",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "fields": {
+            "description": "The note type's fields, in order.",
             "items": {
               "$ref": "#/components/schemas/ModelField"
             },
@@ -2194,43 +2701,62 @@
             "type": "array"
           },
           "id": {
+            "description": "Note type id.",
             "title": "Id",
             "type": "integer"
           },
           "latex_post": {
+            "description": "LaTeX footer added after each LaTeX snippet.",
             "title": "Latex Post",
             "type": "string"
           },
           "latex_pre": {
+            "description": "LaTeX header added before each LaTeX snippet.",
             "title": "Latex Pre",
             "type": "string"
           },
           "latex_svg": {
+            "description": "Whether LaTeX is rendered as SVG instead of PNG.",
             "title": "Latex Svg",
             "type": "boolean"
           },
           "mod": {
+            "description": "Last modified, Unix seconds.",
             "title": "Mod",
             "type": "integer"
           },
           "name": {
+            "description": "Note type name.",
             "title": "Name",
             "type": "string"
           },
           "note_count": {
-            "description": "Read-only count of notes using this type, across all decks. Computed by native model queries; may be null in mutation replies.",
+            "description": "How many notes use this note type. Computed by native model queries; may be null in mutation replies.",
             "title": "Note Count",
             "type": "integer"
           },
           "original_id": {
+            "description": "For an imported note type, its id in the collection it came from; null otherwise.",
             "title": "Original Id",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "original_stock_kind": {
+            "description": "The built-in type this note type was made from; null when unknown or before Anki 2.1.62.",
             "title": "Original Stock Kind",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true,
+            "x-values": {
+              "1": "basic",
+              "2": "basic_and_reversed",
+              "3": "basic_optional_reversed",
+              "4": "basic_typing",
+              "5": "cloze",
+              "6": "image_occlusion"
+            }
           },
           "req": {
+            "description": "Fields each template needs: [template ord, \"any\"|\"all\"|\"none\", [field ords]].",
             "items": {
               "items": [
                 {
@@ -2254,10 +2780,12 @@
             "type": "array"
           },
           "sort_field": {
+            "description": "Position (from 0) of the field the browser shows and sorts by.",
             "title": "Sort Field",
             "type": "integer"
           },
           "tags": {
+            "description": "Legacy key from older Anki versions; usually empty.",
             "items": {
               "type": "string"
             },
@@ -2265,6 +2793,7 @@
             "type": "array"
           },
           "templates": {
+            "description": "The note type's card templates, in order.",
             "items": {
               "$ref": "#/components/schemas/ModelTemplate"
             },
@@ -2272,14 +2801,21 @@
             "type": "array"
           },
           "type": {
+            "description": "Standard or cloze.",
             "title": "Type",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "standard",
+              "1": "cloze"
+            }
           },
           "usn": {
+            "description": "Update sequence number for syncing; -1 means changed since the last sync.",
             "title": "Usn",
             "type": "integer"
           },
           "vers": {
+            "description": "Legacy key from older Anki versions; usually empty.",
             "items": {},
             "title": "Vers",
             "type": "array"
@@ -2291,30 +2827,38 @@
       "ModelTemplate": {
         "properties": {
           "afmt": {
+            "description": "Back template.",
             "title": "Afmt",
             "type": "string"
           },
           "bafmt": {
+            "description": "Back template for the browser's Answer column; \"\" uses afmt.",
             "title": "Bafmt",
             "type": "string"
           },
           "bqfmt": {
+            "description": "Front template for the browser's Question column; \"\" uses qfmt.",
             "title": "Bqfmt",
             "type": "string"
           },
           "did": {
+            "description": "Deck that new cards from this template go to, overriding the chosen deck; null when none.",
             "title": "Did",
-            "type": "integer"
+            "type": "integer",
+            "x-nullable": true
           },
           "name": {
+            "description": "Template name.",
             "title": "Name",
             "type": "string"
           },
           "ord": {
+            "description": "Template position, from 0; cards record it as their ord.",
             "title": "Ord",
             "type": "integer"
           },
           "qfmt": {
+            "description": "Front template.",
             "title": "Qfmt",
             "type": "string"
           }
@@ -2423,19 +2967,31 @@
             "items": {
               "type": "integer"
             },
-            "nullable": true,
             "title": "Duplicate Note Ids",
-            "type": "array"
+            "type": "array",
+            "x-nullable": true
           },
           "index": {
+            "description": "Zero-based position in the request.",
             "title": "Index",
             "type": "integer"
           },
           "reason": {
+            "description": "Why it can't be added: the state, or what is wrong for invalid; null when it can.",
             "title": "Reason",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "state": {
+            "description": "normal: it can be added. empty: its first field is empty. duplicate: it duplicates a note (it can still be added with allow_duplicate). missing_cloze: a cloze note without a cloze. invalid: the request names a deck, note type or field that doesn't exist (see reason). unknown: Anki gave a reason Tsunagi doesn't name.",
+            "enum": [
+              "normal",
+              "empty",
+              "duplicate",
+              "missing_cloze",
+              "invalid",
+              "unknown"
+            ],
             "title": "State",
             "type": "string"
           }
@@ -2573,9 +3129,17 @@
               }
             ],
             "description": "For code 'invalid_attachment': the file that failed.",
-            "title": "Attachment"
+            "title": "Attachment",
+            "x-nullable": true
           },
           "code": {
+            "description": "duplicate: it duplicates a note (see duplicate_note_ids). invalid_note: it can't be made as sent, such as a deck, note type or field that doesn't exist (see message). invalid_attachment: one of its files (see attachment). anki_error: Anki refused it (see message).",
+            "enum": [
+              "duplicate",
+              "invalid_note",
+              "invalid_attachment",
+              "anki_error"
+            ],
             "title": "Code",
             "type": "string"
           },
@@ -2585,7 +3149,8 @@
               "type": "integer"
             },
             "title": "Duplicate Note Ids",
-            "type": "array"
+            "type": "array",
+            "x-nullable": true
           },
           "index": {
             "description": "Zero-based position in the submitted array; 0 for one object.",
@@ -2628,20 +3193,22 @@
       "NoteCreated": {
         "properties": {
           "cards": {
-            "description": "Present when include=cards was requested.",
+            "description": "The note's card IDs, with include=cards; null without it.",
             "items": {
               "type": "integer"
             },
             "title": "Cards",
-            "type": "array"
+            "type": "array",
+            "x-nullable": true
           },
           "files": {
-            "description": "The note's audio, video and picture files as stored, in that order, as POST /v1/media reports them. `filename` differs from `requested_filename` when Anki renamed the file; references in the fields a file lists follow the rename, others don't. Present when the note had files.",
+            "description": "The note's audio, video and picture files as stored, in that order, as POST /v1/media reports them. `filename` differs from `requested_filename` when Anki renamed the file; references in the fields a file lists follow the rename, others don't. Present when the note had files; null when it had none.",
             "items": {
               "$ref": "#/components/schemas/MediaStored"
             },
             "title": "Files",
-            "type": "array"
+            "type": "array",
+            "x-nullable": true
           },
           "id": {
             "title": "Id",
@@ -2664,14 +3231,17 @@
         "description": "One field of a note. Deliberately mirrors ModelField's shape so the query\nDSL reads the same on both resources: where=fields[].name==Front,\nselect=fields[].(name,value).",
         "properties": {
           "name": {
+            "description": "Field name.",
             "title": "Name",
             "type": "string"
           },
           "ord": {
+            "description": "Field position in the note type, from 0.",
             "title": "Ord",
             "type": "integer"
           },
           "value": {
+            "description": "Field content, as stored (HTML).",
             "title": "Value",
             "type": "string"
           }
@@ -2859,6 +3429,7 @@
         "description": "A note row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "cards": {
+            "description": "Ids of the note's cards, in template order.",
             "items": {
               "type": "integer"
             },
@@ -2866,37 +3437,51 @@
             "type": "array"
           },
           "fields": {
+            "description": "The note's fields, in note type order.",
             "items": {
               "$ref": "#/components/schemas/NoteField"
             },
             "title": "Fields",
-            "type": "array"
+            "type": "array",
+            "x-from": [
+              "models"
+            ]
           },
           "first_field": {
+            "description": "The first field's content, as stored (HTML).",
             "title": "First Field",
             "type": "string"
           },
           "guid": {
+            "description": "Globally unique id Anki uses to match the note across syncs and imports.",
             "title": "Guid",
             "type": "string"
           },
           "id": {
+            "description": "Note id: its creation time in epoch milliseconds.",
             "title": "Id",
             "type": "integer"
           },
           "mod": {
+            "description": "Last modified, Unix seconds.",
             "title": "Mod",
             "type": "integer"
           },
           "model_id": {
+            "description": "Id of the note's note type.",
             "title": "Model Id",
             "type": "integer"
           },
           "model_name": {
+            "description": "Name of the note's note type.",
             "title": "Model Name",
-            "type": "string"
+            "type": "string",
+            "x-from": [
+              "models"
+            ]
           },
           "tags": {
+            "description": "The note's tags.",
             "items": {
               "type": "string"
             },
@@ -2904,6 +3489,7 @@
             "type": "array"
           },
           "usn": {
+            "description": "Update sequence number for syncing; -1 means changed since the last sync.",
             "title": "Usn",
             "type": "integer"
           }
@@ -2914,12 +3500,13 @@
       "NoteUpdated": {
         "properties": {
           "cards": {
-            "description": "Present when include=cards was requested.",
+            "description": "The note's card IDs, with include=cards; null without it.",
             "items": {
               "type": "integer"
             },
             "title": "Cards",
-            "type": "array"
+            "type": "array",
+            "x-nullable": true
           },
           "fields_changed": {
             "description": "Fields whose value changed; empty when nothing did.",
@@ -3074,6 +3661,37 @@
         "title": "NoteUpsert",
         "type": "object"
       },
+      "NoteUpsertFailure": {
+        "properties": {
+          "code": {
+            "description": "duplicate: no note matched and the new one would duplicate one. invalid_note: it can't be made as sent, such as a field that doesn't exist or attachments (see message). ambiguous: more than one note matched. anki_error: Anki refused it (see message).",
+            "enum": [
+              "duplicate",
+              "invalid_note",
+              "ambiguous",
+              "anki_error"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "index": {
+            "description": "Zero-based position in the submitted array; 0 for one object.",
+            "title": "Index",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "code",
+          "message"
+        ],
+        "title": "NoteUpsertFailure",
+        "type": "object"
+      },
       "NoteUpsertResponse": {
         "properties": {
           "created": {
@@ -3085,7 +3703,7 @@
           },
           "failed": {
             "items": {
-              "$ref": "#/components/schemas/CreationFailure"
+              "$ref": "#/components/schemas/NoteUpsertFailure"
             },
             "title": "Failed",
             "type": "array"
@@ -3154,13 +3772,16 @@
             "type": "object"
           },
           "reason": {
+            "description": "Why it is disabled or unsupported, or what limits it; null when nothing does",
             "title": "Reason",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "setting": {
-            "description": "Setting controlling this capability, when applicable",
+            "description": "Setting controlling this capability; null when none does",
             "title": "Setting",
-            "type": "string"
+            "type": "string",
+            "x-nullable": true
           },
           "status": {
             "default": "available",
@@ -3548,6 +4169,55 @@
         "title": "QueryRequest",
         "type": "object"
       },
+      "Ready": {
+        "additionalProperties": false,
+        "description": "`ready`: connected; load the data you show now.",
+        "properties": {
+          "after_seq": {
+            "description": "Messages after this number come on this connection.",
+            "title": "After Seq",
+            "type": "integer"
+          },
+          "heartbeat_ms": {
+            "description": "How often a heartbeat comment is sent; a few missed means a dead connection.",
+            "title": "Heartbeat Ms",
+            "type": "integer"
+          },
+          "resources": {
+            "description": "The resources this stream carries: those asked for that the app may read.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "ready"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "session_id",
+          "after_seq",
+          "ts",
+          "resources",
+          "heartbeat_ms"
+        ],
+        "title": "Ready",
+        "type": "object"
+      },
       "RepositionRequest": {
         "additionalProperties": false,
         "description": "Base body for the batch scheduling verbs.",
@@ -3589,48 +4259,72 @@
       },
       "ReviewInfo": {
         "additionalProperties": false,
-        "description": "One revlog row, with human-readable names (Anki wire names as aliases).\n\nThe revlog is append-only history: every row is a fact about a review that\nhappened, so it is normally the scheduler's to write. The one exception is\nPOST /v1/reviews (AnkiConnect's insertReviews), which inserts rows for\nhistory imports - and reuses this model, so rows round-trip read<->write.",
+        "description": "One revlog row, with human-readable names (Anki wire names as aliases).\nNot every row is an answer: manual reschedules (type 4) and FSRS\nreschedules (type 5) are rows too, with ease 0.\n\nThe revlog is append-only history: every row is a fact about a review that\nhappened, so it is normally the scheduler's to write. The one exception is\nPOST /v1/reviews (AnkiConnect's insertReviews), which inserts rows for\nhistory imports - and reuses this model, so rows round-trip read<->write.",
         "properties": {
           "card_id": {
+            "description": "Id of the card reviewed.",
             "title": "Cid",
             "type": "integer"
           },
           "ease": {
             "default": 0,
+            "description": "Answer button pressed: again, hard, good or easy (on old v1 learning rows, 2 was Good and 3 Easy). none (0) when the row records a reschedule rather than an answer: a set due date, a reset, or an FSRS reschedule (type manual or rescheduled).",
             "title": "Ease",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "none",
+              "1": "again",
+              "2": "hard",
+              "3": "good",
+              "4": "easy"
+            }
           },
           "factor": {
             "default": 0,
+            "description": "SM-2: ease after the review, permille (2500 = 250%). FSRS: difficulty mapped to 100-1100. 0 if neither.",
             "title": "Factor",
             "type": "integer"
           },
           "id": {
+            "description": "When the review happened, epoch milliseconds; also the row's id.",
             "title": "Id",
             "type": "integer"
           },
           "interval": {
             "default": 0,
+            "description": "Interval after the review: days if positive, seconds if negative (learning).",
             "title": "Ivl",
             "type": "integer"
           },
           "last_interval": {
             "default": 0,
+            "description": "Interval before the review, in the same units as interval.",
             "title": "Lastivl",
             "type": "integer"
           },
           "time_ms": {
             "default": 0,
+            "description": "Time spent answering, milliseconds; 0 on reschedule rows.",
             "title": "Time",
             "type": "integer"
           },
           "type": {
             "default": 0,
+            "description": "What kind of entry the row is: learning, review, relearning, filtered (an early review or cram in a filtered deck; cram rows have factor 0), manual (a set due date or a reset; reset rows have factor 0), or rescheduled (by FSRS when deck options changed).",
             "title": "Type",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "learning",
+              "1": "review",
+              "2": "relearning",
+              "3": "filtered",
+              "4": "manual",
+              "5": "rescheduled"
+            }
           },
           "usn": {
             "default": 0,
+            "description": "Update sequence number for syncing; -1 means not yet synced.",
             "title": "Usn",
             "type": "integer"
           }
@@ -3646,43 +4340,198 @@
         "description": "A review row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "card_id": {
+            "description": "Id of the card reviewed.",
             "title": "Card Id",
             "type": "integer"
           },
           "ease": {
+            "description": "Answer button pressed: again, hard, good or easy (on old v1 learning rows, 2 was Good and 3 Easy). none (0) when the row records a reschedule rather than an answer: a set due date, a reset, or an FSRS reschedule (type manual or rescheduled).",
             "title": "Ease",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "none",
+              "1": "again",
+              "2": "hard",
+              "3": "good",
+              "4": "easy"
+            }
           },
           "factor": {
+            "description": "SM-2: ease after the review, permille (2500 = 250%). FSRS: difficulty mapped to 100-1100. 0 if neither.",
             "title": "Factor",
             "type": "integer"
           },
           "id": {
+            "description": "When the review happened, epoch milliseconds; also the row's id.",
             "title": "Id",
             "type": "integer"
           },
           "interval": {
+            "description": "Interval after the review: days if positive, seconds if negative (learning).",
             "title": "Interval",
             "type": "integer"
           },
           "last_interval": {
+            "description": "Interval before the review, in the same units as interval.",
             "title": "Last Interval",
             "type": "integer"
           },
           "time_ms": {
+            "description": "Time spent answering, milliseconds; 0 on reschedule rows.",
             "title": "Time Ms",
             "type": "integer"
           },
           "type": {
+            "description": "What kind of entry the row is: learning, review, relearning, filtered (an early review or cram in a filtered deck; cram rows have factor 0), manual (a set due date or a reset; reset rows have factor 0), or rescheduled (by FSRS when deck options changed).",
             "title": "Type",
-            "type": "integer"
+            "type": "integer",
+            "x-values": {
+              "0": "learning",
+              "1": "review",
+              "2": "relearning",
+              "3": "filtered",
+              "4": "manual",
+              "5": "rescheduled"
+            }
           },
           "usn": {
+            "description": "Update sequence number for syncing; -1 means not yet synced.",
             "title": "Usn",
             "type": "integer"
           }
         },
         "title": "ReviewRow",
+        "type": "object"
+      },
+      "RowsChanged": {
+        "additionalProperties": false,
+        "description": "`<resource>.created`, `.updated`, `.deleted`; `reviews.created`.",
+        "properties": {
+          "anki": {
+            "description": "Anki's own description of the change, for debugging; don't rely on it",
+            "title": "Anki",
+            "type": "object",
+            "x-nullable": true
+          },
+          "client": {
+            "description": "For origin api: the app that made it; null otherwise",
+            "title": "Client",
+            "type": "string",
+            "x-nullable": true
+          },
+          "ids": {
+            "description": "The ids of the rows that changed.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Ids",
+            "type": "array"
+          },
+          "origin": {
+            "description": "api: made through either API; ui: made in Anki; null when unknown",
+            "enum": [
+              "ui",
+              "api"
+            ],
+            "title": "Origin",
+            "type": "string",
+            "x-nullable": true
+          },
+          "seq": {
+            "description": "Its number in the session; the SSE `id:` is `<session_id>:<seq>`.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "The server session; a new one after a restart or profile switch.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "description": "When it was sent, Unix milliseconds.",
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "description": "The message's name, also its SSE `event:`.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "session_id",
+          "ts",
+          "ids"
+        ],
+        "title": "RowsChanged",
+        "type": "object"
+      },
+      "RowsStale": {
+        "additionalProperties": false,
+        "description": "`<resource>.stale`: rows changed, but which isn't known; reload what you show.",
+        "properties": {
+          "anki": {
+            "description": "Anki's own description of the change, for debugging; don't rely on it",
+            "title": "Anki",
+            "type": "object",
+            "x-nullable": true
+          },
+          "client": {
+            "description": "For origin api: the app that made it; null otherwise",
+            "title": "Client",
+            "type": "string",
+            "x-nullable": true
+          },
+          "origin": {
+            "description": "api: made through either API; ui: made in Anki; null when unknown",
+            "enum": [
+              "ui",
+              "api"
+            ],
+            "title": "Origin",
+            "type": "string",
+            "x-nullable": true
+          },
+          "reason": {
+            "description": "collection: anything may have changed (a sync, a full reset); details_unavailable: Anki didn't say which rows (an undo, more than 1,000 ids)",
+            "enum": [
+              "collection",
+              "details_unavailable"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "seq": {
+            "description": "Its number in the session; the SSE `id:` is `<session_id>:<seq>`.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "The server session; a new one after a restart or profile switch.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "description": "When it was sent, Unix milliseconds.",
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "description": "The message's name, also its SSE `event:`.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "session_id",
+          "ts",
+          "reason"
+        ],
+        "title": "RowsStale",
         "type": "object"
       },
       "SetAddNoteDataRequest": {
@@ -3952,6 +4801,49 @@
         "title": "SimulateResult",
         "type": "object"
       },
+      "SyncEvent": {
+        "additionalProperties": false,
+        "description": "`sync`: a sync started or finished.",
+        "properties": {
+          "phase": {
+            "enum": [
+              "started",
+              "finished"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "seq": {
+            "description": "Its number in the session; the SSE `id:` is `<session_id>:<seq>`.",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "The server session; a new one after a restart or profile switch.",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "ts": {
+            "description": "When it was sent, Unix milliseconds.",
+            "title": "Ts",
+            "type": "integer"
+          },
+          "type": {
+            "description": "The message's name, also its SSE `event:`.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "seq",
+          "session_id",
+          "ts",
+          "phase"
+        ],
+        "title": "SyncEvent",
+        "type": "object"
+      },
       "SyncResult": {
         "properties": {
           "server_message": {
@@ -4035,6 +4927,7 @@
         "description": "A tag row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "name": {
+            "description": "Tag name; \"::\" separates levels of a hierarchical tag.",
             "title": "Name",
             "type": "string"
           }
@@ -4309,6 +5202,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "summary": "Tsunagi API landing page",
@@ -4320,6 +5223,17 @@
       "post": {
         "description": "AnkiConnect-compatible POST endpoint at root. Send action and params in JSON body.",
         "operationId": "ankiConnectRpc",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4328,6 +5242,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "summary": "AnkiConnect RPC endpoint",
@@ -4352,6 +5276,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4383,6 +5317,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4436,6 +5380,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4488,6 +5442,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4525,6 +5489,15 @@
             "required": true,
             "schema": {
               "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -4577,6 +5550,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4608,6 +5591,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4656,14 +5649,20 @@
             }
           },
           {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
+            "description": "Anki search string (e.g. 'deck:Japanese tag:verb').",
             "in": "query",
             "name": "search",
             "required": false,
             "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
+              "description": "Anki search string (e.g. 'deck:Japanese tag:verb').",
               "title": "Search",
-              "type": "string"
+              "type": "string",
+              "x-from": [
+                "notes",
+                "decks",
+                "models",
+                "tags"
+              ]
             }
           },
           {
@@ -4780,6 +5779,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4837,6 +5846,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4858,6 +5877,17 @@
       "post": {
         "description": "Answers each card through the scheduler as if the button (`ease` 1-4: again/hard/good/easy) had been pressed in the reviewer. Works on a card in any state - answering a suspended card unsuspends it. A missing card is skipped; `affected` counts the cards answered.",
         "operationId": "cardsAnswer",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4888,6 +5918,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4909,6 +5949,17 @@
       "post": {
         "description": "Runs the listed scheduling verbs in order as a single undo entry (\"Card Batch\") - one Ctrl+Z in Anki reverts the whole batch, and the event stream sees one `op` carrying every card id involved. Each entry is `{\"op\": \"<verb>\", ...that verb's body}`, where `<verb>` is one of: bury, change-deck, forget, reposition, set-due-date, set-ease, set-flag, suspend, unbury, unsuspend. Everything checkable is validated before any write; a backend error mid-run (rare) leaves the earlier steps applied with the undo history cleared - the batch is one undo entry, not a transaction. `answer`, `set-values` and `set-memory-state` are deliberately not batchable.",
         "operationId": "cardsBatch",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4939,6 +5990,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -4960,6 +6021,17 @@
       "post": {
         "description": "Hides cards until the next day.",
         "operationId": "cardsBury",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4990,6 +6062,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5011,6 +6093,17 @@
       "post": {
         "description": "Takes deck_id or deck_name. The deck must already exist - this never creates one.",
         "operationId": "cardsChangeDeck",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5041,6 +6134,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5062,6 +6165,17 @@
       "post": {
         "description": "Puts cards back in the new queue, optionally restoring their original position.",
         "operationId": "cardsForget",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5092,6 +6206,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5113,6 +6237,17 @@
       "post": {
         "description": "Reassigns the position (`due`) of cards in the new queue.",
         "operationId": "cardsReposition",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5143,6 +6278,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5164,6 +6309,17 @@
       "post": {
         "description": "`days` is '5' (due in five days) or '5-7' (a random day in that range).",
         "operationId": "cardsSetDueDate",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5194,6 +6350,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5215,6 +6381,17 @@
       "post": {
         "description": "Per-card ease, stored as an integer 10x the percentage (250% is 2500).",
         "operationId": "cardsSetEase",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5245,6 +6422,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5266,6 +6453,17 @@
       "post": {
         "description": "0 clears the flag; 1-7 are Anki's colours.",
         "operationId": "cardsSetFlag",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5296,6 +6494,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5317,6 +6525,17 @@
       "post": {
         "description": "Overwrites per-card FSRS state (stability/difficulty, desired retention, decay) - how FSRS helper tools reschedule. An omitted field is left unchanged; an explicit null clears it. Needs the memory_state permission, which only the Everything role has by default.",
         "operationId": "cardsSetMemoryState",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5347,6 +6566,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5368,6 +6597,17 @@
       "post": {
         "description": "Writes card columns as-is, with no validation beyond the column's type - the escape hatch AnkiConnect calls setSpecificValueOfCard. Columns: did, due, factor, flags, ivl, lapses, left, nid, odid, odue, ord, queue, reps, type; each value an integer. Scheduling and linkage columns (did, ivl, lapses, left, nid, odid, odue, ord, queue, reps, type) corrupt the card when written badly, so they require `force: true`.",
         "operationId": "cardsSetValues",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5398,6 +6638,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5419,6 +6669,17 @@
       "post": {
         "description": "Removes cards from review until unsuspended.",
         "operationId": "cardsSuspend",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5449,6 +6710,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5470,6 +6741,17 @@
       "post": {
         "description": "Returns buried cards to their queue.",
         "operationId": "cardsUnbury",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5500,6 +6782,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5521,6 +6813,17 @@
       "post": {
         "description": "Returns suspended cards to their queue.",
         "operationId": "cardsUnsuspend",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5551,6 +6854,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5582,6 +6895,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5613,6 +6936,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5634,6 +6967,17 @@
       "post": {
         "description": "Runs Anki's Check Database, which rebuilds indexes and fixes inconsistencies.",
         "operationId": "checkDatabase",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5644,6 +6988,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5665,6 +7019,17 @@
       "post": {
         "description": "Writes one deck to an .apkg file. The path is resolved on the machine running Anki, not the caller's.",
         "operationId": "exportPackage",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5695,6 +7060,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5716,6 +7091,17 @@
       "post": {
         "description": "Merges an .apkg into the current collection. The path is resolved on the machine running Anki. Imports immediately without an options dialog. Omitted or null options use Anki's saved import preferences, available at GET /v1/collection/import-options. Explicit values override those choices. Anki remembers the resulting options after a successful import. Unsupported explicit options are rejected before importing. Returns the result with HTTP 200 if the import completes within the operation timeout; otherwise returns HTTP 202 with a job_id and Location header. Poll GET /v1/jobs/{job_id}; the same import continues without restarting. Import jobs cannot be aborted through the API. Only one import or FSRS job may be active at once (409 otherwise). Jobs are kept in memory only.",
         "operationId": "importPackage",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5756,6 +7142,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5778,6 +7174,17 @@
         "deprecated": true,
         "description": "This endpoint performs no reload. It remains available for existing clients and returns success when a collection is open. After a completed collection operation, query the data directly; no reload step is required. This request does not clear caches or reopen the collection.",
         "operationId": "reloadCollection",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5788,6 +7195,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5809,6 +7226,17 @@
       "post": {
         "description": "Syncs with AnkiWeb using the account already set up in Anki, the way Anki's Sync button does: add-ons that react to a sync (for example FSRS Helper's reschedule after sync) run, media syncs, and Anki's window stays responsive and refreshes afterwards. It never shows a dialog on the computer. Answers with the result when the sync ends within op_timeout_seconds, otherwise 202 with a job to poll (not abortable). 400 if no sync account is set up; 409 if the collection needs a full upload or download, which Anki asks the user about (click Sync in Anki); 502 if AnkiWeb or the network refused the sync. Runs as the one job, so another running job is also a 409.",
         "operationId": "syncCollection",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5829,6 +7257,16 @@
               }
             },
             "description": "Sync still running; poll the job"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -5874,17 +7312,6 @@
               },
               "title": "Where",
               "type": "array"
-            }
-          },
-          {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-              "title": "Search",
-              "type": "string"
             }
           },
           {
@@ -5984,6 +7411,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6003,6 +7440,17 @@
       "post": {
         "description": "Create a new deck_config. Deck options groups. Rows are Anki's config dicts verbatim, so newer scheduler keys survive a read-modify-write. Assign one to a deck with PATCH /v1/decks/{id} {config_id}.",
         "operationId": "createDeck_Config",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6035,6 +7483,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6092,6 +7550,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6124,6 +7592,15 @@
               "title": "Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6146,6 +7623,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6175,6 +7662,15 @@
               "description": "Deck_Config ID",
               "title": "Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -6210,6 +7706,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6255,17 +7761,6 @@
               },
               "title": "Where",
               "type": "array"
-            }
-          },
-          {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-              "title": "Search",
-              "type": "string"
             }
           },
           {
@@ -6381,6 +7876,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6400,6 +7905,17 @@
       "post": {
         "description": "Create a new deck. Deck hierarchy (nested names use '::'). Filtered (dynamic) decks appear in reads; mutations operate on normal decks.",
         "operationId": "createDeck",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6436,6 +7952,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6493,6 +8019,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6525,6 +8061,15 @@
               "title": "Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6547,6 +8092,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6576,6 +8131,15 @@
               "description": "Deck ID",
               "title": "Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -6615,6 +8179,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6714,6 +8288,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6728,6 +8312,92 @@
         "tags": [
           "Events"
         ],
+        "x-events": {
+          "access.changed": {
+            "schema": "#/components/schemas/AccessChanged"
+          },
+          "cards.answered": {
+            "option": "cards.answered",
+            "schema": "#/components/schemas/CardAnswered"
+          },
+          "cards.created": {
+            "resource": "cards",
+            "schema": "#/components/schemas/RowsChanged"
+          },
+          "cards.deleted": {
+            "resource": "cards",
+            "schema": "#/components/schemas/RowsChanged"
+          },
+          "cards.stale": {
+            "resource": "cards",
+            "schema": "#/components/schemas/RowsStale"
+          },
+          "cards.updated": {
+            "resource": "cards",
+            "schema": "#/components/schemas/RowsChanged"
+          },
+          "close": {
+            "schema": "#/components/schemas/Close"
+          },
+          "config.stale": {
+            "resource": "config",
+            "schema": "#/components/schemas/RowsStale"
+          },
+          "decks.counts": {
+            "resource": "decks",
+            "schema": "#/components/schemas/DecksCounts"
+          },
+          "decks.stale": {
+            "resource": "decks",
+            "schema": "#/components/schemas/RowsStale"
+          },
+          "gap": {
+            "schema": "#/components/schemas/Gap"
+          },
+          "models.stale": {
+            "resource": "models",
+            "schema": "#/components/schemas/RowsStale"
+          },
+          "notes.created": {
+            "resource": "notes",
+            "schema": "#/components/schemas/RowsChanged"
+          },
+          "notes.deleted": {
+            "resource": "notes",
+            "schema": "#/components/schemas/RowsChanged"
+          },
+          "notes.stale": {
+            "resource": "notes",
+            "schema": "#/components/schemas/RowsStale"
+          },
+          "notes.updated": {
+            "resource": "notes",
+            "schema": "#/components/schemas/RowsChanged"
+          },
+          "ready": {
+            "schema": "#/components/schemas/Ready"
+          },
+          "reviews.created": {
+            "resource": "reviews",
+            "schema": "#/components/schemas/RowsChanged"
+          },
+          "reviews.stale": {
+            "resource": "reviews",
+            "schema": "#/components/schemas/RowsStale"
+          },
+          "scheduler.stale": {
+            "resource": "scheduler",
+            "schema": "#/components/schemas/RowsStale"
+          },
+          "sync": {
+            "option": "sync",
+            "schema": "#/components/schemas/SyncEvent"
+          },
+          "tags.stale": {
+            "resource": "tags",
+            "schema": "#/components/schemas/RowsStale"
+          }
+        },
         "x-permission": "public"
       }
     },
@@ -6735,6 +8405,17 @@
       "post": {
         "description": "Starts optimizing FSRS parameters from the review history matching `search` (empty = whole collection) and returns a job id to poll. Result: `{params, fsrs_items, health_check_passed}`. With too little history the job finishes with empty params and `fsrs_items` 0.",
         "operationId": "fsrsComputeParams",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6764,6 +8445,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6785,6 +8476,17 @@
       "post": {
         "description": "Starts evaluating the given parameters against the review history matching `search`; poll the job for `{log_loss, rmse_bins}`.",
         "operationId": "fsrsEvaluateParams",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6815,6 +8517,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6836,6 +8548,17 @@
       "post": {
         "description": "The desired retention minimizing total workload for this setup. Fields pass through to Anki's simulator verbatim; give real limits (deck_size, new_limit, review_limit, days_to_simulate) or Anki refuses with 'no cards to simulate'. Empty `params` means Anki's built-in FSRS defaults.",
         "operationId": "fsrsOptimalRetention",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6866,6 +8589,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6887,6 +8620,17 @@
       "post": {
         "description": "Per-day review/new counts, time cost and knowledge acquisition for the simulated schedule. Fields pass through to Anki's simulator verbatim; give real limits (deck_size, new_limit, review_limit, days_to_simulate) or Anki refuses with 'no cards to simulate'. Empty `params` means Anki's built-in FSRS defaults.",
         "operationId": "fsrsSimulate",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6917,6 +8661,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6938,6 +8692,17 @@
       "post": {
         "description": "Cost, memorized counts and review counts keyed by desired-retention percent. Fields pass through to Anki's simulator verbatim; give real limits (deck_size, new_limit, review_limit, days_to_simulate) or Anki refuses with 'no cards to simulate'. Empty `params` means Anki's built-in FSRS defaults.",
         "operationId": "fsrsSimulateWorkload",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6968,6 +8733,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -6999,6 +8774,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7030,6 +8815,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7051,6 +8846,17 @@
       "post": {
         "description": "Opens the Add Cards dialog, prefilled when a note is given. The note is NOT added - the user still confirms. Returns the id the editor holds.",
         "operationId": "guiAddCards",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7080,6 +8886,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7101,6 +8917,17 @@
       "post": {
         "description": "Presses an answer button (1-4). False unless the answer is showing.",
         "operationId": "guiAnswerCard",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7131,6 +8958,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7152,6 +8989,17 @@
       "post": {
         "description": "Opens the card Browser, optionally running a search and sorting it. Returns the card ids the query matches.",
         "operationId": "guiBrowse",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7181,6 +9029,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7202,6 +9060,17 @@
       "post": {
         "description": "Returns Anki to the deck list.",
         "operationId": "guiDeckBrowser",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7212,6 +9081,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7233,6 +9112,17 @@
       "post": {
         "description": "Selects a deck and shows its overview screen. False when there is no such deck.",
         "operationId": "guiDeckOverview",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7263,6 +9153,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7284,6 +9184,17 @@
       "post": {
         "description": "Selects a deck and enters the reviewer. False when there is no such deck.",
         "operationId": "guiDeckReview",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7314,6 +9225,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7335,6 +9256,17 @@
       "post": {
         "description": "Opens the Browser focused on one note. Deviation from AnkiConnect, which opens its own standalone editor dialog.",
         "operationId": "guiEditNote",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7365,6 +9297,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7386,6 +9328,17 @@
       "post": {
         "description": "Shuts Anki down. Deferred by a second so this reply reaches you first.",
         "operationId": "guiExit",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7396,6 +9349,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7417,6 +9380,17 @@
       "post": {
         "description": "Schedules Anki's import UI, on the given file if one is named. The path is resolved on the machine running Anki. Returns ok=true once the UI thread accepts the launch request; this does not confirm that a file was selected or imported. Cancellation and later errors are handled in Anki, and no job ID is created.",
         "operationId": "guiImportFile",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7446,6 +9420,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7467,6 +9451,17 @@
       "post": {
         "description": "Replays audio on the card being reviewed.",
         "operationId": "guiPlayAudio",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7477,6 +9472,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7498,6 +9503,17 @@
       "post": {
         "description": "Selects one card in an already-open Browser. False when none is open - this does not open one.",
         "operationId": "guiSelectCard",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7528,6 +9544,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7549,6 +9575,17 @@
       "post": {
         "description": "Sets deck, notetype, fields or tags on an already-open Add Cards dialog. Reports an error payload rather than failing when it is closed.",
         "operationId": "guiSetAddNoteData",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7579,6 +9616,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7600,6 +9647,17 @@
       "post": {
         "description": "Reveals the answer side. False when no review is in progress.",
         "operationId": "guiShowAnswer",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7610,6 +9668,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7631,6 +9699,17 @@
       "post": {
         "description": "Re-displays the question side. False when no review is in progress.",
         "operationId": "guiShowQuestion",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7641,6 +9720,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7662,6 +9751,17 @@
       "post": {
         "description": "Resets how long the current card is recorded as having taken.",
         "operationId": "guiStartCardTimer",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7672,6 +9772,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7693,6 +9803,17 @@
       "post": {
         "description": "Undoes the last operation, as Ctrl+Z would.",
         "operationId": "guiUndo",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7703,6 +9824,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7734,6 +9865,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "summary": "Check API health",
@@ -7778,6 +9919,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7808,6 +9959,15 @@
               "title": "Job Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -7830,6 +9990,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -7875,17 +10045,6 @@
               },
               "title": "Where",
               "type": "array"
-            }
-          },
-          {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-              "title": "Search",
-              "type": "string"
             }
           },
           {
@@ -7986,6 +10145,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8060,6 +10229,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8117,6 +10296,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8149,6 +10338,15 @@
               "title": "Filename",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8171,6 +10369,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8216,6 +10424,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8261,17 +10479,6 @@
               },
               "title": "Where",
               "type": "array"
-            }
-          },
-          {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-              "title": "Search",
-              "type": "string"
             }
           },
           {
@@ -8383,6 +10590,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8402,6 +10619,17 @@
       "post": {
         "description": "Create a new model. Note types define the structure of cards in Anki. Select note_count for the live number of notes using each type across all decks, or filter with where=note_count>0. Counts are included in full native query results; name/ID-only queries do not calculate them.",
         "operationId": "createModel",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -8438,6 +10666,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8495,6 +10733,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8527,6 +10775,15 @@
               "title": "Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8549,6 +10806,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8578,6 +10845,15 @@
               "description": "Model ID",
               "title": "Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -8617,6 +10893,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8648,6 +10934,15 @@
               "description": "Model ID",
               "title": "Model Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -8687,6 +10982,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8730,6 +11035,15 @@
               "title": "Field Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8752,6 +11066,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8793,6 +11117,15 @@
               "title": "Field Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -8831,6 +11164,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8862,6 +11205,15 @@
               "description": "Model ID",
               "title": "Model Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -8901,6 +11253,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -8932,6 +11294,15 @@
               "description": "Model ID",
               "title": "Model Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -8971,6 +11342,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9014,6 +11395,15 @@
               "title": "Template Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -9036,6 +11426,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9077,6 +11477,15 @@
               "title": "Template Id",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -9115,6 +11524,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9146,6 +11565,15 @@
               "description": "Model ID",
               "title": "Model Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -9185,6 +11613,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9206,6 +11644,17 @@
       "post": {
         "description": "Literal (not regex) replacement in card templates and CSS. Omit `model_name` to sweep every model. Only models that actually contained the text are touched or counted.",
         "operationId": "modelsFindReplace",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -9236,6 +11685,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9284,14 +11743,20 @@
             }
           },
           {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
+            "description": "Anki search string (e.g. 'deck:Japanese tag:verb').",
             "in": "query",
             "name": "search",
             "required": false,
             "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
+              "description": "Anki search string (e.g. 'deck:Japanese tag:verb').",
               "title": "Search",
-              "type": "string"
+              "type": "string",
+              "x-from": [
+                "cards",
+                "decks",
+                "models",
+                "tags"
+              ]
             }
           },
           {
@@ -9405,6 +11870,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9490,6 +11965,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9547,6 +12032,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9579,6 +12074,15 @@
               "title": "Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -9601,6 +12105,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9630,6 +12144,15 @@
               "description": "Note ID",
               "title": "Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -9669,6 +12192,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9699,6 +12232,15 @@
             "schema": {
               "description": "duplicate_ids: also look up the notes each duplicate matches.",
               "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -9739,6 +12281,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9760,6 +12312,17 @@
       "post": {
         "description": "Deletes the notes and their cards, as one undo step. A missing note is skipped; `affected` counts the notes deleted. Same `resource:verb` form as the card verbs.",
         "operationId": "notesDelete",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -9790,6 +12353,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9820,6 +12393,15 @@
             "schema": {
               "description": "cards: also return card IDs.",
               "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -9866,6 +12448,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9897,6 +12489,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9918,6 +12520,17 @@
       "post": {
         "description": "Schedules closing the current profile and opening another. `loaded` confirms acceptance, not completion, and is false for an unknown name. The server restarts during the switch; requests may encounter 503 or a connection interruption. Reconnect and GET /v1/profiles to confirm the active profile.",
         "operationId": "loadProfile",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -9948,6 +12561,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -9996,14 +12619,21 @@
             }
           },
           {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
+            "description": "Anki search string (e.g. 'deck:Japanese tag:verb').",
             "in": "query",
             "name": "search",
             "required": false,
             "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
+              "description": "Anki search string (e.g. 'deck:Japanese tag:verb').",
               "title": "Search",
-              "type": "string"
+              "type": "string",
+              "x-from": [
+                "cards",
+                "notes",
+                "decks",
+                "models",
+                "tags"
+              ]
             }
           },
           {
@@ -10110,6 +12740,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10129,6 +12769,17 @@
       "post": {
         "description": "Appends rows to the revlog behind the scheduler's back - AnkiConnect's insertReviews, meant for importing review history. Rows use the same fields GET returns (aliases accepted); `id` is the review's epoch-ms timestamp and must be unique. All rows land in one transaction or none do. Side effects inherent to a raw revlog write: the undo history and cached study queues are discarded, and no event is emitted.",
         "operationId": "createReviews",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -10159,6 +12810,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10216,6 +12877,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10261,17 +12932,6 @@
               },
               "title": "Where",
               "type": "array"
-            }
-          },
-          {
-            "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-            "in": "query",
-            "name": "search",
-            "required": false,
-            "schema": {
-              "description": "Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400.",
-              "title": "Search",
-              "type": "string"
             }
           },
           {
@@ -10370,6 +13030,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10427,6 +13097,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10459,6 +13139,15 @@
               "title": "Tag",
               "type": "string"
             }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -10481,6 +13170,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10509,6 +13208,15 @@
             "schema": {
               "description": "The tag to rename",
               "title": "Tag",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -10543,6 +13251,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10564,6 +13282,17 @@
       "post": {
         "description": "One undoable op for the whole batch. `tags` is space-separated.",
         "operationId": "bulkAddTags",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -10594,6 +13323,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10615,6 +13354,17 @@
       "post": {
         "description": "One undoable op for the whole batch. `tags` is space-separated.",
         "operationId": "bulkRemoveTags",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -10645,6 +13395,16 @@
               }
             },
             "description": "Validation Error"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [
@@ -10666,6 +13426,17 @@
       "post": {
         "description": "Drops registered tags that no note references any more.",
         "operationId": "clearUnusedTags",
+        "parameters": [
+          {
+            "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -10676,6 +13447,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now"
           }
         },
         "security": [

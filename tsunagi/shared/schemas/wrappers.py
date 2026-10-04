@@ -1,4 +1,4 @@
-from typing import Generic, List, Literal, Optional, Sequence, TypeVar, Union
+from typing import Dict, Generic, List, Literal, Optional, Sequence, TypeVar, Union
 
 from pydantic import BaseModel, Field
 from pydantic.generics import GenericModel
@@ -11,6 +11,27 @@ Scalar = Union[str, int, float, bool, None]
 class RequestBody(BaseModel):
     class Config:
         extra = "forbid"
+
+# Schema extras for row fields (6.101), passed as Field(..., **extra): what a
+# coded field's numbers mean (short names a client can name its values by;
+# the prose goes in the description), and that a present field can be null.
+def coded(values: Dict[int, str]) -> dict:
+    return {"x-values": {str(code): name for code, name in values.items()}}
+
+NULLABLE = {"x-nullable": True}
+
+# A row field built from other resources (a card's deck_name): a change there
+# changes it (6.105), so a client keeping the field current follows them too.
+def derived(*resources: str) -> dict:
+    return {"x-from": list(resources)}
+
+# Every error answer (6.105): the description's `default` response. 422s
+# also carry `errors` (HTTPValidationError).
+class ErrorBody(BaseModel):
+    detail: str = Field(description="What went wrong, for the app to show; it can quote note content. Never parse it")
+    reason: Optional[Literal["busy", "closed", "syncing"]] = Field(None, description=(
+        "On a 503, why Anki can't answer now: busy (it didn't answer in time), closed (no collection "
+        "is open, e.g. during a full sync) or syncing; null otherwise"), **NULLABLE)
 
 # Free-form projected object (when select=... returns dicts)
 class ProjectedObject(BaseModel):

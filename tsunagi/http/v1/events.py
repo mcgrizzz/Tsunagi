@@ -41,6 +41,49 @@ from ...shared.permissions import (
 
 router = APIRouter()
 
+
+def event_catalog() -> Dict[str, Dict[str, Any]]:
+    """Each message the stream sends: its schema, and the resource or events
+    option that carries it (6.105). Connection messages have neither."""
+    from ...shared.schemas import events as messages
+    catalog: Dict[str, Dict[str, Any]] = {}
+    for name in sorted(EVENT_TYPES - {"change"}):
+        resource, _, kind = name.partition(".")
+        if name in (ACCESS_CHANGED,):
+            continue
+        if kind == "stale":
+            catalog[name] = {"schema": messages.RowsStale, "resource": resource}
+        elif kind in ("created", "updated", "deleted"):
+            catalog[name] = {"schema": messages.RowsChanged, "resource": resource}
+        elif name == "decks.counts":
+            catalog[name] = {"schema": messages.DecksCounts, "resource": "decks"}
+        elif name == "cards.answered":
+            catalog[name] = {"schema": messages.CardAnswered, "option": name}
+        elif name == "sync":
+            catalog[name] = {"schema": messages.SyncEvent, "option": name}
+        else:
+            raise ValueError(f"No schema for event {name}")
+    for name, model in (("ready", messages.Ready), ("gap", messages.Gap),
+                        (ACCESS_CHANGED, messages.AccessChanged), ("close", messages.Close)):
+        catalog[name] = {"schema": model}
+    return catalog
+
+
+def describe_events(spec: Dict[str, Any]) -> None:
+    """Put the messages in the API description: their schemas as components,
+    and `x-events` on GET /v1/events naming each one's schema (6.105)."""
+    components = spec.setdefault("components", {}).setdefault("schemas", {})
+    described: Dict[str, Any] = {}
+    for name, entry in event_catalog().items():
+        model = entry["schema"]
+        own = model.schema(ref_template="#/components/schemas/{model}")
+        for nested, schema in own.pop("definitions", {}).items():
+            components.setdefault(nested, schema)
+        components.setdefault(model.__name__, own)
+        described[name] = {"schema": f"#/components/schemas/{model.__name__}",
+                           **{key: entry[key] for key in ("resource", "option") if key in entry}}
+    spec["paths"]["/v1/events"]["get"]["x-events"] = described
+
 CHECK_SECONDS = 1.0  # longest wait before rechecking close reasons
 HEARTBEAT_SECONDS = 15.0
 _DESCRIPTION = """\

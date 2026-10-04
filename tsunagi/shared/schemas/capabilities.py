@@ -4,6 +4,7 @@ from typing import Dict, Literal, Optional
 from pydantic import BaseModel, Field
 
 from ..version import ADDON_VERSION, API_VERSION
+from .wrappers import NULLABLE
 
 
 class Versions(BaseModel):
@@ -15,8 +16,8 @@ class Versions(BaseModel):
 class CapabilityState(BaseModel):
     status: Literal["available", "disabled", "unsupported"] = Field(
         "available", description="Effective support after checking the running Anki and settings; request validation still applies")
-    reason: Optional[str] = None
-    setting: Optional[str] = Field(None, description="Setting controlling this capability, when applicable")
+    reason: Optional[str] = Field(None, description="Why it is disabled or unsupported, or what limits it; null when nothing does", **NULLABLE)
+    setting: Optional[str] = Field(None, description="Setting controlling this capability; null when none does", **NULLABLE)
 
 
 class OperationCapability(CapabilityState):

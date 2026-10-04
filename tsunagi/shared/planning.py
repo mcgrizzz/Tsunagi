@@ -83,6 +83,10 @@ class SearchSpec:
     # cursor), where collecting ids first is wasted work. The empty query
     # means the whole collection.
     rows: Optional[Callable[[str, Optional[Set[str]]], List[Any]]] = None
+    # The other resources whose changes can change what a search matches
+    # (deck:, note:, tag:, card states...): the API description's `x-from`
+    # on `search` (6.105), so a client watching a search knows what to follow.
+    reads: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

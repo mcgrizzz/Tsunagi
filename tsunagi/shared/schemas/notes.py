@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, StrictBool, validator
 # ----------------- Response Schemas -----------------
 from .creation import CreationFailure, CreationResult
 from .media import MediaStored, MediaUpload
-from .wrappers import RequestBody
+from .wrappers import NULLABLE, RequestBody, derived
 
 
 class NoteField(BaseModel):
@@ -20,9 +20,9 @@ class NoteField(BaseModel):
         extra = "ignore"
         allow_population_by_field_name = True
 
-    name: str
-    value: str
-    ord: int
+    name: str = Field(description="Field name.")
+    value: str = Field(description="Field content, as stored (HTML).")
+    ord: int = Field(description="Field position in the note type, from 0.")
 
 
 class NoteInfo(BaseModel):
@@ -30,22 +30,24 @@ class NoteInfo(BaseModel):
         extra = "ignore"
         allow_population_by_field_name = True
 
-    id: int
-    guid: str = ""
+    id: int = Field(description="Note id: its creation time in epoch milliseconds.")
+    guid: str = Field("", description=(
+        "Globally unique id Anki uses to match the note across syncs and imports."))
     # Anki's wire name for a note's notetype id
-    model_id: int = Field(alias="mid", default=0)
-    model_name: str = ""
-    mod: int = 0
-    usn: int = 0
-    tags: List[str] = Field(default_factory=list)
+    model_id: int = Field(0, alias="mid", description="Id of the note's note type.")
+    model_name: str = Field("", description="Name of the note's note type.", **derived("models"))
+    mod: int = Field(0, description="Last modified, Unix seconds.")
+    usn: int = Field(0, description="Update sequence number for syncing; -1 means changed since the last sync.")
+    tags: List[str] = Field(default_factory=list, description="The note's tags.")
     # The first field's value: what Anki's duplicate check compares.
-    first_field: str = ""
+    first_field: str = Field("", description="The first field's content, as stored (HTML).")
     # NOT aliased to "flds": on a note that's Anki's positional list of raw
     # strings, so the alias would describe something else entirely.
-    fields: List[NoteField] = Field(default_factory=list)
+    fields: List[NoteField] = Field(default_factory=list, description="The note's fields, in note type order.",
+                                    **derived("models"))
     # Costs one backend call per note (Anki has no batch lookup), so it is
     # only populated when the caller's select/where references it.
-    cards: Optional[List[int]] = None
+    cards: Optional[List[int]] = Field(None, description="Ids of the note's cards, in template order.")
 
 
 # ----------------- Request Schemas -----------------
@@ -188,13 +190,18 @@ class NoteCheckRequest(RequestBody):
 
 
 class NoteCheckResult(BaseModel):
-    index: int                       # position in the request
+    index: int = Field(description="Zero-based position in the request.")
     can_add: bool
-    state: str                       # normal|empty|duplicate|missing_cloze|unknown_model|unknown_deck|unknown_field
-    reason: Optional[str] = None
+    state: Literal["normal", "empty", "duplicate", "missing_cloze", "invalid", "unknown"] = Field(description=(
+        "normal: it can be added. empty: its first field is empty. duplicate: it duplicates a note "
+        "(it can still be added with allow_duplicate). missing_cloze: a cloze note without a cloze. "
+        "invalid: the request names a deck, note type or field that doesn't exist (see reason). "
+        "unknown: Anki gave a reason Tsunagi doesn't name."))
+    reason: Optional[str] = Field(None, description=(
+        "Why it can't be added: the state, or what is wrong for invalid; null when it can."), **NULLABLE)
     duplicate_note_ids: Optional[List[int]] = Field(
-        default_factory=list, nullable=True,
-        description="Matching note IDs, with include=duplicate_ids; null without it.",
+        default_factory=list,
+        description="Matching note IDs, with include=duplicate_ids; null without it.", **NULLABLE,
     )
 
 
@@ -206,27 +213,32 @@ class NoteCheckResponse(BaseModel):
 class NoteCreated(BaseModel):
     index: int = Field(description="Zero-based position in the submitted array; 0 for one object.")
     id: int
-    cards: Optional[List[int]] = Field(default=None, description="Present when include=cards was requested.")
+    cards: Optional[List[int]] = Field(default=None, description="The note's card IDs, with include=cards; null without it.",
+                                       **NULLABLE)
     files: Optional[List[MediaStored]] = Field(
         default=None,
         description=("The note's audio, video and picture files as stored, in that order, as POST /v1/media "
                      "reports them. `filename` differs from `requested_filename` when Anki renamed the file; "
                      "references in the fields a file lists follow the rename, others don't. Present when "
-                     "the note had files."))
+                     "the note had files; null when it had none."), **NULLABLE)
 
 
 class AttachmentRef(BaseModel):
     kind: Literal["audio", "video", "picture"]
     position: int = Field(description="Zero-based position in that kind's list; 0 for one object.")
-    filename: Optional[str] = Field(default=None, description="The filename sent, if any.")
+    filename: Optional[str] = Field(default=None, description="The filename sent; null when none was.", **NULLABLE)
 
 
 class NoteCreateFailure(CreationFailure):
+    code: Literal["duplicate", "invalid_note", "invalid_attachment", "anki_error"] = Field(description=(
+        "duplicate: it duplicates a note (see duplicate_note_ids). invalid_note: it can't be made as "
+        "sent, such as a deck, note type or field that doesn't exist (see message). "
+        "invalid_attachment: one of its files (see attachment). anki_error: Anki refused it (see message)."))
     duplicate_note_ids: Optional[List[int]] = Field(
         default=None,
-        description="For code 'duplicate', with include=duplicate_ids: the existing notes it duplicates.")
+        description="For code 'duplicate', with include=duplicate_ids: the existing notes it duplicates.", **NULLABLE)
     attachment: Optional[AttachmentRef] = Field(
-        default=None, description="For code 'invalid_attachment': the file that failed.")
+        default=None, description="For code 'invalid_attachment': the file that failed.", **NULLABLE)
 
 
 class NoteCreateResponse(CreationResult[NoteCreated]):
@@ -263,15 +275,23 @@ class NoteUpsert(NoteCreate):
     on_match: OnMatch = Field(alias="onMatch", default_factory=OnMatch)
 
 
+class NoteUpsertFailure(CreationFailure):
+    code: Literal["duplicate", "invalid_note", "ambiguous", "anki_error"] = Field(description=(
+        "duplicate: no note matched and the new one would duplicate one. invalid_note: it can't be "
+        "made as sent, such as a field that doesn't exist or attachments (see message). ambiguous: "
+        "more than one note matched. anki_error: Anki refused it (see message)."))
+
+
 class NoteUpdated(BaseModel):
     index: int = Field(description="Zero-based position in the submitted array; 0 for one object.")
     id: int
     fields_changed: List[str] = Field(description="Fields whose value changed; empty when nothing did.")
     tags_changed: bool
-    cards: Optional[List[int]] = Field(default=None, description="Present when include=cards was requested.")
+    cards: Optional[List[int]] = Field(default=None, description="The note's card IDs, with include=cards; null without it.",
+                                       **NULLABLE)
 
 
 class NoteUpsertResponse(BaseModel):
     created: List[NoteCreated] = Field(default_factory=list)
     updated: List[NoteUpdated] = Field(default_factory=list)
-    failed: List[CreationFailure] = Field(default_factory=list)
+    failed: List[NoteUpsertFailure] = Field(default_factory=list)

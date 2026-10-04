@@ -4,21 +4,26 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, StrictInt
 
+from .wrappers import NULLABLE
+
 
 class AddonInfo(BaseModel):
     id: str = Field(description="Folder name; the AnkiWeb ID for AnkiWeb installs")
-    name: str
-    ankiweb_id: Optional[int] = None
-    enabled: bool
+    name: str = Field(description="Display name; the folder name when the add-on gives none.")
+    ankiweb_id: Optional[int] = Field(None, description=(
+        "AnkiWeb id; null when the folder name isn't a number (not installed from AnkiWeb)."), **NULLABLE)
+    enabled: bool = Field(description="Whether the add-on is enabled.")
     compatible: bool = Field(description="Whether it declares support for this Anki version")
-    version: Optional[str] = Field(None, description="The author's version label, if any")
-    installed_at: int = Field(description="Unix seconds")
-    homepage: Optional[str] = None
+    version: Optional[str] = Field(None, description="The author's version label; null when none.", **NULLABLE)
+    installed_at: int = Field(description=(
+        "Timestamp of the installed version (AnkiWeb's upload time for AnkiWeb installs), Unix seconds; "
+        "0 if unknown."))
+    homepage: Optional[str] = Field(None, description="Homepage the add-on gives; null when none.", **NULLABLE)
     has_config: bool = Field(description="Has settings (edited in Anki's add-on manager)")
     has_config_ui: bool = Field(description="Registers its own settings dialog instead of Anki's JSON editor")
     provider: Optional[str] = Field(
-        None, description="Id of the Tsunagi provider offering this add-on's actions, if any; "
-                          "see GET /v1/addons/{provider}/actions")
+        None, description="Id of the Tsunagi provider offering this add-on's actions; null when none. "
+                          "See GET /v1/addons/{provider}/actions", **NULLABLE)
 
 
 class AddonList(BaseModel):

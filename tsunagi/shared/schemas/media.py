@@ -3,13 +3,13 @@ from __future__ import annotations
 import ntpath
 import os
 import unicodedata
-from typing import Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from ..errors import ValidationError
-from .creation import CreationResult
-from .wrappers import RequestBody
+from .creation import CreationFailure, CreationResult
+from .wrappers import NULLABLE, RequestBody
 
 # Windows reserved device names (a file named CON.png is unopenable there)
 _RESERVED = {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {
@@ -56,9 +56,9 @@ def sanitize_media_filename(name: object) -> str:
 
 class MediaRow(BaseModel):
     """A row of GET /v1/media: one file in the media folder."""
-    filename: str
-    size: int = Field(..., description="Bytes")
-    mtime: int = Field(..., description="Last modified, Unix seconds")
+    filename: str = Field(description="File name in the media folder.")
+    size: int = Field(..., description="File size in bytes.")
+    mtime: int = Field(..., description="Last modified, Unix seconds.")
 
 
 class MediaUpload(RequestBody):
@@ -70,7 +70,7 @@ class MediaUpload(RequestBody):
 
 class MediaStored(BaseModel):
     filename: str                        # the name Anki actually stored
-    requested_filename: Optional[str] = None
+    requested_filename: Optional[str] = Field(None, description="The filename sent; null when none was.", **NULLABLE)
     renamed: bool = False
     size: int
 
@@ -85,5 +85,11 @@ class MediaCreated(MediaStored):
     index: int
 
 
+class MediaCreateFailure(CreationFailure):
+    code: Literal["invalid_media", "storage_error", "source_error"] = Field(description=(
+        "invalid_media: the file can't be stored as sent, such as a bad filename or base64 (see "
+        "message). storage_error: Anki couldn't write it. source_error: its url or path couldn't be read."))
+
+
 class MediaCreateResponse(CreationResult[MediaCreated]):
-    pass
+    failed: List[MediaCreateFailure] = Field(default_factory=list)

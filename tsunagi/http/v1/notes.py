@@ -103,7 +103,7 @@ caps = SourceCaps(
     # keyset-style instead of materializing every note id per page request.
     # A `search=` query still enumerates in full - Anki search has no keyset.
     search=SearchSpec(find_ids=find_note_ids, hydrate=get_notes_by_ids,
-                      page_ids=page_note_ids, id_field="id"),
+                      page_ids=page_note_ids, id_field="id", reads=("cards", "decks", "models", "tags")),
     # where clauses on note columns, and first_field by checksum, go into the
     # id query, with or without a search (backlog 9.13).
     sql=NOTE_SQL,

@@ -468,7 +468,10 @@ def _ordered_query(select, where, shape, limit, cursor, caps, id_getter, search,
         rows = [r for k in range(0, len(found), HYDRATE_CHUNK) for r in plan.hydrate(found[k:k + HYDRATE_CHUNK], need)]
     if pred is not None:
         rows = [r for r in rows if pred(_as_dict(r))]
-    fields = {k for r in rows for k, v in _as_dict(r).items() if isinstance(v, _SCALARS)}
+    # A field sorts when its values are plain or null, null on every row
+    # included (nulls sort last), as the API description lists it.
+    fields = ({k for r in rows for k in _as_dict(r)}
+              - {k for r in rows for k, v in _as_dict(r).items() if v is not None and not isinstance(v, _SCALARS)})
     if rows and name is not None and name not in fields:
         raise _cannot_order(name, fields)
     if rows and distinct_on is not None and distinct_on not in fields:
@@ -794,7 +797,10 @@ def create_resource_routes(
             "element, `fields[].name` one property of each, `fields[].(name,value)` several, and "
             "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.")),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
-        search: Optional[str] = Query(default=None, description="Anki search string (e.g. 'deck:Japanese tag:verb'). Only supported by search-backed resources; others return 400."),
+        # Documented only where it works (6.103); elsewhere it is a 400.
+        search: Optional[str] = Query(default=None, include_in_schema=getattr(caps, "search", None) is not None,
+                                      description="Anki search string (e.g. 'deck:Japanese tag:verb').",
+                                      json_schema_extra={"x-from": list(getattr(getattr(caps, "search", None), "reads", ()))}),
         order: Optional[str] = Query(default=None, description=(
             "Sort: a name, optionally with :asc (default) or :desc, e.g. due:desc. Cards and notes "
             "use Anki's Browser sorts (due, interval, ease, lapses, reviews, created, card_modified, "

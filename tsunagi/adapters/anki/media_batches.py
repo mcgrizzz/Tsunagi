@@ -6,8 +6,12 @@ from anki.collection import Collection
 from aqt import mw
 
 from ...shared.errors import CollectionUnavailableError, ValidationError
-from ...shared.schemas.creation import CreationFailure
-from ...shared.schemas.media import MediaCreated, MediaCreateResponse, MediaUpload
+from ...shared.schemas.media import (
+    MediaCreated,
+    MediaCreateFailure,
+    MediaCreateResponse,
+    MediaUpload,
+)
 from ..ops import query_op_call
 from .media import store_media_bytes
 
@@ -24,11 +28,11 @@ def _store_chunk(col: Collection, expected: Collection, items: List[Tuple[int, s
         try:
             stored, renamed = store_media_bytes.__wrapped__(col, requested, data)
         except ValidationError as exc:
-            result.failed.append(CreationFailure(index=index, code="invalid_media", message=str(exc)))
+            result.failed.append(MediaCreateFailure(index=index, code="invalid_media", message=str(exc)))
         except OSError:
             logging.getLogger(__name__).exception("Could not store media input %s", index)
-            result.failed.append(CreationFailure(index=index, code="storage_error",
-                                                 message="Could not store media file"))
+            result.failed.append(MediaCreateFailure(index=index, code="storage_error",
+                                                    message="Could not store media file"))
         else:
             result.created.append(MediaCreated(index=index, filename=stored,
                                                 requested_filename=requested,
@@ -69,12 +73,12 @@ def create_media(candidates: List[MediaUpload], resolve: Callable[[MediaUpload],
         try:
             requested, data = resolve(body)
         except ValidationError as exc:
-            result.failed.append(CreationFailure(index=index, code="invalid_media", message=str(exc)))
+            result.failed.append(MediaCreateFailure(index=index, code="invalid_media", message=str(exc)))
             continue
         except OSError:
             logging.getLogger(__name__).exception("Could not read media input %s", index)
-            result.failed.append(CreationFailure(index=index, code="source_error",
-                                                 message="Could not read media source"))
+            result.failed.append(MediaCreateFailure(index=index, code="source_error",
+                                                    message="Could not read media source"))
             continue
         if pending_bytes + len(data) > UPLOAD_CHUNK_BYTES:
             flush()

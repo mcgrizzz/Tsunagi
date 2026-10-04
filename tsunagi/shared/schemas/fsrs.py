@@ -4,11 +4,11 @@ so there are no wire-name aliases to carry.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from .wrappers import RequestBody
+from .wrappers import NULLABLE, RequestBody
 
 # ----------------- Jobs -----------------
 
@@ -18,22 +18,25 @@ class JobProgress(BaseModel):
     total: int
 
 
+JobStatus = Literal["queued", "running", "done", "failed", "aborted"]
+
+
 class JobInfo(BaseModel):
     id: str
     kind: str
-    # queued | running | done | failed | aborted
-    status: str
-    # Best-effort snapshot of col.latest_progress, only while running.
-    progress: Optional[JobProgress] = None
-    # Shape depends on kind; see the submit route descriptions.
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    status: JobStatus
+    progress: Optional[JobProgress] = Field(
+        None, description="Best-effort progress, only while running; null otherwise", **NULLABLE)
+    result: Optional[Dict[str, Any]] = Field(
+        None, description="When done: the result, shaped by the job's kind (see the route that started it); "
+                          "null before", **NULLABLE)
+    error: Optional[str] = Field(None, description="When failed or aborted: why; null otherwise", **NULLABLE)
     stats: dict
 
 
 class JobSubmitted(BaseModel):
     job_id: str
-    status: str
+    status: JobStatus
     stats: dict
 
 

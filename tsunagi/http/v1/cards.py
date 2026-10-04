@@ -71,7 +71,7 @@ caps = SourceCaps(
     # page_ids: bare and where-filtered listings walk the cards primary key
     # keyset-style instead of materializing every card id per page request.
     search=SearchSpec(find_ids=find_card_ids, hydrate=get_card_rows_by_ids,
-                      page_ids=page_card_ids),
+                      page_ids=page_card_ids, reads=("notes", "decks", "models", "tags")),
     # where clauses on card columns go into the id query (backlog 9.13).
     sql=CARD_SQL,
     # order= uses Anki's Browser sorts (backlog 8.1).

@@ -9,7 +9,6 @@ from ...shared.errors import (
     ValidationError,
     anki_error_detail,
 )
-from ...shared.schemas.creation import CreationFailure
 from ...shared.schemas.notes import (
     AttachmentRef,
     NoteCreate,
@@ -18,6 +17,7 @@ from ...shared.schemas.notes import (
     NoteCreateResponse,
     NoteUpdated,
     NoteUpsert,
+    NoteUpsertFailure,
     NoteUpsertResponse,
 )
 from ..ops import ValueWithChanges, as_collection_op
@@ -191,7 +191,7 @@ def upsert_notes(col: Collection, candidates: List[NoteUpsert], *,
 
     for index, req in enumerate(candidates):
         if req.attachments():
-            out.failed.append(CreationFailure(
+            out.failed.append(NoteUpsertFailure(
                 index=index, code="invalid_note",
                 message="upsert doesn't take attachments; upload them with POST /v1/media "
                         "and put their names in the fields"))
@@ -207,7 +207,7 @@ def upsert_notes(col: Collection, candidates: List[NoteUpsert], *,
             _apply_fields(probe, _fields_to_map(req.fields), nt["name"])
             found = _matches(col, req, probe, nt, deck_id)
             if len(found) > 1:
-                out.failed.append(CreationFailure(
+                out.failed.append(NoteUpsertFailure(
                     index=index, code="ambiguous",
                     message=f"Matches {len(found)} notes: {', '.join(map(str, sorted(found)))}"))
                 continue
@@ -226,14 +226,14 @@ def upsert_notes(col: Collection, candidates: List[NoteUpsert], *,
                 index=index, id=int(note.id), fields_changed=fields_changed, tags_changed=tags_changed,
                 cards=list(col.card_ids_of_note(note.id)) if include_cards else None))
         except DuplicateNoteError:
-            out.failed.append(CreationFailure(index=index, code="duplicate",
+            out.failed.append(NoteUpsertFailure(index=index, code="duplicate",
                                               message="Note duplicates an existing note"))
         except ValidationError as exc:
-            out.failed.append(CreationFailure(index=index, code="invalid_note", message=str(exc)))
+            out.failed.append(NoteUpsertFailure(index=index, code="invalid_note", message=str(exc)))
         except Exception as exc:
             if type(exc).__name__ not in ANKI_CLIENT_ERRORS:
                 raise
-            out.failed.append(CreationFailure(index=index, code="anki_error",
+            out.failed.append(NoteUpsertFailure(index=index, code="anki_error",
                                               message=anki_error_detail(exc)))
 
     return ValueWithChanges(out, changes, event_changes=lambda: {"notes": {

@@ -2,7 +2,7 @@
 import json
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Literal, Optional
 
 from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel, Field
@@ -49,6 +49,8 @@ from .log import log
 from .shared.errors import register_exception_handlers
 from .shared.permissions import PUBLIC, requires
 from .shared.schemas.capabilities import CallerInfo, Versions, runtime_versions
+from .shared.schemas.creation import IDEMPOTENCY_HELP
+from .shared.schemas.wrappers import NULLABLE, ErrorBody
 from .shared.version import ADDON_VERSION
 
 
@@ -131,6 +133,15 @@ def openapi_with_auth():
             for method, operation in operations.items():
                 if method in {"get", "post", "put", "patch", "delete", "head", "options"}:
                     operation["security"] = [{"ApiKey": []}, {"BearerAuth": []}]
+    # Every write takes an Idempotency-Key (6.74); say so on each (6.103).
+    # Reads sent as POST (`/query`) don't need one.
+    for path, operations in schema["paths"].items():
+        for method, operation in operations.items():
+            if method in {"post", "put", "patch", "delete"} and not path.endswith("/query"):
+                parameters = operation.setdefault("parameters", [])
+                if not any(p.get("name") == "Idempotency-Key" for p in parameters):
+                    parameters.append({"name": "Idempotency-Key", "in": "header", "required": False,
+                                       "description": IDEMPOTENCY_HELP, "schema": {"type": "string"}})
     # 422 bodies: `detail` is a string like every error's, and FastAPI's list
     # of problems is in `errors` (register_exception_handlers).
     validation = schema.get("components", {}).get("schemas", {}).get("HTTPValidationError")
@@ -139,6 +150,17 @@ def openapi_with_auth():
             "detail": {"title": "Detail", "type": "string"},
             "errors": {**validation["properties"]["detail"], "title": "Errors"}}
         validation["required"] = ["detail", "errors"]
+    from .http.v1.events import describe_events
+    describe_events(schema)
+    # Every error has the same shape (6.105): say so once, as each operation's default answer.
+    schema["components"]["schemas"].setdefault("ErrorBody", ErrorBody.schema())
+    for operations in schema["paths"].values():
+        for method, operation in operations.items():
+            if method in {"get", "post", "put", "patch", "delete"}:
+                operation.setdefault("responses", {}).setdefault("default", {
+                    "description": "An error: `detail` says what went wrong; on a 503, `reason` says why "
+                                   "Anki can't answer now",
+                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorBody"}}}})
     _show_field_names(schema.get("components", {}).get("schemas", {}))
     return schema
 
@@ -319,8 +341,8 @@ def list_ankiconnect_actions() -> dict:
     return get_available_actions()
 
 class CollectionHealth(BaseModel):
-    profile: Optional[str] = Field(description="Open profile name")
-    state: str = Field(description=(
+    profile: Optional[str] = Field(description="Open profile name; null when none is open", **NULLABLE)
+    state: Literal["ready", "syncing", "closed", "busy"] = Field(description=(
         "ready; syncing; closed (no collection, e.g. during a full sync); "
         "busy (Anki did not answer a trivial read within a second). "
         "A 503 body carries the same value as reason"))

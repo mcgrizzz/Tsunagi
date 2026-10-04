@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .notes import NoteIds
 from .wrappers import RequestBody
@@ -8,7 +8,7 @@ from .wrappers import RequestBody
 
 class TagRow(BaseModel):
     """A row of GET /v1/tags."""
-    name: str
+    name: str = Field(description='Tag name; "::" separates levels of a hierarchical tag.')
 
 
 class TagRename(RequestBody):

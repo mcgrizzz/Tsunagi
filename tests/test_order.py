@@ -106,6 +106,17 @@ def test_what_cant_be_sorted_is_a_400(client, data, path, order, message):
     assert response.json()["detail"].startswith(message)
 
 
+def test_every_documented_sort_is_taken(client, data):
+    # A field that is null on every row still sorts (6.101): no deck here has
+    # its own limits or desired retention, yet the description lists them.
+    spec = client.get("/openapi.json").json()
+    for path, item in spec["paths"].items():
+        for parameter in item.get("get", {}).get("parameters", []):
+            for sort in parameter["schema"].get("x-sorts", []) if parameter["name"] == "order" else []:
+                response = client.get(path, params={"order": f"{sort}:desc", "limit": 2})
+                assert response.status_code == 200, (path, sort, response.text)
+
+
 def test_a_cursor_survives_a_row_leaving_between_pages(client, data):
     first = client.get("/v1/cards", params={"order": "interval:desc", "limit": 3, "select": "id"}).json()
     order = anki_order(data, "cardIvl", True)
