@@ -59,7 +59,7 @@ class FakeAddonManager:
 
 
 def populate(root):
-    _addon(root, HELPER, meta={"name": "FSRS Helper"}, defaults={"easy_dates": []})
+    _addon(root, HELPER, meta={"name": "FSRS Helper", "mod": 1759000000}, defaults={"easy_dates": []})
     _addon(root, "plain", meta={"name": "No Config"})
     _addon(root, "off", meta={"name": "Disabled One", "disabled": True})
     _addon(root, ADDON_PACKAGE, meta={"name": "Tsunagi"}, defaults={"api_key": ""})
@@ -82,6 +82,7 @@ def test_list_reports_each_addon(client, manager):
     helper = items[HELPER]
     assert (helper["name"], helper["ankiweb_id"], helper["enabled"]) == ("FSRS Helper", 759844606, True)
     assert helper["has_config"] and helper["has_config_ui"]
+    assert helper["version_time"] == 1759000000 and "installed_at" not in helper
     assert items["plain"]["ankiweb_id"] is None and not items["plain"]["has_config"]
     assert items["off"]["enabled"] is False
     assert client.get(f"/v1/addons/{HELPER}").json() == helper

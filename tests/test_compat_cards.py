@@ -123,6 +123,13 @@ class TestCardsInfo:
             "queue", "due", "reps", "lapses", "left", "mod", "nextReviews", "flags",
         }
 
+    def test_left_and_flags_are_anki_columns(self, cards, col):
+        # The v1 rows send `left % 1000` and no `flags`; AnkiConnect sends the columns.
+        client, cids = cards
+        col.db.execute("update cards set left = 1002, flags = 12 where id = ?", cids[0])
+        (info,) = rpc(client, "cardsInfo", {"cards": [cids[0]]})["result"]
+        assert (info["left"], info["flags"]) == (1002, 12)
+
     def test_fields_are_a_name_keyed_map(self, cards):
         client, cids = cards
         (info,) = rpc(client, "cardsInfo", {"cards": [cids[0]]})["result"]

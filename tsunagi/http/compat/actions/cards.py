@@ -12,6 +12,7 @@ from ....adapters.anki.cards import (
     cards_mod_times,
     cards_suspended,
     get_cards_by_ids,
+    raw_left_and_flags,
     set_card_values,
 )
 from ....adapters.anki.compat import raw_id_list
@@ -160,7 +161,7 @@ def ac_cardsModTime(p: CardsInfoParams) -> List[Dict[str, Any]]:
 _CARDS_INFO_WANTS = {
     "id", "fields", "ord", "question", "answer", "model_name", "deck_name",
     "css", "factor", "interval", "note_id", "type", "queue", "due", "reps",
-    "lapses", "left", "mod", "next_reviews", "flags",
+    "lapses", "mod", "next_reviews",
 }
 
 
@@ -172,6 +173,7 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
     # Anki treats get_card(0) as constructing an unsaved card. Upstream catches
     # its missing-note error and returns an empty object at that input position.
     by_id = {c.id: c for c in get_cards_by_ids([cid for cid in ids if cid], _CARDS_INFO_WANTS)}
+    raw = raw_left_and_flags(list(by_id)) if by_id else {}
     out: List[Dict[str, Any]] = []
     for cid in ids:
         card = by_id.get(int(cid))
@@ -199,10 +201,10 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
             "due": card.due,
             "reps": card.reps,
             "lapses": card.lapses,
-            "left": card.left,
+            "left": raw[card.id]["left"],
             "mod": card.mod,
             "nextReviews": card.next_reviews or [],
-            "flags": card.flags,
+            "flags": raw[card.id]["flags"],
         })
     return out
 

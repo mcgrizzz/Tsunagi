@@ -15,9 +15,9 @@ class AddonInfo(BaseModel):
     enabled: bool = Field(description="Whether the add-on is enabled.")
     compatible: bool = Field(description="Whether it declares support for this Anki version")
     version: Optional[str] = Field(None, description="The author's version label; null when none.", **NULLABLE)
-    installed_at: int = Field(description=(
-        "Timestamp of the installed version (AnkiWeb's upload time for AnkiWeb installs), Unix seconds; "
-        "0 if unknown."))
+    version_time: int = Field(description=(
+        "When the installed version was published (AnkiWeb's upload time for AnkiWeb installs, otherwise "
+        "the package's own timestamp), Unix seconds; 0 if unknown. Not when it was installed."))
     homepage: Optional[str] = Field(None, description="Homepage the add-on gives; null when none.", **NULLABLE)
     has_config: bool = Field(description="Has settings (edited in Anki's add-on manager)")
     has_config_ui: bool = Field(description="Registers its own settings dialog instead of Anki's JSON editor")

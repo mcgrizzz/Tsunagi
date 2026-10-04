@@ -40,9 +40,8 @@ A wire name becomes the client's name by, in order:
 Sorts use `sortsBySchema[schema][wire]` first, then the same rules. A
 row's key, the field that identifies it, is `id` unless `keys` names
 another (a tag's `name`, a media file's `filename`). Names in
-`omit` don't exist in the client (`usn` everywhere; a card's `flags`, which
-duplicates `flag`). Nested types are named by `nestedTypes`, row types by
-`types`.
+`omit` don't exist in the client (`usn` everywhere; a note type's
+`req`). Nested types are named by `nestedTypes`, row types by `types`.
 
 **Coded values.** A field with `x-values` in the description reads and
 filters by name, never by number: the value's text in the language's case

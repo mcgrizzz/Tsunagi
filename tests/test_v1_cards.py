@@ -625,12 +625,12 @@ class TestScalarHydration:
     def test_scalar_values_match_full_rows_without_loading_cards(self, seeded, col, monkeypatch):
         card_ids = sorted(ids(seeded))
         col.db.execute(
-            'update cards set queue = -2, flags = 12, due = -7, ivl = 34 where id = ?',
+            'update cards set queue = -2, flags = 12, due = -7, ivl = 34, left = 1002 where id = ?',
             card_ids[-1],
         )
         fields = (
             "id,note_id,deck_id,original_deck_id,ord,mod,usn,type,queue,due,"
-            "original_due,interval,factor,reps,lapses,left,flags,flag,suspended,buried"
+            "original_due,interval,factor,reps,lapses,left,flag,suspended,buried"
         )
         full = seeded.get("/v1/cards").json()["items"]
         expected = [{field: row[field] for field in fields.split(",")} for row in full]
@@ -645,6 +645,7 @@ class TestScalarHydration:
         assert response.json()["items"] == expected
         assert response.json()["items"][-1]["buried"] is True
         assert response.json()["items"][-1]["suspended"] is False
+        assert (response.json()["items"][-1]["left"], response.json()["items"][-1]["flag"]) == (2, 4)
 
     def test_sparse_late_matches_load_only_surviving_full_cards(self, seeded, col, monkeypatch):
         model = col.models.by_name("Basic")

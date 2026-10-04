@@ -375,10 +375,6 @@
             "description": "Folder name; the AnkiWeb ID for AnkiWeb installs",
             "type": "string"
           },
-          "installed_at": {
-            "description": "Timestamp of the installed version (AnkiWeb's upload time for AnkiWeb installs), Unix seconds; 0 if unknown.",
-            "type": "integer"
-          },
           "name": {
             "description": "Display name; the folder name when the add-on gives none.",
             "type": "string"
@@ -392,6 +388,10 @@
             "description": "The author's version label; null when none.",
             "type": "string",
             "x-nullable": true
+          },
+          "version_time": {
+            "description": "When the installed version was published (AnkiWeb's upload time for AnkiWeb installs, otherwise the package's own timestamp), Unix seconds; 0 if unknown. Not when it was installed.",
+            "type": "integer"
           }
         },
         "required": [
@@ -399,7 +399,7 @@
           "name",
           "enabled",
           "compatible",
-          "installed_at",
+          "version_time",
           "has_config",
           "has_config_ui"
         ],
@@ -863,10 +863,6 @@
               "7": "purple"
             }
           },
-          "flags": {
-            "description": "Raw flags column. Anki uses only the low 3 bits, which are `flag`.",
-            "type": "integer"
-          },
           "id": {
             "description": "Card id: its creation time in epoch milliseconds.",
             "type": "integer"
@@ -885,7 +881,7 @@
             "x-nullable": true
           },
           "left": {
-            "description": "Learning steps left: the last three digits count them; higher digits are an older steps-today count.",
+            "description": "Learning steps the card still has to pass before it graduates, the current one included; only meaningful while the card is learning or relearning.",
             "type": "integer"
           },
           "memory_state": {
@@ -1333,13 +1329,6 @@
             "description": "Learning cards due today, subdecks included, as the deck list shows them.",
             "type": "integer"
           },
-          "learn_today": {
-            "description": "[day, count]: learning cards studied on that day; day counts from the collection's creation.",
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
-          },
           "mod": {
             "description": "Last modified, Unix seconds.",
             "type": "integer"
@@ -1357,12 +1346,14 @@
             "type": "integer",
             "x-nullable": true
           },
-          "new_today": {
-            "description": "[day, count]: new cards studied on that day; count drops when today's limit is extended.",
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
+          "new_limit_today": {
+            "description": "New card limit set for today only, overriding the others; null unless set for today.",
+            "type": "integer",
+            "x-nullable": true
+          },
+          "new_limit_used": {
+            "description": "How much of today's new card limit is used: each new card studied adds 1, Custom Study's \"increase today's new card limit\" subtracts, so it can be negative.",
+            "type": "integer"
           },
           "review_count": {
             "description": "Review cards due today, subdecks included, as the deck list shows them.",
@@ -1373,19 +1364,18 @@
             "type": "integer",
             "x-nullable": true
           },
-          "review_today": {
-            "description": "[day, count]: review cards studied on that day; count drops when today's limit is extended.",
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
+          "review_limit_today": {
+            "description": "Review limit set for today only, overriding the others; null unless set for today.",
+            "type": "integer",
+            "x-nullable": true
           },
-          "time_today": {
-            "description": "[day, milliseconds]: time spent studying the deck on that day.",
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
+          "review_limit_used": {
+            "description": "How much of today's review limit is used: each review adds 1, Custom Study's \"increase today's review limit\" subtracts, so it can be negative.",
+            "type": "integer"
+          },
+          "study_ms_today": {
+            "description": "Time spent studying the deck today, in milliseconds.",
+            "type": "integer"
           },
           "total_in_deck": {
             "description": "Cards in this deck itself, not counting subdecks.",
@@ -2354,13 +2344,6 @@
             "type": "integer",
             "x-nullable": true
           },
-          "media": {
-            "description": "Legacy key from older Anki versions; usually empty.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "name": {
             "description": "Field name.",
             "type": "string"
@@ -2425,11 +2408,6 @@
           "css": {
             "description": "Styling shared by all the note type's cards.",
             "type": "string"
-          },
-          "did": {
-            "description": "Legacy last-used deck id. Current Anki stores that elsewhere; null when unset.",
-            "type": "integer",
-            "x-nullable": true
           },
           "fields": {
             "description": "The note type's fields, in order.",
@@ -2511,13 +2489,6 @@
             "description": "Position (from 0) of the field the browser shows and sorts by.",
             "type": "integer"
           },
-          "tags": {
-            "description": "Legacy key from older Anki versions; usually empty.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "templates": {
             "description": "The note type's card templates, in order.",
             "items": {
@@ -2536,11 +2507,6 @@
           "usn": {
             "description": "Update sequence number for syncing; -1 means changed since the last sync.",
             "type": "integer"
-          },
-          "vers": {
-            "description": "Legacy key from older Anki versions; usually empty.",
-            "items": {},
-            "type": "array"
           }
         },
         "type": "object"
@@ -6408,8 +6374,13 @@
                 "name",
                 "new_count",
                 "new_limit",
+                "new_limit_today",
+                "new_limit_used",
                 "review_count",
                 "review_limit",
+                "review_limit_today",
+                "review_limit_used",
+                "study_ms_today",
                 "total_in_deck",
                 "usn"
               ]
@@ -8320,7 +8291,6 @@
               "type": "string",
               "x-sorts": [
                 "css",
-                "did",
                 "id",
                 "latex_post",
                 "latex_pre",

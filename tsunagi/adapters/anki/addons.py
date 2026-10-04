@@ -29,7 +29,7 @@ def _info(mgr: Any, meta: Any) -> Dict[str, Any]:
         "enabled": bool(meta.enabled),
         "compatible": bool(meta.compatible()),
         "version": meta.human_version,
-        "installed_at": int(meta.installed_at or 0),
+        "version_time": int(meta.installed_at or 0),
         "homepage": meta.homepage,
         "has_config": mgr.addonConfigDefaults(meta.dir_name) is not None,
         "has_config_ui": mgr.configAction(meta.dir_name) is not None,

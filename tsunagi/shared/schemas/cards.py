@@ -66,9 +66,8 @@ class CardInfo(BaseModel):
     reps: int = Field(0, description="How many times the card has been answered.")
     lapses: int = Field(0, description="How many times the card was forgotten (Again on a review card).")
     left: int = Field(0, description=(
-        "Learning steps left: the last three digits count them; higher digits are an older "
-        "steps-today count."))
-    flags: int = Field(0, description="Raw flags column. Anki uses only the low 3 bits, which are `flag`.")
+        "Learning steps the card still has to pass before it graduates, the current one included; "
+        "only meaningful while the card is learning or relearning."))
 
     original_position: Optional[int] = Field(None, description=(
         "Where the card was in the new queue before it was first studied; null if Anki didn't "

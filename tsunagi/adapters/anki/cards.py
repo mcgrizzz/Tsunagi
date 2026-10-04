@@ -45,7 +45,7 @@ CARD_COLUMN_SQL = {
     "original_deck_id": "odid", "ord": "ord", "mod": "mod", "usn": "usn",
     "type": "type", "queue": "queue", "due": "due", "original_due": "odue",
     "interval": "ivl", "factor": "factor", "reps": "reps", "lapses": "lapses",
-    "left": '"left"', "flags": "flags", "flag": "flags & 7",
+    "left": '("left" % 1000)', "flag": "flags & 7",
     "suspended": "queue = -1", "buried": "queue in (-2, -3)",
 }
 
@@ -154,8 +154,9 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
         "factor": int(card.factor),
         "reps": int(card.reps),
         "lapses": int(card.lapses),
-        "left": int(card.left),
-        "flags": flags,
+        # Old schedulers packed a steps-today count above the last three
+        # digits; Anki reads only these (Card::remaining_steps).
+        "left": int(card.left) % 1000,
         "original_position": _optional(int, getattr(card, "original_position", None)),
         "custom_data": str(getattr(card, "custom_data", "") or ""),
         "memory_state": _memory_state(card),
@@ -309,6 +310,15 @@ def cards_mod_times(col: Collection, card_ids: Sequence[int]) -> List[Dict[str, 
             raise
         out.append({"cardId": int(card.id), "mod": int(card.mod)})
     return out
+
+
+@as_query_op
+def raw_left_and_flags(col: Collection, card_ids: Sequence[int]) -> Dict[int, Dict[str, int]]:
+    """The `left` and `flags` columns as Anki stores them, for AnkiConnect's
+    cardsInfo; v1 rows send `left % 1000` and no `flags`."""
+    ids = ",".join(str(int(cid)) for cid in card_ids)
+    return {int(cid): {"left": int(left), "flags": int(flags)}
+            for cid, left, flags in col.db.all(f'select id, "left", flags from cards where id in ({ids})')}
 
 
 @as_query_op

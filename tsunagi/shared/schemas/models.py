@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -35,7 +35,6 @@ class ModelField(BaseModel):
     id: Optional[int] = Field(None, description=(
         "Stable field id Anki uses to merge note types on import; null on fields from older versions."),
         **NULLABLE)
-    media: List[str] = Field(default_factory=list, description="Legacy key from older Anki versions; usually empty.")
 
 
 class ModelTemplate(BaseModel):
@@ -194,8 +193,6 @@ class ModelInfo(BaseModel):
     mod: int = Field(0, description="Last modified, Unix seconds.")
     usn: int = Field(0, description="Update sequence number for syncing; -1 means changed since the last sync.")
     sort_field: int = Field(0, alias="sortf", description="Position (from 0) of the field the browser shows and sorts by.")
-    did: Optional[int] = Field(None, description=(
-        "Legacy last-used deck id. Current Anki stores that elsewhere; null when unset."), **NULLABLE)
 
     templates: List[ModelTemplate] = Field(alias="tmpls", description="The note type's card templates, in order.")
     fields: List[ModelField] = Field(alias="flds", description="The note type's fields, in order.")
@@ -207,8 +204,6 @@ class ModelInfo(BaseModel):
 
     req: List[ReqEntry] = Field(default_factory=list, description=(
         'Fields each template needs: [template ord, "any"|"all"|"none", [field ords]].'))
-    tags: List[str] = Field(default_factory=list, description="Legacy key from older Anki versions; usually empty.")
-    vers: List[Any] = Field(default_factory=list, description="Legacy key from older Anki versions; usually empty.")
 
     original_stock_kind: Optional[int] = Field(None, alias="originalStockKind", description=(
         "The built-in type this note type was made from; null when unknown or before Anki 2.1.62."),

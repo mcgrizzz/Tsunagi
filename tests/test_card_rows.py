@@ -22,6 +22,8 @@ def test_rows_match_card_schema(client, col, answer_cards):
     card = col.get_card(third)
     card.custom_data = '{"k":1}'
     col.update_card(card)
+    # An old scheduler's packed value: 2 steps left, 1 done today above them.
+    col.db.execute("update cards set left = 1002 where id = ?", first)
 
     rows = client.get("/v1/cards").json()["items"]
     assert [row["id"] for row in rows] == [first, second, third]
@@ -31,11 +33,12 @@ def test_rows_match_card_schema(client, col, answer_cards):
         live = col.get_card(row["id"])
         # Distinct sources for each position: values map to the right names.
         assert (row["note_id"], row["deck_id"], row["ord"], row["queue"], row["due"],
-                row["interval"], row["reps"], row["flags"]) == (
-            live.nid, live.did, live.ord, live.queue, live.due, live.ivl, live.reps, live.flags)
+                row["interval"], row["reps"], row["left"]) == (
+            live.nid, live.did, live.ord, live.queue, live.due, live.ivl, live.reps, live.left % 1000)
         assert row["fields"] == [{"name": n, "value": v, "ord": i}
                                  for i, (n, v) in enumerate(live.note().items())]
     assert [row["suspended"] for row in rows] == [False, True, False]
+    assert rows[0]["left"] == 2
     assert rows[2]["flag"] == 5 and rows[2]["custom_data"] == '{"k":1}'
     assert rows[0]["deck_name"] == "Default" and rows[0]["model_name"] == "Basic (and reversed card)"
     assert all(isinstance(row["question"], str) and row["question"] for row in rows)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -32,14 +32,15 @@ class DeckInfo(BaseModel):
     browser_collapsed: bool = Field(False, alias="browserCollapsed", description=(
         "Whether the deck's subdecks are collapsed in the browser sidebar."))
 
-    learn_today: List[int] = Field(alias="lrnToday", default_factory=lambda: [0, 0], description=(
-        "[day, count]: learning cards studied on that day; day counts from the collection's creation."))
-    review_today: List[int] = Field(alias="revToday", default_factory=lambda: [0, 0], description=(
-        "[day, count]: review cards studied on that day; count drops when today's limit is extended."))
-    new_today: List[int] = Field(alias="newToday", default_factory=lambda: [0, 0], description=(
-        "[day, count]: new cards studied on that day; count drops when today's limit is extended."))
-    time_today: List[int] = Field(alias="timeToday", default_factory=lambda: [0, 0], description=(
-        "[day, milliseconds]: time spent studying the deck on that day."))
+    # Worked out from Anki's [day, count] pairs (newToday, revToday,
+    # timeToday), which only count on the day they name (_deck_info).
+    new_limit_used: int = Field(0, description=(
+        "How much of today's new card limit is used: each new card studied adds 1, Custom Study's "
+        "\"increase today's new card limit\" subtracts, so it can be negative."))
+    review_limit_used: int = Field(0, description=(
+        "How much of today's review limit is used: each review adds 1, Custom Study's "
+        "\"increase today's review limit\" subtracts, so it can be negative."))
+    study_ms_today: int = Field(0, description="Time spent studying the deck today, in milliseconds.")
 
     extend_new: int = Field(0, alias="extendNew", description=(
         "Last amount entered in Custom Study's \"increase today's new card limit\"; 0 for filtered decks."))
@@ -51,6 +52,10 @@ class DeckInfo(BaseModel):
         "This deck's own daily review limit, overriding its preset; null when it has none."), **NULLABLE)
     new_limit: Optional[int] = Field(None, alias="newLimit", description=(
         "This deck's own daily new card limit, overriding its preset; null when it has none."), **NULLABLE)
+    review_limit_today: Optional[int] = Field(None, description=(
+        "Review limit set for today only, overriding the others; null unless set for today."), **NULLABLE)
+    new_limit_today: Optional[int] = Field(None, description=(
+        "New card limit set for today only, overriding the others; null unless set for today."), **NULLABLE)
 
     # Per-deck FSRS desired retention override. Read from the deck protobuf,
     # not the schema11 dict - the dict carries it as a truncated integer

@@ -71,12 +71,8 @@
       "usn",
       "stats"
     ],
-    "CardRow": [
-      "flags"
-    ],
     "ModelRow": [
-      "req",
-      "vers"
+      "req"
     ],
     "Health": [
       "ok",

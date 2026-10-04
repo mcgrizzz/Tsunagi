@@ -74,8 +74,19 @@ def _write_desired_retention(col: Collection, deck_id: int, value: Optional[Any]
 
 def _deck_info(col: Collection, d: Mapping[str, Any],
                stats: Optional[Dict[int, Dict[str, int]]],
-               wants: Optional[Set[str]] = None) -> DeckInfo:
+               wants: Optional[Set[str]] = None, today: Optional[int] = None) -> DeckInfo:
     info = DeckInfo.parse_obj(d)
+    if today is None:
+        today = col.sched.today
+    # A [day, count] pair counts only on its day, as Anki reads it
+    # (Deck::new_rev_counts); the day limits likewise (limit_if_today).
+    for field, key in (("new_limit_used", "newToday"), ("review_limit_used", "revToday"),
+                       ("study_ms_today", "timeToday")):
+        day, count = d.get(key) or (0, 0)
+        setattr(info, field, int(count) if day == today else 0)
+    for field, key in (("review_limit_today", "reviewLimitToday"), ("new_limit_today", "newLimitToday")):
+        limit = d.get(key)
+        setattr(info, field, int(limit["limit"]) if limit and limit.get("today") == today else None)
     if stats is not None:
         # A deck missing from the tree has nothing due, not unknown counts.
         # Anki drops the Default deck from deck_due_tree() while it's empty
@@ -98,26 +109,29 @@ def _stats_if_wanted(col: Collection, wants: Optional[Set[str]]) -> Optional[Dic
 @as_query_op
 def list_decks(col: Collection, wants=None) -> List[DeckInfo]:
     stats = _stats_if_wanted(col, wants)
-    return [_deck_info(col, d, stats, wants) for d in col.decks.all()]
+    today = col.sched.today
+    return [_deck_info(col, d, stats, wants, today) for d in col.decks.all()]
 
 @as_query_op
 def get_decks_by_ids(col: Collection, ids: Sequence[int], wants=None) -> List[DeckInfo]:
     stats = _stats_if_wanted(col, wants)
+    today = col.sched.today
     out: List[DeckInfo] = []
     for did in ids:
         d = col.decks.get(did, default=False)
         if d:
-            out.append(_deck_info(col, d, stats, wants))
+            out.append(_deck_info(col, d, stats, wants, today))
     return out
 
 @as_query_op
 def get_decks_by_names(col: Collection, names: Sequence[str], wants=None) -> List[DeckInfo]:
     stats = _stats_if_wanted(col, wants)
+    today = col.sched.today
     out: List[DeckInfo] = []
     for name in names:
         d = col.decks.by_name(name)
         if d:
-            out.append(_deck_info(col, d, stats, wants))
+            out.append(_deck_info(col, d, stats, wants, today))
     return out
 
 @as_query_op
@@ -168,7 +182,7 @@ def create_deck(col: Collection, data: Dict[str, Any]) -> DeckInfo:
         # update_dict, not the legacy save(): same write, but it returns the
         # OpChanges the op needs to report.
         changes = col.decks.update_dict(deck)
-    return ValueWithChanges(DeckInfo.parse_obj(deck), changes)
+    return ValueWithChanges(_deck_info(col, deck, None), changes)
 
 
 @as_collection_op
