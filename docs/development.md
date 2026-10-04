@@ -203,11 +203,12 @@ The [Release workflow](../.github/workflows/release.yml):
   locally: `python tools/build_api_reference.py --version 0.6.0`, then
   `python -m http.server -d site`. It needs **Settings → Pages → Source:
   GitHub Actions** once.
-- Publishing a release also publishes the TypeScript client to npm as
+- Publishing a release also stages the TypeScript client on npm as
   `tsunagi-client`, at the release's version, through the
   [client publish workflow](../.github/workflows/client-publish.yml): the client
-  at the release's tag, tested first, with provenance. npm trusts that workflow
-  file (trusted publishing on npmjs.com), so it needs no token. A version npm
+  at the release's tag, tested first, with provenance. Approve the staged
+  version on npmjs.com (2FA) to publish it. npm trusts that workflow file
+  (trusted publishing, staged only), so it needs no token. A version npm
   already has is skipped.
 - The browser check isn't part of CI; run it [before tagging](#tests).
 

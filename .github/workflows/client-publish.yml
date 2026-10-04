@@ -1,11 +1,11 @@
 name: Client publish
 
-# Publishes the TypeScript client (packages/typescript) to npm as tsunagi-client
+# Stages the TypeScript client (packages/typescript) on npm as tsunagi-client
 # when a release is published: the client at the release's tag, at the release's
-# version, tested first (prepublishOnly runs npm test), with provenance. npm
-# trusts this workflow file (trusted publishing on npmjs.com), so there's no
-# token. Run it by hand with a tag to publish a release's client again; a version
-# npm already has is skipped.
+# version, tested first, with provenance. npm trusts this workflow file (trusted
+# publishing on npmjs.com, staged only), so there's no token; the version goes
+# live when a maintainer approves it on npmjs.com with 2FA. Run it by hand with
+# a tag to stage a release's client again; a version npm already has is skipped.
 
 on:
   release:
@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - name: Use an npm that supports trusted publishing
+      - name: Use an npm that supports staged trusted publishing
         run: npm install -g npm@latest
       - name: Check the version, skip it if npm has it
         id: version
@@ -54,4 +54,7 @@ jobs:
       - if: steps.version.outputs.skip != 'true'
         run: npm ci
       - if: steps.version.outputs.skip != 'true'
-        run: npm publish --provenance
+        run: npm test
+      - name: Stage it; approve it on npmjs.com to publish
+        if: steps.version.outputs.skip != 'true'
+        run: npm stage publish . --provenance
