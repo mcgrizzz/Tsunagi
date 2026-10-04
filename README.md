@@ -75,6 +75,38 @@ reviews also accept Anki browser search syntax to narrow your results.
 
 **[See the full workflow → Yomitan walkthrough](docs/api_recipes.md)**
 
+### Build with the TypeScript client
+
+[`packages/typescript`](packages/typescript) is a typed client for the Tsunagi
+API, built from this repository (not on npm yet). Your editor checks field
+names and values as you type:
+
+```ts
+const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777" });
+
+// Mine 食べる, or add the sentence to the note you already have for it.
+await anki.notes.upsert({
+  deck: "Mining", noteType: "Mining",
+  fields: { Expression: "食べる", Sentence: "もう食べた。" },
+  matchField: "Expression",
+  fieldRules: { Sentence: "append", "*": "keep" },
+});
+
+// Named values, not Anki's codes: a suspended card's queue is "suspended", not -1.
+const suspended = await anki.cards.search("deck:Mining").where("queue", "eq", "suspended").count();
+
+// Keep a list of the deck's notes current as Anki changes, whoever changes it.
+await anki.notes.search("deck:Mining").select("id", "firstField").watch({
+  added: notes => show(notes),
+  updated: notes => show(notes),
+  removed: ids => hide(ids),
+});
+```
+
+`watch` loads the list, then sends only the notes whose selected fields
+changed. It reconnects and catches up by itself after Anki restarts or a
+connection drops.
+
 ## Install
 
 **AnkiWeb add-on code:** `666370974`
@@ -144,6 +176,7 @@ note content from examples.
 | I want to… | Start here |
 | --- | --- |
 | **Build something with Tsunagi** | [Yomitan walkthrough](docs/api_recipes.md): its AnkiConnect requests and their Tsunagi API equivalents. |
+| **Use the TypeScript client** | [Client README](packages/typescript/README.md): queries, writes, watching and access checks. |
 | **Browse every operation** | Open the [interactive reference](http://127.0.0.1:7777/) while Anki is running. [How to use it](docs/playground.md). |
 | **Check feature availability** | [API discovery](docs/capabilities.md): one report of available, disabled and unsupported operations. |
 | **Create notes and media** | [Creating notes](docs/creating_notes.md): check, add, add to an existing note, upload media, retry safely. |

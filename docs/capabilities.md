@@ -13,7 +13,7 @@ what's left out here:
 
 ```json
 {
-  "versions": {"api": "v1", "addon": "0.5.1", "anki": "26.08.1"},
+  "versions": {"api": "v1", "addon": "0.6.0", "anki": "26.08.1"},
   "caller": {"name": "No key, this computer", "role": "Default", "enabled": true, "key": "none", "this_computer": true, "host": "127.0.0.1"},
   "operations": {
     …
@@ -131,6 +131,15 @@ saved import choices; clients do not need it to discover unsupported options.
 
 Send your app's key, if it has one. The report needs a profile open in Anki
 (503 otherwise). Ask again after switching profiles or changing settings.
+
+The [TypeScript client](../packages/typescript/README.md) asks for you and
+keeps the answer current. Pass it the method you're about to call:
+
+```ts
+const access = await anki.access();
+if (!access.can(anki.cards.suspend)) console.log(access.check(anki.cards.suspend).reason);
+await anki.onAccessChange(showSuspendButton); // a role, key or setting changed
+```
 
 `GET /v1/health` stays a small, public liveness check, including when no collection
 is open. Its `collection` object gives the open `profile` and a `state`: `ready`,

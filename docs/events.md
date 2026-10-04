@@ -63,6 +63,25 @@ Two things to watch:
   example `resources=notes,decks`), and when in doubt run `loadAll()` instead
   of `loadNotes(ids)`.
 
+### With the TypeScript client
+
+The [TypeScript client](../packages/typescript/README.md)'s `watch` does all of
+this for you:
+
+```ts
+await anki.notes.select("id", "firstField").watch({
+  added: (notes, change) => (change.initial ? showAll(notes) : showNotes(notes)),
+  updated: notes => showNotes(notes),
+  removed: ids => removeNotes(ids),
+});
+```
+
+- It loads the list, then reads only the notes each message names.
+- It reads everything again after `.stale`, `gap` or a reconnect.
+- With a search, it also listens to what the search depends on (decks for
+  `deck:`, cards for card states), and moves notes in and out of your list.
+- `updated` comes only when a field you selected changed.
+
 ## Choose what to receive
 
 | You want | Ask for |

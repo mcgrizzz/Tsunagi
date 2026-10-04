@@ -127,6 +127,25 @@ GET /v1/models?select=id,name,note_count
 
 </details>
 
+## With the TypeScript client
+
+The same three steps with the [TypeScript client](../packages/typescript/README.md),
+which sends the requests above. `note` is the note to save.
+
+```ts
+// 1. Is 食べる saved already? Every note with the word, whatever its note type.
+const [check] = await anki.notes.check([note], { duplicateIds: true });
+const saved = await anki.notes.where("firstField", "in", ["食べる"]).select("id", "firstField").take(20);
+if (check?.state === "duplicate") openNotes(saved.map(n => n.id));
+
+// 2. Save it and suspend its cards.
+const created = await anki.notes.create(note, { cards: true });
+await anki.cards.suspend(created.cards ?? []);
+
+// 3. Note types with their fields, for the settings page.
+const noteTypes = await anki.noteTypes.select("id", "name", "fields").take(100);
+```
+
 ## Try the endpoints
 
 With Anki running, open the [interactive reference](playground.md), search for
