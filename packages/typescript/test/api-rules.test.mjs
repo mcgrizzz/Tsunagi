@@ -14,11 +14,11 @@ test("sync submits with an idempotency key and polls the accepted job without re
     fetch: async (url, init) => {
       calls.push({ url: new URL(url), ...init });
       return init.method === "POST"
-        ? json({ job_id: "sync-1" }, 202)
-        : json({ id: "sync-1", status: "done", result: { status: 0, server_message: "" } });
+        ? json({ job_id: "sync-1", status: "queued", stats: {} }, 202)
+        : json({ id: "sync-1", kind: "sync", stats: {}, status: "done", result: { status: 0, server_message: "" }, error: null });
     },
   });
-  assert.deepEqual(await anki.collection.sync(), { status: 0, server_message: "" });
+  assert.deepEqual(await anki.collection.sync(), { status: 0, serverMessage: "" });
   assert.deepEqual(calls.map(call => [call.method, call.url.pathname]), [
     ["POST", "/v1/collection:sync"], ["GET", "/v1/jobs/sync-1"],
   ]);

@@ -1,56 +1,72 @@
-/** A deliberately small public surface while the server's API rules evolve. */
-export interface Card {
-  id: number;
-  note_id: number;
-  deck_id: number;
-  interval: number;
-  due: number;
-  queue: number;
-  reps: number;
-  lapses: number;
-  deck_name: string;
-  question: string | null;
-  answer: string | null;
-}
+export type {
+  Rows, Card, Note, Review, Deck, NoteType, DeckPreset, Tag, MediaFile, Addon, MemoryState, NoteField, NoteTypeField, CardTemplate,
+  CreatedNote, UpdatedNote, StoredFile, UploadedFile, NoteFailure, UpsertFailure, MediaFailure, AttachmentRef, NoteCheck,
+  VerbReport, SyncResult, Job, JobProgress, Health, CollectionHealth, Caller, Versions, Capabilities, CapabilityState,
+  OperationCapability, Answer, DeckCounts, ErrorBody,
+} from "./generated.js";
+import type { CreatedNote, UpdatedNote } from "./generated.js";
 
-export interface NoteField { name: string; value: string; ord: number }
-export interface Note {
-  id: number;
-  model_id: number;
-  model_name: string;
-  first_field: string;
-  tags: string[];
-  fields: NoteField[];
-}
-
-export type CardSummary = Pick<Card, "id" | "note_id" | "deck_id" | "interval" | "due">;
-export type NoteSummary = Pick<Note, "id" | "model_name" | "first_field" | "tags">;
+/** A deck or note type by its name, or by `{ id }`. */
 export type Reference = string | { readonly id: number };
-export interface NoteInput {
+
+/** A file sent with a note or to the media folder: its bytes, a URL Anki downloads, or a path on Anki's computer. */
+export type FileSource =
+  | { readonly data: Uint8Array; readonly url?: never; readonly path?: never }
+  | { readonly url: string; readonly data?: never; readonly path?: never }
+  | { readonly path: string; readonly data?: never; readonly url?: never };
+export type MediaInput = FileSource & { readonly filename: string };
+/** A file stored with a note; its reference is appended to `fields` (none: stored only). */
+export type Attachment = FileSource & { readonly filename?: string; readonly fields?: readonly string[] };
+export interface NoteFiles {
+  audio?: readonly Attachment[];
+  video?: readonly Attachment[];
+  picture?: readonly Attachment[];
+}
+
+/** How a new note is checked against existing ones. */
+export interface DuplicateCheck {
+  /** Add the note even when it duplicates one. */
+  allow?: boolean;
+  /** Look in the whole collection (default) or in one deck: the note's own, or `deck`. */
+  scope?: "collection" | "deck";
+  deck?: string;
+  includeSubdecks?: boolean;
+  /** Compare with notes of every note type, not just the new note's. */
+  allNoteTypes?: boolean;
+}
+export interface NoteInput extends NoteFiles {
   deck: Reference;
   noteType: Reference;
   fields: Readonly<Record<string, string>>;
   tags?: readonly string[];
+  duplicates?: DuplicateCheck;
 }
-export interface NotePatch {
+export interface NotePatch extends NoteFiles {
+  /** Only the named fields change. */
   fields?: Readonly<Record<string, string>>;
+  /** Replaces the note's tags. */
   tags?: readonly string[];
   addTags?: readonly string[];
   removeTags?: readonly string[];
+  /** Changes the note's type; needs `fields`, since the new type's fields start empty. */
+  noteType?: Reference;
+}
+export type FieldRule = "keep" | "replace" | "replaceIfEmpty" | "append";
+export interface NoteUpsert extends NoteInput {
+  /** The field that identifies the note, compared exactly within the note type. Default: the duplicate check. */
+  matchField?: string;
+  /** Per field when a note matches; "*" for the rest. Default replaceIfEmpty. */
+  fieldRules?: Readonly<Record<string, FieldRule>>;
+  /** union (default) adds the tags, replace sets them, keep leaves them. */
+  tagRule?: "union" | "replace" | "keep";
+  /** Between the old and new value for append. Default <br>. */
+  separator?: string;
 }
 
-/** Receipt returned by creation, not a fetched Note. */
-export interface CreatedNote { id: number }
-export interface ItemFailure {
-  index: number;
-  code: string;
-  message: string;
-  details: Readonly<Record<string, unknown>>;
-}
-export type CreationItem =
-  | { ok: true; index: number; value: CreatedNote }
-  | { ok: false; index: number; error: ItemFailure };
-export interface CreationReport { items: readonly CreationItem[] }
+export type UpsertedNote = ({ action: "created" } & CreatedNote) | ({ action: "updated" } & UpdatedNote);
+/** One submitted item's result: its value, or why the server refused it. */
+export type ItemResult<T, F> = { ok: true; index: number; value: T } | { ok: false; index: number; error: F };
+export interface ItemReport<T, F> { items: readonly ItemResult<T, F>[] }
 
 export interface RequestOptions {
   signal?: AbortSignal | undefined;
@@ -63,29 +79,6 @@ export interface WriteOptions extends RequestOptions {
 /** A keyed submission can recover the same accepted job; waiting only polls it. */
 export type JobStartOptions = WriteOptions;
 
-export type CapabilityStatus = "available" | "disabled" | "unsupported";
-export interface CapabilityState {
-  readonly status: CapabilityStatus;
-  readonly reason: string | null;
-  readonly setting: string | null;
-}
-export interface OperationCapability extends CapabilityState {
-  readonly operation_id: string;
-  readonly options: Readonly<Record<string, CapabilityState>>;
-}
-export interface Capabilities {
-  readonly versions: Readonly<{ api: string; addon: string; anki: string }>;
-  readonly caller: Readonly<{
-    name: string;
-    /** Display name only; use effective operation states to decide availability. */
-    role: string;
-    this_computer: boolean;
-    host: string;
-  }>;
-  readonly operations: Readonly<Record<string, OperationCapability>>;
-  readonly features: Readonly<Record<string, CapabilityState>>;
-}
-export interface SyncResult { status: number; server_message: string }
 export interface WaitOptions extends RequestOptions {
   /** Overall polling deadline, unlike an individual HTTP request timeout. */
   timeoutMs?: number | undefined;
@@ -100,4 +93,10 @@ export interface ClientOptions {
   requestTimeoutMs?: number;
   maxGetUrlLength?: number;
   makeIdempotencyKey?: () => string;
+  /**
+   * Keep access() current from Tsunagi's events, answering from the last
+   * report until it may have changed. On by default; the client then holds a
+   * connection open until close().
+   */
+  keepAccess?: boolean;
 }

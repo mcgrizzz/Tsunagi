@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createServer } from "node:http";
 import {
-  Tsunagi, HttpError, ItemRejectedError, JobFailedError,
-  JobWaitTimeoutError, PartialWriteError, ProtocolError,
-  RequestTimeoutError, TransportError, WriteOutcomeUnknownError,
+  Tsunagi, HttpError, JobFailedError, JobWaitTimeoutError, PartialWriteError,
+  RequestTimeoutError, WriteOutcomeUnknownError,
 } from "../dist/index.js";
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
@@ -29,40 +28,16 @@ function fixture(responses, options = {}) {
   return { anki, calls };
 }
 
-test("take maps a typed query to the existing limit/select/filter contract", async () => {
-  const { anki, calls } = fixture([page([{ id: 1, question: "<b>食べる</b>" }])]);
-  const results = await anki.cards.search("is:due").where("interval", "gte", 30).select("id", "question").take(20);
-  assert.deepEqual(results, [{ id: 1, question: "<b>食べる</b>" }]);
-  assert.equal(calls[0].method, "GET");
-  assert.equal(calls[0].url.pathname, "/proxy/v1/cards");
-  assert.equal(calls[0].url.searchParams.get("limit"), "20");
-  assert.equal(calls[0].url.searchParams.get("select"), "id,question");
-  assert.equal(calls[0].url.searchParams.get("where"), "interval>=30");
-  assert.equal(calls[0].headers.get("X-Api-Key"), "secret-key");
-  assert.equal(calls[0].headers.has("Idempotency-Key"), false);
-  assert.equal(calls[0].url.href.includes("secret-key"), false);
-});
-
 test("queries are lazy and immutable; string filters are quoted and repeated", async () => {
   const { anki, calls } = fixture([page([{ id: 1 }]), page([{ id: 2 }])]);
   const base = anki.cards.select("id");
   const value = 'Japanese "quotes" \\ slash\n猫';
-  const filtered = base.where("deck_name", "eq", value).where("interval", "gt", 1);
+  const filtered = base.where("deckName", "eq", value).where("interval", "gt", 1);
   assert.equal(calls.length, 0);
   await filtered.take(1);
   await base.take(1);
   assert.deepEqual(calls[0].url.searchParams.getAll("where"), [`deck_name==${JSON.stringify(value)}`, "interval>1"]);
   assert.deepEqual(calls[1].url.searchParams.getAll("where"), []);
-});
-
-test("long queries use POST query bodies and never acquire write semantics", async () => {
-  const { anki, calls } = fixture([page([12])], { maxGetUrlLength: 80 });
-  const search = "tag:" + "長".repeat(100);
-  assert.deepEqual(await anki.cards.search(search).values("id").take(1), [12]);
-  assert.equal(calls[0].url.pathname, "/proxy/v1/cards/query");
-  assert.equal(calls[0].method, "POST");
-  assert.equal(calls[0].headers.has("Idempotency-Key"), false);
-  assert.deepEqual(JSON.parse(calls[0].body), { select: "id", where: [], shape: "scalar", search, limit: 1 });
 });
 
 test("page defaults are bounded, cursor/query are retained, end returns null", async () => {
@@ -88,54 +63,8 @@ test("iterate follows an empty page with a cursor and never prefetches after bre
   assert.equal(calls[0].url.searchParams.get("limit"), "100");
 });
 
-test("repeating cursors fail rather than looping forever", async () => {
-  const { anki } = fixture([page([], "same"), page([], "same")]);
-  const first = await anki.cards.select("id").page();
-  await assert.rejects(first.next(), ProtocolError);
-});
-
-test("runtime checks protect JavaScript consumers and invalid combinations", async () => {
-  const { anki, calls } = fixture([]);
-  assert.throws(() => anki.cards.select("__proto__"), TypeError);
-  assert.throws(() => anki.cards.where("interval", "gte", "30"), TypeError);
-  assert.throws(() => anki.cards.where("id", "eq", Number.MAX_SAFE_INTEGER + 1), TypeError);
-  assert.throws(() => anki.notes.values("tags"), TypeError);
-  assert.throws(() => anki.cards.where("question", "contains", "x").distinctOn("note_id"), TypeError);
-  assert.throws(() => anki.cards.distinctOn("note_id").where("question", "eq", "x"), TypeError);
-  await assert.rejects(anki.cards.take(-1), RangeError);
-  assert.deepEqual(await anki.cards.take(0), []);
-  assert.equal(calls.length, 0);
-});
-
-test("projection decoding rejects missing fields, wrong types, and unsafe IDs", async () => {
-  for (const row of [{ id: "1" }, { id: 1 }, { id: Number.MAX_SAFE_INTEGER + 1, question: null }]) {
-    const { anki } = fixture([page([row])]);
-    await assert.rejects(anki.cards.select("id", "question").take(1), ProtocolError);
-  }
-  const { anki } = fixture([page([{ id: 1, question: null }])]);
-  assert.deepEqual(await anki.cards.select("id", "question").take(1), [{ id: 1, question: null }]);
-});
-
-test("one create returns a receipt and uses an automatically generated key", async () => {
-  const { anki, calls } = fixture([json({ created: [{ index: 0, id: 42 }], failed: [] }, 201)]);
-  assert.deepEqual(await anki.notes.create(input()), { id: 42 });
-  assert.deepEqual(JSON.parse(calls[0].body), [{ deck_name: "Japanese", model_name: "Basic", fields: { Front: "食べる", Back: "to eat" } }]);
-  assert.match(calls[0].headers.get("Idempotency-Key"), /^[\w-]+$/);
-  assert.equal(calls.length, 1); // No hidden note fetch.
-});
-
-test("single item failure in a successful HTTP response rejects with useful details", async () => {
-  const failure = { index: 0, code: "duplicate", message: "Already exists", duplicate_note_ids: [123] };
-  const { anki } = fixture([json({ created: [], failed: [failure] }, 201)]);
-  await assert.rejects(anki.notes.create(input()), error => {
-    assert.ok(error instanceof ItemRejectedError);
-    assert.deepEqual(error.failure.details.duplicate_note_ids, [123]);
-    return true;
-  });
-});
-
 test("bulk failures retain successes, restore input order, and support explicit collection", async () => {
-  const response = () => json({ created: [{ index: 2, id: 12 }, { index: 0, id: 10 }], failed: [{ index: 1, code: "invalid", message: "Bad note" }] });
+  const response = () => json({ created: [{ index: 2, id: 12 }, { index: 0, id: 10 }], failed: [{ index: 1, code: "invalid_note", message: "Bad note" }] });
   const { anki, calls } = fixture([response(), response()]);
   await assert.rejects(anki.notes.createMany([input(), input(), input()]), error => {
     assert.ok(error instanceof PartialWriteError);
@@ -146,25 +75,6 @@ test("bulk failures retain successes, restore input order, and support explicit 
   const report = await anki.notes.createMany([input(), input(), input()], { onError: "collect" });
   assert.deepEqual(report.items.map(item => item.ok), [true, false, true]);
   assert.notEqual(calls[0].headers.get("Idempotency-Key"), calls[1].headers.get("Idempotency-Key"));
-});
-
-test("malformed write receipts cannot hide dropped results or invite an unkeyed retry", async () => {
-  const { anki } = fixture([json({ created: [], failed: [] })]);
-  await assert.rejects(anki.notes.create(input(), { idempotencyKey: "saved-edit" }), error => {
-    assert.ok(error instanceof WriteOutcomeUnknownError);
-    assert.equal(error.idempotencyKey, "saved-edit");
-    assert.ok(error.cause instanceof ProtocolError);
-    return true;
-  });
-});
-
-test("PATCH preserves omission and empty values, resolves without re-reading", async () => {
-  const { anki, calls } = fixture([json({ result: true, stats: {} })]);
-  assert.equal(await anki.notes.update(42, { fields: { Back: "" }, addTags: ["new"] }), undefined);
-  assert.equal(calls[0].method, "PATCH");
-  assert.equal(calls[0].url.pathname, "/proxy/v1/notes/42");
-  assert.deepEqual(JSON.parse(calls[0].body), { fields: { Back: "" }, add_tags: ["new"] });
-  assert.equal(calls.length, 1);
 });
 
 test("body is serialized before asynchronous credentials; keys can rotate", async () => {
@@ -223,8 +133,8 @@ test("sync hides 202/polling and returns the same result as immediate completion
   const result = { status: 0, server_message: "", stats: {} };
   const slow = fixture([
     json({ job_id: "abc", status: "running", stats: {} }, 202),
-    json({ id: "abc", status: "running", result: null, error: null }),
-    json({ id: "abc", status: "done", result, error: null }),
+    json({ id: "abc", kind: "sync", stats: {}, status: "running", result: null, error: null }),
+    json({ id: "abc", kind: "sync", stats: {}, status: "done", result, error: null }),
   ]);
   const fast = fixture([json(result)]);
   assert.deepEqual(await slow.anki.collection.sync({ pollIntervalMs: 1 }), await fast.anki.collection.sync());
@@ -236,9 +146,9 @@ test("waiting twice or resuming a wait never submits a new sync", async () => {
   const controller = new AbortController();
   const reason = new Error("leave this screen");
   const { anki, calls } = fixture([
-    json({ job_id: "abc" }, 202),
+    json({ job_id: "abc", status: "queued", stats: {} }, 202),
     () => { controller.abort(reason); return new Promise(() => {}); },
-    json({ id: "abc", status: "done", result: { status: 1, server_message: "done" } }),
+    json({ id: "abc", kind: "sync", stats: {}, status: "done", result: { status: 1, server_message: "done" }, error: null }),
   ]);
   const operation = await anki.collection.startSync();
   assert.equal(operation.abortable, false);
@@ -251,9 +161,9 @@ test("waiting twice or resuming a wait never submits a new sync", async () => {
 
 test("overall wait timeout carries a resumable handle; job failure is distinct", async () => {
   const { anki } = fixture([
-    json({ job_id: "abc" }, 202),
+    json({ job_id: "abc", status: "queued", stats: {} }, 202),
     () => new Promise(() => {}),
-    json({ id: "abc", status: "failed", error: "Sync failed", result: null }),
+    json({ id: "abc", kind: "sync", stats: {}, status: "failed", error: "Sync failed", result: null }),
   ]);
   let operation;
   await assert.rejects(anki.collection.sync({ waitTimeoutMs: 20 }), error => {
@@ -295,8 +205,8 @@ test("real HTTP transport completes the draft workflow against a local protocol 
     if (req.method === "POST" && url.pathname === "/v1/notes") response = { created: [{ id: 7, index: 0 }], failed: [] };
     else if (req.method === "PATCH") response = { result: true, stats: {} };
     else if (url.pathname === "/v1/cards") response = { items: [{ id: 8, question: "hello" }], next_cursor: null, stats: {} };
-    else if (url.pathname === "/v1/collection:sync") { res.statusCode = 202; response = { job_id: "local" }; }
-    else response = { id: "local", status: "done", result: { status: 0, server_message: "" } };
+    else if (url.pathname === "/v1/collection:sync") { res.statusCode = 202; response = { job_id: "local", status: "queued", stats: {} }; }
+    else response = { id: "local", kind: "sync", stats: {}, status: "done", result: { status: 0, server_message: "" }, error: null };
     res.end(JSON.stringify(response));
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));

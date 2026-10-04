@@ -1,4 +1,8 @@
-import type { CreationReport, ItemFailure } from "./types.js";
+import { objectFields } from "./generated.js";
+import type { ItemReport } from "./types.js";
+
+/** What every item failure carries; each write's own type names its codes. */
+export interface ItemFailure { readonly index: number; readonly code: string; readonly message: string }
 
 export class TsunagiError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -11,7 +15,8 @@ export class RequestTimeoutError extends TsunagiError {}
 export class TransportError extends TsunagiError {}
 export class HttpError extends TsunagiError {
   readonly detail: string | undefined;
-  readonly reason: string | undefined;
+  /** On a 503, why Anki can't answer now. */
+  readonly reason: "busy" | "closed" | "syncing" | undefined;
   readonly errors: readonly unknown[] | undefined;
 
   constructor(
@@ -25,7 +30,9 @@ export class HttpError extends TsunagiError {
     const data = typeof body === "object" && body !== null && !Array.isArray(body)
       ? body as Record<string, unknown> : {};
     this.detail = typeof data.detail === "string" ? data.detail : undefined;
-    this.reason = typeof data.reason === "string" ? data.reason : undefined;
+    const reasons: Readonly<Record<string, string | null>> = objectFields.ErrorBody.reason.values;
+    this.reason = typeof data.reason === "string" && Object.hasOwn(reasons, data.reason)
+      ? reasons[data.reason] as HttpError["reason"] : undefined;
     this.errors = Array.isArray(data.errors) ? Object.freeze([...data.errors]) : undefined;
   }
 }
@@ -46,8 +53,8 @@ export class ItemRejectedError extends TsunagiError {
   }
 }
 export class PartialWriteError extends TsunagiError {
-  constructor(readonly report: CreationReport) {
-    super("Some notes were rejected. Inspect the report; successful writes were not rolled back.");
+  constructor(readonly report: ItemReport<unknown, ItemFailure>) {
+    super("Some items were rejected. Inspect the report; successful writes were not rolled back.");
   }
 }
 export class JobFailedError extends TsunagiError {

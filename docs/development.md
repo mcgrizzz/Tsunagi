@@ -108,10 +108,14 @@ Qt checks with this environment active.
   deprecation notice for Tsunagi's own call to an old Anki API (one raised
   inside Anki's own code is only listed).
 - The same workflow tests the TypeScript client (`packages/typescript`): its
-  own tests, including a check that every field and sort it uses is in
-  `tests/snapshots/openapi.json`, then the built client against the real
-  server (`tests/test_typescript_client.py`). An API change that breaks the
-  client fails CI in the same push.
+  own tests, including the shared conformance cases (`packages/spec/cases`,
+  which every client runs; `packages/spec/behavior.md` says what a client does),
+  then the built client against the real server (`tests/test_typescript_client.py`).
+  The client's generated code (`src/generated.ts`: types and tables from
+  `tests/snapshots/openapi.json` and `packages/spec/names.json`) and the
+  cases' JSON (from `packages/spec/cases/source`) aren't in git: `npm run build`
+  and `npm test` make them. An API change that breaks the client fails CI in
+  the same push.
 - The [Anki watch](../.github/workflows/anki-watch.yml) runs daily. When PyPI
   has an Anki release, beta or RC it hasn't tested, it runs the suite and Qt
   checks against it and records the result as an `anki-watch` issue (closed if

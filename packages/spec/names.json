@@ -1,0 +1,149 @@
+{
+  "_": "The client's names (packages/spec/behavior.md, Names and values). Every other wire name becomes the language's case.",
+  "resources": {
+    "/v1/cards": "cards",
+    "/v1/notes": "notes",
+    "/v1/reviews": "reviews",
+    "/v1/decks": "decks",
+    "/v1/models": "noteTypes",
+    "/v1/deck-configs": "deckPresets",
+    "/v1/tags": "tags",
+    "/v1/media": "media",
+    "/v1/addons": "addons"
+  },
+  "keys": {
+    "tags": "name",
+    "media": "filename"
+  },
+  "fields": {
+    "model_name": "noteType",
+    "model_id": "noteTypeId",
+    "did": "deckId",
+    "mod": "modified",
+    "mtime": "modified",
+    "factor": "easeFactor",
+    "left": "stepsLeft",
+    "time_ms": "durationMs"
+  },
+  "fieldsBySchema": {
+    "CardRow": {
+      "ord": "templateIndex"
+    },
+    "ReviewRow": {
+      "ease": "rating"
+    },
+    "NoteField": {
+      "ord": "index"
+    },
+    "ModelField": {
+      "ord": "index"
+    },
+    "ModelTemplate": {
+      "ord": "index"
+    },
+    "CardAnswered": {
+      "ease": "rating",
+      "origin": "by",
+      "client": "app"
+    },
+    "RowsChanged": {
+      "origin": "by",
+      "client": "app"
+    },
+    "RowsStale": {
+      "origin": "by",
+      "client": "app"
+    },
+    "DeckCounts": {
+      "id": "deckId"
+    }
+  },
+  "sortsBySchema": {
+    "CardRow": {
+      "ease": "easeFactor"
+    },
+    "NoteRow": {
+      "ease": "easeFactor"
+    }
+  },
+  "omit": {
+    "*": [
+      "usn",
+      "stats"
+    ],
+    "CardRow": [
+      "flags"
+    ],
+    "ModelRow": [
+      "req",
+      "vers"
+    ],
+    "Health": [
+      "ok",
+      "version"
+    ],
+    "CardAnswered": [
+      "type",
+      "seq",
+      "session_id",
+      "anki"
+    ]
+  },
+  "valueOverrides": {
+    "ReviewRow.ease": {
+      "0": null
+    }
+  },
+  "types": {
+    "cards": "Card",
+    "notes": "Note",
+    "reviews": "Review",
+    "decks": "Deck",
+    "noteTypes": "NoteType",
+    "deckPresets": "DeckPreset",
+    "tags": "Tag",
+    "media": "MediaFile",
+    "addons": "Addon"
+  },
+  "typeNames": {
+    "FsrsMemoryState": "MemoryState",
+    "ModelField": "NoteTypeField",
+    "ModelTemplate": "CardTemplate",
+    "NoteField": "NoteField",
+    "NoteCreated": "CreatedNote",
+    "NoteUpdated": "UpdatedNote",
+    "MediaStored": "StoredFile",
+    "MediaCreated": "UploadedFile",
+    "NoteCreateFailure": "NoteFailure",
+    "NoteUpsertFailure": "UpsertFailure",
+    "MediaCreateFailure": "MediaFailure",
+    "NoteCheckResult": "NoteCheck",
+    "CallerInfo": "Caller",
+    "VerbResult": "VerbReport",
+    "MutationResult_Any_": "MutationResult",
+    "JobInfo": "Job",
+    "CardAnswered": "Answer"
+  },
+  "operations": {
+    "notesCreate": "POST /v1/notes",
+    "notesUpdate": "PATCH /v1/notes/{id}",
+    "notesCheck": "POST /v1/notes:check",
+    "notesUpsert": "POST /v1/notes:upsert",
+    "notesDelete": "POST /v1/notes:delete",
+    "cardsSuspend": "POST /v1/cards:suspend",
+    "cardsUnsuspend": "POST /v1/cards:unsuspend",
+    "cardsBury": "POST /v1/cards:bury",
+    "cardsUnbury": "POST /v1/cards:unbury",
+    "cardsForget": "POST /v1/cards:forget",
+    "cardsSetDueDate": "POST /v1/cards:set-due-date",
+    "cardsChangeDeck": "POST /v1/cards:change-deck",
+    "cardsReposition": "POST /v1/cards:reposition",
+    "cardsSetFlag": "POST /v1/cards:set-flag",
+    "cardsAnswer": "POST /v1/cards:answer",
+    "mediaUpload": "POST /v1/media",
+    "sync": "POST /v1/collection:sync",
+    "job": "GET /v1/jobs/{job_id}",
+    "health": "GET /v1/health",
+    "capabilities": "GET /v1/capabilities"
+  }
+}

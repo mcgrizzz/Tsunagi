@@ -1,7 +1,5 @@
-import { accessOperations } from "./protocol.js";
 import type { Capabilities, CapabilityState } from "./types.js";
 
-export type AccessAction = keyof typeof accessOperations;
 export type AccessBatch<T extends Readonly<Record<string, AccessTarget>>> = Readonly<{
   /** True only when every requested check is available. */
   allowed: boolean;
@@ -28,24 +26,15 @@ export class AccessSnapshot {
 
   get caller(): Capabilities["caller"] { return this.capabilities.caller; }
 
-  check(target: AccessTarget): AccessDecision;
-  /** @deprecated Pass a query or method reference instead. */
-  check(action: AccessAction): AccessDecision;
-  check(target: AccessTarget | AccessAction): AccessDecision {
-    if (typeof target === "string") {
-      if (!Object.hasOwn(accessOperations, target)) throw new TypeError(`Unknown client action: ${target}`);
-      return this.operation(accessOperations[target]);
-    }
+  /** Pass a query or a method, uncalled: `access.check(anki.notes.create)`. */
+  check(target: AccessTarget): AccessDecision {
     const description = describeAccess(target);
     if (description.owner !== this.#owner) throw new TypeError("Access snapshot and target must belong to the same Tsunagi client");
     return this.operation(description.operation);
   }
 
-  can(target: AccessTarget): boolean;
-  /** @deprecated Pass a query or method reference instead. */
-  can(action: AccessAction): boolean;
-  can(target: AccessTarget | AccessAction): boolean {
-    return (typeof target === "string" ? this.check(target) : this.check(target)).allowed;
+  can(target: AccessTarget): boolean {
+    return this.check(target).allowed;
   }
 
   /** All checks are local and use this same snapshot; no operation is executed. */

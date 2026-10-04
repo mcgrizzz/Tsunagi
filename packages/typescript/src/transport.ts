@@ -36,6 +36,8 @@ export class Transport {
   private readonly fetcher: typeof globalThis.fetch;
   private readonly timeout: number;
   readonly maxGetUrlLength: number;
+  /** Told of every 401 or 403 answer (the access cache drops its snapshot). */
+  refused: (() => void) | null = null;
 
   constructor(private readonly options: ClientOptions) {
     this.root = new URL(options.baseUrl);
@@ -62,7 +64,7 @@ export class Transport {
     method: "GET" | "POST" | "PATCH" | "DELETE",
     path: string,
     { body, query, write = false, ...options }: WriteOptions & {
-      body?: unknown; query?: URLSearchParams; write?: false | "keyed" | "unkeyed";
+      body?: unknown; query?: URLSearchParams | undefined; write?: false | "keyed" | "unkeyed";
     } = {},
   ): Promise<JsonResponse> {
     options.signal?.throwIfAborted();
@@ -91,6 +93,7 @@ export class Transport {
       const response = await abortable(this.fetcher(url, init), scope.signal);
       const Failure = response.status === 401 ? AuthenticationError
         : response.status === 403 ? PermissionError : HttpError;
+      if (Failure !== HttpError) this.refused?.();
       const raw = await abortable(response.text(), scope.signal);
       let data: unknown;
       try { data = raw ? JSON.parse(raw) : null; }
@@ -111,6 +114,13 @@ export class Transport {
       if (error instanceof HttpError || error instanceof ProtocolError) throw error;
       throw new TransportError("Could not complete the Tsunagi request", { cause: error });
     } finally { scope.close(); }
+  }
+
+  /** The key for the next request: a provider is asked each time. */
+  async apiKey(signal?: AbortSignal): Promise<string | undefined> {
+    const supplied = this.options.apiKey;
+    const value = typeof supplied === "function" ? supplied() : supplied;
+    return signal ? abortable(Promise.resolve(value), signal) : value;
   }
 
   /** A long-lived text/event-stream body: no deadline; the caller's signal ends it. */

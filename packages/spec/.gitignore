@@ -1,0 +1,2 @@
+# Built by cases/source/build.py (npm test in packages/typescript runs it)
+cases/*.json

@@ -1,14 +1,29 @@
-/** Current HTTP contract. Keep changing endpoint/envelope rules in this module. */
+/**
+ * The HTTP contract: requests through the generated operations, bodies checked
+ * against the server's schemas, answers decoded through the generated tables.
+ * The friendly inputs (types.ts) map onto the wire bodies here.
+ */
+import type { AccessSnapshot } from "./access.js";
+import { decodeAs, deepFreeze, object, wireValue } from "./decode.js";
 import { ProtocolError, WriteOutcomeUnknownError } from "./errors.js";
-import { Transport } from "./transport.js";
-import type { JsonResponse } from "./transport.js";
-import type { Card, CreationItem, CreationReport, Note, NoteField, NoteInput, NotePatch, Reference, RequestOptions, SyncResult, WriteOptions } from "./types.js";
+import type { EventConnection } from "./events.js";
+import { operations, resources } from "./generated.js";
+import type {
+  Answers, Capabilities, CreatedNote, DuplicateScopeOptionsBody, Health, Job, MediaFailure, MediaUploadBody,
+  NoteAttachmentBody, NoteCheck, NoteCreateBody, NoteFailure, NotePatchBody, NoteUpsertBody, Requests, SyncResult,
+  UpdatedNote, UploadedFile, UpsertFailure,
+} from "./generated.js";
+import type { Transport } from "./transport.js";
+import type {
+  Attachment, DuplicateCheck, FileSource, ItemReport, ItemResult, MediaInput, NoteInput, NotePatch,
+  NoteUpsert, Reference, RequestOptions, UpsertedNote, WriteOptions,
+} from "./types.js";
 
-export type Decoder<T> = (value: unknown) => T;
-export function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new ProtocolError("Expected a JSON object");
-  return value as Record<string, unknown>;
-}
+export { object } from "./decode.js";
+export type Operation = keyof typeof operations;
+/** The capabilities report's name for an operation, e.g. `POST /v1/notes`. */
+export const operationName = (operation: Operation) => `${operations[operation].method} ${operations[operation].path}`;
+
 function string(value: unknown): string {
   if (typeof value !== "string") throw new ProtocolError("Expected a string");
   return value;
@@ -26,82 +41,28 @@ export function inputId(value: number): number {
   if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError("ID must be a positive safe integer");
   return value;
 }
-function array<T>(value: unknown, decode: Decoder<T>): T[] {
-  if (!Array.isArray(value)) throw new ProtocolError("Expected an array");
-  return value.map(decode);
-}
-const nullableString = (value: unknown) => value === null ? null : string(value);
-const noteField: Decoder<NoteField> = value => {
-  const row = object(value);
-  return { name: string(row.name), value: string(row.value), ord: number(row.ord) };
-};
 
-export interface Field<T> { decode: Decoder<T>; scalar?: "number" | "string"; column?: boolean }
-export interface Resource<T extends object, Sort extends string> {
-  path: string;
-  fields: { [K in keyof T]: Field<T[K]> };
-  sorts: readonly Sort[];
-}
-export const cards: Resource<Card, "due" | "interval" | "reps" | "lapses"> = {
-  path: "/v1/cards",
-  fields: {
-    id: { decode: id, scalar: "number", column: true },
-    note_id: { decode: id, scalar: "number", column: true },
-    deck_id: { decode: id, scalar: "number", column: true },
-    interval: { decode: number, scalar: "number", column: true },
-    due: { decode: number, scalar: "number", column: true },
-    queue: { decode: number, scalar: "number", column: true },
-    reps: { decode: number, scalar: "number", column: true },
-    lapses: { decode: number, scalar: "number", column: true },
-    deck_name: { decode: string, scalar: "string" },
-    question: { decode: nullableString, scalar: "string" },
-    answer: { decode: nullableString, scalar: "string" },
-  },
-  sorts: ["due", "interval", "reps", "lapses"],
-};
-export const notes: Resource<Note, "id" | "note_modified" | "sort_field"> = {
-  path: "/v1/notes",
-  fields: {
-    id: { decode: id, scalar: "number", column: true },
-    model_id: { decode: id, scalar: "number", column: true },
-    model_name: { decode: string, scalar: "string" },
-    first_field: { decode: string, scalar: "string" },
-    tags: { decode: value => array(value, string) },
-    fields: { decode: value => array(value, noteField) },
-  },
-  sorts: ["id", "note_modified", "sort_field"],
-};
-
-export interface QuerySpec {
-  select: string;
+export interface QueryParams {
+  select?: string;
   shape: "object" | "scalar";
   where: readonly string[];
   search?: string;
   order?: string;
   distinct_on?: string;
+  include?: string;
 }
-export interface WirePage { items: unknown[]; cursor: string | null }
-export interface JobSnapshot {
-  id: string;
-  status: "queued" | "running" | "done" | "failed" | "aborted";
-  result: unknown;
-  error: string | null;
-}
+export interface WirePage { items: unknown[]; cursor: string | null; total: number | null }
 
-const symbols = { eq: "==", ne: "!=", gt: ">", gte: ">=", lt: "<", lte: "<=", contains: "~=" } as const;
-export type FilterOperator = keyof typeof symbols;
-export function filter(field: string, operator: FilterOperator, value: unknown): string {
-  if (!Object.hasOwn(symbols, operator)) throw new TypeError("Unsupported filter operator");
-  if (value !== null && typeof value !== "string" && typeof value !== "number") throw new TypeError("Expected a scalar filter value");
-  if (typeof value === "number" && !Number.isFinite(value)) throw new TypeError("Expected a finite filter value");
-  return `${field}${symbols[operator]}${JSON.stringify(value)}`;
-}
+// ----- Request bodies: client names in, the API's names out -----
 
-function reference(target: Record<string, unknown>, prefix: "deck" | "model", value: Reference): void {
-  if (typeof value === "string" && value.length > 0) target[`${prefix}_name`] = value;
-  else if (value && typeof value === "object" && Object.keys(value).length === 1 && "id" in value) {
-    target[`${prefix}_id`] = inputId(value.id);
-  } else throw new TypeError("Use a nonempty name or an { id } reference");
+function deckRef(value: Reference): { deck_name: string } | { deck_id: number } {
+  if (typeof value === "string" && value.length > 0) return { deck_name: value };
+  if (value && typeof value === "object" && Object.keys(value).length === 1 && "id" in value) return { deck_id: inputId(value.id) };
+  throw new TypeError("Use a nonempty name or an { id } reference");
+}
+function noteTypeRef(value: Reference): { model_name: string } | { model_id: number } {
+  const deck = deckRef(value);
+  return "deck_name" in deck ? { model_name: deck.deck_name } : { model_id: deck.deck_id };
 }
 function fields(value: Readonly<Record<string, string>>): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.values(value).some(v => typeof v !== "string")) {
@@ -109,109 +70,170 @@ function fields(value: Readonly<Record<string, string>>): Record<string, string>
   }
   return Object.fromEntries(Object.entries(value));
 }
-function tags(value: readonly string[]): string[] {
-  if (!Array.isArray(value) || value.some(v => typeof v !== "string")) throw new TypeError("tags must be strings");
+function strings(value: readonly string[], name: string): string[] {
+  if (!Array.isArray(value) || value.some(v => typeof v !== "string")) throw new TypeError(`${name} must be strings`);
   return [...value];
 }
-export function encodeNote(input: NoteInput): Record<string, unknown> {
-  const result: Record<string, unknown> = { fields: fields(input.fields) };
-  reference(result, "deck", input.deck);
-  reference(result, "model", input.noteType);
-  if (input.tags !== undefined) result.tags = tags(input.tags);
-  return result;
+function base64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
 }
-function encodePatch(input: NotePatch): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  if (input.fields !== undefined) result.fields = fields(input.fields);
-  if (input.tags !== undefined) result.tags = tags(input.tags);
-  if (input.addTags !== undefined) result.add_tags = tags(input.addTags);
-  if (input.removeTags !== undefined) result.remove_tags = tags(input.removeTags);
-  return result;
+function source(file: FileSource): { data: string } | { url: string } | { path: string } {
+  const given = (["data", "url", "path"] as const).filter(key => file[key] !== undefined);
+  if (given.length !== 1) throw new TypeError("Give a file exactly one of data, url or path");
+  if (file.data !== undefined) {
+    if (!(file.data instanceof Uint8Array)) throw new TypeError("data must be a Uint8Array");
+    return { data: base64(file.data) };
+  }
+  return given[0] === "url" ? { url: string(file.url) } : { path: string(file.path) };
 }
-
-/** Reject incomplete/duplicate positions so an item can never disappear as a success. */
-export function decodeCreation(value: unknown, count: number): CreationReport {
-  const body = object(value);
-  const items = new Map<number, CreationItem>();
-  const insert = (row: Record<string, unknown>, item: CreationItem) => {
-    if (!Number.isSafeInteger(row.index) || item.index < 0 || item.index >= count || items.has(item.index)) {
-      throw new ProtocolError("Invalid or duplicate creation result index");
-    }
-    items.set(item.index, item);
+type Files = Pick<NoteCreateBody, "audio" | "video" | "picture">;
+function attachments(input: NoteInput | NotePatch): Files {
+  const out: Files = {};
+  for (const kind of ["audio", "video", "picture"] as const) {
+    const list: readonly Attachment[] | undefined = input[kind];
+    if (list === undefined) continue;
+    if (!Array.isArray(list)) throw new TypeError(`${kind} must be a list`);
+    out[kind] = list.map((file): NoteAttachmentBody => ({
+      ...source(file),
+      ...(file.filename === undefined ? {} : { filename: string(file.filename) }),
+      ...(file.fields === undefined ? {} : { fields: strings(file.fields, "fields") }),
+    }));
+  }
+  return out;
+}
+function duplicates(check: DuplicateCheck | undefined): Pick<NoteCreateBody, "allow_duplicate" | "duplicate_scope" | "duplicate_scope_options"> {
+  if (check === undefined) return {};
+  if (check.scope !== undefined && check.scope !== "collection" && check.scope !== "deck") throw new TypeError("scope is collection or deck");
+  const options: DuplicateScopeOptionsBody = {
+    ...(check.deck === undefined ? {} : { deck_name: check.deck }),
+    ...(check.includeSubdecks === undefined ? {} : { check_children: check.includeSubdecks }),
+    ...(check.allNoteTypes === undefined ? {} : { check_all_models: check.allNoteTypes }),
   };
-  for (const row of array(body.created, object)) {
-    insert(row, { ok: true, index: number(row.index), value: { id: id(row.id) } });
-  }
-  for (const row of array(body.failed, object)) {
-    const index = number(row.index);
-    insert(row, { ok: false, index, error: { index, code: string(row.code), message: string(row.message), details: row } });
-  }
-  if (items.size !== count) throw new ProtocolError("Missing creation result for a submitted note");
-  return { items: [...items.values()].sort((a, b) => a.index - b.index) };
+  return {
+    ...(check.allow === undefined ? {} : { allow_duplicate: check.allow }),
+    ...(check.scope === undefined ? {} : { duplicate_scope: check.scope }),
+    ...(Object.keys(options).length ? { duplicate_scope_options: options } : {}),
+  };
 }
+export function encodeNote(input: NoteInput): NoteCreateBody {
+  return {
+    fields: fields(input.fields),
+    ...deckRef(input.deck),
+    ...noteTypeRef(input.noteType),
+    ...(input.tags === undefined ? {} : { tags: strings(input.tags, "tags") }),
+    ...duplicates(input.duplicates),
+    ...attachments(input),
+  };
+}
+function encodePatch(input: NotePatch): NotePatchBody {
+  return {
+    ...(input.fields === undefined ? {} : { fields: fields(input.fields) }),
+    ...(input.tags === undefined ? {} : { tags: strings(input.tags, "tags") }),
+    ...(input.addTags === undefined ? {} : { add_tags: strings(input.addTags, "addTags") }),
+    ...(input.removeTags === undefined ? {} : { remove_tags: strings(input.removeTags, "removeTags") }),
+    ...(input.noteType === undefined ? {} : noteTypeRef(input.noteType)),
+    ...attachments(input),
+  };
+}
+const fieldRules = { keep: "keep", replace: "replace", replaceIfEmpty: "replace_if_empty", append: "append" } as const;
+function encodeUpsert(input: NoteUpsert): NoteUpsertBody {
+  const rules = input.fieldRules === undefined ? undefined : Object.fromEntries(Object.entries(input.fieldRules).map(([name, rule]) => {
+    if (!Object.hasOwn(fieldRules, rule)) throw new TypeError(`Unknown field rule: ${rule}`);
+    return [name, fieldRules[rule]];
+  }));
+  if (input.tagRule !== undefined && !["union", "replace", "keep"].includes(input.tagRule)) throw new TypeError(`Unknown tag rule: ${input.tagRule}`);
+  const onMatch = {
+    ...(rules === undefined ? {} : { fields: rules }),
+    ...(input.tagRule === undefined ? {} : { tags: input.tagRule }),
+    ...(input.separator === undefined ? {} : { separator: string(input.separator) }),
+  };
+  return {
+    ...encodeNote(input),
+    ...(input.matchField === undefined ? {} : { match: { field: string(input.matchField) } }),
+    ...(Object.keys(onMatch).length ? { on_match: onMatch } : {}),
+  };
+}
+export function encodeMedia(input: MediaInput): MediaUploadBody {
+  return { filename: string(input.filename), ...source(input) };
+}
+/** Named values' wire codes, from the generated row description. */
+export const flagCode = (flag: unknown) => wireValue(resources.cards.fields.flag, flag) as number;
+export const ratingCode = (rating: unknown) => {
+  if (rating === null) throw new TypeError("Unknown value: null");
+  return wireValue(resources.reviews.fields.rating, rating) as number;
+};
+
+// ----- Answers -----
+
+/** One result per submitted item, in input order; a missing or repeated index is a protocol error. */
+function items<T, F extends { index: number }>(count: number, lists: readonly (readonly { index: number; value: T }[])[], failed: readonly F[]): ItemReport<T, F> {
+  const results = new Map<number, ItemResult<T, F>>();
+  const insert = (index: number, item: ItemResult<T, F>) => {
+    if (!Number.isSafeInteger(index) || index < 0 || index >= count || results.has(index)) {
+      throw new ProtocolError("Invalid or duplicate item result index");
+    }
+    results.set(index, item);
+  };
+  for (const list of lists) for (const { index, value } of list) insert(index, { ok: true, index, value });
+  for (const error of failed) insert(error.index, { ok: false, index: error.index, error });
+  if (results.size !== count) throw new ProtocolError("Missing result for a submitted item");
+  return { items: [...results.values()].sort((a, b) => a.index - b.index) };
+}
+
 export function decodeSync(value: unknown): SyncResult {
-  const row = object(value);
-  return { status: number(row.status), server_message: string(row.server_message) };
+  return decodeAs<SyncResult>("SyncResult", value);
 }
 
-/** SDK action names share the server's effective operation states. */
-export const accessOperations = {
-  "cards.query": "GET /v1/cards",
-  "notes.query": "GET /v1/notes",
-  "notes.create": "POST /v1/notes",
-  "notes.createMany": "POST /v1/notes",
-  "notes.update": "PATCH /v1/notes/{id}",
-  "collection.sync": "POST /v1/collection:sync",
-  "collection.startSync": "POST /v1/collection:sync",
-} as const;
+// ----- Requests -----
 
-function capabilityState(value: unknown): CapabilityState {
-  const row = object(value);
-  const status = string(row.status);
-  if (status !== "available" && status !== "disabled" && status !== "unsupported") {
-    throw new ProtocolError("Unknown capability status");
-  }
-  return Object.freeze({
-    status,
-    reason: row.reason == null ? null : string(row.reason),
-    setting: row.setting == null ? null : string(row.setting),
-  });
-}
-
-function capabilityMap<T>(value: unknown, decode: Decoder<T>): Readonly<Record<string, T>> {
-  return Object.freeze(Object.fromEntries(Object.entries(object(value)).map(([key, item]) => [key, decode(item)])));
-}
-
-function decodeCapabilities(value: unknown): Capabilities {
-  const row = object(value);
-  const caller = object(row.caller);
-  const versions = object(row.versions);
-  if (typeof caller.this_computer !== "boolean") throw new ProtocolError("Invalid caller location");
-  return Object.freeze({
-    versions: Object.freeze({ api: string(versions.api), addon: string(versions.addon), anki: string(versions.anki) }),
-    caller: Object.freeze({
-      name: string(caller.name), role: string(caller.role),
-      this_computer: caller.this_computer, host: string(caller.host),
-    }),
-    operations: capabilityMap<OperationCapability>(row.operations, value => {
-      const operation = object(value);
-      return Object.freeze({
-        ...capabilityState(operation), operation_id: string(operation.operation_id),
-        options: capabilityMap(operation.options, capabilityState),
-      });
-    }),
-    features: capabilityMap(row.features, capabilityState),
-  });
+interface Call<O extends Operation> {
+  params?: Readonly<Record<string, string | number>>;
+  query?: URLSearchParams | undefined;
+  body?: Requests[O];
+  options: WriteOptions;
 }
 
 export class DraftProtocol {
+  /** The client's event connection, for watches and listeners. */
+  connection!: EventConnection;
+  /** The client's access(), kept current: listeners check their events option with it. */
+  access!: () => Promise<AccessSnapshot>;
   constructor(readonly transport: Transport) {}
 
-  async capabilities(options: RequestOptions): Promise<Capabilities> {
-    return decodeCapabilities((await this.transport.request("GET", "/v1/capabilities", options)).data);
+  /**
+   * One operation, its answer decoded by status, then `then` applied to it.
+   * A write is keyed; an answer it can't use (a decoding error, a bad item
+   * report) leaves the outcome unknown, with the key.
+   */
+  private async call<O extends Operation, T>(operation: O, { params = {}, query, body, options }: Call<O>,
+    then: (status: number, value: Answers[O][keyof Answers[O]]) => T): Promise<T> {
+    const { method, path, answers } = operations[operation];
+    const url = path.replace(/\{(\w+)\}/g, (_, name: string) => encodeURIComponent(String(params[name])));
+    const write = method !== "GET" && operation !== "notesCheck" ? "keyed" as const : false as const;
+    const response = await this.transport.request(method, url, {
+      ...options, write, query, ...(body === undefined ? {} : { body }),
+    });
+    try {
+      const type = (answers as Readonly<Record<string, string | null>>)[String(response.status)];
+      if (type === undefined) throw new ProtocolError(`Unexpected status ${response.status}`);
+      const value = type === null ? response.data : decodeAs(type as Parameters<typeof decodeAs>[0], response.data);
+      return then(response.status, deepFreeze(value) as Answers[O][keyof Answers[O]]);
+    } catch (error) {
+      if (write) throw new WriteOutcomeUnknownError(response.idempotencyKey, error);
+      throw error;
+    }
   }
 
-  async query(path: string, spec: QuerySpec, limit: number, cursor: string | null, options: RequestOptions): Promise<WirePage> {
+  capabilities(options: RequestOptions): Promise<Capabilities> {
+    return this.call("capabilities", { options }, (_, value) => value);
+  }
+  health(options: RequestOptions): Promise<Health> {
+    return this.call("health", { options }, (_, value) => value);
+  }
+
+  async query(path: string, spec: QueryParams, limit: number, cursor: string | null, options: RequestOptions): Promise<WirePage> {
     const body = { ...spec, limit, ...(cursor === null ? {} : { cursor }) };
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(body)) {
@@ -225,42 +247,59 @@ export class DraftProtocol {
     if (!Array.isArray(data.items) || data.items.length > limit) throw new ProtocolError("Invalid page items or result limit exceeded");
     const next = data.next_cursor ?? null;
     if (next !== null && (typeof next !== "string" || !next)) throw new ProtocolError("Invalid next_cursor");
-    return { items: data.items, cursor: next };
+    const total = data.total == null ? null : number(data.total);
+    return { items: data.items, cursor: next, total };
   }
 
-  async create(input: readonly NoteInput[], options: WriteOptions): Promise<CreationReport> {
-    return this.write("POST", "/v1/notes", { ...options, body: input.map(encodeNote), write: "keyed" }, response => decodeCreation(response.data, input.length));
+  createNotes(input: readonly NoteInput[], include: readonly string[], options: WriteOptions): Promise<ItemReport<CreatedNote, NoteFailure>> {
+    return this.call("notesCreate", { query: withInclude(include), body: input.map(encodeNote), options },
+      (_, value) => items(input.length, [value.created.map(note => ({ index: note.index, value: note }))], value.failed));
   }
-
-  async update(noteId: number, input: NotePatch, options: WriteOptions): Promise<void> {
-    return this.write("PATCH", `/v1/notes/${inputId(noteId)}`, { ...options, body: encodePatch(input), write: "keyed" }, response => {
-      if (!Object.hasOwn(object(response.data), "result")) throw new ProtocolError("Missing mutation result");
+  async updateNote(noteId: number, input: NotePatch, options: WriteOptions): Promise<void> {
+    await this.call("notesUpdate", { params: { id: inputId(noteId) }, body: encodePatch(input), options }, () => undefined);
+  }
+  upsertNotes(input: readonly NoteUpsert[], include: readonly string[], options: WriteOptions): Promise<ItemReport<UpsertedNote, UpsertFailure>> {
+    return this.call("notesUpsert", { query: withInclude(include), body: input.map(encodeUpsert), options },
+      (_, value) => items<UpsertedNote, UpsertFailure>(input.length, [
+        value.created.map((note: CreatedNote) => ({ index: note.index, value: { action: "created" as const, ...note } })),
+        value.updated.map((note: UpdatedNote) => ({ index: note.index, value: { action: "updated" as const, ...note } })),
+      ], value.failed));
+  }
+  checkNotes(input: readonly NoteInput[], include: readonly string[], options: RequestOptions): Promise<NoteCheck[]> {
+    return this.call("notesCheck", { query: withInclude(include), body: { notes: input.map(encodeNote) }, options }, (_, value) => {
+      if (value.results.length !== input.length || value.results.some((row, i) => row.index !== i)) {
+        throw new ProtocolError("Note checks do not match the request");
+      }
+      return value.results;
     });
   }
+  uploadMedia(input: readonly MediaInput[], options: WriteOptions): Promise<ItemReport<UploadedFile, MediaFailure>> {
+    return this.call("mediaUpload", { body: input.map(encodeMedia), options },
+      (_, value) => items(input.length, [value.created.map(file => ({ index: file.index, value: file }))], value.failed));
+  }
+  /** A verb on a set of rows: how many it changed. */
+  verb<O extends "notesDelete" | Extract<Operation, `cards${string}`>>(operation: O, body: Requests[O], options: WriteOptions): Promise<{ affected: number }> {
+    return this.call(operation, { body, options }, (_, value) => ({ affected: (value as { affected: number }).affected }));
+  }
 
-  async startSync(options: import("./types.js").JobStartOptions): Promise<{ jobId: string } | { result: SyncResult }> {
-    return this.write("POST", "/v1/collection:sync", { ...options, write: "keyed" }, response => {
-      if (response.status === 202) {
-        const jobId = string(object(response.data).job_id);
+  startSync(options: WriteOptions): Promise<{ jobId: string } | { result: SyncResult }> {
+    return this.call("sync", { options }, (status, value) => {
+      if (status === 202) {
+        const { jobId } = value as Answers["sync"][202];
         if (!jobId) throw new ProtocolError("Missing job ID");
         return { jobId };
       }
-      return { result: decodeSync(response.data) };
+      return { result: value as SyncResult };
     });
   }
-
-  private async write<T>(method: "POST" | "PATCH", path: string, options: WriteOptions & { body?: unknown; write: "keyed" | "unkeyed" }, decode: (response: JsonResponse) => T): Promise<T> {
-    const response = await this.transport.request(method, path, options);
-    try { return decode(response); }
-    catch (error) { throw new WriteOutcomeUnknownError(response.idempotencyKey, error); }
-  }
-
-  async getJob(jobId: string, options: RequestOptions): Promise<JobSnapshot> {
-    const response = await this.transport.request("GET", `/v1/jobs/${encodeURIComponent(jobId)}`, options);
-    const row = object(response.data);
-    const status = string(row.status);
-    if (row.id !== jobId || !["queued", "running", "done", "failed", "aborted"].includes(status)) throw new ProtocolError("Invalid job identity or status");
-    return { id: jobId, status: status as JobSnapshot["status"], result: row.result, error: row.error == null ? null : string(row.error) };
+  getJob(jobId: string, options: RequestOptions): Promise<Job> {
+    return this.call("job", { params: { job_id: jobId }, options }, (_, value) => {
+      if (value.id !== jobId) throw new ProtocolError("Invalid job identity");
+      return value;
+    });
   }
 }
-import type { Capabilities, CapabilityState, OperationCapability } from "./types.js";
+
+function withInclude(include: readonly string[]): URLSearchParams | undefined {
+  return include.length ? new URLSearchParams({ include: include.join(",") }) : undefined;
+}
