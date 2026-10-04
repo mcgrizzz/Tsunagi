@@ -5,20 +5,30 @@ field names, named values instead of Anki's codes, and writes that are keyed,
 never retried by themselves, and report each item. No runtime dependencies
 (Fetch, AbortSignal, Web Crypto); runs in browsers and Node.
 
-Not published yet. Its version is the add-on's: each Tsunagi release ships the
-client it was tested against, and Tsunagi's CI checks it against the real
-server on every push.
+**Not on npm yet.** For now you build it from this repository. Its version
+is the add-on's: each Tsunagi release ships the client it was tested against,
+and Tsunagi's CI checks it against the real server on every push.
 
-## Try it
+New to Tsunagi's API? [Build your first integration](../../docs/getting_started.md)
+shows the requests this client sends.
+
+## Build it from this repository
+
+Needs Node:
 
 ```sh
-npm install
-npm test
+cd packages/typescript
+npm install      # the build's own tools; this doesn't install the client anywhere
+npm run build    # generates the code from Tsunagi's API description and writes dist/
 ```
 
-Building needs Node and Python 3 (the shared test cases are built with it).
+`npm test` builds it and runs every test; it also needs Python 3, which builds
+the shared test cases.
 
-Then import `dist/index.js`.
+To use it in an app before it's published, install this folder there,
+`npm install <path to Tsunagi>/packages/typescript`, and import it by its
+current package name, `@tsunagi/client-draft`, which may change before it's
+published. Run `npm run build` again after you update the repository.
 
 ## Example
 

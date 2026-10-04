@@ -1,6 +1,10 @@
-# How Tsunagi simplifies a Yomitan integration
+# Yomitan case study
 
-[← Documentation](README.md) · [Install Tsunagi](../README.md#install)
+[← Documentation](README.md) · [Install Tsunagi](../README.md#install) ·
+New to the API? [Build your first integration](getting_started.md) first.
+
+A real AnkiConnect integration, request by request, and what the Tsunagi API
+changes.
 
 You look up **食べる** in Yomitan. The popup needs to know whether you've saved it
 before, which note to open if you have, and which cards were created if you save
@@ -148,9 +152,10 @@ const noteTypes = await anki.noteTypes.select("id", "name", "fields").take(100);
 
 ## Try the endpoints
 
-With Anki running, open the [interactive reference](playground.md), search for
-a path above and click **Test Request**; it has every request and response
-format. [Creating notes](creating_notes.md) covers single notes, batches and
+Every request and response format is in the
+[API reference](https://mcgrizzz.github.io/Tsunagi/). To send them, open the
+[interactive reference](playground.md) in Anki, search for a path above and
+click **Test Request**. [Creating notes](creating_notes.md) covers single notes, batches and
 failures. Try creating and suspending in a throwaway profile.
 
 <details>

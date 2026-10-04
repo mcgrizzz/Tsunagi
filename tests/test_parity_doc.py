@@ -76,7 +76,7 @@ def test_header_counts_match_the_table(rows):
     counts = {status: sum(1 for _n, s, _x in rows if s == status)
               for status in VALID_STATUSES}
     for label, status in (("Implemented", "implemented"),
-                          ("Planned (M6)", "M6"),
+                          ("Planned", "M6"),
                           ("Out of scope", "out-of-scope")):
         stated = re.search(rf"\| {re.escape(label)} \| \*\*(\d+)\*\* \|", text)
         assert stated, f"summary row for {label!r} not found"

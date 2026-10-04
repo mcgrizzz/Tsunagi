@@ -1,6 +1,6 @@
 # Developing Tsunagi
 
-[← Back to the README](../README.md) · [Yomitan walkthrough](api_recipes.md)
+[← Back to the README](../README.md) · [Documentation](README.md)
 
 For working on the add-on itself. To build a tool that uses Tsunagi, start
 with the [Yomitan walkthrough](api_recipes.md) instead. Commands run from the
@@ -195,6 +195,14 @@ The [Release workflow](../.github/workflows/release.yml):
 - A tag must point at the commit that was tested. A newer `main` needs a new
   version, not the old tag.
 - It uses GitHub's built-in token; no secret needed.
+- Publishing a release also publishes its API reference to GitHub Pages
+  (<https://mcgrizzz.github.io/Tsunagi/>), through the
+  [API reference workflow](../.github/workflows/api-reference.yml): the local
+  reference page, read-only, over that release's API description. Run the
+  workflow by hand with a tag to publish an earlier release's. To see it
+  locally: `python tools/build_api_reference.py --version 0.6.0`, then
+  `python -m http.server -d site`. It needs **Settings → Pages → Source:
+  GitHub Actions** once.
 - The browser check isn't part of CI; run it [before tagging](#tests).
 
 ## Code organization

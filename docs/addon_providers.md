@@ -1,5 +1,7 @@
 # Offer your add-on's actions through Tsunagi
 
+[← Documentation](README.md)
+
 Let apps run what your add-on's menu items do, with parameters in place of
 dialogs. Your add-on registers as a **provider**. It doesn't import Tsunagi,
 and nothing happens if Tsunagi isn't installed.

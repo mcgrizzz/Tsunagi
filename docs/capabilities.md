@@ -1,5 +1,7 @@
 # Tsunagi API discovery
 
+[← Documentation](README.md) · [Build your first integration](getting_started.md)
+
 `GET /v1/capabilities` reports which Tsunagi API operations your app can use
 right now, and why it can't use the others.
 

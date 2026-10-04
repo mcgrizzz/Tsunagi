@@ -1,0 +1,49 @@
+name: API reference
+
+# Publishes a release's API reference to GitHub Pages
+# (https://mcgrizzz.github.io/Tsunagi/): the add-on's local reference page,
+# read-only, over that release's API description (tools/build_api_reference.py).
+# Runs when a release is published; run it by hand to publish an earlier
+# release's. Needs Settings -> Pages -> Source: GitHub Actions.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, such as v0.6.0
+        required: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Build the reference from the release's API description
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          git show "$TAG:tests/snapshots/openapi.json" > "$RUNNER_TEMP/openapi.json"
+          python3 tools/build_api_reference.py --version "${TAG#v}" \
+            --snapshot "$RUNNER_TEMP/openapi.json" --out site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5

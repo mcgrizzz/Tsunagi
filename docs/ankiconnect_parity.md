@@ -1,5 +1,7 @@
 # AnkiConnect compatibility
 
+[← Documentation](README.md) · [Switch from AnkiConnect](../README.md#replace-ankiconnect)
+
 Tsunagi answers AnkiConnect's protocol at `POST /`, so tools built for
 AnkiConnect, such as Yomitan and asbplayer, should generally work without
 changes beyond pointing them at Tsunagi's port (or importing AnkiConnect's
@@ -12,7 +14,7 @@ Tsunagi handles it.
 | --- | --- |
 | Actions upstream | **122** |
 | Implemented | **122** |
-| Planned (M6) | **0** |
+| Planned | **0** |
 | Out of scope | **0** |
 
 ## Differences you might notice

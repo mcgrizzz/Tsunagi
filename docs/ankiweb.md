@@ -58,7 +58,7 @@ Tsunagi (繋ぎ, “connection”) connects Anki Desktop to dictionary tools, mi
 * Undo changes made through the API with **Edit → Undo**
 * Try every request in the interactive API reference
 
-After installing, restart Anki and open **Tools → Tsunagi Settings**. Coming from AnkiConnect? Tsunagi can take over, and all your existing integrations will keep working.
+After installing, restart Anki and open **Tools → Tsunagi Settings**. Coming from AnkiConnect? Tsunagi can take over its port, key and allowed websites, and your existing tools generally keep working as they are.
 
 > **Experimental.** Supports Anki 26.08 and 26.09. The Tsunagi API still changes quickly; the AnkiConnect side stays stable.
 

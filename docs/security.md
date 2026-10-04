@@ -1,5 +1,7 @@
 # Security model
 
+[← Documentation](README.md) · [Settings reference](../config.md)
+
 What Tsunagi protects, from whom, how, and where the gaps are. Findings marked
 **verified** were checked against the code or with real requests. Last
 reviewed 2026-10-03 against Tsunagi 0.5.1 and Anki 26.09.
