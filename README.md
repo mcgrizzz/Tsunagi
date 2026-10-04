@@ -9,7 +9,7 @@
 </p>
 
 Tsunagi (繋ぎ, “connection”) is an Anki desktop add-on that can take over from
-AnkiConnect and gives new integrations a richer HTTP API.
+AnkiConnect while giving new integrations a richer HTTP API.
 
 ### Already use AnkiConnect?
 
