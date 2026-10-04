@@ -13,7 +13,7 @@ def test_the_documented_sorts_are_this_ankis(col):
 def test_the_api_description_lists_them(client):
     paths = client.get("/openapi.json").json()["paths"]
     def sorts(path):
-        order = next(p for p in paths[path]["get"]["parameters"] if p["name"] == "order")
+        order = next(p for p in paths[path]["get"]["parameters"] if p.get("name") == "order")
         return order["schema"]["x-sorts"]
     assert sorts("/v1/cards") == list(sorting.CARD_SORTS)
     assert sorts("/v1/notes") == list(sorting.NOTE_SORTS)

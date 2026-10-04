@@ -133,15 +133,17 @@ def openapi_with_auth():
             for method, operation in operations.items():
                 if method in {"get", "post", "put", "patch", "delete", "head", "options"}:
                     operation["security"] = [{"ApiKey": []}, {"BearerAuth": []}]
-    # Every write takes an Idempotency-Key (6.74); say so on each (6.103).
-    # Reads sent as POST (`/query`) don't need one.
+    # Every write takes an Idempotency-Key (6.74); say so on each (6.103),
+    # defined once and referred to. Reads sent as POST (`/query`) don't need one.
+    key = {"$ref": "#/components/parameters/IdempotencyKey"}
+    schema["components"].setdefault("parameters", {})["IdempotencyKey"] = {
+        "name": "Idempotency-Key", "in": "header", "required": False,
+        "description": IDEMPOTENCY_HELP, "schema": {"type": "string"}}
     for path, operations in schema["paths"].items():
         for method, operation in operations.items():
             if method in {"post", "put", "patch", "delete"} and not path.endswith("/query"):
-                parameters = operation.setdefault("parameters", [])
-                if not any(p.get("name") == "Idempotency-Key" for p in parameters):
-                    parameters.append({"name": "Idempotency-Key", "in": "header", "required": False,
-                                       "description": IDEMPOTENCY_HELP, "schema": {"type": "string"}})
+                parameters = [p for p in operation.get("parameters", []) if p.get("name") != "Idempotency-Key"]
+                operation["parameters"] = [*parameters, key] if key not in parameters else parameters
     # 422 bodies: `detail` is a string like every error's, and FastAPI's list
     # of problems is in `errors` (register_exception_handlers).
     validation = schema.get("components", {}).get("schemas", {}).get("HTTPValidationError")
@@ -152,17 +154,87 @@ def openapi_with_auth():
         validation["required"] = ["detail", "errors"]
     from .http.v1.events import describe_events
     describe_events(schema)
-    # Every error has the same shape (6.105): say so once, as each operation's default answer.
+    # Every error has the same shape (6.105): said once, as each operation's default answer.
     schema["components"]["schemas"].setdefault("ErrorBody", ErrorBody.schema())
+    schema["components"].setdefault("responses", {})["Error"] = {
+        "description": "An error: `detail` says what went wrong; on a 503, `reason` says why Anki can't answer now",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorBody"}}}}
     for operations in schema["paths"].values():
         for method, operation in operations.items():
             if method in {"get", "post", "put", "patch", "delete"}:
-                operation.setdefault("responses", {}).setdefault("default", {
-                    "description": "An error: `detail` says what went wrong; on a 503, `reason` says why "
-                                   "Anki can't answer now",
-                    "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorBody"}}}})
+                operation.setdefault("responses", {})["default"] = {"$ref": "#/components/responses/Error"}
     _show_field_names(schema.get("components", {}).get("schemas", {}))
+    _drop_titles(schema)
+    _share_repeats(schema)
     return schema
+
+
+def _share_repeats(spec: dict) -> None:
+    """A parameter or answer that several operations spell out the same way (a
+    list's `limit`, a 422) is defined once in components and referred to."""
+    import json
+
+    def share(kind: str, entries: list, name_of) -> None:
+        found: dict = {}
+        for holder, key, value in entries:
+            if "$ref" not in value:
+                found.setdefault(json.dumps(value, sort_keys=True), []).append((holder, key, value))
+        store = spec["components"].setdefault(kind, {})
+        for same in found.values():
+            if len(same) < 2:
+                continue
+            name = name_of(same[0][1], same[0][2])
+            while name in store and store[name] != same[0][2]:
+                name += "_"
+            store[name] = same[0][2]
+            for holder, key, _ in same:
+                holder[key] = {"$ref": f"#/components/{kind}/{name}"}
+
+    parameters, responses = [], []
+    for operations in spec["paths"].values():
+        for operation in operations.values():
+            if not isinstance(operation, dict):
+                continue
+            for i, parameter in enumerate(operation.get("parameters", [])):
+                if "$ref" not in parameter and parameter.get("description") == parameter.get("schema", {}).get("description"):
+                    parameter["schema"].pop("description", None)  # said once, on the parameter
+                parameters.append((operation["parameters"], i, parameter))
+            for status, response in operation.get("responses", {}).items():
+                if not status.startswith("2"):   # an operation's own answers stay with it
+                    responses.append((operation["responses"], status, response))
+    share("parameters", parameters, lambda _, p: f"{p['in']}.{p['name']}")
+    share("responses", responses, lambda status, _: {"422": "ValidationFailed"}.get(status, f"Status{status}"))
+
+
+def _drop_titles(spec: dict) -> None:
+    """Pydantic titles every schema and field ("Deck Name"); nothing reads them,
+    and they were a tenth of the description. The field names and descriptions say it."""
+    def strip(node: Any) -> None:
+        if isinstance(node, list):
+            for item in node:
+                strip(item)
+        elif isinstance(node, dict):
+            if isinstance(node.get("title"), str):
+                del node["title"]
+            for key, value in node.items():
+                if key == "properties" and isinstance(value, dict):
+                    for field in value.values():   # field names, not schema keywords
+                        strip(field)
+                elif key in ("items", "additionalProperties", "not", "anyOf", "allOf", "oneOf", "schema"):
+                    strip(value)
+    for component in spec.get("components", {}).get("schemas", {}).values():
+        strip(component)
+    for operations in spec["paths"].values():
+        for operation in operations.values():
+            if not isinstance(operation, dict):
+                continue
+            for parameter in operation.get("parameters", []):
+                strip(parameter)
+            for content in operation.get("requestBody", {}).get("content", {}).values():
+                strip(content)
+            for response in operation.get("responses", {}).values():
+                for content in response.get("content", {}).values():
+                    strip(content)
 
 
 def _models(cls):

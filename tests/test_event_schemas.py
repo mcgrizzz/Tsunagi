@@ -68,7 +68,7 @@ def test_x_from_names_resources(client):
     spec = client.get("/openapi.json").json()
     resources = {"notes", "cards", "decks", "models", "tags", "reviews"}
     named = [name for path in ("/v1/cards", "/v1/notes", "/v1/reviews")
-             for p in spec["paths"][path]["get"]["parameters"] if p["name"] == "search"
+             for p in spec["paths"][path]["get"]["parameters"] if p.get("name") == "search"
              for name in p["schema"]["x-from"]]
     named += [name for schema in spec["components"]["schemas"].values()
               for field in schema.get("properties", {}).values() for name in field.get("x-from", [])]

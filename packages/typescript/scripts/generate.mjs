@@ -12,6 +12,9 @@ const names = JSON.parse(readFileSync(here("../../spec/names.json"), "utf8"));
 const schemas = api.components.schemas;
 const target = here("../src/generated.ts");
 
+/** An entry that may be a reference into components (a shared parameter). */
+const resolve = node => node?.$ref ? node.$ref.split("/").slice(1).reduce((at, key) => at[key], api) : node;
+const parametersOf = operation => (operation.parameters ?? []).map(resolve);
 const camel = name => name.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 const ref = node => node?.$ref?.split("/").pop();
 const clientName = (schema, wire) => names.fieldsBySchema[schema]?.[wire] ?? names.fields[wire] ?? camel(wire);
@@ -150,14 +153,14 @@ for (const [path, name] of Object.entries(names.resources)) {
   const row = ref(schemas[page].properties.items.items);
   const fields = fieldsOf(row);
   const type = names.types[name];
-  const order = (get.parameters ?? []).find(p => p.name === "order");
+  const order = parametersOf(get).find(p => p.name === "order");
   const sorts = (order?.schema?.["x-sorts"] ?? []).filter(wire => !omitted(row, wire))
     .map(wire => [sortName(row, wire), wire]);
   unique(`sorts of ${path}`, sorts.map(([client]) => client));
   const key = names.keys[name] ?? "id";
   if (!fields.some(f => f.name === key)) throw new Error(`${name} has no key field ${key}`);
   // A search's x-from: the resources whose changes can change what it matches. null: no search.
-  const searchParameter = (get.parameters ?? []).find(p => p.name === "search");
+  const searchParameter = parametersOf(get).find(p => p.name === "search");
   const search = searchParameter ? JSON.stringify({ from: searchParameter.schema?.["x-from"] ?? [] }) : "null";
   out.push(interfaceFor(type, fields), "");
   rows.push(`  ${name}: ${type};`);

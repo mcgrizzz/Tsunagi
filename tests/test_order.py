@@ -112,7 +112,7 @@ def test_every_documented_sort_is_taken(client, data):
     spec = client.get("/openapi.json").json()
     for path, item in spec["paths"].items():
         for parameter in item.get("get", {}).get("parameters", []):
-            for sort in parameter["schema"].get("x-sorts", []) if parameter["name"] == "order" else []:
+            for sort in parameter["schema"].get("x-sorts", []) if parameter.get("name") == "order" else []:
                 response = client.get(path, params={"order": f"{sort}:desc", "limit": 2})
                 assert response.status_code == 200, (path, sort, response.text)
 

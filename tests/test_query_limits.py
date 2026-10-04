@@ -7,6 +7,8 @@ from tsunagi.shared.pagination import encode_cursor, paginate_keyset
 from tsunagi.shared.route_factory import _paged_scan
 from tsunagi.shared.schemas.wrappers import QueryRequest
 
+from .test_openapi_field_names import parameters
+
 
 @pytest.mark.parametrize("method", ["GET", "POST"])
 def test_query_limit_still_rejects_a_negative_value(client, method):
@@ -27,7 +29,7 @@ def test_query_limit_discovery_has_no_numeric_default_or_maximum(client):
     schema = client.get("/openapi.json").json()
     limits = [schema["components"]["schemas"]["QueryRequest"]["properties"]["limit"]]
     for path in ("/v1/cards", "/v1/notes", "/v1/models", "/v1/decks", "/v1/reviews", "/v1/media"):
-        limits.append(next(p["schema"] for p in schema["paths"][path]["get"]["parameters"]
+        limits.append(next(p["schema"] for p in parameters(schema, schema["paths"][path]["get"])
                            if p["name"] == "limit"))
     for path, limit in zip(("QueryRequest", "/v1/cards", "/v1/notes", "/v1/models", "/v1/decks",
                             "/v1/reviews", "/v1/media"), limits):

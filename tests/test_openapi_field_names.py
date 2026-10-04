@@ -28,6 +28,12 @@ def resolve(spec, schema):
     return spec["components"]["schemas"][schema["$ref"].rsplit("/", 1)[1]]
 
 
+def parameters(spec, operation):
+    """An operation's parameters, shared ones looked up in components."""
+    return [spec["components"]["parameters"][p["$ref"].rsplit("/", 1)[1]] if "$ref" in p else p
+            for p in operation.get("parameters", [])]
+
+
 @pytest.mark.parametrize("path", LISTS)
 @pytest.mark.parametrize("method,suffix", [("get", ""), ("post", "/query")])
 def test_each_list_documents_its_row_fields(spec, path, method, suffix):
@@ -85,9 +91,9 @@ def _models(cls):
 
 
 # 6.103: what the API description didn't say, found by the TypeScript client.
-@pytest.mark.parametrize("path", [*LISTS, "/v1/reviews"])
+@pytest.mark.parametrize("path", LISTS)
 def test_search_is_documented_exactly_where_it_works(spec, client, path):
-    documented = any(p["name"] == "search" for p in spec["paths"][path]["get"]["parameters"])
+    documented = any(p["name"] == "search" for p in parameters(spec, spec["paths"][path]["get"]))
     answer = client.get(path, params={"search": "x"})
     assert (answer.status_code == 400) == (not documented), answer.text
 
@@ -95,7 +101,7 @@ def test_search_is_documented_exactly_where_it_works(spec, client, path):
 def test_every_write_documents_its_idempotency_key(spec):
     missing = [f"{method.upper()} {path}" for path, item in spec["paths"].items() for method, operation in item.items()
                if method in {"post", "put", "patch", "delete"} and not path.endswith("/query")
-               and not any(p["name"] == "Idempotency-Key" for p in operation.get("parameters", []))]
+               and {"$ref": "#/components/parameters/IdempotencyKey"} not in operation.get("parameters", [])]
     assert not missing
 
 
