@@ -119,8 +119,8 @@ request by request, on the Tsunagi API.
 ### TypeScript client
 
 Field names and values checked as you type, and queries that stay current as
-Anki changes. **Not on npm yet**; for now,
-[build it from this repository](packages/typescript/README.md#install).
+Anki changes. Install it with `npm install tsunagi-client`
+([npm](https://www.npmjs.com/package/tsunagi-client)).
 
 ```ts
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777" });

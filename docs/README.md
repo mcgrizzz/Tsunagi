@@ -30,7 +30,7 @@ To install Tsunagi and connect your tools, start with the
 - [Yomitan case study](api_recipes.md): a real AnkiConnect integration, request
   by request, and what the Tsunagi API changes.
 - [TypeScript client](../packages/typescript/README.md): typed queries, writes
-  and watching, built from this repository.
+  and watching; `npm install tsunagi-client`.
 - [Add-on providers](addon_providers.md): offer your add-on's actions to apps
   through Tsunagi.
 

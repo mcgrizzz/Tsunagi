@@ -1,8 +1,23 @@
 {
-  "name": "@tsunagi/client-draft",
+  "name": "tsunagi-client",
   "version": "0.6.0",
-  "private": true,
-  "description": "Experimental TypeScript client for Tsunagi; API subject to change",
+  "description": "Typed client for Tsunagi, the Anki add-on's HTTP API: queries, writes and live updates",
+  "keywords": [
+    "anki",
+    "tsunagi",
+    "ankiconnect",
+    "flashcards",
+    "spaced-repetition",
+    "fsrs"
+  ],
+  "homepage": "https://github.com/mcgrizzz/Tsunagi/tree/main/packages/typescript#readme",
+  "bugs": "https://github.com/mcgrizzz/Tsunagi/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mcgrizzz/Tsunagi.git",
+    "directory": "packages/typescript"
+  },
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -13,14 +28,20 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "generate": "node scripts/generate.mjs",
     "cases": "python3 ../spec/cases/source/build.py",
-    "build": "npm run generate && tsc -p tsconfig.json",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && npm run generate && tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.check.json",
-    "test": "npm run cases && npm run build && npm run check && node --test test/*.test.mjs"
+    "test": "npm run cases && npm run build && npm run check && node --test test/*.test.mjs",
+    "prepublishOnly": "npm test"
   },
   "devDependencies": {
     "typescript": "7.0.2"

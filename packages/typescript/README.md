@@ -1,32 +1,36 @@
 # Tsunagi TypeScript client
 
-A typed client for [Tsunagi](../../README.md)'s API: queries with checked
+A typed client for [Tsunagi](https://github.com/mcgrizzz/Tsunagi/blob/main/README.md)'s API: queries with checked
 field names, named values instead of Anki's codes, and writes that are keyed,
 never retried by themselves, and report each item. No runtime dependencies
 (Fetch, AbortSignal, Web Crypto); runs in browsers and Node.
 
 Its version is the add-on's: each Tsunagi release ships the client it was
 tested against, and Tsunagi's CI checks it against the real server on every
-push. New to Tsunagi's API? [Build your first integration](../../docs/getting_started.md)
+push. New to Tsunagi's API? [Build your first integration](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/getting_started.md)
 shows the requests this client sends.
 
 ## Install
 
-**Not on npm yet.** Until it is, build it from this repository (needs Node):
+```sh
+npm install tsunagi-client
+```
+
+Needs Node 22 or newer, or a current browser. Tsunagi must be running in Anki
+on the computer you connect to.
+
+<details>
+<summary>Build it from the repository</summary>
+
+For working on the client itself (needs Node, and Python 3 for the tests):
 
 ```sh
 cd packages/typescript
-npm install      # the build's own tools; this doesn't install the client anywhere
-npm run build    # generates the code from Tsunagi's API description and writes dist/
+npm install      # the build's own tools
+npm test         # generates the code from Tsunagi's API description, builds dist/ and runs every test
 ```
 
-Then install this folder in your app, `npm install <path to Tsunagi>/packages/typescript`,
-and import it by its current package name, `@tsunagi/client-draft`, which may
-change before it's published. Run `npm run build` again after you update the
-repository.
-
-`npm test` builds it and runs every test; it also needs Python 3, which builds
-the shared test cases.
+</details>
 
 ## Example
 
@@ -60,7 +64,7 @@ anki.close(); // access() keeps a connection open to stay current
 
 ## Where to go next
 
-- `examples/` has more, each compiled by `npm test`.
+- [`examples/`](https://github.com/mcgrizzz/Tsunagi/tree/main/packages/typescript/examples) has more, each compiled by the client's tests.
 - Every resource is a query: `cards`, `notes`, `reviews`, `decks`,
   `noteTypes`, `deckPresets`, `tags`, `media`. Field names, values and sorts
   come from Tsunagi's API description (generated into `src/generated.ts` when
@@ -69,6 +73,6 @@ anki.close(); // access() keeps a connection open to stay current
   query as Anki changes; `cards.onAnswered`, `collection.onSync`,
   `decks.onCounts` and `onAccessChange` report events.
 - `anki.raw.request()` reaches any endpoint the client doesn't cover.
-- [`../spec/behavior.md`](../spec/behavior.md) is what every Tsunagi client
+- [`../spec/behavior.md`](https://github.com/mcgrizzz/Tsunagi/blob/main/packages/spec/behavior.md) is what every Tsunagi client
   does, in any language.
-- [Tsunagi's documentation](../../docs/README.md) for what the server does.
+- [Tsunagi's documentation](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/README.md) for what the server does.
