@@ -1,0 +1,57 @@
+name: Client publish
+
+# Publishes the TypeScript client (packages/typescript) to npm as tsunagi-client
+# when a release is published: the client at the release's tag, at the release's
+# version, tested first (prepublishOnly runs npm test), with provenance. npm
+# trusts this workflow file (trusted publishing on npmjs.com), so there's no
+# token. Run it by hand with a tag to publish a release's client again; a version
+# npm already has is skipped.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish the client from, such as v0.7.0
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/typescript
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Use an npm that supports trusted publishing
+        run: npm install -g npm@latest
+      - name: Check the version, skip it if npm has it
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "$TAG" ]; then
+            echo "packages/typescript is $version, the release is $TAG" >&2
+            exit 1
+          fi
+          if npm view "tsunagi-client@$version" version >/dev/null 2>&1; then
+            echo "npm already has tsunagi-client $version; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.version.outputs.skip != 'true'
+        run: npm ci
+      - if: steps.version.outputs.skip != 'true'
+        run: npm publish --provenance
