@@ -75,6 +75,7 @@ an answer per note; `check` takes a list.
 
 ## Where to go next
 
+- [What changed in each version](https://github.com/mcgrizzz/Tsunagi/blob/main/packages/typescript/CHANGELOG.md).
 - [`examples/`](https://github.com/mcgrizzz/Tsunagi/tree/main/packages/typescript/examples) has more, each compiled by the client's tests.
 - Every resource is a query: `cards`, `notes`, `reviews`, `decks`,
   `noteTypes`, `deckPresets`, `tags`, `media`. Field names, values and sorts

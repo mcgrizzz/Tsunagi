@@ -210,10 +210,13 @@ The [Release workflow](../.github/workflows/release.yml):
   provenance. Approve the staged version on npmjs.com (2FA) to publish it.
   npm trusts that workflow file (trusted publishing, staged only), so it needs
   no token. A version npm already has is skipped, so bump the client when it
-  changed.
+  changed, and give the new version a section in its changelog. Client
+  versions have no GitHub release; the changelog is their record.
 - **A client-only release** ships client changes without an add-on release:
   bump the client's patch (`npm version 0.6.1 --no-git-tag-version` in
-  `packages/typescript`), commit, push, then
+  `packages/typescript`), add its section to
+  [`packages/typescript/CHANGELOG.md`](../packages/typescript/CHANGELOG.md)
+  (the workflow refuses a version it doesn't list), commit, push, then
   `git tag client-v0.6.1 && git push origin client-v0.6.1`. The same workflow
   stages it, but only if the API description at the tag matches the newest
   add-on release of the same major.minor apart from wording

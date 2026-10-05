@@ -78,6 +78,8 @@ jobs:
           if npm view "tsunagi-client@$version" version >/dev/null 2>&1; then
             echo "npm already has tsunagi-client $version; nothing to publish."
             echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif ! grep -q "^## $version " CHANGELOG.md; then
+            echo "CHANGELOG.md has no section for $version (## $version (date))" >&2; exit 1
           fi
       - if: steps.version.outputs.skip != 'true'
         run: npm ci
