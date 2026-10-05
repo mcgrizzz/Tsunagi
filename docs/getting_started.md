@@ -17,8 +17,8 @@ curl http://127.0.0.1:7777/v1/health
 
 ```json
 {
-  "ok": true, "server": "tsunagi", "version": "0.6.0",
-  "versions": {"api": "v1", "addon": "0.6.0", "anki": "26.09.3"},
+  "ok": true, "server": "tsunagi", "version": "0.7.0",
+  "versions": {"api": "v1", "addon": "0.7.0", "anki": "26.09.3"},
   "port": 7777,
   "collection": {"profile": "User 1", "state": "ready"},
   "caller": {"name": "No key, this computer", "role": "Default", "enabled": true,

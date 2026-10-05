@@ -1,6 +1,6 @@
 {
   "name": "tsunagi-client",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Typed client for Tsunagi, the Anki add-on's HTTP API: queries, writes and live updates",
   "keywords": [
     "anki",

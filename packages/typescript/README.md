@@ -5,8 +5,8 @@ field names, named values instead of Anki's codes, and writes that are keyed,
 never retried by themselves, and report each item. No runtime dependencies
 (Fetch, AbortSignal, Web Crypto); runs in browsers and Node.
 
-Its major.minor is the add-on's: client 0.6.x speaks the API of Tsunagi
-0.6.x. Patch versions bring client features and fixes without an add-on
+Its major.minor is the add-on's: client 0.7.x speaks the API of Tsunagi
+0.7.x. Patch versions bring client features and fixes without an add-on
 release. Tsunagi's CI checks it against the real server on every push. New to Tsunagi's API? [Build your first integration](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/getting_started.md)
 shows the requests this client sends.
 
