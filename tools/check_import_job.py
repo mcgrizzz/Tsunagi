@@ -41,7 +41,7 @@ def check(app, screenshot):
     with tempfile.TemporaryDirectory(prefix='tsunagi-job-package-') as folder:
         path = str(Path(folder) / 'test.apkg')
         with ThreadPoolExecutor(max_workers=1) as pool:
-            export = pool.submit(route.export, ExportRequest(deck='Default', path=path))
+            export = pool.submit(route.export, ExportRequest(deck_name='Default', path=path))
             until(app, export.done)
             assert export.result().success
             col.remove_notes([note.id])
