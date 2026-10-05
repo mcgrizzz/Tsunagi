@@ -9,10 +9,20 @@ These are commands against the running application rather than edits to the
 collection, so they use call_on_main rather than CollectionOp. The exceptions
 are the ones that build a note first: that part is collection work.
 """
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from ...shared.errors import ResourceNotFoundError, ValidationError
-from ..ops import call_on_main, call_on_main_interactive
+from ...shared.errors import (
+    MissingReferenceError,
+    ResourceNotFoundError,
+    ValidationError,
+)
+from ..ops import (
+    as_query_op,
+    call_on_main,
+    call_on_main_interactive,
+    collection_op_call,
+    recorded,
+)
 
 ADD_DIALOG_CLOSED = {"error": "Add Note dialog is not open", "code": 1}
 
@@ -66,13 +76,34 @@ def _apply_reorder(browser: Any, reorder: Dict[str, Any]) -> None:
     browser.table._on_sort_column_changed(column_id, sort_order)
 
 
-def _search_browser(browser: Any) -> None:
-    """Wait asynchronously for a cold editor before Anki tries to save it."""
+def _search_browser(browser: Any, done: Callable[..., None] = lambda exc=None: None) -> None:
+    """Run the Browser's search once its editor can save, waiting through Qt
+    callbacks (Anki's main thread never blocks). `done` is called exactly once,
+    on the main thread: with no error when the search has run, or when the
+    Browser closed or took a newer search (nothing is left to wait for); with
+    AnkiBusyError when the editor isn't ready by the operation deadline."""
+    import logging
+    import time
+
+    from ...shared.errors import AnkiBusyError
+
+    settled = []
+
+    def finish(exc: Optional[BaseException] = None) -> None:
+        if not settled:
+            settled.append(True)
+            done(exc)
+
     def search():
-        if hasattr(browser, "onSearch"):
-            browser.onSearch()
-        else:
-            browser.onSearchActivated()
+        try:
+            if hasattr(browser, "onSearch"):
+                browser.onSearch()
+            else:
+                browser.onSearchActivated()
+        except BaseException as exc:
+            finish(exc)
+            raise
+        finish()
 
     web = getattr(getattr(browser, "editor", None), "web", None)
     if not callable(getattr(web, "evalWithCallback", None)):
@@ -85,57 +116,136 @@ def _search_browser(browser: Any) -> None:
         search()
         return
 
-    import logging
-    import time
-
     from aqt.qt import QTimer
 
     from .. import ops
 
-    deadline = time.monotonic() + ops.op_timeout()
+    timeout = ops.op_timeout()
+    deadline = time.monotonic() + timeout
+
+    def too_late() -> None:
+        logging.getLogger(__name__).warning("Browser search skipped: editor did not become ready")
+        finish(AnkiBusyError("Anki's Browser did not get ready to search in time"))
 
     def active():
         return (_existing_dialog("Browser") is browser
                 and browser._tsunagi_search_request is token
                 and getattr(getattr(browser, "editor", None), "web", None) is web)
 
-    def ready(available):
-        if not active():
-            return
-        if available:
-            browser._tsunagi_search_web = web
-            search()
-        elif time.monotonic() < deadline:
+    def retry():
+        if time.monotonic() < deadline:
             QTimer.singleShot(50, probe)
         else:
-            logging.getLogger(__name__).warning("Browser search skipped: editor did not become ready")
+            too_late()
+
+    def ready(available):
+        # Even after the deadline answered: the user still gets the search they asked for.
+        if not active():
+            finish()
+        elif available:
+            browser._tsunagi_search_web = web
+            search()
+        elif not settled:
+            retry()
 
     def probe():
-        if active():
-            try:
-                web.evalWithCallback("typeof saveNow === 'function'", ready)
-            except RuntimeError:
-                pass  # The Qt page can be deleted while its callback is pending.
+        if settled:
+            return
+        if not active():
+            finish()
+            return
+        try:
+            web.evalWithCallback("typeof saveNow === 'function'", ready)
+        except RuntimeError:
+            retry()  # The Qt page can be deleted while its callback is pending.
 
+    # Qt drops a pending callback when its page is deleted; this ends the wait anyway.
+    QTimer.singleShot(int(timeout * 1000) + 100, lambda: None if settled else too_late())
     probe()
 
 
-def _browse(query: Optional[str], reorder: Optional[Dict[str, Any]]) -> None:
-    """Runs on the Qt main thread."""
+def _browse(query: Optional[str], reorder: Optional[Dict[str, Any]],
+            done: Callable[..., None] = lambda exc=None: None) -> None:
+    """Runs on the Qt main thread. `done` is called once the Browser shows the
+    search, sorted (see _search_browser); a search can end before the sort is
+    applied, so its outcome waits for it."""
     browser = _open_dialog("Browser")
     browser.activateWindow()
 
+    sorted_, held = [], []
+
+    def searched(exc: Optional[BaseException] = None) -> None:
+        if sorted_:
+            done(exc)
+        else:
+            held.append(exc)
+
     if query is not None:
         browser.form.searchEdit.lineEdit().setText(query)
-        _search_browser(browser)
+        _search_browser(browser, searched)
+    else:
+        held.append(None)
 
     if reorder is not None:
         _apply_reorder(browser, reorder)
+    sorted_.append(True)
+    if held:
+        done(held[0])
 
 
-def open_browser(query: Optional[str] = None,
-                 reorder: Optional[Dict[str, Any]] = None) -> None:
-    call_on_main(_browse, query, reorder)
+@as_query_op
+def reference_names(col: Any, deck_id: Optional[int] = None,
+                    note_type_id: Optional[int] = None) -> Tuple[Optional[str], Optional[str]]:
+    """The names of a deck and a note type given by id (None for one not given),
+    for the GUI actions, which work by name; an unknown id is a ResourceNotFoundError."""
+    deck = note_type = None
+    if deck_id is not None:
+        found = col.decks.get(int(deck_id), default=False)
+        if not found:
+            raise ResourceNotFoundError("Deck", int(deck_id))
+        deck = found["name"]
+    if note_type_id is not None:
+        found = col.models.get(int(note_type_id))
+        if not found:
+            raise ResourceNotFoundError("Note type", int(note_type_id))
+        note_type = found["name"]
+    return deck, note_type
+
+
+def open_browser(query: Optional[str] = None, reorder: Optional[Dict[str, Any]] = None, *,
+                 before: Optional[Callable[[], None]] = None,
+                 after: Optional[Callable[[Any], None]] = None) -> None:
+    """Open the Browser and return once it shows the search (the native API's
+    answer; AnkiConnect's guiBrowse doesn't wait). The request's thread waits;
+    Anki's main thread only runs callbacks. On the main thread, `before` runs
+    first (it can refuse, such as a 404) and `after(browser)` once the search shows."""
+    def begin(ok: Callable[[Any], None], fail: Callable[[BaseException], None]) -> None:
+        settled = []
+
+        def end(exc: Optional[BaseException] = None) -> None:
+            if not settled:
+                settled.append(True)
+                fail(exc) if exc is not None else ok(None)
+
+        def shown(exc: Optional[BaseException] = None) -> None:
+            if exc is None and after is not None and not settled:
+                try:
+                    after(_existing_dialog("Browser"))
+                except BaseException as error:
+                    exc = error
+            end(exc)
+
+        def run() -> None:
+            try:
+                if before is not None:
+                    before()
+                _browse(query, reorder, shown)
+            except BaseException as exc:
+                end(exc)
+
+        _mw().taskman.run_on_main(run)
+
+    recorded(begin, what="Opening the Browser")
 
 
 def ac_browse(query: Any = None, reorder: Any = None) -> List[int]:
@@ -165,10 +275,15 @@ def ac_select_card(card_id: Any) -> bool:
 
 
 def select_card(card_id: int) -> bool:
-    """False when no Browser is open - canonical does not open one here."""
+    """False when no Browser is open (this does not open one) or it doesn't
+    show the card; an unknown card is a ResourceNotFoundError."""
     def _select() -> bool:
+        from aqt import mw
+
+        if not mw.col.find_cards(f"cid:{int(card_id)}"):
+            raise ResourceNotFoundError("Card", int(card_id))
         browser = _existing_dialog("Browser")
-        if browser is None:
+        if browser is None or browser.table._model.get_card_row(int(card_id)) is None:
             return False
         browser.table.clear_selection()
         browser.table.select_single_card(int(card_id))
@@ -187,16 +302,22 @@ def selected_notes() -> List[int]:
 
 def edit_note(note_id: int) -> bool:
     """
-    Open the native API's Browser editor focused on one note.
+    Open the native API's Browser on one note, with typing going into its
+    first field (Anki's Go > Note), once the Browser shows it.
     """
-    def _edit() -> bool:
+    def exists() -> None:
         from aqt import mw
 
         if not mw.col.find_notes(f"nid:{int(note_id)}"):
             raise ResourceNotFoundError("Note", int(note_id))
-        _browse(f"nid:{int(note_id)}", None)
-        return True
-    return call_on_main(_edit)
+
+    def focus_note(browser: Any) -> None:
+        # The Browser focuses its search bar; Go > Note moves to the editor once it has saved.
+        if browser is not None and hasattr(browser, "onNote"):
+            browser.onNote()
+
+    open_browser(f"nid:{int(note_id)}", None, before=exists, after=focus_note)
+    return True
 
 
 def ac_edit_note(note_id: int) -> None:
@@ -254,7 +375,8 @@ def _run_gui_media(prepare, media, load_media):
 
 def add_cards(note: Optional[Dict[str, Any]] = None,
               media: Optional[List[Dict[str, Any]]] = None, *,
-              _compat: bool = False, _load_media: Optional[Callable] = None) -> int:
+              _compat: bool = False, _load_media: Optional[Callable] = None,
+              files: Sequence[Any] = (), stored: Optional[List[Any]] = None) -> int:
     """
     Open the Add Cards dialog, optionally prefilled.
 
@@ -264,10 +386,20 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
     that change.
 
     This is what asbplayer's "Open in Anki" calls.
+
+    The native API's note takes exact field names, as a create does, and
+    `files` (kind, name, data, fields), fetched beforehand: each is stored and
+    referenced in its fields as a created note's are, and reported in `stored`.
     """
     from anki.notes import Note
 
-    from .notes import _ac_apply_fields, _ac_write_media
+    from .notes import (
+        _ac_write_media,
+        _apply_fields,
+        _check_fields,
+        _store_attachments,
+        _with_references,
+    )
 
     def _open_empty() -> int:
         _add_dialog()
@@ -285,7 +417,8 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
         col = mw.col
         deck = col.decks.by_name(note["deckName"])
         if deck is None:
-            raise ValidationError(f"deck was not found: {note['deckName']}")
+            raise MissingReferenceError(f"deck was not found: {note['deckName']}" if _compat
+                                        else f"Deck {note['deckName']} not found")
         col.decks.select(deck["id"])
         # Anki's deck dicts carry a stale 'mid' that set_current would persist
         # onto the deck; canonical lifts it out and puts it back afterwards.
@@ -293,7 +426,8 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
 
         model = col.models.by_name(note["modelName"])
         if model is None:
-            raise ValidationError(f"model was not found: {note['modelName']}")
+            raise MissingReferenceError(f"model was not found: {note['modelName']}" if _compat
+                                        else f"Note type {note['modelName']} not found")
         col.models.set_current(model)
         col.models.update(model)
 
@@ -304,7 +438,13 @@ def add_cards(note: Optional[Dict[str, Any]] = None,
                     if name in new_note:
                         new_note[name] = value
         else:
-            _ac_apply_fields(new_note, note.get("fields") or {})
+            _apply_fields(new_note, note.get("fields") or {}, model["name"])
+            if files:
+                _check_fields(new_note, [name for *_file, fields in files for name in fields], model["name"])
+                for name, value in _with_references({k: new_note[k] for k in new_note.keys()}, list(files)).items():
+                    new_note[name] = value
+                (stored if stored is not None else []).extend(_store_attachments(col, new_note, list(files)))
+
         def check_collection():
             _add_dialog()
             if _mw().col is not col:
@@ -384,12 +524,14 @@ def set_add_note_data(note: Dict[str, Any], append: bool = False,
         if "deckName" in note:
             deck = col.decks.by_name(note["deckName"])
             if deck is None:
-                raise ValidationError(f'Deck "{note["deckName"]}" not found')
+                raise MissingReferenceError(f'Deck "{note["deckName"]}" not found' if _compat
+                                            else f"Deck {note['deckName']} not found")
             dialog.set_deck(deck["id"])
         if "modelName" in note:
             model = col.models.by_name(note["modelName"])
             if model is None:
-                raise ValidationError(f'Model "{note["modelName"]}" not found')
+                raise MissingReferenceError(f'Model "{note["modelName"]}" not found' if _compat
+                                            else f"Note type {note['modelName']} not found")
             dialog.set_note_type(model["id"])
 
         editor_note = dialog.editor.note
@@ -543,6 +685,29 @@ def undo() -> bool:
         _mw().undo()
         return True
     return call_on_main(_undo)
+
+
+def _undo_step(col: Any) -> Any:
+    from anki.errors import UndoEmpty
+
+    try:
+        return col.undo()
+    except UndoEmpty:
+        return None
+
+
+def undo_last() -> Optional[str]:
+    """Undo the last step and name it (Anki's label, such as "Add Note"); None
+    when there is nothing to undo. Unlike undo(), which starts Anki's own undo
+    and returns at once, this waits for the result. Anki's windows refresh as
+    after Ctrl+Z: the operation's changes reach them the same way."""
+    from aqt import gui_hooks
+
+    out = collection_op_call(_undo_step)
+    if out is None:
+        return None
+    call_on_main(gui_hooks.state_did_undo, out)  # as Anki's own undo announces it
+    return out.operation
 
 
 # ====================

@@ -10,7 +10,7 @@ import type { Operation } from "./protocol.js";
 import { Query } from "./query.js";
 import { deadline, pause, positive, Transport } from "./transport.js";
 import type {
-  ClientOptions, Health, ItemReport, JobStartOptions, MediaInput, NoteCheck, NoteInput, NotePatch, NoteUpsert,
+  AddedNote, ClientOptions, Health, IfDuplicate, ItemReport, JobStartOptions, MediaInput, NoteCheck, NoteInput, NotePatch, NoteUpsert, OpenAddInput,
   Reference, RequestOptions, SyncResult, UpsertedNote, VerbReport, WaitOptions, WriteOptions,
 } from "./types.js";
 import { EventConnection } from "./events.js";
@@ -24,9 +24,15 @@ export type Collect = { onError: "collect" };
 export interface CreateOptions extends WriteOptions {
   /** Return each note's card ids. */
   cards?: boolean;
-  /** For a duplicate, name the notes it duplicates. */
-  duplicateIds?: boolean;
+  /**
+   * A note that duplicates a saved one: "error" (default) refuses it, naming the
+   * saved notes; "allow" adds it anyway; "skip" adds nothing and answers the
+   * saved note's id (`action: "skipped"`), so it is also find-or-create.
+   */
+  ifDuplicate?: IfDuplicate;
 }
+type Skip = { ifDuplicate: "skip" };
+type NoSkip = { ifDuplicate?: "error" | "allow" };
 
 function settle<T, F extends { index: number; code: string; message: string }>(
   report: ItemReport<T, F>, options: { onError?: "throw" | "collect" }): T[] | ItemReport<T, F> {
@@ -64,7 +70,7 @@ class Resource<N extends WatchResource> extends Query<N> {
    * running (until what it returns settles) make one more call afterwards.
    */
   onChange(listener: () => unknown, options: { signal?: AbortSignal } = {}): Promise<Subscription> {
-    const events = resources[this.resource].path.split("/").at(-1)!;
+    const events = resources[this.resource].path.split("/").at(-1)!.replaceAll("-", "_");
     const fire = coalescing(listener);
     let dropped = false;
     return listen(this.protocol.connection, { resources: [events] }, {
@@ -93,23 +99,52 @@ class Decks extends Resource<"decks"> {
     }, () => this.protocol.access(), options.signal);
   }
 
+  /** Shows the deck's overview screen in Anki. A deck that doesn't exist is a 404. */
+  readonly openOverview = sends(async (deck: Reference, options: WriteOptions = {}): Promise<void> =>
+    this.protocol.openDeck("guiDeckOverview", deck, options), this.protocol, "guiDeckOverview");
+  /** Starts reviewing the deck in Anki. A deck that doesn't exist is a 404. */
+  readonly openReview = sends(async (deck: Reference, options: WriteOptions = {}): Promise<void> =>
+    this.protocol.openDeck("guiDeckReview", deck, options), this.protocol, "guiDeckReview");
+
   constructor(protocol: DraftProtocol) { super(protocol, "decks"); }
 }
 
 class Notes extends Resource<"notes"> {
-  readonly create = sends(async (input: NoteInput, options: CreateOptions = {}): Promise<CreatedNote> =>
-    single(await this.protocol.createNotes([input], included({ cards: options.cards, duplicate_ids: options.duplicateIds }), options)),
-  this.protocol, "notesCreate");
+  /** Adds the note. What happens when it duplicates a saved note is `ifDuplicate`. */
+  readonly create = sends(this.createImpl.bind(this) as {
+    (input: NoteInput, options?: CreateOptions & NoSkip): Promise<CreatedNote>;
+    (input: NoteInput, options: CreateOptions & Skip): Promise<AddedNote>;
+  }, this.protocol, "notesCreate");
+  private async createImpl(input: NoteInput, options: CreateOptions = {}): Promise<CreatedNote | AddedNote> {
+    return single(await this.add([input], options));
+  }
 
-  readonly createMany = sends(this.createManyImpl.bind(this), this.protocol, "notesCreate");
-  private createManyImpl(input: readonly NoteInput[], options: CreateOptions & Collect): Promise<ItemReport<CreatedNote, NoteFailure>>;
-  private createManyImpl(input: readonly NoteInput[], options?: CreateOptions & OnError): Promise<CreatedNote[]>;
+  readonly createMany = sends(this.createManyImpl.bind(this) as {
+    (input: readonly NoteInput[], options: CreateOptions & NoSkip & Collect): Promise<ItemReport<CreatedNote, NoteFailure>>;
+    (input: readonly NoteInput[], options?: CreateOptions & NoSkip & OnError): Promise<CreatedNote[]>;
+    (input: readonly NoteInput[], options: CreateOptions & Skip & Collect): Promise<ItemReport<AddedNote, NoteFailure>>;
+    (input: readonly NoteInput[], options: CreateOptions & Skip & OnError): Promise<AddedNote[]>;
+  }, this.protocol, "notesCreate");
   private async createManyImpl(input: readonly NoteInput[], options: CreateOptions & { onError?: "throw" | "collect" } = {}) {
     options.signal?.throwIfAborted();
-    const report = list(input).length
-      ? await this.protocol.createNotes(input, included({ cards: options.cards, duplicate_ids: options.duplicateIds }), options)
-      : { items: [] };
-    return settle(report, options);
+    return settle(list(input).length ? await this.add(input, options) : { items: [] }, options);
+  }
+
+  /** One request: the duplicate ids come with it unless duplicates are allowed, and a skipped duplicate writes nothing. */
+  private async add(input: readonly NoteInput[], options: CreateOptions): Promise<ItemReport<CreatedNote | AddedNote, NoteFailure>> {
+    const mode = options.ifDuplicate ?? "error";
+    if (!["error", "allow", "skip"].includes(mode)) throw new TypeError("ifDuplicate is error, allow or skip");
+    const report = await this.protocol.createNotes(input,
+      included({ cards: options.cards, duplicate_ids: mode !== "allow" }), options, mode === "allow");
+    if (mode !== "skip") return report;
+    return {
+      items: report.items.map(item => {
+        if (item.ok) return { ok: true, index: item.index, value: { action: "created" as const, ...item.value } };
+        const saved = item.error.code === "duplicate" ? item.error.duplicateNoteIds ?? [] : [];
+        if (!saved.length) return item;
+        return { ok: true, index: item.index, value: { action: "skipped" as const, index: item.index, id: saved[0]!, duplicateIds: [...saved] } };
+      }),
+    };
   }
 
   /** Resolves when the PATCH completes: fields, tags and files in one undo step. Does not read the note again. */
@@ -119,30 +154,45 @@ class Notes extends Resource<"notes"> {
   /**
    * Is the note already saved? By the rules create uses to refuse a duplicate:
    * its first field, among notes of its note type (or the scope `duplicates`
-   * gives). A read: nothing changes. Pass a list for one answer per note, in
-   * order. A note naming a deck, note type or field that doesn't exist raises
-   * ItemRejectedError, as create would.
+   * gives). A read: nothing changes. A note naming a deck, note type or field
+   * that doesn't exist raises ItemRejectedError, as create would.
    */
-  readonly exists = sends(this.existsImpl.bind(this) as {
-    (note: NoteInput, options?: RequestOptions): Promise<boolean>;
-    (notes: readonly NoteInput[], options?: RequestOptions): Promise<boolean[]>;
-  }, this.protocol, "notesCheck");
-  private async existsImpl(input: NoteInput | readonly NoteInput[], options: RequestOptions = {}): Promise<boolean | boolean[]> {
+  readonly exists = sends(async (note: NoteInput, options: RequestOptions = {}): Promise<boolean> =>
+    (await this.existing([note], options))[0]!, this.protocol, "notesCheck");
+
+  /** exists for each note, in order. */
+  readonly existsMany = sends(async (notes: readonly NoteInput[], options: RequestOptions = {}): Promise<boolean[]> =>
+    list(notes).length ? this.existing(notes, options) : [], this.protocol, "notesCheck");
+
+  private async existing(notes: readonly NoteInput[], options: RequestOptions): Promise<boolean[]> {
     options.signal?.throwIfAborted();
-    const many = Array.isArray(input);
-    const notes = many ? list(input as readonly NoteInput[]) : [input as NoteInput];
-    if (!notes.length) return [];
-    const found = (await this.protocol.checkNotes(notes, [], options)).map(check => {
+    return (await this.protocol.checkNotes(notes, [], options)).map(check => {
       if (check.state === "invalid") throw new ItemRejectedError({ index: check.index, code: "invalid", message: check.reason ?? "invalid" });
       return check.state === "duplicate";
     });
-    return many ? found : found[0]!;
   }
 
-  /** Could these notes be added, and if not, why? A read: nothing changes. One result per note, in order. */
-  readonly check = sends(async (input: readonly NoteInput[], options: RequestOptions & { duplicateIds?: boolean } = {}): Promise<NoteCheck[]> =>
-    this.protocol.checkNotes(list(input), included({ duplicate_ids: options.duplicateIds }), options),
+  /** Could this note be added, and if not, why? A read: nothing changes. */
+  readonly check = sends(async (note: NoteInput, options: RequestOptions & { duplicateIds?: boolean } = {}): Promise<NoteCheck> =>
+    (await this.protocol.checkNotes([note], included({ duplicate_ids: options.duplicateIds }), options))[0]!,
   this.protocol, "notesCheck");
+
+  /** check for each note, in order. */
+  readonly checkMany = sends(async (notes: readonly NoteInput[], options: RequestOptions & { duplicateIds?: boolean } = {}): Promise<NoteCheck[]> =>
+    list(notes).length ? this.protocol.checkNotes(notes, included({ duplicate_ids: options.duplicateIds }), options) : [],
+  this.protocol, "notesCheck");
+
+  /** Opens the note in Anki's Browser, to edit it. A note that doesn't exist is a 404. */
+  readonly openEditor = sends(async (id: number, options: WriteOptions = {}): Promise<void> =>
+    this.protocol.openEditor(id, options), this.protocol, "guiEditNote");
+
+  /**
+   * Opens Add Cards filled with the note, for the user to finish and add: its
+   * deck, note type, fields, tags and files (stored now, referenced in their
+   * fields). Nothing is added until the user confirms.
+   */
+  readonly openAdd = sends(async (note: OpenAddInput, options: WriteOptions = {}): Promise<void> =>
+    this.protocol.openAdd(note, options), this.protocol, "guiAddCards");
 
   /** Adds the note, or updates the one it matches. */
   readonly upsert = sends(async (input: NoteUpsert, options: WriteOptions & { cards?: boolean } = {}): Promise<UpsertedNote> =>
@@ -211,7 +261,7 @@ class Cards extends Resource<"cards"> {
   /** Answers the cards as the reviewer would, each with its own rating. */
   readonly answer = sends(async (answers: readonly { cardId: number; rating: "again" | "hard" | "good" | "easy" }[], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsAnswer", {
-      answers: list(answers).map(answer => ({ card_id: inputId(answer.cardId), ease: ratingCode(answer.rating) })),
+      answers: list(answers).map(answer => ({ card_id: inputId(answer.cardId), rating: ratingCode(answer.rating) })),
     }, options), this.protocol, "cardsAnswer");
 
   constructor(protocol: DraftProtocol) { super(protocol, "cards"); }

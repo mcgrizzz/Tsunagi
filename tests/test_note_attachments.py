@@ -11,7 +11,7 @@ def b64(data: bytes) -> str:
 
 
 def note(front, **attachments):
-    return {"modelName": "Basic", "deckName": "Default",
+    return {"noteTypeName": "Basic", "deckName": "Default",
             "fields": {"Front": front, "Back": "meaning"}, **attachments}
 
 
@@ -65,10 +65,11 @@ def test_a_renamed_file_keeps_its_reference(client, col):
     assert fields_of(col, nid)["Back"] == f'meaning<img src="{stored}">'
 
 
-def test_upsert_refuses_attachments(client, col):
-    answer = client.post("/v1/notes:upsert", json=note(
-        "羊", picture={"data": b64(b"sheep"), "filename": "hitsuji.png", "fields": ["Back"]})).json()
-    assert answer["failed"][0]["code"] == "invalid_note" and "POST /v1/media" in answer["failed"][0]["message"]
+def test_upsert_takes_no_attachments(client, col):
+    # Its body doesn't list them (6.110), so they are an unknown key like any other.
+    response = client.post("/v1/notes:upsert", json=note(
+        "羊", picture={"data": b64(b"sheep"), "filename": "hitsuji.png", "fields": ["Back"]}))
+    assert response.status_code == 422 and "picture" in response.text
     assert col.note_count() == 0 and not col.media.have("hitsuji.png")
 
 

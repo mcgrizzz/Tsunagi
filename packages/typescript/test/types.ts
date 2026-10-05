@@ -34,7 +34,7 @@ async function contract() {
   anki.cards.where("originalPosition", "eq", null);
   // @ts-expect-error Use a supported sort, not an arbitrary row field.
   anki.cards.orderBy("question");
-  anki.cards.orderBy("easeFactor", "desc");
+  anki.cards.orderBy("ease", "desc");
   const ids: number[] = await anki.cards.values("id").take(10);
   const flags: ("none" | "red" | "orange" | "green" | "blue" | "pink" | "turquoise" | "purple")[] = await anki.cards.values("flag").take(10);
   // @ts-expect-error Array-valued fields are not single values.
@@ -56,10 +56,27 @@ async function contract() {
   anki.cards.is("learn");
   const word = { deck: "Mining", noteType: "Basic", fields: { Front: "犬" } };
   const saved: boolean = await anki.notes.exists(word);
-  const each: boolean[] = await anki.notes.exists([word, word]);
+  const each: boolean[] = await anki.notes.existsMany([word, word]);
   // @ts-expect-error One note answers one boolean, not a list.
   const wrong: boolean[] = await anki.notes.exists(word);
+  // @ts-expect-error A list goes to existsMany.
+  await anki.notes.exists([word]);
   void [saved, each, wrong];
+  const added = await anki.notes.create(word, { ifDuplicate: "skip" });
+  if (added.action === "skipped") { const saved: number[] = added.duplicateIds; void saved; }
+  else { const cards: number[] | null = added.cards; void cards; }
+  const plain = await anki.notes.create(word, { ifDuplicate: "allow" });
+  // @ts-expect-error Only a skip answers an action.
+  void plain.action;
+  const skippedMany = await anki.notes.createMany([word], { ifDuplicate: "skip" });
+  const firstAction: "created" | "skipped" | undefined = skippedMany[0]?.action;
+  void firstAction;
+  // @ts-expect-error Named values, not any string.
+  await anki.notes.create(word, { ifDuplicate: "ignore" });
+  // @ts-expect-error Duplicates are decided by ifDuplicate, not on the note.
+  await anki.notes.create({ ...word, duplicates: { allow: true } });
+  // @ts-expect-error Upsert takes no files.
+  await anki.notes.upsert({ ...word, audio: [{ url: "https://example.com/a.mp3" }] });
   const count: number = await anki.reviews.where("cardId", "eq", 1).count();
   const latest = await anki.reviews.distinctOn("cardId").orderBy("id", "desc").select("cardId", "rating", "interval").take(10);
   const rating: "again" | "hard" | "good" | "easy" | null | undefined = latest[0]?.rating;
@@ -96,9 +113,11 @@ async function contract() {
       item.error.code = "duplicate";
     }
   }
-  const checks = await anki.notes.check([{ deck: "D", noteType: "B", fields: { Front: "x" } }]);
+  const checks = await anki.notes.checkMany([{ deck: "D", noteType: "B", fields: { Front: "x" } }]);
   const state: "normal" | "empty" | "duplicate" | "missingCloze" | "invalid" | "unknown" | undefined = checks[0]?.state;
-  void state;
+  const one: "normal" | "empty" | "duplicate" | "missingCloze" | "invalid" | "unknown" =
+    (await anki.notes.check({ deck: "D", noteType: "B", fields: { Front: "x" } })).state;
+  void [state, one];
   const upserted = await anki.notes.upsert({ deck: "D", noteType: "B", fields: { Front: "x" }, fieldRules: { "*": "append" } });
   if (upserted.action === "updated") { const changed: string[] = upserted.fieldsChanged; void changed; }
   await anki.notes.delete([1, 2]);
@@ -124,6 +143,22 @@ async function contract() {
   await anki.notes.watch({ add: () => {} });
   // @ts-expect-error An ordered query can't be watched.
   await anki.notes.orderBy("created").watch({});
+  // Opening windows in Anki: each resolves with nothing.
+  const opened: void = await anki.cards.search("deck:Mining").is("suspended").select("id").openBrowser();
+  void opened;
+  await anki.notes.openBrowser();
+  // @ts-expect-error where() can't be shown in Anki's Browser, which takes only search() and is().
+  await anki.cards.where("interval", "gt", 3).openBrowser();
+  // @ts-expect-error orderBy() can't be shown in Anki's Browser.
+  await anki.notes.orderBy("created").openBrowser();
+  // @ts-expect-error The Browser shows cards and notes.
+  await anki.decks.openBrowser();
+  await anki.notes.openEditor(1);
+  await anki.notes.openAdd({ deck: { id: 1 }, noteType: "Basic", fields: { Front: "犬" }, picture: [{ path: "C:/shot.png" }] });
+  // @ts-expect-error Duplicates are the user's to decide in Add Cards.
+  await anki.notes.openAdd({ deck: "D", noteType: "B", fields: {}, duplicates: { scope: "deck" } });
+  await anki.decks.openOverview("Japanese");
+  await anki.decks.openReview({ id: 1 });
   // @ts-expect-error Nor one with distinctOn.
   await anki.reviews.distinctOn("cardId").watch({});
   // @ts-expect-error Nor bare values.

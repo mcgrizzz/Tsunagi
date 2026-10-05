@@ -52,6 +52,14 @@ class ValidationError(Exception):
         super().__init__(message)
 
 
+class MissingReferenceError(ValidationError):
+    """Something the request names doesn't exist (404), with the adapter's own
+    wording, which the AnkiConnect Shim passes on unchanged."""
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.status_code = 404
+
+
 class ConflictError(Exception):
     """The request is valid but clashes with the collection's state: a name or
     id that's taken. 400 is for a request that is wrong in itself."""
@@ -262,7 +270,7 @@ def handle_mutation_errors(operation_name: str = "operation",
 
     Usage:
         @handle_mutation_errors("create")
-        def create_model(data: Dict[str, Any]) -> ModelInfo:
+        def create_model(data: Dict[str, Any]) -> NoteTypeInfo:
             # ...
     """
     def to_http_exception(exc: Exception) -> HTTPException:

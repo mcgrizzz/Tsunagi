@@ -71,7 +71,7 @@ caps = SourceCaps(
     # page_ids: bare and where-filtered listings walk the cards primary key
     # keyset-style instead of materializing every card id per page request.
     search=SearchSpec(find_ids=find_card_ids, hydrate=get_card_rows_by_ids,
-                      page_ids=page_card_ids, reads=("notes", "decks", "models", "tags")),
+                      page_ids=page_card_ids, reads=("notes", "decks", "note_types", "tags")),
     # where clauses on card columns go into the id query (backlog 9.13).
     sql=CARD_SQL,
     # order= uses Anki's Browser sorts (backlog 8.1).
@@ -94,7 +94,7 @@ router = create_resource_routes(
     resource_plural="cards",
     permission_resource="cards",
     tag="Cards",
-    description="Cards are generated from notes by a model's templates. Use `search` for Anki query syntax; scheduling changes go through the verb routes.",
+    description="Cards are generated from notes by a note type's templates. Use `search` for Anki query syntax; scheduling changes go through the verb routes.",
 )
 
 
@@ -203,7 +203,7 @@ def flag(body: SetFlagRequest = Body(...)) -> VerbResult:
        "Per-card ease, stored as an integer 10x the percentage (250% is 2500).")
 def ease(body: SetEaseRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
-    results: List[bool] = set_ease_factors([e.dict() for e in body.cards])
+    results: List[bool] = set_ease_factors([{"id": e.id, "factor": e.ease_factor} for e in body.cards])
     return _result(sum(1 for ok in results if ok), start)
 
 
@@ -221,14 +221,14 @@ def set_memory_state(body: SetMemoryStateRequest = Body(...)) -> VerbResult:
 
 
 @_verb("answer", "Answer cards",
-       "Answers each card through the scheduler as if the button (`ease` 1-4: "
+       "Answers each card through the scheduler as if the button (`rating` 1-4: "
        "again/hard/good/easy) had been pressed in the reviewer. Works on a "
        "card in any state - answering a suspended card unsuspends it. A "
        "missing card is skipped; `affected` counts the cards answered.")
 def answer(body: AnswerRequest = Body(...)) -> VerbResult:
     start = time.perf_counter()
     results: List[bool] = answer_cards(
-        [{"card_id": e.card_id, "ease": e.ease} for e in body.answers])
+        [{"card_id": e.card_id, "ease": e.rating} for e in body.answers])
     return _result(sum(1 for ok in results if ok), start)
 
 

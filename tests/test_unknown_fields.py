@@ -8,7 +8,7 @@ import pytest
 
 @pytest.fixture()
 def note(client):
-    return client.post("/v1/notes", json={"model_name": "Basic", "deck_name": "Default",
+    return client.post("/v1/notes", json={"note_type_name": "Basic", "deck_name": "Default",
                                           "fields": {"Front": "a", "Back": ""}}).json()["created"][0]["id"]
 
 
@@ -39,7 +39,7 @@ def test_the_post_query_checks_too(client, note):
     ("/v1/tags", {"select": "name"}),
     ("/v1/media", {"select": "filename,size"}),
     # Deck presets are Anki's own settings, whose names vary by version.
-    ("/v1/deck-configs", {"select": "id,new,maxTaken"}),
+    ("/v1/deck-presets", {"select": "id,new,maxTaken"}),
 ])
 def test_known_fields_still_answer(client, note, path, params):
     resp = client.get(path, params=params)

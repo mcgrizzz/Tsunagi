@@ -58,7 +58,7 @@ class MediaRow(BaseModel):
     """A row of GET /v1/media: one file in the media folder."""
     filename: str = Field(description="File name in the media folder.")
     size: int = Field(..., description="File size in bytes.")
-    mtime: int = Field(..., description="Last modified, Unix seconds.")
+    modified: int = Field(..., description="Last modified, Unix seconds.")
 
 
 class MediaUpload(RequestBody):

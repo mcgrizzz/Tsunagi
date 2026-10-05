@@ -717,13 +717,13 @@ def create_resource_routes(
     Create complete REST routes for a resource (queries + mutations).
 
     Args:
-        path: Base path for resource (e.g., "/v1/models")
+        path: Base path for resource (e.g., "/v1/note-types")
         caps: Source capabilities (queries + optional mutations)
         row_model: the model of one row, documented as the list's items
         id_getter: Function to extract ID from row for sorting/pagination
-        resource_name: Singular resource name (e.g., "model", "deck", "card")
-        resource_plural: Plural resource name (e.g., "models", "decks", "cards")
-        tag: OpenAPI tag for grouping (e.g., "Models", "Decks", "Cards")
+        resource_name: Singular resource name (e.g., "note_type", "deck", "card")
+        resource_plural: Plural resource name (e.g., "note_types", "decks", "cards")
+        tag: OpenAPI tag for grouping (e.g., "Note Types", "Decks", "Cards")
         permission_resource: Queries need read:<this>, mutations write:<this>
             (shared/permissions.py)
         description: Brief description of the resource (included in operation descriptions)
@@ -740,14 +740,14 @@ def create_resource_routes(
 
     Example:
         router = create_resource_routes(
-            path="/v1/models",
+            path="/v1/note-types",
             caps=SourceCaps(...),
-            row_model=ModelInfo,
+            row_model=NoteTypeInfo,
             id_getter=make_id_getter("id"),
-            resource_name="model",
-            resource_plural="models",
-            tag="Models",
-            permission_resource="models",
+            resource_name="note_type",
+            resource_plural="note_types",
+            tag="Note Types",
+            permission_resource="note_types",
             description="Note types define the structure of cards in Anki."
         )
         app.include_router(router)
@@ -758,9 +758,11 @@ def create_resource_routes(
     if post_path is None:
         post_path = f"{path}/query"
 
-    # Capitalize for operation IDs
-    resource_name_title = resource_name.title()
-    resource_plural_title = resource_plural.title()
+    # Capitalize for operation IDs (note_type -> NoteType); words for summaries and messages
+    resource_name_title = "".join(part.capitalize() for part in resource_name.split("_"))
+    resource_plural_title = "".join(part.capitalize() for part in resource_plural.split("_"))
+    resource_words, plural_words = resource_name.replace("_", " "), resource_plural.replace("_", " ")
+    resource_label = resource_words.capitalize()
     read_permission = requires(f"read:{permission_resource}")
     write_permission = requires(f"write:{permission_resource}")
 
@@ -785,8 +787,8 @@ def create_resource_routes(
         path,
         response_model=response_model,
         response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
-        summary=f"List {resource_plural}",
-        description=f"Query {resource_plural} with filtering, field selection, and pagination. {description}",
+        summary=f"List {plural_words}",
+        description=f"Query {plural_words} with filtering, field selection, and pagination. {description}",
         tags=[tag],
         operation_id=f"list{resource_plural_title}",
         openapi_extra=read_permission,
@@ -806,7 +808,7 @@ def create_resource_routes(
             "use Anki's Browser sorts (due, interval, ease, lapses, reviews, created, card_modified, "
             "note_modified, deck, note_type, sort_field, tags, position, card_type; difficulty, "
             "stability and retrievability on cards), and the row fields that sort the same (reps, "
-            "mod; id on notes); other resources a field of their rows. Ties "
+            "modified; id on notes); other resources a field of their rows. Ties "
             "in ascending id. Without it, rows come in ascending id."),
             json_schema_extra={"x-sorts": sorts}),
         distinct_on: Optional[str] = Query(default=None, description=(
@@ -838,8 +840,8 @@ def create_resource_routes(
         post_path,
         response_model=response_model,
         response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
-        summary=f"Query {resource_plural} (POST)",
-        description=f"Query {resource_plural} using request body. Supports complex queries with filtering and field selection. Omit cursor or use null to start at page one; malformed or empty cursors return 400.",
+        summary=f"Query {plural_words} (POST)",
+        description=f"Query {plural_words} using request body. Supports complex queries with filtering and field selection. Omit cursor or use null to start at page one; malformed or empty cursors return 400.",
         tags=[tag],
         operation_id=f"query{resource_plural_title}",
         openapi_extra=read_permission,
@@ -868,7 +870,7 @@ def create_resource_routes(
         # POST {path} - Create
         if caps.mutations.create:
             def _create(
-                data: Dict[str, Any] = Body(..., description=f"{resource_name_title} data to create"),
+                data: Dict[str, Any] = Body(..., description=f"{resource_label} data to create"),
             ) -> MutationResult[Any]:
                 """Create a new resource."""
                 with track_operation("create") as stats:
@@ -881,8 +883,8 @@ def create_resource_routes(
                 response_model=MutationResult[Any],
                 response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
                 status_code=201,
-                summary=f"Create {resource_name}",
-                description=f"Create a new {resource_name}. {description}",
+                summary=f"Create {resource_words}",
+                description=f"Create a new {resource_words}. {description}",
                 tags=[tag],
                 operation_id=f"create{resource_name_title}",
                 openapi_extra=write_permission,
@@ -891,14 +893,14 @@ def create_resource_routes(
         # PATCH {path}/{id} - Partial update
         if caps.mutations.patch:
             def _patch(
-                id: int = Path(..., description=f"{resource_name_title} ID"),
+                id: int = Path(..., description=f"{resource_label} ID"),
                 updates: Dict[str, Any] = Body(..., description="Fields to update"),
             ) -> MutationResult[Any]:
                 """Partially update a resource."""
                 with track_operation("patch") as stats:
                     result = caps.mutations.patch(id, _sent(updates))
                     if result is None:
-                        raise HTTPException(status_code=404, detail=f"{resource_name_title} with id={id} not found")
+                        raise HTTPException(status_code=404, detail=f"{resource_label} with id={id} not found")
                     return MutationResult(result=_plain(result), stats=stats)
 
             _declare_body(_patch, caps.mutations.patch_body)
@@ -906,8 +908,8 @@ def create_resource_routes(
                 f"{path}/{{id}}",
                 response_model=MutationResult[Any],
                 response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
-                summary=f"Update {resource_name}",
-                description=f"Partially update a {resource_name}. Only provided fields will be updated.",
+                summary=f"Update {resource_words}",
+                description=f"Partially update a {resource_words}. Only provided fields will be updated.",
                 tags=[tag],
                 operation_id=f"update{resource_name_title}",
                 openapi_extra=write_permission,
@@ -918,21 +920,21 @@ def create_resource_routes(
             @router.delete(
                 f"{path}/{{id}}",
                 response_model=DeletionResult,
-                summary=f"Delete {resource_name}",
-                description=f"Delete a {resource_name}.",
+                summary=f"Delete {resource_words}",
+                description=f"Delete a {resource_words}.",
                 tags=[tag],
                 operation_id=f"delete{resource_name_title}",
                 openapi_extra=write_permission,
             )
             @handle_mutation_errors("delete")
             def _delete(
-                id: int = Path(..., description=f"{resource_name_title} ID to delete"),
+                id: int = Path(..., description=f"{resource_label} ID to delete"),
             ) -> DeletionResult:
                 """Delete a resource."""
                 with track_operation("delete") as stats:
                     success = caps.mutations.delete(id)
                     if not success:
-                        raise HTTPException(status_code=404, detail=f"{resource_name_title} with id={id} not found")
+                        raise HTTPException(status_code=404, detail=f"{resource_label} with id={id} not found")
                     return DeletionResult(success=True, affected_ids=[id], stats=stats)
 
         # Subresource routes - pass parent tag to keep all operations under same tag
@@ -961,9 +963,9 @@ def _add_subresource_routes(
 
     WHY THIS PATTERN EXISTS:
     FastAPI matches path parameters by name. For semantic URLs like:
-        /v1/models/{model_id}/fields/{field_id}
+        /v1/note-types/{note_type_id}/fields/{field_id}
 
-    We want the handler to receive parameters named 'model_id' and 'field_id'
+    We want the handler to receive parameters named 'note_type_id' and 'field_id'
     (not generic names like 'parent_id' and 'sub_id').
 
     The problem: We can't know the exact parameter names at code-writing time
@@ -991,8 +993,9 @@ def _add_subresource_routes(
     # Path-param type for the sub-resource identifier, per the spec's id_type
     sub_id_annotation = int if getattr(caps, "id_type", "str") == "int" else str
 
-    # Create semantic parameter names (e.g., "model_id", "field_id")
+    # Create semantic parameter names (e.g., "note_type_id", "field_id")
     parent_id_param = f"{parent_resource_name}_id"
+    parent_words = parent_resource_name.replace("_", " ")
     # Remove trailing 's' for singular subresource name (fields -> field, templates -> template)
     sub_resource_singular = subres_name.rstrip('s') if subres_name.endswith('s') else subres_name
     sub_id_param = f"{sub_resource_singular}_id"
@@ -1021,7 +1024,7 @@ def _add_subresource_routes(
             import inspect
             handler.__signature__ = inspect.Signature([
                 inspect.Parameter(parent_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=int, default=Path(..., description=f"{parent_resource_name.title()} ID")),
+                                annotation=int, default=Path(..., description=f"{parent_words.capitalize()} ID")),
                 inspect.Parameter('data', inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                 annotation=caps.create_body or Dict[str, Any],
                                 default=Body(..., description="Subresource data"))
@@ -1036,7 +1039,7 @@ def _add_subresource_routes(
             response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
             status_code=201,
             summary=f"Create {sub_resource_singular}",
-            description=f"Add a new {sub_resource_singular} to the {parent_resource_name}",
+            description=f"Add a new {sub_resource_singular} to the {parent_words}",
             tags=[parent_tag],
             operation_id=f"create{sub_resource_singular_title}",
             openapi_extra=openapi_extra,
@@ -1057,7 +1060,7 @@ def _add_subresource_routes(
             import inspect
             handler.__signature__ = inspect.Signature([
                 inspect.Parameter(parent_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=int, default=Path(..., description=f"{parent_resource_name.title()} ID")),
+                                annotation=int, default=Path(..., description=f"{parent_words.capitalize()} ID")),
                 inspect.Parameter(sub_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                 annotation=sub_id_annotation, default=Path(..., description=f"{sub_resource_singular.title()} identifier")),
                 inspect.Parameter('updates', inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -1073,7 +1076,7 @@ def _add_subresource_routes(
             response_model=MutationResult[response_model],
             response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
             summary=f"Update {sub_resource_singular}",
-            description=f"Update properties of a {sub_resource_singular} in the {parent_resource_name}",
+            description=f"Update properties of a {sub_resource_singular} in the {parent_words}",
             tags=[parent_tag],
             operation_id=f"update{sub_resource_singular_title}",
             openapi_extra=openapi_extra,
@@ -1093,7 +1096,7 @@ def _add_subresource_routes(
             import inspect
             handler.__signature__ = inspect.Signature([
                 inspect.Parameter(parent_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=int, default=Path(..., description=f"{parent_resource_name.title()} ID")),
+                                annotation=int, default=Path(..., description=f"{parent_words.capitalize()} ID")),
                 inspect.Parameter(sub_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                 annotation=sub_id_annotation, default=Path(..., description=f"{sub_resource_singular.title()} identifier"))
             ])
@@ -1106,7 +1109,7 @@ def _add_subresource_routes(
             response_model=MutationResult[response_model],
             response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
             summary=f"Delete {sub_resource_singular}",
-            description=f"Remove a {sub_resource_singular} from the {parent_resource_name}",
+            description=f"Remove a {sub_resource_singular} from the {parent_words}",
             tags=[parent_tag],
             operation_id=f"delete{sub_resource_singular_title}",
             openapi_extra=openapi_extra,
@@ -1129,7 +1132,7 @@ def _add_subresource_routes(
             import inspect
             handler.__signature__ = inspect.Signature([
                 inspect.Parameter(parent_param_name, inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=int, default=Path(..., description=f"{parent_resource_name.title()} ID")),
+                                annotation=int, default=Path(..., description=f"{parent_words.capitalize()} ID")),
                 inspect.Parameter('body', inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                 annotation=Dict[str, List[Any]], default=Body(..., description="Order specification"))
             ])
@@ -1142,7 +1145,7 @@ def _add_subresource_routes(
             response_model=MutationResult[response_model],
             response_model_by_alias=False,  # emit human-readable field names, not Anki aliases
             summary=f"Reorder {subres_name}",
-            description=f"Change the order of {subres_name} in the {parent_resource_name}",
+            description=f"Change the order of {subres_name} in the {parent_words}",
             tags=[parent_tag],
             operation_id=f"reorder{subres_name_title}",
             openapi_extra=openapi_extra,

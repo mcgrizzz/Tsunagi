@@ -99,6 +99,15 @@ def attach(note, kind, name, data, field):
     return note
 
 
+def tsunagi_note(note):
+    """An AnkiConnect note in the Tsunagi API's names, which say note type, not model."""
+    out = {("note_type_name" if k == "modelName" else k): v for k, v in note.items()}
+    if "duplicateScopeOptions" in out:
+        out["duplicateScopeOptions"] = {("checkAllNoteTypes" if k == "checkAllModels" else k): v
+                                        for k, v in out["duplicateScopeOptions"].items()}
+    return out
+
+
 def placeholders(value, names):
     """Replace this trial's generated media names so results compare across trials."""
     text = json.dumps(value, ensure_ascii=False)
@@ -155,9 +164,9 @@ class LookupDuplicates(Workload):
 
     async def tsunagi(self, c, ctx, trial):
         words = self.candidates(ctx)
-        body = {"notes": [{"deckName": "Mining", "modelName": MODEL, "fields": {TERM_FIELD: w},
-                           **({"duplicateScopeOptions": self.options} if self.options else {})}
-                          for w in words]}
+        body = [tsunagi_note({"deckName": "Mining", "modelName": MODEL, "fields": {TERM_FIELD: w},
+                              **({"duplicateScopeOptions": self.options} if self.options else {})})
+                for w in words]
         if self.options.get("checkAllModels"):
             # The check's scope already covers every note type: its IDs are the list.
             results = (await c.rest("POST", "/v1/notes:check", body, include="duplicate_ids"))["results"]
@@ -212,7 +221,7 @@ class MineWithMedia(Workload):
         note = attach(attach(self.note(audio, image), "audio", audio, a, "ExpressionAudio"),
                       "picture", image, i, "Picture")
         note["allowDuplicate"] = True
-        created = await c.rest("POST", "/v1/notes", note)
+        created = await c.rest("POST", "/v1/notes", tsunagi_note(note))
         ctx["created"] = [item["id"] for item in created["created"]]
         ctx["media"] = [audio, image]
 
@@ -305,8 +314,8 @@ class KnownWordsSnapshot(Workload):
         types = " OR ".join(f'"note:{model}"' for model in self.mapping)
         names = sorted({name for fields in self.mapping.values() for name in fields})
         notes = (await c.rest("GET", "/v1/notes", search=f"deck:* ({types})",
-                              select=f"id,model_name,cards,fields[name in {json.dumps(names, ensure_ascii=False)}]"))["items"]
-        vocab = self.vocab((n["id"], n["model_name"], fields_of(n), n["cards"]) for n in notes)
+                              select=f"id,note_type_name,cards,fields[name in {json.dumps(names, ensure_ascii=False)}]"))["items"]
+        vocab = self.vocab((n["id"], n["note_type_name"], fields_of(n), n["cards"]) for n in notes)
         # getIntervals' meaning: 0 for a new card, else the latest review log interval.
         new = set((await c.rest("GET", "/v1/cards", search=f"deck:* ({types}) is:new", select="id", shape="scalar"))["items"])
         latest = {}
@@ -387,17 +396,17 @@ class MinedWordsCache(Workload):
         return self.result(notes, cards, suspended, await self.statuses(find, card_ids))
 
     async def tsunagi(self, c, ctx, trial):
-        notes = (await c.rest("GET", "/v1/notes", search=self.query, select="id,mod,cards,fields"))["items"]
+        notes = (await c.rest("GET", "/v1/notes", search=self.query, select="id,modified,cards,fields"))["items"]
         card_ids = [cid for n in notes for cid in n["cards"]]
         rows = (await c.rest("POST", "/v1/cards/query", {
             "search": "cid:" + ",".join(map(str, card_ids)),
-            "select": "id,deck_name,model_name,due,mod,suspended"}))["items"]
-        cards = {r["id"]: {"deck": r["deck_name"], "model": r["model_name"], "due": r["due"],
-                           "mod": r["mod"]} for r in rows}
+            "select": "id,deck_name,note_type_name,due,modified,suspended"}))["items"]
+        cards = {r["id"]: {"deck": r["deck_name"], "model": r["note_type_name"], "due": r["due"],
+                           "mod": r["modified"]} for r in rows}
 
         async def find(query):
             return (await c.rest("GET", "/v1/cards", search=query, select="id", shape="scalar"))["items"]
-        notes = [{"id": n["id"], "mod": n["mod"], "cards": n["cards"],
+        notes = [{"id": n["id"], "mod": n["modified"], "cards": n["cards"],
                   "fields": {f["name"]: f["value"] for f in n["fields"]}} for n in notes]
         return self.result(notes, cards, {r["id"]: r["suspended"] for r in rows},
                            await self.statuses(find, card_ids))
@@ -424,7 +433,7 @@ class NoteTypeFields(Workload):
         return {name: await c.action("modelFieldNames", modelName=name) for name in names}
 
     async def tsunagi(self, c, ctx, trial):
-        models = (await c.rest("GET", "/v1/models", select="name,fields[].name"))["items"]
+        models = (await c.rest("GET", "/v1/note-types", select="name,fields[].name"))["items"]
         return {m["name"]: m["fields"] for m in models}
 
 
@@ -486,7 +495,7 @@ class MineSession(Workload):
             ctx["media"] += [audio, image]
             note = attach(attach(self.note(word, audio, image), "audio", audio, a, "ExpressionAudio"),
                           "picture", image, im, "Picture")
-            created = (await c.rest("POST", "/v1/notes?include=cards", note))["created"][0]
+            created = (await c.rest("POST", "/v1/notes?include=cards", tsunagi_note(note)))["created"][0]
             ctx["created"].append(created["id"])
             await c.rest("POST", "/v1/cards:suspend", {"cardIds": created["cards"]})
 
@@ -519,18 +528,18 @@ class ClientSettings(Workload):
 
     async def tsunagi(self, c, ctx, trial):
         decks = (await c.rest("GET", "/v1/decks", select="name", shape="scalar"))["items"]
-        models = (await c.rest("GET", "/v1/models", select="name", shape="scalar"))["items"]
-        fields = (await c.rest("GET", "/v1/models", where=f'name=="{MODEL}"', select="fields[].name"))["items"]
+        models = (await c.rest("GET", "/v1/note-types", select="name", shape="scalar"))["items"]
+        fields = (await c.rest("GET", "/v1/note-types", where=f'name=="{MODEL}"', select="fields[].name"))["items"]
         return {"decks": sorted(decks), "models": sorted(models), "fields": fields[0]["fields"]}
 
 
-REVIEW_FIELDS = "id,card_id,ease,interval,last_interval,factor,time_ms,type"
+REVIEW_FIELDS = "id,card_id,rating,interval,last_interval,ease_factor,duration_ms,type"
 
 
 def review_rows(rows):
     """Tsunagi review rows as sorted [card, id, ease, ivl, last ivl, factor, time, type]."""
-    return sorted([r["card_id"], r["id"], r["ease"], r["interval"], r["last_interval"], r["factor"],
-                   r["time_ms"], r["type"]] for r in rows)
+    return sorted([r["card_id"], r["id"], r["rating"], r["interval"], r["last_interval"], r["ease_factor"],
+                   r["duration_ms"], r["type"]] for r in rows)
 
 
 class ReviewHistory(Workload):
@@ -630,8 +639,8 @@ class SyncNotesBatch(Workload):
             attach(notes[i], "picture", name, data, "Picture")
         ctx["media"] = [name for name, _ in pictures.values()]
         # The Tsunagi API takes the duplicate options on the note itself.
-        answer = await c.rest("POST", "/v1/notes", [{**{k: v for k, v in n.items() if k != "options"}, **n["options"]}
-                                                    for n in notes])
+        answer = await c.rest("POST", "/v1/notes", [tsunagi_note({**{k: v for k, v in n.items() if k != "options"},
+                                                                  **n["options"]}) for n in notes])
         failures = {f["index"]: f"{f['code']} {f.get('message', '')}" for f in answer["failed"]}
         ctx["outcomes"] = [self.outcome(failures.get(i)) for i in range(len(notes))]
 
@@ -687,12 +696,12 @@ class FirstPageCards(Workload):
 
     async def tsunagi(self, c, ctx, trial):
         page = (await c.rest("GET", "/v1/cards", search=self.query, limit=self.limit,
-                             select="id,question,deck_name,model_name,due,interval,factor"))["items"]
+                             select="id,question,deck_name,note_type_name,due,interval,ease_factor"))["items"]
         # The tool also reports how many cards matched.
         ids = (await c.rest("GET", "/v1/cards", search=self.query, select="id", shape="scalar"))["items"]
         return {"total": len(ids), "cards": [
-            self.card(r["id"], r["question"], r["deck_name"], r["model_name"], r["due"], r["interval"],
-                      r["factor"]) for r in page]}
+            self.card(r["id"], r["question"], r["deck_name"], r["note_type_name"], r["due"], r["interval"],
+                      r["ease_factor"]) for r in page]}
 
 
 WORKLOADS = [LookupDuplicates(), LookupDuplicatesAllModels(), MineWithMedia(), UpdateLastMined(), KnownWordsSnapshot(),

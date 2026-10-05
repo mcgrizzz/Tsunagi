@@ -5,8 +5,8 @@
     "/v1/notes": "notes",
     "/v1/reviews": "reviews",
     "/v1/decks": "decks",
-    "/v1/models": "noteTypes",
-    "/v1/deck-configs": "deckPresets",
+    "/v1/note-types": "noteTypes",
+    "/v1/deck-presets": "deckPresets",
     "/v1/tags": "tags",
     "/v1/media": "media",
     "/v1/addons": "addons"
@@ -15,64 +15,10 @@
     "tags": "name",
     "media": "filename"
   },
-  "fields": {
-    "model_name": "noteType",
-    "model_id": "noteTypeId",
-    "did": "deckId",
-    "mod": "modified",
-    "mtime": "modified",
-    "factor": "easeFactor",
-    "left": "stepsLeft",
-    "time_ms": "durationMs"
-  },
-  "fieldsBySchema": {
-    "CardRow": {
-      "ord": "templateIndex"
-    },
-    "ReviewRow": {
-      "ease": "rating"
-    },
-    "NoteField": {
-      "ord": "index"
-    },
-    "ModelField": {
-      "ord": "index"
-    },
-    "ModelTemplate": {
-      "ord": "index"
-    },
-    "CardAnswered": {
-      "ease": "rating",
-      "origin": "by",
-      "client": "app"
-    },
-    "RowsChanged": {
-      "origin": "by",
-      "client": "app"
-    },
-    "RowsStale": {
-      "origin": "by",
-      "client": "app"
-    },
-    "DeckCounts": {
-      "id": "deckId"
-    }
-  },
-  "sortsBySchema": {
-    "CardRow": {
-      "ease": "easeFactor"
-    },
-    "NoteRow": {
-      "ease": "easeFactor"
-    }
-  },
   "omit": {
     "*": [
       "usn",
       "stats"
-    ],
-    "ModelRow": [
-      "req"
     ],
     "Health": [
       "ok",
@@ -83,10 +29,13 @@
       "seq",
       "session_id",
       "anki"
+    ],
+    "NoteTypeRow": [
+      "req"
     ]
   },
   "valueOverrides": {
-    "ReviewRow.ease": {
+    "ReviewRow.rating": {
       "0": null
     }
   },
@@ -114,8 +63,6 @@
   },
   "typeNames": {
     "FsrsMemoryState": "MemoryState",
-    "ModelField": "NoteTypeField",
-    "ModelTemplate": "CardTemplate",
     "NoteField": "NoteField",
     "NoteCreated": "CreatedNote",
     "NoteUpdated": "UpdatedNote",
@@ -151,6 +98,11 @@
     "sync": "POST /v1/collection:sync",
     "job": "GET /v1/jobs/{job_id}",
     "health": "GET /v1/health",
-    "capabilities": "GET /v1/capabilities"
+    "capabilities": "GET /v1/capabilities",
+    "guiBrowse": "POST /v1/gui:browse",
+    "guiEditNote": "POST /v1/gui:edit-note",
+    "guiAddCards": "POST /v1/gui:add-cards",
+    "guiDeckOverview": "POST /v1/gui:deck-overview",
+    "guiDeckReview": "POST /v1/gui:deck-review"
   }
 }

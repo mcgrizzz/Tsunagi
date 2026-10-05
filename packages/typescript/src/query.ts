@@ -11,7 +11,7 @@ import { DraftProtocol } from "./protocol.js";
 import type { QueryParams } from "./protocol.js";
 import { positive } from "./transport.js";
 import type { Subscription } from "./subscription.js";
-import type { RequestOptions } from "./types.js";
+import type { RequestOptions, WriteOptions } from "./types.js";
 import { watch } from "./watch.js";
 import type { WatchHandlers } from "./watch.js";
 
@@ -57,6 +57,8 @@ function encodeValue(field: FieldDescription, value: unknown): string {
 
 interface State {
   readonly select: readonly string[] | null;  // client names; null for every field
+  readonly unwatchable?: string;   // why watch() can't run this query, when it can't
+  readonly unbrowsable?: string;   // why openBrowser() can't show it, when it can't
   readonly scalar: boolean;
   readonly where: readonly string[];
   readonly search?: string;
@@ -91,11 +93,34 @@ type KeyName<N extends QueryResource> = (typeof resources)[N]["key"] & keyof Row
 export type WatchRow<N extends QueryResource, R> = R & Pick<Rows[N], KeyName<N>>;
 export type WatchKey<N extends QueryResource> = Rows[N][KeyName<N>];
 declare const canWatch: unique symbol;
+declare const canBrowse: unique symbol;
+/** Why watch() can't run a query, as the compiler shows it. */
+export type NotWatchable = typeof notWatchable[keyof typeof notWatchable];
+const notWatchable = {
+  orderBy: "orderBy() can't be watched: changes have no order (use onChange() and take())",
+  distinctOn: "distinctOn() can't be watched: one row per value can't be kept from changes",
+  values: "values() can't be watched: a watch needs each row's key (use select())",
+} as const;
+/** Why openBrowser() can't show a query, as the compiler shows it. */
+export type NotBrowsable = typeof notBrowsable[keyof typeof notBrowsable];
+const notBrowsable = {
+  where: "where() can't be shown in Anki's Browser, which takes only search() and is()",
+  orderBy: "orderBy() can't be shown in Anki's Browser, which takes only search() and is()",
+  distinctOn: "distinctOn() can't be shown in Anki's Browser, which takes only search() and is()",
+} as const;
+/** The resources Anki's Browser shows. */
+export type BrowserResource = "cards" | "notes";
 
-export class Query<N extends QueryResource, R = Rows[N], W extends boolean = true> implements AccessTarget {
+/**
+ * W and B are true, or the reason watch() or openBrowser() can't take the
+ * query: a misuse is a compile error that says why, and a TypeError with the
+ * same words at run time.
+ */
+export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWatchable = true,
+  B extends true | NotBrowsable = true> implements AccessTarget {
   declare readonly [accessTarget]: true;
-  /** False after orderBy, distinctOn or values: such a query can't be watched. */
   declare readonly [canWatch]: W;
+  declare readonly [canBrowse]: B;
   constructor(
     protected readonly protocol: DraftProtocol,
     protected readonly resource: N,
@@ -116,20 +141,20 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
     if (scalar && !scalarKinds.includes(field.kind)) throw new TypeError(`${name} is not a single value`);
     return field;
   }
-  private with<T, V extends boolean = W>(state: Partial<State>): Query<N, T, V> {
+  private with<T, V extends true | NotWatchable = W, U extends true | NotBrowsable = B>(state: Partial<State>): Query<N, T, V, U> {
     return new Query(this.protocol, this.resource, { ...this.state, ...state });
   }
 
   /** Anki search, on cards, notes and reviews. Replaces a previous search; is() states stay. */
-  search(search: string): Query<N, R, W> {
+  search(search: string): Query<N, R, W, B> {
     if (typeof search !== "string") throw new TypeError("search must be a string");
     return this.with({ search });
   }
   /** Rows in one of Anki's states, as Anki's search means it (is:suspended, is:due...). Several must all hold. */
-  is(this: Query<N & SearchResource, R, W>, state: CardState): Query<N, R, W> {
+  is(this: Query<N & SearchResource, R, W, B>, state: CardState): Query<N, R, W, B> {
     if (typeof state !== "string" || !Object.hasOwn(stateTerms, state)) throw new TypeError(`Unknown state: ${String(state)}`);
     if (resources[this.resource].search === null) throw new TypeError(`${this.resource} take no Anki search`);
-    return this.with({ states: [...this.state.states, `is:${stateTerms[state]}`] }) as unknown as Query<N, R, W>;
+    return this.with({ states: [...this.state.states, `is:${stateTerms[state]}`] }) as unknown as Query<N, R, W, B>;
   }
   /** The search sent: the text, then each is() state, all of which must hold. */
   private get fullSearch(): string | undefined {
@@ -138,7 +163,7 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
     const terms = [...new Set(states)].join(" ");
     return search === undefined || !search.trim() ? terms : `(${search}) ${terms}`;
   }
-  where<K extends ScalarKey<Rows[N]>, O extends Operator<Rows[N][K]>>(field: K, operator: O, value: Operand<NoInfer<Rows[N][K]>, O>): Query<N, R, W> {
+  where<K extends ScalarKey<Rows[N]>, O extends Operator<Rows[N][K]>>(field: K, operator: O, value: Operand<NoInfer<Rows[N][K]>, O>): Query<N, R, W, typeof notBrowsable.where> {
     const description = this.field(field, true);
     if (!Object.hasOwn(symbols, operator)) throw new TypeError("Unsupported filter operator");
     const list = operator === "in" || operator === "notIn";
@@ -150,26 +175,28 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
     }
     const encoded = list ? `[${(value as readonly unknown[]).map(v => encodeValue(description, v)).join(",")}]`
       : encodeValue(description, value);
-    return this.with({ where: [...this.state.where, `${description.wire}${symbols[operator]}${encoded}`] });
+    return this.with({ where: [...this.state.where, `${description.wire}${symbols[operator]}${encoded}`],
+      unbrowsable: notBrowsable.where });
   }
-  orderBy(sort: SortOf<N>, direction: "asc" | "desc" = "asc"): Query<N, R, false> {
+  orderBy(sort: SortOf<N>, direction: "asc" | "desc" = "asc"): Query<N, R, typeof notWatchable.orderBy, typeof notBrowsable.orderBy> {
     const sorts: Readonly<Record<string, string>> = resources[this.resource].sorts;
     if (!Object.hasOwn(sorts, sort) || !["asc", "desc"].includes(direction)) throw new TypeError("Unsupported sort");
-    return this.with({ order: `${sorts[sort]}:${direction}` });
+    return this.with({ order: `${sorts[sort]}:${direction}`, unwatchable: notWatchable.orderBy, unbrowsable: notBrowsable.orderBy });
   }
   /** One row per value of the field: the first in orderBy's order. */
-  distinctOn(field: ScalarKey<Rows[N]>): Query<N, R, false> {
-    return this.with({ distinctOn: this.field(field, true).wire });
+  distinctOn(field: ScalarKey<Rows[N]>): Query<N, R, typeof notWatchable.distinctOn, typeof notBrowsable.distinctOn> {
+    return this.with({ distinctOn: this.field(field, true).wire, unwatchable: notWatchable.distinctOn,
+      unbrowsable: notBrowsable.distinctOn });
   }
-  select<const K extends readonly [Key<Rows[N]>, ...Key<Rows[N]>[]]>(...fields: K): Query<N, Pick<Rows[N], K[number]>, W> {
+  select<const K extends readonly [Key<Rows[N]>, ...Key<Rows[N]>[]]>(...fields: K): Query<N, Pick<Rows[N], K[number]>, W, B> {
     if (!fields.length) throw new TypeError("Select at least one field");
     fields.forEach(field => this.field(field));
     return this.with({ select: [...new Set(fields)], scalar: false });
   }
   /** Each row's value of one field, bare. */
-  values<K extends ScalarKey<Rows[N]>>(field: K): Query<N, Rows[N][K], false> {
+  values<K extends ScalarKey<Rows[N]>>(field: K): Query<N, Rows[N][K], typeof notWatchable.values, B> {
     this.field(field, true);
-    return this.with({ select: [field], scalar: true });
+    return this.with({ select: [field], scalar: true, unwatchable: notWatchable.values });
   }
 
   async take(count: number, options: RequestOptions = {}): Promise<R[]> {
@@ -202,14 +229,14 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
    * Resolves once the first load has been delivered.
    */
   watch(
-    this: Query<N, R, true>,
+    this: Query<N, R, true, B>,
     handlers: N extends WatchResource ? WatchHandlers<WatchRow<N, R>, WatchKey<N>> : never,
     options: { signal?: AbortSignal } = {},
   ): Promise<Subscription> {
-    const { select, scalar, order, distinctOn } = this.state;
+    const { select, unwatchable } = this.state;
     const search = this.fullSearch;
     if (!watchable.has(this.resource)) throw new TypeError(`Tsunagi sends no events for ${this.resource}`);
-    if (scalar || order !== undefined || distinctOn !== undefined) throw new TypeError("A watched query can't use orderBy, distinctOn or values");
+    if (unwatchable !== undefined) throw new TypeError(unwatchable);
     const key: string = resources[this.resource].key;
     const selected = select ? [...new Set([...select, key])] : null;
     const query = this.with<R>({ select: selected });
@@ -217,7 +244,7 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
       protocol: this.protocol,
       connection: this.protocol.connection,
       path: resources[this.resource].path,
-      events: resources[this.resource].path.split("/").at(-1)!,
+      events: resources[this.resource].path.split("/").at(-1)!.replaceAll("-", "_"),
       key,
       keyWire: this.fields[key]!.wire,
       search,
@@ -233,6 +260,18 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
       },
       decode: raw => decodeObject(this.fields, raw, selected),
     }, options.signal);
+  }
+
+  /**
+   * Shows this query's cards or notes in Anki's Browser: its search and is()
+   * states, live as the Browser keeps them. Resolves once the Browser shows
+   * them; raises as any request does. A query with no search shows every one.
+   */
+  async openBrowser(this: Query<N & BrowserResource, R, W, true>, options: WriteOptions = {}): Promise<void> {
+    if (this.resource !== "cards" && this.resource !== "notes") throw new TypeError(`Anki's Browser shows cards and notes, not ${this.resource}`);
+    if (this.state.unbrowsable !== undefined) throw new TypeError(this.state.unbrowsable);
+    const search = this.fullSearch;
+    await this.protocol.openBrowser(search === undefined || !search.trim() ? "deck:*" : search, options);
   }
 
   private params(total: boolean): QueryParams {

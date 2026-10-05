@@ -10,9 +10,9 @@ import os
 import threading
 import time
 import urllib.request
-from typing import List, Optional, Union
+from typing import Iterable, List, Optional, Union
 
-from fastapi import Body, Header, Path
+from fastapi import Body, Header, HTTPException, Path
 from fastapi.responses import FileResponse, JSONResponse
 
 from ...adapters import idempotency
@@ -45,7 +45,7 @@ from ...shared.version import ADDON_VERSION
 # takes (backlog 6.71); rows keyed by filename. Uploads and files are below.
 router = create_resource_routes(
     path="/v1/media",
-    caps=SourceCaps(fetch_all=lambda wants=None: [{"filename": n, "size": s, "mtime": m}
+    caps=SourceCaps(fetch_all=lambda wants=None: [{"filename": n, "size": s, "modified": m}
                                                   for n, s, m in list_media()], key_type=str),
     row_model=MediaRow,
     id_getter=lambda row: row["filename"],
@@ -111,6 +111,13 @@ def _fetch_url(url: str) -> bytes:
     except Exception as e:
         raise ValidationError(f"download failed: {e}") from e
     return b"".join(chunks)
+
+
+def require_local_files(uploads: Iterable[Optional[MediaUpload]]) -> None:
+    """A file sent by its path on this computer needs local_files: without it
+    the request is refused (403), not one file."""
+    if any(u is not None and u.path is not None for u in uploads) and not permitted("local_files"):
+        raise HTTPException(status_code=403, detail=current_denial("local_files"))
 
 
 def resolve_upload(body: MediaUpload) -> tuple:
@@ -186,6 +193,7 @@ def store_media(
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", description=IDEMPOTENCY_HELP),
 ) -> Union[MediaCreateResponse, JSONResponse]:
     candidates = body if isinstance(body, list) else [body]
+    require_local_files(candidates)
     if not idempotency_key:
         return create_media(candidates, resolve_upload)
 

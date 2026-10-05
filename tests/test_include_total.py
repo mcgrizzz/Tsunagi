@@ -4,7 +4,7 @@ import pytest
 
 @pytest.fixture()
 def data(client, col, answer_cards):
-    notes = [{"modelName": "Basic (and reversed card)" if i % 3 == 0 else "Basic",
+    notes = [{"noteTypeName": "Basic (and reversed card)" if i % 3 == 0 else "Basic",
               "deckName": "Default" if i % 2 else "Mining", "tags": ["even"] if i % 2 == 0 else [],
               "fields": {"Front": f"w{i:02}", "Back": "x"}} for i in range(10)]
     client.post("/v1/decks", json={"name": "Mining"})
@@ -28,9 +28,9 @@ def every(client, path, **params):
     ("/v1/notes", {"where": "first_field==\"w03\""}),         # a checksum superset: counted from the rows
     ("/v1/reviews", {"search": "deck:Mining"}),               # reviews: the search as cid in (...)
     ("/v1/reviews", {"distinct_on": "card_id"}),
-    ("/v1/reviews", {"search": "deck:Default", "distinct_on": "card_id", "where": "ease==1"}),
+    ("/v1/reviews", {"search": "deck:Default", "distinct_on": "card_id", "where": "rating==1"}),
     ("/v1/decks", {}),
-    ("/v1/models", {"where": 'name~="basic"'}),
+    ("/v1/note-types", {"where": 'name~="basic"'}),
 ])
 def test_total_is_every_matching_row(client, data, path, params):
     body = client.get(path, params={**params, "include": "total", "limit": 2}).json()
@@ -72,7 +72,7 @@ def test_a_bad_search_is_still_a_400(client, data):
     ("get", "/v1/cards", {"params": {"include": "totals"}}),
     ("post", "/v1/cards/query", {"json": {"include": "total,cards"}}),
     ("post", "/v1/notes:upsert", {"params": {"include": "duplicate_ids"},
-                                  "json": {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "x"},
+                                  "json": {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "x"},
                                            "match": {"field": "Front"}}}),
 ])
 def test_an_unknown_part_is_a_422_naming_what_include_takes(client, data, method, path, kwargs):

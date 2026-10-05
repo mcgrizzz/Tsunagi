@@ -9,7 +9,7 @@ import pytest
 
 def add_note(client, front, deck="Default"):
     return client.post("/v1/notes?include=cards", json={
-        "modelName": "Basic", "deckName": deck,
+        "noteTypeName": "Basic", "deckName": deck,
         "fields": {"Front": front, "Back": "x"}}).json()["created"][0]
 
 
@@ -30,15 +30,15 @@ class TestReads:
         body = reviewed.get("/v1/reviews").json()
         assert len(body["items"]) == 3
         row = body["items"][0]
-        assert {"id", "card_id", "ease", "interval", "last_interval",
-                "factor", "time_ms", "type"} <= set(row)
+        assert {"id", "card_id", "rating", "interval", "last_interval",
+                "ease_factor", "duration_ms", "type"} <= set(row)
         assert "cid" not in row and "ivl" not in row and "lastIvl" not in row
 
     def test_rows_describe_a_real_review(self, reviewed):
         row = reviewed.get("/v1/reviews").json()["items"][0]
-        assert row["ease"] == 3                  # "good" is button 3
+        assert row["rating"] == 3                # "good" is button 3
         assert row["id"] > 1_500_000_000_000     # epoch ms, not seconds
-        assert row["time_ms"] >= 0
+        assert row["duration_ms"] >= 0
 
     def test_ordered_by_review_time(self, reviewed):
         ids = [r["id"] for r in reviewed.get("/v1/reviews").json()["items"]]
@@ -49,14 +49,14 @@ class TestReads:
 
     def test_select_projects(self, reviewed):
         rows = reviewed.get("/v1/reviews", params={
-            "select": "id,ease", "shape": "object"}).json()["items"]
-        assert all(set(r) == {"id", "ease"} for r in rows)
+            "select": "id,rating", "shape": "object"}).json()["items"]
+        assert all(set(r) == {"id", "rating"} for r in rows)
 
     def test_where_filters(self, reviewed):
         assert reviewed.get("/v1/reviews", params={
-            "where": "ease==1"}).json()["items"] == []
+            "where": "rating==1"}).json()["items"] == []
         assert len(reviewed.get("/v1/reviews", params={
-            "where": "ease==3"}).json()["items"]) == 3
+            "where": "rating==3"}).json()["items"]) == 3
 
 
 class TestIndices:
@@ -194,15 +194,15 @@ class TestInsert:
     def test_rows_round_trip(self, client):
         cid = self._card_id(client)
         rows = [
-            {"id": 1700000000000, "card_id": cid, "usn": -1, "ease": 3,
-             "interval": 1, "last_interval": 0, "factor": 2500,
-             "time_ms": 4000, "type": 1},
-            {"id": 1700000000001, "card_id": cid, "ease": 4},
+            {"id": 1700000000000, "card_id": cid, "usn": -1, "rating": 3,
+             "interval": 1, "last_interval": 0, "ease_factor": 2500,
+             "duration_ms": 4000, "type": 1},
+            {"id": 1700000000001, "card_id": cid, "rating": 4},
         ]
         body = client.post("/v1/reviews", json={"reviews": rows}).json()
         assert body["inserted"] == 2
         got = client.get("/v1/reviews").json()["items"]
-        assert [(r["id"], r["ease"], r["factor"]) for r in got] == [
+        assert [(r["id"], r["rating"], r["ease_factor"]) for r in got] == [
             (1700000000000, 3, 2500), (1700000000001, 4, 0)]
 
     def test_wire_aliases_accepted(self, client):
@@ -212,7 +212,7 @@ class TestInsert:
              "time": 2500, "ease": 2}]}).json()
         assert body["inserted"] == 1
         row = client.get("/v1/reviews").json()["items"][0]
-        assert (row["card_id"], row["interval"], row["time_ms"]) == (cid, 3, 2500)
+        assert (row["card_id"], row["interval"], row["duration_ms"]) == (cid, 3, 2500)
 
     def test_empty_list_inserts_nothing(self, client):
         assert client.post("/v1/reviews", json={"reviews": []}).json()["inserted"] == 0
@@ -273,7 +273,7 @@ class TestKeysetListing:
         assert seen == sorted(seen) and len(seen) == 3
 
     def test_where_filter_rides_keyset(self, reviewed):
-        body = reviewed.get("/v1/reviews", params={"where": "ease==3"}).json()
+        body = reviewed.get("/v1/reviews", params={"where": "rating==3"}).json()
         assert len(body["items"]) == 3
 
 

@@ -35,17 +35,17 @@ BURIED_QUEUES = (-2, -3)  # sibling-buried, manually buried
 
 # Fields that need the card's note loaded. Rendering question/answer goes
 # through the backend template renderer, which is a separate call again.
-NOTE_WANTS = frozenset({"model_name", "css", "fields"})
+NOTE_WANTS = frozenset({"note_type_name", "css", "fields"})
 RENDER_WANTS = frozenset({"question", "answer"})
 
 # Only stable columns and expressions with the same meaning as _card_info.
 # Newer FSRS properties live in Anki's card data and use the normal reader.
 CARD_COLUMN_SQL = {
     "id": "id", "note_id": "nid", "deck_id": "did",
-    "original_deck_id": "odid", "ord": "ord", "mod": "mod", "usn": "usn",
+    "original_deck_id": "odid", "template_index": "ord", "modified": "mod", "usn": "usn",
     "type": "type", "queue": "queue", "due": "due", "original_due": "odue",
-    "interval": "ivl", "factor": "factor", "reps": "reps", "lapses": "lapses",
-    "left": '("left" % 1000)', "flag": "flags & 7",
+    "interval": "ivl", "ease_factor": "factor", "reps": "reps", "lapses": "lapses",
+    "steps_left": '("left" % 1000)', "flag": "flags & 7",
     "suspended": "queue = -1", "buried": "queue in (-2, -3)",
 }
 
@@ -123,7 +123,7 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
         notetype = note.note_type()
         model_name = notetype.get("name", "")
         css = notetype.get("css", "")
-        fields = [{"name": n, "value": v, "ord": i}
+        fields = [{"name": n, "value": v, "index": i}
                   for i, (n, v) in enumerate(zip(note.keys(), note.fields))]
 
     question = card.question() if want_render else None
@@ -143,20 +143,20 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
         "note_id": int(card.nid),
         "deck_id": int(card.did),
         "original_deck_id": int(getattr(card, "odid", 0) or 0),
-        "ord": int(card.ord),
-        "mod": int(getattr(card, "mod", 0) or 0),
+        "template_index": int(card.ord),
+        "modified": int(getattr(card, "mod", 0) or 0),
         "usn": int(getattr(card, "usn", 0) or 0),
         "type": int(card.type),
         "queue": int(card.queue),
         "due": int(card.due),
         "original_due": int(getattr(card, "odue", 0) or 0),
         "interval": int(card.ivl),
-        "factor": int(card.factor),
+        "ease_factor": int(card.factor),
         "reps": int(card.reps),
         "lapses": int(card.lapses),
         # Old schedulers packed a steps-today count above the last three
         # digits; Anki reads only these (Card::remaining_steps).
-        "left": int(card.left) % 1000,
+        "steps_left": int(card.left) % 1000,
         "original_position": _optional(int, getattr(card, "original_position", None)),
         "custom_data": str(getattr(card, "custom_data", "") or ""),
         "memory_state": _memory_state(card),
@@ -167,7 +167,7 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
         "buried": int(card.queue) in BURIED_QUEUES,
         "flag": flags & 0b111,
         "deck_name": deck_names.get(int(card.did), ""),
-        "model_name": model_name,
+        "note_type_name": model_name,
         "css": css,
         "fields": fields,
         "question": question,
@@ -485,7 +485,7 @@ def _resolve_change_deck(col: Collection, deck_id: Optional[int],
         deck = col.decks.by_name(str(deck_name))
         if deck is None:
             # Deliberately NOT creating the deck, matching POST /v1/notes.
-            raise ValidationError(f"deck was not found: {deck_name}")
+            raise ResourceNotFoundError("deck", str(deck_name))
         return int(deck["id"])
     if col.decks.get(int(deck_id), default=False) is None:
         raise ResourceNotFoundError("deck", int(deck_id))
@@ -737,7 +737,7 @@ BATCH_VERBS: Dict[str, Any] = {
 
 
 def _ease_affected(col: Collection, body: Any) -> Any:
-    results, changes = _set_ease(col, [e.dict() for e in body.cards])
+    results, changes = _set_ease(col, [{"id": e.id, "factor": e.ease_factor} for e in body.cards])
     return sum(1 for ok in results if ok), changes
 
 

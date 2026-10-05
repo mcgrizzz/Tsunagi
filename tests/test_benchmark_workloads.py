@@ -23,8 +23,8 @@ def server(col, reset_settings, monkeypatch):
     from tsunagi.app import app
     monkeypatch.setattr(aqt.mw, "pm", SimpleNamespace(name="Bench"), raising=False)
     mm = col.models
-    for model_name in (bw.MODEL, "Kiku+"):   # the profile also has a second note type
-        model = mm.new(model_name)
+    for note_type_name in (bw.MODEL, "Kiku+"):   # the profile also has a second note type
+        model = mm.new(note_type_name)
         for name in (bw.TERM_FIELD, "ExpressionReading", "Sentence", "ExpressionAudio", "Picture"):
             mm.add_field(model, mm.new_field(name))
         template = mm.new_template("Card 1")

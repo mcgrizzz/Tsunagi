@@ -86,7 +86,7 @@ def create_deck_config(col: Collection, data: Dict[str, Any]) -> Dict[str, Any]:
     if clone_from is not None:
         source = _config(col, int(clone_from))
         if source is None:
-            raise ResourceNotFoundError("deck config", int(clone_from))
+            raise ResourceNotFoundError("Deck preset", int(clone_from))
 
     new_id = col.decks.add_config_returning_id(name, source)
     return col.decks.get_config(int(new_id))
@@ -97,7 +97,7 @@ def patch_deck_config(col: Collection, config_id: int,
                       updates: Dict[str, Any]) -> Dict[str, Any]:
     conf = _config(col, int(config_id))
     if conf is None:
-        raise ResourceNotFoundError("deck config", int(config_id))
+        raise ResourceNotFoundError("Deck preset", int(config_id))
     merged = _merge(conf, updates)
     if merged.get("name") != conf.get("name"):
         ensure_name_free("Preset", merged.get("name"),
@@ -129,9 +129,9 @@ def replace_deck_config(col: Collection, conf: Dict[str, Any]) -> bool:
 @as_collection_op
 def delete_deck_config(col: Collection, config_id: int) -> bool:
     if int(config_id) == DEFAULT_CONFIG_ID:
-        raise ValidationError("Cannot delete the default deck config")
+        raise ValidationError("Cannot delete the default deck preset")
     if _config(col, int(config_id)) is None:
-        raise ResourceNotFoundError("deck config", int(config_id))
+        raise ResourceNotFoundError("Deck preset", int(config_id))
     # Anki reassigns every deck using it back to the default.
     col.decks.remove_config(int(config_id))
     return True

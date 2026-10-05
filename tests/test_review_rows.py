@@ -10,14 +10,14 @@ from tsunagi.shared.schemas.reviews import ReviewInfo
 
 def test_rows_match_review_schema(client, col, answer_cards):
     for word in ("a", "b", "c"):
-        client.post("/v1/notes", json={"modelName": "Basic", "deckName": "Default",
+        client.post("/v1/notes", json={"noteTypeName": "Basic", "deckName": "Default",
                                        "fields": {"Front": word, "Back": "x"}})
     assert answer_cards(3, rating="again") == 3
     answer_cards(2)
     card = col.find_cards("")[0]
     # Learning intervals are negative seconds; imported history can carry any ints.
-    imported = {"id": 1600000000000, "card_id": card, "usn": -1, "ease": 2, "interval": -600,
-                "last_interval": -60, "factor": 1300, "time_ms": 7000, "type": 4}
+    imported = {"id": 1600000000000, "card_id": card, "usn": -1, "rating": 2, "interval": -600,
+                "last_interval": -60, "ease_factor": 1300, "duration_ms": 7000, "type": 4}
     client.post("/v1/reviews", json={"reviews": [imported]})
 
     rows = client.get("/v1/reviews").json()["items"]

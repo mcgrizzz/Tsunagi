@@ -29,7 +29,7 @@ export interface Watched {
   readonly protocol: DraftProtocol;
   readonly connection: EventConnection;
   readonly path: string;
-  /** The resource's event name: the path's last part (models for note types). */
+  /** The resource's event name: the path's last part, with _ for - (note_types). */
   readonly events: string;
   readonly key: string;           // client name
   readonly keyWire: string;

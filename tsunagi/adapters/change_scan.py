@@ -107,7 +107,7 @@ class ChangeScan:
             except Exception:
                 found = {}  # collection closing: fall back to the flags alone
                 logging.getLogger(__name__).debug("Change scan failed", exc_info=True)
-            broker.publish("change", changes=found, origin="ui",
+            broker.publish("change", changes=found, by="ui",
                            affected=affected_resources(flags), anki={"changes": flags})
         if counts_due and broker.wants("decks.counts"):
             self.publish_counts()
@@ -125,7 +125,7 @@ class ChangeScan:
         counts = self._counts()
         if counts is None:
             return
-        changed = [{"id": did, **row} for did, row in counts.items()
+        changed = [{"deck_id": did, **row} for did, row in counts.items()
                    if did and self.counts.get(did) != row]  # 0 is the tree's root
         self.counts = counts
         if changed:

@@ -118,7 +118,7 @@ def test_an_answer_sends_one_counts_event_and_a_flag_change_none(scan, answer_ca
     broker.scanner.flush()
     [event] = _counts_events(token)
     [deck] = event["decks"]
-    assert deck["id"] == 1 and deck["new_count"] == before["new_count"] - 1
+    assert deck["deck_id"] == 1 and deck["new_count"] == before["new_count"] - 1
     assert deck["learn_count"] == before["learn_count"] + 1
 
     col.set_user_flag_for_cards(1, kept.card_ids())  # counts do not move

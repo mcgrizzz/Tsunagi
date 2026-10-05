@@ -5,7 +5,7 @@ import pytest
 
 
 def add(client, front="犬", back="dog", model="Basic", deck="Default", tags=None):
-    body = {"modelName": model, "deckName": deck, "fields": {"Front": front, "Back": back}}
+    body = {"noteTypeName": model, "deckName": deck, "fields": {"Front": front, "Back": back}}
     if model == "Cloze":
         body["fields"] = {"Text": front, "Back Extra": back}
     if tags is not None:
@@ -24,7 +24,7 @@ class TestReads:
     def test_bare_list_uses_scan_tier(self, seeded):
         body = seeded.get("/v1/notes").json()
         assert len(body["items"]) == 2
-        assert body["items"][0]["model_name"] == "Basic"
+        assert body["items"][0]["note_type_name"] == "Basic"
 
     def test_pagination_walks_all(self, seeded):
         seen, cursor = [], None
@@ -77,7 +77,7 @@ class TestReads:
         # Demand-driven hydration: `cards` costs a backend call per note
         full = seeded.get("/v1/notes").json()["items"][0]
         assert full["cards"]  # no select -> whole record
-        lean = seeded.get("/v1/notes", params={"select": "id,model_name", "shape": "object"}).json()
+        lean = seeded.get("/v1/notes", params={"select": "id,note_type_name", "shape": "object"}).json()
         assert "cards" not in lean["items"][0]
 
     def test_limit_counts_returned_items_not_rows_scanned(self, client):
@@ -112,23 +112,23 @@ class TestCreate:
 
     def test_create_with_field_array(self, client, col):
         resp = client.post("/v1/notes", json={
-            "modelName": "Basic", "deckName": "Default",
+            "noteTypeName": "Basic", "deckName": "Default",
             "fields": [{"name": "Front", "value": "鳥"}, {"name": "Back", "value": "bird"}],
         })
         assert resp.status_code == 200
         assert list(col.get_note(resp.json()["created"][0]["id"]).fields) == ["鳥", "bird"]
 
     def test_create_by_ids(self, client):
-        mid = client.get("/v1/models", params={
+        mid = client.get("/v1/note-types", params={
             "where": "name==Basic", "select": "id", "shape": "scalar"}).json()["items"][0]
         resp = client.post("/v1/notes", json={
-            "modelId": mid, "deckId": 1, "fields": {"Front": "鳥"}})
+            "noteTypeId": mid, "deckId": 1, "fields": {"Front": "鳥"}})
         assert resp.status_code == 200, resp.text
         assert len(resp.json()["created"]) == 1
 
     def test_unknown_field_is_rejected(self, client):
         resp = client.post("/v1/notes", json={
-            "modelName": "Basic", "deckName": "Default", "fields": {"Nope": "x"}})
+            "noteTypeName": "Basic", "deckName": "Default", "fields": {"Nope": "x"}})
         assert_rejected(resp)
 
     def test_unknown_model_is_rejected(self, client):
@@ -157,7 +157,7 @@ class TestCreate:
     def test_duplicate_allowed_when_requested(self, client):
         add(client)
         resp = client.post("/v1/notes", json={
-            "modelName": "Basic", "deckName": "Default",
+            "noteTypeName": "Basic", "deckName": "Default",
             "fields": {"Front": "犬"}, "allowDuplicate": True})
         assert resp.status_code == 200
         assert len(resp.json()["created"]) == 1
@@ -207,42 +207,42 @@ class TestChangeModel:
     def test_change_model_by_name(self, client):
         nid = add(client, tags=["keep"]).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}", json={
-            "modelName": "Cloze", "fields": {"Text": "{{c1::犬}}"}})
+            "noteTypeName": "Cloze", "fields": {"Text": "{{c1::犬}}"}})
         assert resp.status_code == 200
         note = resp.json()["result"]
-        assert note["model_name"] == "Cloze"
+        assert note["note_type_name"] == "Cloze"
         assert [f["name"] for f in note["fields"]] == ["Text", "Back Extra"]
         assert note["fields"][0]["value"] == "{{c1::犬}}"
         assert note["tags"] == ["keep"]        # tags survive the retype
 
     def test_change_model_by_id(self, client):
-        cloze_id = client.get("/v1/models", params={
+        cloze_id = client.get("/v1/note-types", params={
             "where": "name==Cloze", "select": "id", "shape": "scalar"}).json()["items"][0]
         nid = add(client).json()["created"][0]["id"]
         note = client.patch(f"/v1/notes/{nid}", json={
-            "modelId": cloze_id, "fields": {"Text": "{{c1::猫}}"}}).json()["result"]
-        assert note["model_id"] == cloze_id
+            "noteTypeId": cloze_id, "fields": {"Text": "{{c1::猫}}"}}).json()["result"]
+        assert note["note_type_id"] == cloze_id
 
     def test_change_model_without_fields_is_400(self, client):
         # The resize blanks every field, so a bare model change would erase
         # the note. Refuse rather than silently destroy content.
         nid = add(client).json()["created"][0]["id"]
-        resp = client.patch(f"/v1/notes/{nid}", json={"modelName": "Cloze"})
+        resp = client.patch(f"/v1/notes/{nid}", json={"noteTypeName": "Cloze"})
         assert resp.status_code == 400
         assert "erase" in resp.json()["detail"]
         note = client.get("/v1/notes", params={"where": f"id=={nid}"}).json()["items"][0]
         assert note["fields"][0]["value"] == "犬"   # untouched
 
-    def test_unknown_model_is_400(self, client):
+    def test_unknown_note_type_is_404(self, client):
         nid = add(client).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}",
-                            json={"modelName": "Nope", "fields": {"Front": "x"}})
-        assert resp.status_code == 400
+                            json={"noteTypeName": "Nope", "fields": {"Front": "x"}})
+        assert resp.status_code == 404
 
     def test_fields_not_on_the_new_model_are_400(self, client):
         nid = add(client).json()["created"][0]["id"]
         resp = client.patch(f"/v1/notes/{nid}",
-                            json={"modelName": "Cloze", "fields": {"Front": "x"}})
+                            json={"noteTypeName": "Cloze", "fields": {"Front": "x"}})
         assert resp.status_code == 400
 
 
@@ -259,17 +259,17 @@ class TestDelete:
 
 class TestCheck:
     def check(self, client, notes):
-        return client.post("/v1/notes:check?include=duplicate_ids", json={"notes": notes}).json()["results"]
+        return client.post("/v1/notes:check?include=duplicate_ids", json=notes).json()["results"]
 
     def test_normal_can_add(self, client):
-        (res,) = self.check(client, [{"modelName": "Basic", "deckName": "Default",
+        (res,) = self.check(client, [{"noteTypeName": "Basic", "deckName": "Default",
                                       "fields": {"Front": "新しい"}}])
         assert res == {"index": 0, "can_add": True, "state": "normal",
                        "reason": None, "duplicate_note_ids": []}
 
     def test_duplicate_reports_existing_id(self, client):
         nid = add(client).json()["created"][0]["id"]
-        (res,) = self.check(client, [{"modelName": "Basic", "deckName": "Default",
+        (res,) = self.check(client, [{"noteTypeName": "Basic", "deckName": "Default",
                                       "fields": {"Front": "犬"}}])
         assert res["can_add"] is False
         assert res["state"] == "duplicate"
@@ -277,18 +277,18 @@ class TestCheck:
 
     def test_duplicate_allowed_can_add(self, client):
         add(client)
-        (res,) = self.check(client, [{"modelName": "Basic", "deckName": "Default",
+        (res,) = self.check(client, [{"noteTypeName": "Basic", "deckName": "Default",
                                       "fields": {"Front": "犬"}, "allowDuplicate": True}])
         assert res["can_add"] is True
         assert res["state"] == "duplicate"
 
     def test_empty_first_field(self, client):
-        (res,) = self.check(client, [{"modelName": "Basic", "deckName": "Default",
+        (res,) = self.check(client, [{"noteTypeName": "Basic", "deckName": "Default",
                                       "fields": {"Front": ""}}])
         assert (res["can_add"], res["state"]) == (False, "empty")
 
     def test_unknown_model_is_reported_not_raised(self, client):
-        (res,) = self.check(client, [{"modelName": "Nope", "deckName": "Default",
+        (res,) = self.check(client, [{"noteTypeName": "Nope", "deckName": "Default",
                                       "fields": {"Front": "x"}}])
         assert res["can_add"] is False
         assert "Nope" in res["reason"]
@@ -296,15 +296,15 @@ class TestCheck:
     def test_order_and_indexes_preserved(self, client):
         add(client)
         results = self.check(client, [
-            {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "新"}},
-            {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "犬"}},
+            {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "新"}},
+            {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "犬"}},
         ])
         assert [r["index"] for r in results] == [0, 1]
         assert [r["can_add"] for r in results] == [True, False]
 
     def test_check_adds_nothing(self, client, col):
         before = col.note_count()
-        self.check(client, [{"modelName": "Basic", "deckName": "Default",
+        self.check(client, [{"noteTypeName": "Basic", "deckName": "Default",
                              "fields": {"Front": "新しい"}}])
         assert col.note_count() == before
 

@@ -21,7 +21,7 @@ def rpc(client, action, params=None, version=6):
 
 def add_note(client, front, deck="JP"):
     return client.post("/v1/notes?include=cards", json={
-        "modelName": "Basic", "deckName": deck,
+        "note_type_name": "Basic", "deckName": deck,
         "fields": {"Front": front, "Back": "x"}}).json()["created"][0]
 
 
@@ -42,7 +42,7 @@ class TestExportImportRoundTrip:
         path = str(tmp_path / "jp.apkg")
 
         assert client.post("/v1/collection:export", json={
-            "deck": "JP", "path": path}).status_code == 200
+            "deck_name": "JP", "path": path}).status_code == 200
 
         nids = [n["id"] for n in client.get("/v1/notes").json()["items"]]
         col.remove_notes(nids)
@@ -57,7 +57,7 @@ class TestExportImportRoundTrip:
     def test_export_writes_a_file(self, client, tmp_path):
         seed(client)
         path = tmp_path / "out.apkg"
-        client.post("/v1/collection:export", json={"deck": "JP", "path": str(path)})
+        client.post("/v1/collection:export", json={"deck_name": "JP", "path": str(path)})
         assert path.is_file() and path.stat().st_size > 0
 
     def test_scheduling_is_opt_in(self, client, tmp_path):
@@ -65,38 +65,32 @@ class TestExportImportRoundTrip:
         seed(client)
         for flag in (True, False):
             resp = client.post("/v1/collection:export", json={
-                "deck": "JP", "path": str(tmp_path / f"s{flag}.apkg"),
+                "deck_name": "JP", "path": str(tmp_path / f"s{flag}.apkg"),
                 "with_scheduling": flag})
             assert resp.status_code == 200, resp.text
 
     def test_unknown_deck_is_404(self, client, tmp_path):
         resp = client.post("/v1/collection:export", json={
-            "deck": "Nope", "path": str(tmp_path / "x.apkg")})
+            "deck_name": "Nope", "path": str(tmp_path / "x.apkg")})
         assert resp.status_code == 404
 
 
 class TestReload:
-    def test_reload_succeeds(self, client):
-        assert client.post("/v1/collection:reload").json()["success"] is True
+    def test_the_tsunagi_api_has_no_reload(self, client):
+        # A deprecated no-op, dropped in 0.7.0 (6.110): there is nothing to reload.
+        assert client.post("/v1/collection:reload").status_code == 404
 
-    def test_reload_preserves_live_state_without_deprecated_reset(self, client, col, monkeypatch):
+    def test_the_shims_reload_preserves_live_state_without_deprecated_reset(self, client, col, monkeypatch):
         add_note(client, "keep undo", deck="Default")
         undo = col.undo_status()
         model = col.models.by_name("Basic")
         model["css"] = "unsaved editor state"
         monkeypatch.delattr(type(col), "reset")
 
-        assert client.post("/v1/collection:reload").json()["success"] is True
         assert rpc(client, "reloadCollection") == {"result": None, "error": None}
         assert col.models.get(model["id"]) is model
         assert model["css"] == "unsaved editor state"
         assert col.undo_status() == undo
-
-    def test_reference_marks_reload_as_a_deprecated_noop(self, client):
-        schema = client.get("/openapi.json").json()
-        operation = schema["paths"]["/v1/collection:reload"]["post"]
-        assert operation["deprecated"] is True
-        assert "no reload" in operation["description"]
 
 
 class TestCompatAliases:
@@ -273,7 +267,7 @@ class TestImportChoices:
         )
         path = str(tmp_path / "choices.apkg")
         response = client.post("/v1/collection:export", json={
-            "deck": "JP", "path": path, "with_scheduling": True,
+            "deck_name": "JP", "path": path, "with_scheduling": True,
         })
         assert response.status_code == 200, response.text
         col.remove_notes(col.find_notes(""))
@@ -313,8 +307,8 @@ class TestImportChoices:
         assert presets.SerializeToString() == before
         assert body["options"]["with_scheduling"] is presets.with_scheduling
         supported = "with_deck_configs" in presets.DESCRIPTOR.fields_by_name
-        assert body["unsupported_options"] == ([] if supported else ["with_deck_configs"])
-        assert body["options"]["with_deck_configs"] == (
+        assert body["unsupported_options"] == ([] if supported else ["with_deck_presets"])
+        assert body["options"]["with_deck_presets"] == (
             presets.with_deck_configs if supported else None)
 
     @pytest.mark.parametrize("choice", ["if_newer", "always", "never"])
@@ -323,7 +317,7 @@ class TestImportChoices:
         seed(client)
         path = str(tmp_path / "updates.apkg")
         assert client.post("/v1/collection:export", json={
-            "deck": "JP", "path": path}).status_code == 200
+            "deck_name": "JP", "path": path}).status_code == 200
         col.db.execute("update notes set flds='local' || char(31) || 'back', mod=mod+?",
                        -100 if incoming_newer else 100)
         response = client.post("/v1/collection:import", json={
@@ -345,14 +339,14 @@ class TestImportChoices:
         original_mod = model["mod"]
         path = str(tmp_path / "models.apkg")
         assert client.post("/v1/collection:export", json={
-            "deck": "JP", "path": path}).status_code == 200
+            "deck_name": "JP", "path": path}).status_code == 200
         model["css"] = "/* local */"
         col.models.update_dict(model)
         col.db.execute("update notetypes set mtime_secs=? where id=?",
                        original_mod + (-100 if incoming_newer else 100), model["id"])
         col.models._cache.clear()
         response = client.post("/v1/collection:import", json={
-            "path": path, "update_notetypes": choice,
+            "path": path, "update_note_types": choice,
         })
         assert response.status_code == 200, response.text
         col.models._cache.clear()
@@ -378,20 +372,20 @@ class TestImportChoices:
         col.decks.update_config(default_config)
         supported = "with_deck_configs" in col._backend.get_import_anki_package_presets().DESCRIPTOR.fields_by_name
         response = client.post("/v1/collection:import", json={
-            "path": path, "with_deck_configs": choice, "with_scheduling": True,
+            "path": path, "with_deck_presets": choice, "with_scheduling": True,
         })
         if not supported:
             assert response.status_code == 400, response.text
-            assert "with_deck_configs" in response.text
+            assert "with_deck_presets" in response.text
             assert col.decks.config_dict_for_deck_id(deck["id"])["new"]["perDay"] == 42
         else:
             assert response.status_code == 200, response.text
             assert col.decks.config_dict_for_deck_id(deck["id"])["new"]["perDay"] == (7 if choice else 42)
 
     @pytest.mark.parametrize("name,value", [
-        ("with_scheduling", []), ("with_deck_configs", {}),
-        ("merge_notetypes", "invalid"), ("update_notes", "sometimes"),
-        ("update_notetypes", 1),
+        ("with_scheduling", []), ("with_deck_presets", {}),
+        ("merge_note_types", "invalid"), ("update_notes", "sometimes"),
+        ("update_note_types", 1),
         ("with_schedulng", True),
     ])
     def test_invalid_choices_rejected_before_import(self, client, col, name, value):
@@ -405,8 +399,8 @@ class TestImportChoices:
     def test_partial_override_preserves_other_saved_choices(self, client, col, tmp_path):
         path = self.package(client, col, tmp_path)
         choices = {
-            "with_scheduling": False, "merge_notetypes": True,
-            "update_notes": "never", "update_notetypes": "never",
+            "with_scheduling": False, "merge_note_types": True,
+            "update_notes": "never", "update_note_types": "never",
         }
         response = client.post("/v1/collection:import", json={"path": path, **choices})
         assert response.status_code == 200, response.text
@@ -422,7 +416,7 @@ class TestImportChoices:
         before = col._backend.get_import_anki_package_presets().SerializeToString()
         response = client.post("/v1/collection:import", json={
             "path": str(tmp_path / "missing.apkg"), "with_scheduling": True,
-            "merge_notetypes": True, "update_notes": "never",
+            "merge_note_types": True, "update_notes": "never",
         })
         assert response.status_code != 200
         assert col._backend.get_import_anki_package_presets().SerializeToString() == before
@@ -435,12 +429,12 @@ class TestImportChoices:
         col.models.update_dict(model)
         path = str(tmp_path / "merge.apkg")
         assert client.post("/v1/collection:export", json={
-            "deck": "JP", "path": path}).status_code == 200
+            "deck_name": "JP", "path": path}).status_code == 200
         col.models.remove_field(model, model["flds"][-1])
         col.models.add_field(model, col.models.new_field("Local"))
         col.models.update_dict(model)
         response = client.post("/v1/collection:import", json={
-            "path": path, "merge_notetypes": merge, "update_notetypes": "always",
+            "path": path, "merge_note_types": merge, "update_note_types": "always",
         })
         assert response.status_code == 200, response.text
         col.models._cache.clear()
@@ -465,6 +459,6 @@ class TestImportChoices:
         schema = client.get("/openapi.json").json()
         assert "get" in schema["paths"]["/v1/collection/import-options"]
         props = schema["components"]["schemas"]["ImportRequest"]["properties"]
-        assert {"path", "with_scheduling", "with_deck_configs", "merge_notetypes",
-                "update_notes", "update_notetypes"} <= props.keys()
+        assert {"path", "with_scheduling", "with_deck_presets", "merge_note_types",
+                "update_notes", "update_note_types"} <= props.keys()
         assert all(props[name]["nullable"] for name in props if name != "path")

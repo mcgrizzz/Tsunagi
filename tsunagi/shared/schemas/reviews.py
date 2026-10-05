@@ -22,7 +22,7 @@ class ReviewInfo(RequestBody):
     """
     One revlog row, with human-readable names (Anki wire names as aliases).
     Not every row is an answer: manual reschedules (type 4) and FSRS
-    reschedules (type 5) are rows too, with ease 0.
+    reschedules (type 5) are rows too, with rating 0.
 
     The revlog is append-only history: every row is a fact about a review that
     happened, so it is normally the scheduler's to write. The one exception is
@@ -37,7 +37,7 @@ class ReviewInfo(RequestBody):
     id: int = Field(description="When the review happened, epoch milliseconds; also the row's id.")
     card_id: int = Field(alias="cid", description="Id of the card reviewed.")
     usn: int = Field(0, description="Update sequence number for syncing; -1 means not yet synced.")
-    ease: int = Field(0, description=(
+    rating: int = Field(0, alias="ease", description=(
         "Answer button pressed: again, hard, good or easy (on old v1 learning rows, 2 was Good and "
         "3 Easy). none (0) when the row records a reschedule rather than an answer: a set due "
         "date, a reset, or an FSRS reschedule (type manual or rescheduled)."),
@@ -48,14 +48,14 @@ class ReviewInfo(RequestBody):
         "Interval after the review: days if positive, seconds if negative (learning)."))
     last_interval: int = Field(0, alias="lastIvl", description=(
         "Interval before the review, in the same units as interval."))
-    factor: int = Field(0, description=(
+    ease_factor: int = Field(0, alias="factor", description=(
         "SM-2: ease after the review, permille (2500 = 250%). FSRS: difficulty mapped to 100-1100. "
         "0 if neither."))
-    time_ms: int = Field(0, alias="time", description="Time spent answering, milliseconds; 0 on reschedule rows.")
+    duration_ms: int = Field(0, alias="time", description="Time spent answering, milliseconds; 0 on reschedule rows.")
     type: int = Field(REVIEW_LEARN, description=(
         "What kind of entry the row is: learning, review, relearning, filtered (an early review or "
-        "cram in a filtered deck; cram rows have factor 0), manual (a set due date or a reset; "
-        "reset rows have factor 0), or rescheduled (by FSRS when deck options changed)."),
+        "cram in a filtered deck; cram rows have ease_factor 0), manual (a set due date or a reset; "
+        "reset rows have ease_factor 0), or rescheduled (by FSRS when deck options changed)."),
         **coded({REVIEW_LEARN: "learning", REVIEW_REVIEW: "review", REVIEW_RELEARN: "relearning",
                  REVIEW_FILTERED: "filtered", REVIEW_MANUAL: "manual", REVIEW_RESCHEDULED: "rescheduled"}))
 

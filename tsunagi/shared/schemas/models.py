@@ -6,16 +6,16 @@ from pydantic import BaseModel, Field
 
 from .wrappers import NULLABLE, RequestBody, coded
 
-# ----------------- Models -----------------
+# ----------------- Note types -----------------
 
-class ModelField(BaseModel):
+class NoteTypeField(BaseModel):
     class Config:
         extra = "ignore"
         anystr_strip_whitespace = True
         allow_population_by_field_name = True  # Accept both field names and aliases
 
     name: str = Field(description="Field name.")
-    ord: int = Field(description="Field position, from 0.")
+    index: int = Field(alias="ord", description="Field position, from 0.")
     sticky: bool = Field(False, description="Keep the field's last value when adding the next note.")
     rtl: bool = Field(False, description="Edit the field right to left.")
 
@@ -37,14 +37,14 @@ class ModelField(BaseModel):
         **NULLABLE)
 
 
-class ModelTemplate(BaseModel):
+class CardTemplate(BaseModel):
     class Config:
         extra = "ignore"
         anystr_strip_whitespace = True
         allow_population_by_field_name = True  # Accept both field names and aliases
 
     name: str = Field(description="Template name.")
-    ord: int = Field(description="Template position, from 0; cards record it as their ord.")
+    index: int = Field(alias="ord", description="Template position, from 0; cards record it as their template_index.")
 
     # Keep Anki's template format naming as they're domain-specific
     qfmt: Optional[str] = Field(None, description="Front template.")
@@ -52,7 +52,7 @@ class ModelTemplate(BaseModel):
     bqfmt: Optional[str] = Field(None, description=(
         'Front template for the browser\'s Question column; "" uses qfmt.'))
     bafmt: Optional[str] = Field(None, description='Back template for the browser\'s Answer column; "" uses afmt.')
-    did: Optional[int] = Field(None, description=(
+    deck_override_id: Optional[int] = Field(None, alias="did", description=(
         "Deck that new cards from this template go to, overriding the chosen deck; null when none."),
         **NULLABLE)
 
@@ -66,12 +66,12 @@ ReqEntry = Tuple[int, str, List[int]]
 # They support both clean names and Anki's abbreviated names via aliasing
 
 class FieldCreate(RequestBody):
-    """Schema for creating a field in a model"""
+    """Schema for creating a field in a note type"""
     class Config:
         allow_population_by_field_name = True
 
     name: str
-    ord: Optional[int] = None
+    index: Optional[int] = Field(alias="ord", default=None)
     sticky: bool = False
     rtl: bool = False
     font: Optional[str] = None
@@ -101,12 +101,12 @@ class FieldPatch(RequestBody):
 
 
 class TemplateCreate(RequestBody):
-    """Schema for creating a template in a model"""
+    """Schema for creating a template in a note type"""
     class Config:
         allow_population_by_field_name = True
 
     name: str
-    ord: Optional[int] = None
+    index: Optional[int] = Field(alias="ord", default=None)
     qfmt: Optional[str] = None
     afmt: Optional[str] = None
     bqfmt: Optional[str] = None
@@ -125,8 +125,8 @@ class TemplatePatch(RequestBody):
     bafmt: Optional[str] = None
 
 
-class ModelCreate(RequestBody):
-    """Schema for creating a model"""
+class NoteTypeCreate(RequestBody):
+    """Schema for creating a note type"""
     class Config:
         allow_population_by_field_name = True
 
@@ -135,7 +135,7 @@ class ModelCreate(RequestBody):
     templates: List[TemplateCreate] = Field(alias="tmpls")
     css: Optional[str] = None
     sort_field: Optional[int] = Field(alias="sortf", default=0)
-    # 0 standard, 1 cloze. Fixed at creation - ModelPatch deliberately can't
+    # 0 standard, 1 cloze. Fixed at creation - NoteTypePatch deliberately can't
     # change it. Without this key, normalize_field_names dropped it and cloze
     # note types were impossible to create.
     type: Optional[int] = None
@@ -148,21 +148,22 @@ class FindReplaceRequest(RequestBody):
 
     find: str
     replace: str
-    # Omit to sweep every model.
-    model_name: Optional[str] = Field(alias="modelName", default=None)
+    # One note type by name or id (the id when both are sent); omit both to sweep every one.
+    note_type_id: Optional[int] = Field(alias="noteTypeId", default=None)
+    note_type_name: Optional[str] = Field(alias="noteTypeName", default=None)
     front: bool = True
     back: bool = True
     css: bool = True
 
 
 class FindReplaceResult(BaseModel):
-    """`affected` counts models that actually contained the text."""
+    """`affected` counts note types that actually contained the text."""
     affected: int
     stats: dict
 
 
-class ModelPatch(RequestBody):
-    """Schema for patching a model - all fields optional"""
+class NoteTypePatch(RequestBody):
+    """Schema for patching a note type - all fields optional"""
     class Config:
         allow_population_by_field_name = True
 
@@ -174,7 +175,7 @@ class ModelPatch(RequestBody):
 
 # ----------------- Response Schemas -----------------
 
-class ModelInfo(BaseModel):
+class NoteTypeInfo(BaseModel):
     class Config:
         extra = "ignore"
         anystr_strip_whitespace = True
@@ -186,16 +187,16 @@ class ModelInfo(BaseModel):
     note_count: Optional[int] = Field(
         default=None,
         description="How many notes use this note type. "
-                    "Computed by native model queries; may be null in mutation replies.",
+                    "Computed by native note type queries; may be null in mutation replies.",
     )
 
     type: int = Field(0, description="Standard or cloze.", **coded({0: "standard", 1: "cloze"}))
-    mod: int = Field(0, description="Last modified, Unix seconds.")
+    modified: int = Field(0, alias="mod", description="Last modified, Unix seconds.")
     usn: int = Field(0, description="Update sequence number for syncing; -1 means changed since the last sync.")
     sort_field: int = Field(0, alias="sortf", description="Position (from 0) of the field the browser shows and sorts by.")
 
-    templates: List[ModelTemplate] = Field(alias="tmpls", description="The note type's card templates, in order.")
-    fields: List[ModelField] = Field(alias="flds", description="The note type's fields, in order.")
+    templates: List[CardTemplate] = Field(alias="tmpls", description="The note type's card templates, in order.")
+    fields: List[NoteTypeField] = Field(alias="flds", description="The note type's fields, in order.")
 
     css: str = Field("", description="Styling shared by all the note type's cards.")
     latex_pre: str = Field("", alias="latexPre", description="LaTeX header added before each LaTeX snippet.")

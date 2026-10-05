@@ -2,11 +2,11 @@
 def events(resources): return {"method": "GET", "path": "/v1/events", "query": {"resources": ",".join(sorted(resources)), "types": "change"}}
 def ready(resources): return {"send": [{"event": "ready", "data": {"type": "ready", "session_id": "s", "after_seq": 0, "ts": 1, "resources": sorted(resources), "heartbeat_ms": 15000}}]}
 def page(items, cursor=None): return {"status": 200, "body": {"items": items, "next_cursor": cursor, "stats": {}}}
-def msg(type_, ids=None, origin=None, client=None, **extra):
-    data = {"type": type_, "seq": 1, "session_id": "s", "ts": 1, **({"ids": ids} if ids is not None else {}), **({"origin": origin} if origin else {}), **({"client": client} if client else {}), **extra}
+def msg(type_, ids=None, by=None, app=None, **extra):
+    data = {"type": type_, "seq": 1, "session_id": "s", "ts": 1, **({"ids": ids} if ids is not None else {}), **({"by": by} if by else {}), **({"app": app} if app else {}), **extra}
     return {"event": type_, "data": data}
 def send(*messages): return {"send": list(messages)}
-ALL = ["cards", "decks", "models", "notes", "tags"]
+ALL = ["cards", "decks", "note_types", "notes", "tags"]
 # A notes watch on a search, selecting firstField: the id is added to the select.
 def nread(where=(), search="deck:Mining", cursor=None):
     q = {"select": "first_field,id", "shape": "object", "limit": "2000"}
@@ -112,15 +112,15 @@ cases = [
              {"expect": nread(search=None), "response": page([row(1, "apple")])}, {"settle": "w", "ok": True}]},
  {"name": "a cards watch selecting fields also listens to notes and note types (the fields' x-from); note ids find their cards",
   "script": [{"call": {"query": "cards", "steps": [["select", "fields"]], "method": "watch"}, "as": "w", "listener": "h"},
-             {"expect": events(["cards", "models", "notes"]), "stream": True}, ready(["cards", "models", "notes"]),
+             {"expect": events(["cards", "note_types", "notes"]), "stream": True}, ready(["cards", "note_types", "notes"]),
              {"expect": {"method": "GET", "path": "/v1/cards", "query": {"select": "fields,id", "shape": "object", "limit": "2000"}},
-              "response": page([{"fields": [{"name": "Front", "value": "a", "ord": 0}], "id": 11}])},
+              "response": page([{"fields": [{"name": "Front", "value": "a", "index": 0}], "id": 11}])},
              {"settle": "w", "ok": True},
              {"heard": "h", "calls": [["added", [{"fields": [{"name": "Front", "value": "a", "index": 0}], "id": 11}], first]]},
              send(msg("notes.updated", [1], "ui")),
              {"expect": {"method": "GET", "path": "/v1/cards", "query": {"select": "id", "shape": "scalar", "where": ["note_id in[1]"], "limit": "2000"}}, "response": page([11])},
              {"expect": {"method": "GET", "path": "/v1/cards", "query": {"select": "fields,id", "shape": "object", "where": ["id in[11]"], "limit": "2000"}},
-              "response": page([{"fields": [{"name": "Front", "value": "A", "ord": 0}], "id": 11}])},
+              "response": page([{"fields": [{"name": "Front", "value": "A", "index": 0}], "id": 11}])},
              {"heard": "h", "calls": [["updated", [{"fields": [{"name": "Front", "value": "A", "index": 0}], "id": 11}], ui]]}]},
  {"name": "a decks watch checks the decks named in decks.counts",
   "script": [{"call": {"query": "decks", "steps": [["select", "name", "reviewCount"]], "method": "watch"}, "as": "w", "listener": "h"},
@@ -128,7 +128,7 @@ cases = [
              {"expect": {"method": "GET", "path": "/v1/decks", "query": {"select": "name,review_count,id", "shape": "object", "limit": "2000"}},
               "response": page([{"name": "Default", "review_count": 4, "id": 1}])},
              {"settle": "w", "ok": True},
-             send(msg("decks.counts", decks=[{"id": 1, "new_count": 0, "learn_count": 0, "review_count": 3, "total_in_deck": 9}])),
+             send(msg("decks.counts", decks=[{"deck_id": 1, "new_count": 0, "learn_count": 0, "review_count": 3, "total_in_deck": 9}])),
              {"expect": {"method": "GET", "path": "/v1/decks", "query": {"select": "name,review_count,id", "shape": "object", "where": ["id in[1]"], "limit": "2000"}},
               "response": page([{"name": "Default", "review_count": 3, "id": 1}])},
              {"heard": "h", "calls": [["added", [{"name": "Default", "reviewCount": 4, "id": 1}], first], ["updated", [{"name": "Default", "reviewCount": 3, "id": 1}], unk]]}]},

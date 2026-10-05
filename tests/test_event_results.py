@@ -31,7 +31,7 @@ def emit_last(recorded_ops, subscription, resources=("notes", "cards")):
 
 
 def new_note(front="word"):
-    return notes.create_note({"modelName": "Basic", "deckName": "Default",
+    return notes.create_note({"note_type_name": "Basic", "deckName": "Default",
                               "fields": {"Front": front, "Back": "meaning"}})
 
 
@@ -74,7 +74,7 @@ def test_patch_returns_saved_fields_and_tags(col, subscription, recorded_ops):
     assert snapshot == updated.dict()
     assert {f["name"]: f["value"] for f in snapshot["fields"]} == dict(actual.items())
     assert snapshot["tags"] == actual.tags
-    assert snapshot["mod"] == actual.mod
+    assert snapshot["modified"] == actual.mod
     assert snapshot["usn"] == actual.usn
     assert not any(name.endswith(".stale") for name in event)
 
@@ -93,7 +93,7 @@ def test_delete_ids_mean_absent_including_already_missing(col, subscription, rec
 
 
 def test_ankiconnect_delete_names_every_card_of_the_note(client, col, subscription, recorded_ops):
-    saved = notes.create_note({"modelName": "Basic (and reversed card)", "deckName": "Default",
+    saved = notes.create_note({"note_type_name": "Basic (and reversed card)", "deckName": "Default",
                                "fields": {"Front": "word", "Back": "meaning"}})
     assert len(saved.cards) == 2
     response = client.post("/", json={"action": "deleteNotes", "version": 6,
@@ -175,7 +175,7 @@ def test_api_answers_report_their_review_rows_right_away(col, subscription, reco
     cards.answer_cards([{"card_id": first, "ease": 3}])
     event = emit_last(recorded_ops, subscription, ("cards", "reviews"))
     assert event["reviews.created"]["ids"] == rows(first)
-    assert event["reviews.created"]["origin"] == "api"
+    assert event["reviews.created"]["by"] == "api"
     compat.answer_cards_raw([{"cardId": second, "ease": 1}, {"cardId": 123, "ease": 3}])
     event = emit_last(recorded_ops, subscription, ("cards", "reviews"))
     assert event["reviews.created"]["ids"] == rows(second)
@@ -196,7 +196,7 @@ def test_api_forget_and_due_dates_report_their_review_rows(col, subscription, re
     assert added   # Anki logs these changes in the review history
     event = emit_last(recorded_ops, subscription, ("cards", "reviews"))
     assert event["cards.updated"]["ids"] == [card_id]
-    assert (event["reviews.created"]["ids"], event["reviews.created"]["origin"]) == (added, "api")
+    assert (event["reviews.created"]["ids"], event["reviews.created"]["by"]) == (added, "api")
 
 
 def test_api_answers_emit_review_with_the_new_card_state(col, subscription, recorded_ops):
@@ -206,7 +206,7 @@ def test_api_answers_emit_review_with_the_new_card_state(col, subscription, reco
     cards.answer_cards([{"card_id": first, "ease": 3}])
     compat.answer_cards_raw([{"cardId": second, "ease": 1}])
     events = broker.drain(token)
-    assert [(e["card_id"], e["ease"], e["origin"]) for e in events] == [
+    assert [(e["card_id"], e["rating"], e["by"]) for e in events] == [
         (first, 3, "api"), (second, 1, "api")]
     for event in events:
         card = col.get_card(event["card_id"])
@@ -225,7 +225,7 @@ def test_api_review_events_name_the_app_that_answered(col, subscription, recorde
         cards.answer_cards([{"card_id": first, "ease": 3}])
     finally:
         current_caller.reset(caller)
-    assert [e.get("client") for e in broker.drain(token)] == ["Phone"]
+    assert [e.get("app") for e in broker.drain(token)] == ["Phone"]
 
 
 @pytest.mark.parametrize("write, tagged", [
@@ -309,13 +309,13 @@ def test_large_id_sets_do_not_leak_through_target_hints(subscription):
 
 
 def test_known_results_and_unknown_related_resources_are_distinct(subscription):
-    broker.publish("change", affected=["notes", "cards", "models"],
+    broker.publish("change", affected=["notes", "cards", "note_types"],
                    changes={"notes": {"updated": [1]}, "cards": {"created": [2]}},
-                   targets={"notes": [999], "models": [3]})
+                   targets={"notes": [999], "note_types": [3]})
     events = {e["type"]: e for e in broker.drain(subscription)}
-    assert set(events) == {"notes.updated", "cards.created", "models.stale"}
+    assert set(events) == {"notes.updated", "cards.created", "note_types.stale"}
     assert events["notes.updated"]["ids"] == [1]
-    assert "ids" not in events["models.stale"]
+    assert "ids" not in events["note_types.stale"]
     assert all("targets" not in e for e in events.values())
     assert len({e["seq"] for e in events.values()}) == 3
 

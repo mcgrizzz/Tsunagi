@@ -159,9 +159,9 @@ def ac_cardsModTime(p: CardsInfoParams) -> List[Dict[str, Any]]:
 # Everything cardsInfo's wire shape reads - notably NOT retrievability,
 # whose build is a per-card FSRS stats call the response would just discard.
 _CARDS_INFO_WANTS = {
-    "id", "fields", "ord", "question", "answer", "model_name", "deck_name",
-    "css", "factor", "interval", "note_id", "type", "queue", "due", "reps",
-    "lapses", "mod", "next_reviews",
+    "id", "fields", "template_index", "question", "answer", "note_type_name", "deck_name",
+    "css", "ease_factor", "interval", "note_id", "type", "queue", "due", "reps",
+    "lapses", "modified", "next_reviews",
 }
 
 
@@ -180,20 +180,20 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
         if card is None:
             out.append({})  # keep input/output positions aligned
             continue
-        fields = {f.name: {"value": f.value, "order": f.ord}
+        fields = {f.name: {"value": f.value, "order": f.index}
                   for f in (card.fields or [])}
         out.append({
             "cardId": card.id,
             "fields": fields,
-            "fieldOrder": card.ord,
+            "fieldOrder": card.template_index,
             "question": card.question,
             "answer": card.answer,
-            "modelName": card.model_name,
-            "ord": card.ord,
+            "modelName": card.note_type_name,
+            "ord": card.template_index,
             "deckName": card.deck_name,
             "css": card.css,
             # 10x the ease percentage: 310% is reported as 3100.
-            "factor": card.factor,
+            "factor": card.ease_factor,
             "interval": card.interval,
             "note": card.note_id,
             "type": card.type,
@@ -202,7 +202,7 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
             "reps": card.reps,
             "lapses": card.lapses,
             "left": raw[card.id]["left"],
-            "mod": card.mod,
+            "mod": card.modified,
             "nextReviews": card.next_reviews or [],
             "flags": raw[card.id]["flags"],
         })

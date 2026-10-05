@@ -2,7 +2,7 @@
 
 
 def _add_card(client, col):
-    client.post("/v1/notes", json={"modelName": "Basic", "deckName": "Default",
+    client.post("/v1/notes", json={"noteTypeName": "Basic", "deckName": "Default",
                                    "fields": {"Front": "a", "Back": "b"}})
     return col.find_cards("")[0]
 
@@ -15,22 +15,22 @@ def test_card_left_drops_old_schedulers_packed_count(client, col):
     cid = _add_card(client, col)
     col.db.execute("update cards set left = 1002 where id = ?", cid)
     # The SQL path (select, where) and the full row agree on 2.
-    assert client.get("/v1/cards", params={"where": "left==2", "select": "id,left"}).json()["items"] == [
-        {"id": cid, "left": 2}]
-    assert client.get("/v1/cards", params={"where": "left>=1000"}).json()["items"] == []
-    assert client.get("/v1/cards").json()["items"][0]["left"] == 2
+    assert client.get("/v1/cards", params={"where": "steps_left==2", "select": "id,steps_left"}).json()["items"] == [
+        {"id": cid, "steps_left": 2}]
+    assert client.get("/v1/cards", params={"where": "steps_left>=1000"}).json()["items"] == []
+    assert client.get("/v1/cards").json()["items"][0]["steps_left"] == 2
 
 
 def test_removed_fields_are_unknown(client, col):
     _add_card(client, col)
-    for path, field in (("/v1/cards", "flags"), ("/v1/models", "did"), ("/v1/models", "tags"),
-                        ("/v1/models", "vers"), ("/v1/decks", "new_today"), ("/v1/decks", "learn_today")):
+    for path, field in (("/v1/cards", "flags"), ("/v1/note-types", "did"), ("/v1/note-types", "tags"),
+                        ("/v1/note-types", "vers"), ("/v1/decks", "new_today"), ("/v1/decks", "learn_today")):
         assert client.get(path, params={"select": field}).status_code == 400, (path, field)
-    model = client.get("/v1/models", params={"where": "name==Basic"}).json()["items"][0]
+    model = client.get("/v1/note-types", params={"where": "name==Basic"}).json()["items"][0]
     assert {"did", "tags", "vers"}.isdisjoint(model)
     assert all("media" not in f for f in model["fields"])
     # A template's own deck override is a different, live field.
-    assert "did" in model["templates"][0]
+    assert "deck_override_id" in model["templates"][0]
 
 
 def test_deck_counts_only_count_today(client, col):

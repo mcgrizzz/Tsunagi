@@ -6,7 +6,7 @@ from tsunagi.shared.planning import make_plan
 
 
 def add(client, front, model="Basic", deck="Default"):
-    body = {"modelName": model, "deckName": deck, "allowDuplicate": True,
+    body = {"noteTypeName": model, "deckName": deck, "allowDuplicate": True,
             "fields": {"Front": front, "Back": "meaning"}}
     return client.post("/v1/notes", json=body).json()["created"][0]["id"]
 
@@ -45,7 +45,7 @@ def test_lookup_uses_the_index_and_combines_with_other_filters(client):
     add(client, "よし")
     reversed_ = add(client, "よし", model="Basic (and reversed card)")
     response = client.get("/v1/notes", params=[
-        ("where", 'first_field=="よし"'), ("where", 'model_name=="Basic (and reversed card)"'),
+        ("where", 'first_field=="よし"'), ("where", 'note_type_name=="Basic (and reversed card)"'),
         ("select", "id")])
     assert response.json()["items"] == [{"id": reversed_}]
 

@@ -27,9 +27,9 @@ class _Live(_Message):
 
 
 class _Change(_Live):
-    origin: Optional[Literal["ui", "api"]] = Field(None, description=(
+    by: Optional[Literal["ui", "api"]] = Field(None, description=(
         "api: made through either API; ui: made in Anki; null when unknown"), **NULLABLE)
-    client: Optional[str] = Field(None, description="For origin api: the app that made it; null otherwise", **NULLABLE)
+    app: Optional[str] = Field(None, description="For by api: the app that made it; null otherwise", **NULLABLE)
     anki: Optional[Dict[str, Any]] = Field(None, description="Anki's own description of the change, for debugging; "
                                                              "don't rely on it", **NULLABLE)
 
@@ -47,7 +47,7 @@ class RowsStale(_Change):
 
 
 class DeckCounts(_Message):
-    id: int = Field(description="The deck's id.")
+    deck_id: int = Field(description="The deck's id.")
     new_count: int
     learn_count: int
     review_count: int
@@ -62,7 +62,7 @@ class DecksCounts(_Live):
 class CardAnswered(_Change):
     """`cards.answered`: a card was answered, in Anki or through either API; its new state."""
     card_id: int
-    ease: int = Field(description="The answer button.", **coded({1: "again", 2: "hard", 3: "good", 4: "easy"}))
+    rating: int = Field(description="The answer button.", **coded({1: "again", 2: "hard", 3: "good", 4: "easy"}))
     interval: int = Field(description="The card's new interval, days.")
     due: int = Field(description="The card's new due value (see /v1/cards).")
     queue: int = Field(description="The card's new queue.", **coded(QUEUES))

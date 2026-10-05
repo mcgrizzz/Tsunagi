@@ -25,7 +25,7 @@ class TestList:
         items = client.get("/v1/media").json()["items"]
         assert [i["filename"] for i in items] == ["a.png", "b.mp3"]
         assert items[0]["size"] == 3
-        assert items[0]["mtime"] > 0
+        assert items[0]["modified"] > 0
 
     def test_starts_and_ends_with_filters(self, client, col):
         for name in ("dog.png", "dog.mp3", "cat.png"):
@@ -118,9 +118,10 @@ class TestUpload:
     def test_local_path_disabled_by_default(self, client, tmp_path):
         f = tmp_path / "local.png"
         f.write_bytes(PNG)
-        resp = client.post("/v1/media", json={"path": str(f)})
-        assert_upload_rejected(resp)
-        assert "does not allow local_files" in resp.json()["failed"][0]["message"]
+        resp = client.post("/v1/media", json=[{"filename": "a.txt", "data": "eA=="}, {"path": str(f)}])
+        # The whole request is refused: nothing is stored, not even the other file.
+        assert resp.status_code == 403 and "does not allow local_files" in resp.json()["detail"]
+        assert client.get("/v1/media").json()["items"] == []
 
     def test_local_path_when_enabled(self, client, reset_settings, tmp_path):
         reset_settings.update(no_key_local_role="everything")

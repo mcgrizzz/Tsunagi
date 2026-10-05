@@ -5,7 +5,7 @@ import pytest
 
 
 def add_note(client, front="犬", back="dog", deck="Default", model="Basic"):
-    body = {"modelName": model, "deckName": deck, "fields": {"Front": front, "Back": back}}
+    body = {"noteTypeName": model, "deckName": deck, "fields": {"Front": front, "Back": back}}
     if model == "Cloze":
         body["fields"] = {"Text": front, "Back Extra": back}
     return client.post("/v1/notes?include=cards", json=body).json()["created"][0]
@@ -91,13 +91,13 @@ class TestReads:
         seeded.get("/v1/cards", params={"select": "id,due,queue"})
         assert calls == []                      # no note loaded for a cheap select
 
-        seeded.get("/v1/cards", params={"select": "id,model_name"})
+        seeded.get("/v1/cards", params={"select": "id,note_type_name"})
         assert len(calls) == 3                  # one per card, only when asked
 
     def test_bare_listing_includes_rendered_fields(self, seeded):
         card = seeded.get("/v1/cards").json()["items"][0]
         # No select means the whole record - consistent with every resource.
-        assert card["question"] and card["model_name"] == "Basic"
+        assert card["question"] and card["note_type_name"] == "Basic"
         # Anki formats these for display and wraps the numbers in Unicode
         # directional isolates, so assert the shape rather than the exact text.
         assert len(card["next_reviews"]) == 4
@@ -292,15 +292,15 @@ class TestScheduling:
     def test_set_ease(self, seeded):
         cid = ids(seeded)[0]
         body = seeded.post("/v1/cards:set-ease",
-                           json={"cards": [{"id": cid, "factor": 2500}]}).json()
+                           json={"cards": [{"id": cid, "ease_factor": 2500}]}).json()
         assert body["affected"] == 1
         assert seeded.get("/v1/cards", params={"where": f"id=={cid}"}
-                          ).json()["items"][0]["factor"] == 2500
+                          ).json()["items"][0]["ease_factor"] == 2500
 
     def test_set_ease_counts_only_real_cards(self, seeded):
         body = seeded.post("/v1/cards:set-ease", json={
-            "cards": [{"id": ids(seeded)[0], "factor": 2500},
-                      {"id": 999999, "factor": 2500}]}).json()
+            "cards": [{"id": ids(seeded)[0], "ease_factor": 2500},
+                      {"id": 999999, "ease_factor": 2500}]}).json()
         assert body["affected"] == 1  # missing card doesn't fail the batch
 
 
@@ -321,10 +321,10 @@ class TestChangeDeck:
         assert seeded.get("/v1/cards", params={"where": f"id=={cid}"}
                           ).json()["items"][0]["deck_id"] == did
 
-    def test_unknown_deck_name_is_400_and_creates_nothing(self, seeded):
+    def test_unknown_deck_name_is_404_and_creates_nothing(self, seeded):
         resp = seeded.post("/v1/cards:change-deck",
                            json={"card_ids": ids(seeded)[:1], "deck_name": "Nope"})
-        assert resp.status_code == 400
+        assert resp.status_code == 404
         names = [d["name"] for d in seeded.get("/v1/decks").json()["items"]]
         assert "Nope" not in names
 
@@ -452,30 +452,30 @@ class TestAnswer:
     def test_answer_advances_the_card(self, seeded):
         cid = ids(seeded)[0]
         body = seeded.post("/v1/cards:answer",
-                           json={"answers": [{"card_id": cid, "ease": 3}]}).json()
+                           json={"answers": [{"card_id": cid, "rating": 3}]}).json()
         assert body["affected"] == 1
         card = seeded.get("/v1/cards", params={"where": f"id=={cid}"}).json()["items"][0]
         assert card["reps"] == 1 and card["type"] != 0     # no longer new
         reviews = seeded.get("/v1/reviews",
                              params={"where": f"card_id=={cid}"}).json()["items"]
-        assert [r["ease"] for r in reviews] == [3]         # a real revlog row
+        assert [r["rating"] for r in reviews] == [3]         # a real revlog row
 
     def test_missing_card_is_skipped(self, seeded):
         cid = ids(seeded)[0]
         body = seeded.post("/v1/cards:answer", json={"answers": [
-            {"card_id": cid, "ease": 3}, {"card_id": 999999, "ease": 3}]}).json()
+            {"card_id": cid, "rating": 3}, {"card_id": 999999, "rating": 3}]}).json()
         assert body["affected"] == 1
 
     def test_ease_out_of_range_is_422(self, seeded):
         resp = seeded.post("/v1/cards:answer",
-                           json={"answers": [{"card_id": ids(seeded)[0], "ease": 5}]})
+                           json={"answers": [{"card_id": ids(seeded)[0], "rating": 5}]})
         assert resp.status_code == 422  # pydantic bound, before the adapter
 
     def test_answering_a_suspended_card_unsuspends_it(self, seeded):
         cid = ids(seeded)[0]
         seeded.post("/v1/cards:suspend", json={"card_ids": [cid]})
         body = seeded.post("/v1/cards:answer",
-                           json={"answers": [{"card_id": cid, "ease": 3}]}).json()
+                           json={"answers": [{"card_id": cid, "rating": 3}]}).json()
         assert body["affected"] == 1
         card = seeded.get("/v1/cards", params={"where": f"id=={cid}"}).json()["items"][0]
         assert card["suspended"] is False
@@ -488,7 +488,7 @@ class TestSetValues:
                            json={"card_id": cid, "values": {"factor": 2600}}).json()
         assert body["affected"] == 1
         assert seeded.get("/v1/cards", params={"where": f"id=={cid}"}
-                          ).json()["items"][0]["factor"] == 2600
+                          ).json()["items"][0]["ease_factor"] == 2600
 
     def test_risky_column_needs_force(self, seeded):
         cid = ids(seeded)[0]
@@ -565,7 +565,7 @@ class TestBatch:
             {"op": "suspend", "card_ids": [c1]},
             {"op": "change-deck", "card_ids": [c1], "deck_name": "Nope"},
         ]})
-        assert resp.status_code == 400
+        assert resp.status_code == 404
         assert seeded.get("/v1/cards", params={"where": f"id=={c1}"}
                           ).json()["items"][0]["suspended"] is False
 
@@ -629,8 +629,8 @@ class TestScalarHydration:
             card_ids[-1],
         )
         fields = (
-            "id,note_id,deck_id,original_deck_id,ord,mod,usn,type,queue,due,"
-            "original_due,interval,factor,reps,lapses,left,flag,suspended,buried"
+            "id,note_id,deck_id,original_deck_id,template_index,modified,usn,type,queue,due,"
+            "original_due,interval,ease_factor,reps,lapses,steps_left,flag,suspended,buried"
         )
         full = seeded.get("/v1/cards").json()["items"]
         expected = [{field: row[field] for field in fields.split(",")} for row in full]
@@ -645,7 +645,7 @@ class TestScalarHydration:
         assert response.json()["items"] == expected
         assert response.json()["items"][-1]["buried"] is True
         assert response.json()["items"][-1]["suspended"] is False
-        assert (response.json()["items"][-1]["left"], response.json()["items"][-1]["flag"]) == (2, 4)
+        assert (response.json()["items"][-1]["steps_left"], response.json()["items"][-1]["flag"]) == (2, 4)
 
     def test_sparse_late_matches_load_only_surviving_full_cards(self, seeded, col, monkeypatch):
         model = col.models.by_name("Basic")

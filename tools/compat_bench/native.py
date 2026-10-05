@@ -4,19 +4,19 @@ from __future__ import annotations
 # Written out here deliberately: benchmark equivalence must not depend on the
 # compatibility handler's own conversion code.
 CARD_FIELDS = {
-    "cardId": "id", "fieldOrder": "ord", "question": "question",
-    "answer": "answer", "modelName": "model_name", "ord": "ord",
-    "deckName": "deck_name", "css": "css", "factor": "factor",
+    "cardId": "id", "fieldOrder": "template_index", "question": "question",
+    "answer": "answer", "modelName": "note_type_name", "ord": "template_index",
+    "deckName": "deck_name", "css": "css", "factor": "ease_factor",
     "interval": "interval", "note": "note_id", "type": "type", "queue": "queue",
-    "due": "due", "reps": "reps", "lapses": "lapses", "left": "left",
-    "mod": "mod", "nextReviews": "next_reviews", "flags": "flags",
+    "due": "due", "reps": "reps", "lapses": "lapses", "left": "steps_left",
+    "mod": "modified", "nextReviews": "next_reviews", "flags": "flags",
 }
 CARD_SELECT = ",".join(dict.fromkeys([*CARD_FIELDS.values(), "fields"]))
 
 
 def canonical_cards(cards):
     return [{**{key: card[field] for key, field in CARD_FIELDS.items()},
-             "fields": {field["name"]: {"value": field["value"], "order": field["ord"]}
+             "fields": {field["name"]: {"value": field["value"], "order": field["index"]}
                         for field in card["fields"]}}
             for card in cards]
 

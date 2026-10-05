@@ -18,9 +18,9 @@ PUBLIC = "public"  # reachable by anyone who can reach the server
 # it means the handler checks the item; as a grant, every approved item.
 ADDON = "addon"
 
-_READ = ("notes", "cards", "decks", "deck_configs", "models", "tags", "reviews",
+_READ = ("notes", "cards", "decks", "deck_presets", "note_types", "tags", "reviews",
          "media", "collection", "addons")
-_WRITE = ("notes", "cards", "decks", "deck_configs", "models", "tags", "reviews", "media")
+_WRITE = ("notes", "cards", "decks", "deck_presets", "note_types", "tags", "reviews", "media")
 
 PERMISSIONS = frozenset({
     PUBLIC,

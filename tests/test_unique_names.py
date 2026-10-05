@@ -12,7 +12,7 @@ MODEL = {"name": "Vocab", "fields": [{"name": "Word"}, {"name": "Meaning"}],
 
 @pytest.fixture()
 def mid(client, col):
-    return client.post("/v1/models", json=MODEL).json()["result"]["id"]
+    return client.post("/v1/note-types", json=MODEL).json()["result"]["id"]
 
 
 def refused(response, message):
@@ -22,27 +22,27 @@ def refused(response, message):
 
 def test_fields(client, col, mid):
     names = lambda: [f["name"] for f in col.models.get(mid)["flds"]]
-    refused(client.post(f"/v1/models/{mid}/fields", json={"name": "word"}), "Field name 'word' already exists")
-    refused(client.patch(f"/v1/models/{mid}/fields/Meaning", json={"name": "Word"}), "Field name 'Word' already exists")
+    refused(client.post(f"/v1/note-types/{mid}/fields", json={"name": "word"}), "Field name 'word' already exists")
+    refused(client.patch(f"/v1/note-types/{mid}/fields/Meaning", json={"name": "Word"}), "Field name 'Word' already exists")
     assert names() == ["Word", "Meaning"]
-    assert client.patch(f"/v1/models/{mid}/fields/Meaning", json={"name": "meaning"}).status_code == 200
+    assert client.patch(f"/v1/note-types/{mid}/fields/Meaning", json={"name": "meaning"}).status_code == 200
     assert names() == ["Word", "meaning"]   # a change of case alone is the same field
 
 
 def test_templates(client, col, mid):
     names = lambda: [t["name"] for t in col.models.get(mid)["tmpls"]]
-    refused(client.post(f"/v1/models/{mid}/templates", json={"name": "card 1", "qfmt": "{{Word}}x", "afmt": "x"}),
+    refused(client.post(f"/v1/note-types/{mid}/templates", json={"name": "card 1", "qfmt": "{{Word}}x", "afmt": "x"}),
             "Template name 'card 1' already exists")
-    refused(client.patch(f"/v1/models/{mid}/templates/Card 2", json={"name": "Card 1"}),
+    refused(client.patch(f"/v1/note-types/{mid}/templates/Card 2", json={"name": "Card 1"}),
             "Template name 'Card 1' already exists")
     assert names() == ["Card 1", "Card 2"]
 
 
 def test_note_types(client, col, mid):
-    refused(client.post("/v1/models", json={**MODEL, "name": "vocab"}), "Model name 'vocab' already exists")
-    refused(client.patch(f"/v1/models/{mid}", json={"name": "Basic"}), "Model name 'Basic' already exists")
+    refused(client.post("/v1/note-types", json={**MODEL, "name": "vocab"}), "Note type name 'vocab' already exists")
+    refused(client.patch(f"/v1/note-types/{mid}", json={"name": "Basic"}), "Note type name 'Basic' already exists")
     assert col.models.get(mid)["name"] == "Vocab"
-    refused(client.post("/v1/models", json={**MODEL, "name": "Other",
+    refused(client.post("/v1/note-types", json={**MODEL, "name": "Other",
                                             "fields": [{"name": "A"}, {"name": "a"}]}), "Field name 'a' already exists")
     assert col.models.by_name("Other") is None
 
@@ -55,8 +55,8 @@ def test_decks(client, col):
 
 
 def test_presets(client, col):
-    pid = client.post("/v1/deck-configs", json={"name": "Light"}).json()["result"]["id"]
-    refused(client.post("/v1/deck-configs", json={"name": "light"}), "Preset name 'light' already exists")
-    refused(client.patch(f"/v1/deck-configs/{pid}", json={"name": "Default"}), "Preset name 'Default' already exists")
+    pid = client.post("/v1/deck-presets", json={"name": "Light"}).json()["result"]["id"]
+    refused(client.post("/v1/deck-presets", json={"name": "light"}), "Preset name 'light' already exists")
+    refused(client.patch(f"/v1/deck-presets/{pid}", json={"name": "Default"}), "Preset name 'Default' already exists")
     assert sorted(c["name"] for c in col.decks.all_config()) == ["Default", "Light"]
-    assert client.patch(f"/v1/deck-configs/{pid}", json={"name": "LIGHT"}).status_code == 200
+    assert client.patch(f"/v1/deck-presets/{pid}", json={"name": "LIGHT"}).status_code == 200

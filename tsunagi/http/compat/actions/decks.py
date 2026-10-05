@@ -126,35 +126,35 @@ def ac_deleteDecks(p: DeleteDecksParams) -> None:
         delete_deck(deck.id)
 
 
-@registry.register("getDeckConfig", params=DeckParams, permission="read:deck_configs")
+@registry.register("getDeckConfig", params=DeckParams, permission="read:deck_presets")
 def ac_getDeckConfig(p: DeckParams):
     from ....adapters.anki.compat import get_deck_config_legacy
 
     return get_deck_config_legacy(p.deck)
 
 
-@registry.register("saveDeckConfig", params=SaveDeckConfigParams, permission="write:deck_configs")
+@registry.register("saveDeckConfig", params=SaveDeckConfigParams, permission="write:deck_presets")
 def ac_saveDeckConfig(p: SaveDeckConfigParams) -> bool:
     from ....adapters.anki.compat import save_deck_config_legacy
 
     return save_deck_config_legacy(p.config)
 
 
-@registry.register("setDeckConfigId", params=SetDeckConfigIdParams, permission="write:deck_configs")
+@registry.register("setDeckConfigId", params=SetDeckConfigIdParams, permission="write:deck_presets")
 def ac_setDeckConfigId(p: SetDeckConfigIdParams) -> bool:
     from ....adapters.anki.compat import set_deck_config_legacy
 
     return set_deck_config_legacy(p.decks, p.configId)
 
 
-@registry.register("cloneDeckConfigId", params=CloneDeckConfigIdParams, permission="write:deck_configs")
+@registry.register("cloneDeckConfigId", params=CloneDeckConfigIdParams, permission="write:deck_presets")
 def ac_cloneDeckConfigId(p: CloneDeckConfigIdParams):
     from ....adapters.anki.compat import clone_deck_config_legacy
 
     return clone_deck_config_legacy(p.name, p.cloneFrom)
 
 
-@registry.register("removeDeckConfigId", params=RemoveDeckConfigIdParams, permission="write:deck_configs")
+@registry.register("removeDeckConfigId", params=RemoveDeckConfigIdParams, permission="write:deck_presets")
 def ac_removeDeckConfigId(p: RemoveDeckConfigIdParams) -> bool:
     from ....adapters.anki.compat import remove_deck_config_legacy
 

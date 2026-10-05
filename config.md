@@ -200,13 +200,13 @@ API reference shows the one it needs (`x-permission`).
 
 | Area | Single permissions | Covers |
 | --- | --- | --- |
-| `read` | `read:notes`, `read:cards`, `read:decks`, `read:deck_configs`, `read:models`, `read:tags`, `read:reviews`, `read:media`, `read:collection`, `read:addons` | Reading, FSRS computations, jobs, the event stream |
-| `write` | `write:notes`, `write:cards`, `write:decks`, `write:deck_configs`, `write:models`, `write:tags`, `write:reviews`, `write:media` | Adding, changing, deleting. Undo needs all of `write` |
+| `read` | `read:notes`, `read:cards`, `read:decks`, `read:deck_presets`, `read:note_types`, `read:tags`, `read:reviews`, `read:media`, `read:collection`, `read:addons` | Reading, FSRS computations, jobs, the event stream |
+| `write` | `write:notes`, `write:cards`, `write:decks`, `write:deck_presets`, `write:note_types`, `write:tags`, `write:reviews`, `write:media` | Adding, changing, deleting. Undo needs all of `write` |
 | `gui` | | Opening and driving Anki's windows |
 | `sync` | | Syncing with AnkiWeb. 400: no sync account; 409: Anki needs a full sync (click Sync in Anki once) or another job is running; 502: AnkiWeb unreachable |
 | `manage` | | Import, export, check database, switch profile, close Anki |
 | `events` | `events:changes`, `events:reviews` | Change messages, and card-answer messages |
-| `local_files` | | Media uploads that name a file on this computer. Lets an app read any file you can |
+| `local_files` | | Media uploads that name a file on this computer. Lets an app read any file you can. Without it, a request that names one is refused (403) |
 | `memory_state` | | Overwriting cards' FSRS memory state |
 | `addon` | `addon:<provider>/<action>` | Running enabled add-on actions |
 

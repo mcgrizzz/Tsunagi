@@ -16,7 +16,7 @@ import type {
 import type { Transport } from "./transport.js";
 import type {
   Attachment, DuplicateCheck, FileSource, ItemReport, ItemResult, MediaInput, NoteInput, NotePatch,
-  NoteUpsert, Reference, RequestOptions, UpsertedNote, WriteOptions,
+  NoteUpsert, OpenAddInput, Reference, RequestOptions, UpsertedNote, WriteOptions,
 } from "./types.js";
 
 export { object } from "./decode.js";
@@ -60,9 +60,9 @@ function deckRef(value: Reference): { deck_name: string } | { deck_id: number } 
   if (value && typeof value === "object" && Object.keys(value).length === 1 && "id" in value) return { deck_id: inputId(value.id) };
   throw new TypeError("Use a nonempty name or an { id } reference");
 }
-function noteTypeRef(value: Reference): { model_name: string } | { model_id: number } {
+function noteTypeRef(value: Reference): { note_type_name: string } | { note_type_id: number } {
   const deck = deckRef(value);
-  return "deck_name" in deck ? { model_name: deck.deck_name } : { model_id: deck.deck_id };
+  return "deck_name" in deck ? { note_type_name: deck.deck_name } : { note_type_id: deck.deck_id };
 }
 function fields(value: Readonly<Record<string, string>>): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.values(value).some(v => typeof v !== "string")) {
@@ -103,22 +103,22 @@ function attachments(input: NoteInput | NotePatch): Files {
   }
   return out;
 }
-function duplicates(check: DuplicateCheck | undefined): Pick<NoteCreateBody, "allow_duplicate" | "duplicate_scope" | "duplicate_scope_options"> {
+function duplicates(check: DuplicateCheck | undefined): Pick<NoteCreateBody, "duplicate_scope" | "duplicate_scope_options"> {
   if (check === undefined) return {};
   if (check.scope !== undefined && check.scope !== "collection" && check.scope !== "deck") throw new TypeError("scope is collection or deck");
   const options: DuplicateScopeOptionsBody = {
     ...(check.deck === undefined ? {} : { deck_name: check.deck }),
     ...(check.includeSubdecks === undefined ? {} : { check_children: check.includeSubdecks }),
-    ...(check.allNoteTypes === undefined ? {} : { check_all_models: check.allNoteTypes }),
+    ...(check.allNoteTypes === undefined ? {} : { check_all_note_types: check.allNoteTypes }),
   };
   return {
-    ...(check.allow === undefined ? {} : { allow_duplicate: check.allow }),
     ...(check.scope === undefined ? {} : { duplicate_scope: check.scope }),
     ...(Object.keys(options).length ? { duplicate_scope_options: options } : {}),
   };
 }
-export function encodeNote(input: NoteInput): NoteCreateBody {
+export function encodeNote(input: NoteInput, allowDuplicate = false): NoteCreateBody {
   return {
+    ...(allowDuplicate ? { allow_duplicate: true } : {}),
     fields: fields(input.fields),
     ...deckRef(input.deck),
     ...noteTypeRef(input.noteType),
@@ -153,6 +153,16 @@ function encodeUpsert(input: NoteUpsert): NoteUpsertBody {
     ...encodeNote(input),
     ...(input.matchField === undefined ? {} : { match: { field: string(input.matchField) } }),
     ...(Object.keys(onMatch).length ? { on_match: onMatch } : {}),
+  };
+}
+/** Add Cards prefilled: a note as create takes it, without duplicate options. */
+function encodeAddCards(input: OpenAddInput): Requests["guiAddCards"] {
+  return {
+    ...deckRef(input.deck),
+    ...noteTypeRef(input.noteType),
+    fields: fields(input.fields),
+    ...(input.tags === undefined ? {} : { tags: strings(input.tags, "tags") }),
+    ...attachments(input),
   };
 }
 export function encodeMedia(input: MediaInput): MediaUploadBody {
@@ -251,8 +261,9 @@ export class DraftProtocol {
     return { items: data.items, cursor: next, total };
   }
 
-  createNotes(input: readonly NoteInput[], include: readonly string[], options: WriteOptions): Promise<ItemReport<CreatedNote, NoteFailure>> {
-    return this.call("notesCreate", { query: withInclude(include), body: input.map(encodeNote), options },
+  createNotes(input: readonly NoteInput[], include: readonly string[], options: WriteOptions,
+    allowDuplicate = false): Promise<ItemReport<CreatedNote, NoteFailure>> {
+    return this.call("notesCreate", { query: withInclude(include), body: input.map(note => encodeNote(note, allowDuplicate)), options },
       (_, value) => items(input.length, [value.created.map(note => ({ index: note.index, value: note }))], value.failed));
   }
   async updateNote(noteId: number, input: NotePatch, options: WriteOptions): Promise<void> {
@@ -266,7 +277,7 @@ export class DraftProtocol {
       ], value.failed));
   }
   checkNotes(input: readonly NoteInput[], include: readonly string[], options: RequestOptions): Promise<NoteCheck[]> {
-    return this.call("notesCheck", { query: withInclude(include), body: { notes: input.map(encodeNote) }, options }, (_, value) => {
+    return this.call("notesCheck", { query: withInclude(include), body: input.map(note => encodeNote(note)), options }, (_, value) => {
       if (value.results.length !== input.length || value.results.some((row, i) => row.index !== i)) {
         throw new ProtocolError("Note checks do not match the request");
       }
@@ -277,6 +288,20 @@ export class DraftProtocol {
     return this.call("mediaUpload", { body: input.map(encodeMedia), options },
       (_, value) => items(input.length, [value.created.map(file => ({ index: file.index, value: file }))], value.failed));
   }
+  /** Opens a window in Anki; resolves once Anki shows it. */
+  async openBrowser(query: string, options: WriteOptions): Promise<void> {
+    await this.call("guiBrowse", { body: { query: string(query) }, options }, () => undefined);
+  }
+  async openEditor(noteId: number, options: WriteOptions): Promise<void> {
+    await this.call("guiEditNote", { body: { note_id: inputId(noteId) }, options }, () => undefined);
+  }
+  async openAdd(input: OpenAddInput, options: WriteOptions): Promise<void> {
+    await this.call("guiAddCards", { body: encodeAddCards(input), options }, () => undefined);
+  }
+  async openDeck(screen: "guiDeckOverview" | "guiDeckReview", deck: Reference, options: WriteOptions): Promise<void> {
+    await this.call(screen, { body: deckRef(deck), options }, () => undefined);
+  }
+
   /** A verb on a set of rows: how many it changed. */
   verb<O extends "notesDelete" | Extract<Operation, `cards${string}`>>(operation: O, body: Requests[O], options: WriteOptions): Promise<{ affected: number }> {
     return this.call(operation, { body, options }, (_, value) => ({ affected: (value as { affected: number }).affected }));

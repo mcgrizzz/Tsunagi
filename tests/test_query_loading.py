@@ -13,7 +13,7 @@ def test_model_pages_load_only_returned_definitions(client, col):
         if cursor:
             params["cursor"] = cursor
         with patch.object(col.models, "get", wraps=col.models.get) as load:
-            response = client.get("/v1/models", params=params)
+            response = client.get("/v1/note-types", params=params)
         assert response.status_code == 200, response.text
         page = response.json()
         ids = [row["id"] for row in page["items"]]
@@ -28,7 +28,7 @@ def test_model_pages_load_only_returned_definitions(client, col):
 
 def test_model_name_projection_keeps_lightweight_path(client, col):
     with patch.object(col.models, "get", side_effect=AssertionError("unneeded model load")):
-        response = client.get("/v1/models", params={"select": "id,name", "limit": 2})
+        response = client.get("/v1/note-types", params={"select": "id,name", "limit": 2})
     assert response.status_code == 200, response.text
     assert len(response.json()["items"]) == 2
 
@@ -36,7 +36,7 @@ def test_model_name_projection_keeps_lightweight_path(client, col):
 def test_model_name_lookup_loads_only_the_match(client, col):
     expected = col.models.by_name("Basic")["id"]
     with patch.object(col.models, "get", wraps=col.models.get) as load:
-        response = client.get("/v1/models", params={
+        response = client.get("/v1/note-types", params={
             "select": "id,fields[].name", "where": 'name=="Basic"',
         })
     assert response.status_code == 200, response.text
@@ -45,7 +45,7 @@ def test_model_name_lookup_loads_only_the_match(client, col):
 
 
 def test_model_scan_does_not_enable_browser_search(client):
-    response = client.get("/v1/models", params={"search": "deck:Default"})
+    response = client.get("/v1/note-types", params={"search": "deck:Default"})
     assert response.status_code == 400
     assert "not supported" in response.json()["detail"]
 
@@ -69,7 +69,7 @@ def test_model_filter_finds_matches_after_an_entire_rejected_chunk(client, col):
         body = {"select": "id,name", "where": ['fields[].name=="Wanted"'], "limit": 1}
         if cursor:
             body["cursor"] = cursor
-        response = client.post("/v1/models/query", json=body)
+        response = client.post("/v1/note-types/query", json=body)
         assert response.status_code == 200, response.text
         page = response.json()
         seen.extend(row["id"] for row in page["items"])
@@ -105,7 +105,7 @@ def test_note_scalar_projection_skips_unused_names_and_field_formatting(client, 
 
 
 @pytest.mark.parametrize("where,expected_count", [
-    ('model_name=="Basic"', 2),
+    ('note_type_name=="Basic"', 2),
     ('fields[].value=="target"', 1),
 ])
 def test_note_filter_still_loads_its_required_metadata(client, note_ids, where, expected_count):
@@ -121,7 +121,7 @@ def test_note_fields_projection_keeps_names_values_and_order(client, col, note_i
     assert response.json()["items"] == [{
         "id": note_ids[0],
         "fields": [
-            {"name": "Front", "value": "target", "ord": 0},
-            {"name": "Back", "value": "answer", "ord": 1},
+            {"name": "Front", "value": "target", "index": 0},
+            {"name": "Back", "value": "answer", "index": 1},
         ],
     }]

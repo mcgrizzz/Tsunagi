@@ -7,15 +7,15 @@ declare const audio: Uint8Array;
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777", apiKey: settings.apiKey });
 
 const word = { deck: "Japanese::Mining", noteType: "Basic", fields: { Front: "犬", Back: "dog" } };
-if (await anki.notes.exists(word)) {
-  console.log("Already have it");
-} else {
-  const note = await anki.notes.create({
-    ...word,
-    tags: ["mined"],
-    audio: [{ data: audio, filename: "inu.mp3", fields: ["Back"] }],
-  }, { cards: true });
+const note = await anki.notes.create({
+  ...word,
+  tags: ["mined"],
+  audio: [{ data: audio, filename: "inu.mp3", fields: ["Back"] }],
+}, { cards: true, ifDuplicate: "skip" });
 
+if (note.action === "skipped") {
+  console.log("Already have it:", note.id); // the saved note; nothing was added
+} else {
   const cards = await anki.cards
     .where("noteId", "eq", note.id)
     .select("id", "queue", "due")

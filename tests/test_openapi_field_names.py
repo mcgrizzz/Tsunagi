@@ -7,15 +7,15 @@ import pytest
 from pydantic import BaseModel
 
 from tsunagi.shared.schemas.cards import CardInfo
-from tsunagi.shared.schemas.decks import DeckConfigRow, DeckInfo
+from tsunagi.shared.schemas.decks import DeckInfo, DeckPresetRow
 from tsunagi.shared.schemas.media import MediaRow
-from tsunagi.shared.schemas.models import ModelInfo
+from tsunagi.shared.schemas.models import NoteTypeInfo
 from tsunagi.shared.schemas.notes import NoteInfo
 from tsunagi.shared.schemas.reviews import ReviewInfo
 from tsunagi.shared.schemas.tags import TagRow
 
 LISTS = {"/v1/cards": CardInfo, "/v1/notes": NoteInfo, "/v1/decks": DeckInfo,
-         "/v1/models": ModelInfo, "/v1/reviews": ReviewInfo, "/v1/deck-configs": DeckConfigRow,
+         "/v1/note-types": NoteTypeInfo, "/v1/reviews": ReviewInfo, "/v1/deck-presets": DeckPresetRow,
          "/v1/media": MediaRow, "/v1/tags": TagRow}
 
 
@@ -45,8 +45,8 @@ def test_each_list_documents_its_row_fields(spec, path, method, suffix):
 
 
 # Fields whose numbers stand for something (6.101): each lists its values.
-CODED = {"CardRow": {"type", "queue", "flag"}, "ReviewRow": {"ease", "type"},
-         "ModelRow": {"type", "original_stock_kind"}, "DeckRow": {"dynamic"}}
+CODED = {"CardRow": {"type", "queue", "flag"}, "ReviewRow": {"rating", "type"},
+         "NoteTypeRow": {"type", "original_stock_kind"}, "DeckRow": {"dynamic"}}
 
 
 def test_every_row_field_is_described_and_coded_fields_list_their_values(spec):
@@ -65,11 +65,11 @@ def test_every_row_field_is_described_and_coded_fields_list_their_values(spec):
             assert ("x-values" in node) == (field in CODED.get(name, ())), f"{name}.{field} x-values"
             inner = node.get("items", node)
             rows += [ref["$ref"].rsplit("/", 1)[1] for ref in [inner, *inner.get("allOf", [])] if "$ref" in ref]
-    assert {"FsrsMemoryState", "NoteField", "ModelField", "ModelTemplate"} <= seen
+    assert {"FsrsMemoryState", "NoteField", "NoteTypeField", "CardTemplate"} <= seen
 
 
 def test_review_rows_and_inserts_use_the_row_names(spec):
-    names = {"card_id", "interval", "last_interval", "time_ms"}
+    names = {"card_id", "interval", "last_interval", "duration_ms"}
     assert names <= set(spec["components"]["schemas"]["ReviewInfo"]["properties"])
     assert not {"cid", "ivl", "lastIvl", "time"} & set(spec["components"]["schemas"]["ReviewInfo"]["properties"])
 

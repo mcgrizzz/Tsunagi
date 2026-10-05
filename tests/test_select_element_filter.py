@@ -2,7 +2,7 @@
 
 
 def add(client, front, back):
-    body = {"modelName": "Basic", "deckName": "Default", "fields": {"Front": front, "Back": back}}
+    body = {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": front, "Back": back}}
     return client.post("/v1/notes?include=cards", json=body).json()["created"][0]
 
 
@@ -15,7 +15,7 @@ def get(client, path, **params):
 def test_notes_return_only_the_named_fields(client):
     note = add(client, "犬", "<b>dog</b>")
     rows = get(client, "/v1/notes", where=f"id=={note['id']}", select='id,fields[name in ["Back"]]')
-    assert rows == [{"id": note["id"], "fields": [{"name": "Back", "value": "<b>dog</b>", "ord": 1}]}]
+    assert rows == [{"id": note["id"], "fields": [{"name": "Back", "value": "<b>dog</b>", "index": 1}]}]
     # Plucking the value still filters by name, and the order stays the note type's.
     rows = get(client, "/v1/notes", where=f"id=={note['id']}", select='fields[name in ["Back", "Front"]].value')
     assert rows == [{"fields": ["犬", "<b>dog</b>"]}]
@@ -24,7 +24,7 @@ def test_notes_return_only_the_named_fields(client):
 
 def test_cards_filter_their_note_fields_too(client):
     card_id = add(client, "猫", "cat")["cards"][0]
-    rows = get(client, "/v1/cards", where=f"id=={card_id}", select='id,fields[ord in [0]].(name,value)')
+    rows = get(client, "/v1/cards", where=f"id=={card_id}", select='id,fields[index in [0]].(name,value)')
     assert rows == [{"id": card_id, "fields": [{"name": "Front", "value": "猫"}]}]
 
 

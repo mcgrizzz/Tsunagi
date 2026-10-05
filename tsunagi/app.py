@@ -35,13 +35,13 @@ from .http.playground import API_DESCRIPTION
 from .http.v1.addons import router as addons_router
 from .http.v1.cards import router as cards_router
 from .http.v1.collection import router as collection_router
-from .http.v1.deck_configs import router as deck_configs_router
+from .http.v1.deck_presets import router as deck_presets_router
 from .http.v1.decks import router as decks_router
 from .http.v1.events import router as events_router
 from .http.v1.fsrs import router as fsrs_router
 from .http.v1.gui import router as gui_router
 from .http.v1.media import router as media_router
-from .http.v1.models import router as models_router
+from .http.v1.note_types import router as note_types_router
 from .http.v1.notes import router as notes_router
 from .http.v1.reviews import router as reviews_router
 from .http.v1.tags import router as tags_router
@@ -69,8 +69,8 @@ app = FastAPI(
     license_info={"name": "MIT"},
     openapi_tags=[
         {
-            "name": "Models",
-            "description": "Note types (models) and their fields and templates. Models define the structure of cards in Anki."
+            "name": "Note Types",
+            "description": "Note types and their fields and templates. Note types define the structure of cards in Anki."
         },
         {
             "name": "Decks",
@@ -82,15 +82,15 @@ app = FastAPI(
         },
         {
             "name": "Cards",
-            "description": "Cards generated from notes by a model's templates. Reads support Anki search syntax; scheduling changes are batch verb routes (POST /v1/cards:suspend and friends)."
+            "description": "Cards generated from notes by a note type's templates. Reads support Anki search syntax; scheduling changes are batch verb routes (POST /v1/cards:suspend and friends)."
         },
         {
             "name": "Tags",
             "description": "Tags across the collection. Nesting uses '::', and operations apply to a tag and its children together, like Anki's own."
         },
         {
-            "name": "Deck Configs",
-            "description": "Deck options groups (scheduling limits and intervals). Returned as Anki's config dicts verbatim so newer keys survive a round trip."
+            "name": "Deck Presets",
+            "description": "Deck options presets (scheduling limits and intervals). Returned as Anki's config dicts verbatim so newer keys survive a round trip."
         },
         {
             "name": "Media",
@@ -267,12 +267,12 @@ def _show_field_names(components):
 
 app.openapi = openapi_with_auth
 
-app.include_router(models_router)
+app.include_router(note_types_router)
 app.include_router(decks_router)
 app.include_router(notes_router)
 app.include_router(cards_router)
 app.include_router(tags_router)
-app.include_router(deck_configs_router)
+app.include_router(deck_presets_router)
 app.include_router(reviews_router)
 app.include_router(fsrs_router)
 app.include_router(collection_router)

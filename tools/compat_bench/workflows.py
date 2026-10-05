@@ -53,13 +53,14 @@ class Workflow:
 
     @staticmethod
     def native_note(note):
-        return {**{k: v for k, v in note.items() if k != "options"}, **note["options"]}
+        native = {("note_type_name" if k == "modelName" else k): v for k, v in note.items() if k != "options"}
+        return {**native, **note["options"]}
 
     def run(self, request):
         kind = self.case["kind"]
         if kind.startswith("model_fields"):
             if self.native:
-                page = request.native("GET", "/v1/models", {"select": "id,name,fields[].name"})
+                page = request.native("GET", "/v1/note-types", {"select": "id,name,fields[].name"})
                 assert page["next_cursor"] is None
                 return page["items"]
             models = request("modelNamesAndIds", {})
@@ -72,9 +73,7 @@ class Workflow:
             status_only = kind.endswith("_status")
             if self.native:
                 path = "/v1/notes:check" + ("" if status_only else "?include=duplicate_ids")
-                return request.native("POST", path, {
-                    "notes": [self.native_note(note) for note in self.notes]
-                })["results"]
+                return request.native("POST", path, [self.native_note(note) for note in self.notes])["results"]
             checks = request("canAddNotesWithErrorDetail", {"notes": self.notes})
             assert len(checks) == len(self.notes)
             duplicates = []

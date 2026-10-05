@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 
 from .wrappers import NULLABLE, RequestBody, coded
 
@@ -18,15 +18,15 @@ class DeckInfo(BaseModel):
 
     id: int = Field(description="Deck id.")
     name: str = Field(description='Full deck name, with "::" between levels.')
-    mod: int = Field(0, description="Last modified, Unix seconds.")
+    modified: int = Field(0, alias="mod", description="Last modified, Unix seconds.")
     usn: int = Field(0, description="Update sequence number for syncing; -1 means changed since the last sync.")
 
     description: str = Field("", alias="desc", description="The deck's description, shown on its overview screen.")
     dynamic: int = Field(0, alias="dyn", description="Whether this is a filtered deck.",
                          **coded({0: "normal", 1: "filtered"}))
     # Filtered (dynamic) decks have no "conf" key
-    config_id: Optional[int] = Field(None, alias="conf", description=(
-        "Id of the deck's options preset (see /v1/deck-configs); null for filtered decks."), **NULLABLE)
+    preset_id: Optional[int] = Field(None, alias="conf", description=(
+        "Id of the deck's options preset (see /v1/deck-presets); null for filtered decks."), **NULLABLE)
 
     collapsed: bool = Field(False, description="Whether the deck's subdecks are collapsed in the deck list.")
     browser_collapsed: bool = Field(False, alias="browserCollapsed", description=(
@@ -85,7 +85,22 @@ class DeckInfo(BaseModel):
 # ----------------- Request Schemas -----------------
 
 
-class DeckConfigRow(BaseModel):
+class DeckRequest(RequestBody):
+    """A deck by name or id (the id when both are sent)."""
+    deck_id: Optional[int] = Field(None, alias="deckId")
+    deck_name: Optional[str] = Field(None, alias="deckName")
+
+    class Config:
+        allow_population_by_field_name = True
+
+    @root_validator(skip_on_failure=True, allow_reuse=True)
+    def _a_deck(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        if values.get("deck_id") is None and not values.get("deck_name"):
+            raise ValueError("one of deck_id or deck_name is required")
+        return values
+
+
+class DeckPresetRow(BaseModel):
     """
     A deck preset as Anki stores it: `id`, `name` and Anki's own settings,
     with Anki's names (`new`, `rev`, `lapse`, `desiredRetention`...), which
@@ -117,6 +132,6 @@ class DeckPatch(RequestBody):
     description: Optional[str] = Field(alias="desc", default=None)
     collapsed: Optional[bool] = None
     browser_collapsed: Optional[bool] = Field(alias="browserCollapsed", default=None)
-    config_id: Optional[int] = Field(alias="conf", default=None)
+    preset_id: Optional[int] = Field(alias="conf", default=None)
     # Per-deck FSRS retention override; explicit null clears it.
     desired_retention: Optional[float] = Field(alias="desiredRetention", default=None)

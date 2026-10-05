@@ -4,7 +4,7 @@ Collection- and profile-level routes.
 Hand-written for the same reason as tags and media: these are commands against
 the running application, not a resource with rows to plan a query over. They
 follow the `resource:verb` convention already used by /v1/cards:suspend and
-/v1/models:find-replace.
+/v1/note-types:find-replace.
 """
 import time
 from typing import Union
@@ -22,12 +22,15 @@ from ...adapters.anki.collection import (
     import_preferences,
     list_profiles,
     load_profile,
-    reload_collection,
     start_sync,
     submit_import_package,
 )
 from ...adapters.jobs import jobs
-from ...shared.errors import anki_error_detail, handle_mutation_errors
+from ...shared.errors import (
+    ResourceNotFoundError,
+    anki_error_detail,
+    handle_mutation_errors,
+)
 from ...shared.permissions import PUBLIC, current_caller, requires
 from ...shared.schemas.capabilities import CallerInfo, Capabilities, runtime_versions
 from ...shared.schemas.collection import (
@@ -135,7 +138,7 @@ def profiles() -> ProfileList:
     summary="Switch profile",
     description=(
         "Schedules closing the current profile and opening another. `loaded` "
-        "confirms acceptance, not completion, and is false for an unknown name. "
+        "confirms acceptance, not completion; an unknown name is a 404. "
         "The server restarts during the switch; requests may encounter 503 or "
         "a connection interruption. Reconnect and GET /v1/profiles to confirm "
         "the active profile."
@@ -146,7 +149,9 @@ def profiles() -> ProfileList:
 @handle_mutation_errors("load")
 def load(body: ProfileLoad = Body(...)) -> ProfileLoadResult:
     start = time.perf_counter()
-    return ProfileLoadResult(loaded=load_profile(body.name), stats=_stats(start))
+    if not load_profile(body.name):
+        raise ResourceNotFoundError("Profile", body.name)
+    return ProfileLoadResult(loaded=True, stats=_stats(start))
 
 
 @router.post(
@@ -221,7 +226,7 @@ def export(body: ExportRequest = Body(...)) -> CollectionActionResult:
     # Writes a file outside the collection: one step, so a keyed retry after
     # a 503 doesn't export again over the file still being written (6.74).
     ops.recorded(lambda ok, fail: ops.query_op_run_async(
-        lambda col: export_package.__wrapped__(col, body.deck, body.path,
+        lambda col: export_package.__wrapped__(col, body.path, body.deck_id, body.deck_name,
                                                body.with_scheduling, body.with_media),
         on_success=ok, on_failure=fail))
     return CollectionActionResult(stats=_stats(start))
@@ -285,28 +290,6 @@ def import_(body: ImportRequest = Body(...)) -> Union[ImportResult, JSONResponse
         )
 
     return _job_answer(jobs.start("import_package", submit), ImportResult, start)
-
-
-@router.post(
-    "/v1/collection:reload",
-    openapi_extra=requires("manage"),
-    response_model=CollectionActionResult,
-    summary="Reload the collection (deprecated no-op)",
-    description=(
-        "This endpoint performs no reload. It remains available for existing clients "
-        "and returns success when a collection is open. After a completed collection "
-        "operation, query the data directly; no reload step is required. "
-        "This request does not clear caches or reopen the collection."
-    ),
-    deprecated=True,
-    tags=["Collection"],
-    operation_id="reloadCollection",
-)
-@handle_mutation_errors("reload")
-def reload() -> CollectionActionResult:
-    start = time.perf_counter()
-    reload_collection()
-    return CollectionActionResult(stats=_stats(start))
 
 
 @router.post(

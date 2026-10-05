@@ -7,13 +7,13 @@ BAD_CURSORS = ['', '!!!bad-base64!!!', encode_cursor({'last_key': '42'})]
 
 
 def query_path(client, resource):
-    operation = 'query' + resource.title()
+    operation = 'query' + resource.title().replace('-', '')
     paths = client.get('/openapi.json').json()['paths']
     return next(path for path, methods in paths.items()
                 if methods.get('post', {}).get('operationId') == operation)
 
 
-@pytest.mark.parametrize('resource', ['notes', 'cards', 'reviews', 'models', 'decks'])
+@pytest.mark.parametrize('resource', ['notes', 'cards', 'reviews', 'note-types', 'decks'])
 @pytest.mark.parametrize('cursor', BAD_CURSORS)
 @pytest.mark.parametrize('method', ['get', 'post'])
 def test_invalid_native_cursor_returns_400(client, resource, cursor, method):

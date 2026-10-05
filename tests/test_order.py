@@ -4,7 +4,7 @@ import pytest
 
 @pytest.fixture()
 def data(client, col, answer_cards):
-    notes = [{"modelName": "Basic (and reversed card)" if i % 3 == 0 else "Basic", "deckName": "Default",
+    notes = [{"noteTypeName": "Basic (and reversed card)" if i % 3 == 0 else "Basic", "deckName": "Default",
               "tags": ["even"] if i % 2 == 0 else [], "fields": {"Front": f"w{i:02}", "Back": "x"}}
              for i in range(12)]
     assert client.post("/v1/notes", json=notes).json()["failed"] == []
@@ -45,8 +45,8 @@ def test_cards_follow_ankis_sort(client, data, order, key, reverse, limit):
 
 
 @pytest.mark.parametrize("path,field,same_as", [
-    ("/v1/cards", "reps", "reviews"), ("/v1/cards", "mod", "card_modified"),
-    ("/v1/notes", "mod", "note_modified"), ("/v1/notes", "id", "created"),
+    ("/v1/cards", "reps", "reviews"), ("/v1/cards", "modified", "card_modified"),
+    ("/v1/notes", "modified", "note_modified"), ("/v1/notes", "id", "created"),
 ])
 def test_row_field_names_order_as_their_browser_sort(client, data, path, field, same_as):
     for direction in ("", ":desc"):
@@ -72,12 +72,12 @@ def test_order_keeps_where_both_in_sql_and_python(client, data):
 
 
 def test_reviews_sort_by_field_with_ties_in_id(client, data):
-    rows = client.get("/v1/reviews", params={"select": "id,interval,ease"}).json()["items"]
+    rows = client.get("/v1/reviews", params={"select": "id,interval,rating"}).json()["items"]
     by_interval = [r["id"] for r in sorted(sorted(rows, key=lambda r: r["id"]), key=lambda r: r["interval"], reverse=True)]
     assert walk(client, "/v1/reviews", order="interval:desc", limit=2, select="id") == by_interval
     assert walk(client, "/v1/reviews", order="id:desc", select="id") == sorted((r["id"] for r in rows), reverse=True)
-    assert walk(client, "/v1/reviews", order="id:desc", where="ease==1", select="id") == sorted(
-        (r["id"] for r in rows if r["ease"] == 1), reverse=True)
+    assert walk(client, "/v1/reviews", order="id:desc", where="rating==1", select="id") == sorted(
+        (r["id"] for r in rows if r["rating"] == 1), reverse=True)
 
 
 def test_small_resources_sort_by_their_fields(client, data):
@@ -87,7 +87,7 @@ def test_small_resources_sort_by_their_fields(client, data):
     assert names == sorted(names, reverse=True) and "Zeta" in names
     decks = [r["name"] for r in client.get("/v1/decks", params={"order": "name", "limit": 1}).json()["items"]]
     assert decks == [min(names)]
-    models = [r["name"] for r in client.get("/v1/models", params={"order": "name", "select": "name"}).json()["items"]]
+    models = [r["name"] for r in client.get("/v1/note-types", params={"order": "name", "select": "name"}).json()["items"]]
     assert models == sorted(models)
 
 

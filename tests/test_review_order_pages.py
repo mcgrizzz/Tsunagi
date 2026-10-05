@@ -10,13 +10,13 @@ import pytest
 
 @pytest.fixture()
 def cards(client, col):
-    nids = [client.post("/v1/notes", json={"model_name": "Basic", "deck_name": "Default",
+    nids = [client.post("/v1/notes", json={"note_type_name": "Basic", "deck_name": "Default",
                                            "fields": {"Front": f"n{i}", "Back": ""}}).json()["created"][0]["id"]
             for i in range(2)]
     cids = [col.card_ids_of_note(n)[0] for n in nids]
     # Many ties in interval and ease, so the order depends on ties by id.
-    rows = [{"id": 1700000000000 + i, "card_id": cids[i % 2], "ease": 1 + i % 4,
-             "interval": (i * 7) % 5, "factor": 2500, "time_ms": 1000 + i}
+    rows = [{"id": 1700000000000 + i, "card_id": cids[i % 2], "rating": 1 + i % 4,
+             "interval": (i * 7) % 5, "ease_factor": 2500, "duration_ms": 1000 + i}
             for i in range(53)]
     assert client.post("/v1/reviews", json={"reviews": rows}).status_code == 200
     return cids
@@ -37,8 +37,8 @@ def walk(client, query, limit=7):
 QUERIES = [
     {"order": "interval"},
     {"order": "interval:desc"},
-    {"order": "ease:desc", "where": "interval>=2"},
-    {"order": "time_ms:desc"},
+    {"order": "rating:desc", "where": "interval>=2"},
+    {"order": "duration_ms:desc"},
     {"order": "id:desc"},
 ]
 

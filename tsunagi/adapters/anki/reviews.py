@@ -22,7 +22,7 @@ from .id_queries import select_ids, select_rows
 COLUMNS = ("id", "cid", "usn", "ease", "ivl", "lastIvl", "factor", "time", "type")
 _SELECT = "select " + ", ".join(COLUMNS) + " from revlog"
 # ReviewInfo's field names for COLUMNS, in the same order.
-_NAMES = ("id", "card_id", "usn", "ease", "interval", "last_interval", "factor", "time_ms", "type")
+_NAMES = ("id", "card_id", "usn", "rating", "interval", "last_interval", "ease_factor", "duration_ms", "type")
 
 
 # Every review field is an integer column: all of them can go into the id query.
@@ -166,6 +166,13 @@ def review_search_condition(col: Collection, query: str) -> Tuple[str, List[Any]
     """A search as a revlog condition: the reviews of the cards it matches."""
     card_ids = _find_cards(col, query)
     return (f"cid in {_in_clause(card_ids)}" if card_ids else "0"), []
+
+
+@as_query_op
+def missing_card_ids(col: Collection, ids: Sequence[int]) -> List[int]:
+    """Which of `ids` are not cards."""
+    found = set(col.db.list(f"select id from cards where id in {_in_clause(ids)}")) if ids else set()
+    return sorted({int(i) for i in ids} - found)
 
 
 @as_query_op

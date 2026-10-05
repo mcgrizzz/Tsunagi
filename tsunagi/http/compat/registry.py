@@ -30,7 +30,7 @@ class AnkiConnectRegistry:
             modelName: str
 
         @registry.register("modelFieldNames", params=ModelFieldNamesParams,
-                           permission="read:models")
+                           permission="read:note_types")
         def ac_modelFieldNames(p: ModelFieldNamesParams) -> List[str]:
             ...  # receives the validated model instance
     """

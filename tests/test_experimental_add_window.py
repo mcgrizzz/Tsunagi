@@ -75,13 +75,13 @@ def test_delayed_refill_does_not_open_a_window_after_experimental_editor_appears
     aqt.mw.col = SimpleNamespace(
         decks=SimpleNamespace(by_name=lambda name: {"id": 1}, select=lambda did: None),
         models=SimpleNamespace(
-            by_name=lambda name: {"id": 2},
+            by_name=lambda name: {"id": 2, "name": name},
             set_current=lambda model: None,
             update=lambda model: None,
         ),
     )
     monkeypatch.setattr(anki.notes, "Note", lambda *args: SimpleNamespace(id=0))
-    monkeypatch.setattr(notes, "_ac_apply_fields", lambda *args: None)
+    monkeypatch.setattr(notes, "_apply_fields", lambda *args: None)
     monkeypatch.setattr(gui, "_open_dialog", lambda name: pytest.fail("must not open a second window"))
 
     assert gui.add_cards({"deckName": "Default", "modelName": "Basic"}) == 0

@@ -10,9 +10,9 @@ from tsunagi.shared.schemas.cards import CardInfo
 
 def test_rows_match_card_schema(client, col, answer_cards):
     client.post("/v1/notes", json=[
-        {"modelName": "Basic (and reversed card)", "deckName": "Default",
+        {"noteTypeName": "Basic (and reversed card)", "deckName": "Default",
          "fields": {"Front": "食べる", "Back": "to eat"}},
-        {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "a", "Back": "b"}},
+        {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "a", "Back": "b"}},
     ])
     col.set_config("fsrs", True)   # answered cards then carry FSRS memory state
     assert answer_cards(2) == 2
@@ -32,15 +32,15 @@ def test_rows_match_card_schema(client, col, answer_cards):
         assert CardInfo.parse_obj(row).dict() == row
         live = col.get_card(row["id"])
         # Distinct sources for each position: values map to the right names.
-        assert (row["note_id"], row["deck_id"], row["ord"], row["queue"], row["due"],
-                row["interval"], row["reps"], row["left"]) == (
+        assert (row["note_id"], row["deck_id"], row["template_index"], row["queue"], row["due"],
+                row["interval"], row["reps"], row["steps_left"]) == (
             live.nid, live.did, live.ord, live.queue, live.due, live.ivl, live.reps, live.left % 1000)
-        assert row["fields"] == [{"name": n, "value": v, "ord": i}
+        assert row["fields"] == [{"name": n, "value": v, "index": i}
                                  for i, (n, v) in enumerate(live.note().items())]
     assert [row["suspended"] for row in rows] == [False, True, False]
-    assert rows[0]["left"] == 2
+    assert rows[0]["steps_left"] == 2
     assert rows[2]["flag"] == 5 and rows[2]["custom_data"] == '{"k":1}'
-    assert rows[0]["deck_name"] == "Default" and rows[0]["model_name"] == "Basic (and reversed card)"
+    assert rows[0]["deck_name"] == "Default" and rows[0]["note_type_name"] == "Basic (and reversed card)"
     assert all(isinstance(row["question"], str) and row["question"] for row in rows)
     reviewed = [row for row in rows if row["reps"]]
     assert reviewed and all(set(row["memory_state"]) == {"stability", "difficulty"} for row in reviewed)

@@ -24,8 +24,8 @@ Choose the resource that owns the data you want to work with:
 **Cards** contain scheduling and review state. Use card endpoints to inspect due
 dates or change scheduling.
 
-**Models** are Anki's note types: the field definitions and templates that control
-card structure and appearance.
+**Note types** are the field definitions and templates that control card
+structure and appearance.
 
 A note can generate several cards. For example, a note type with forward and
 reverse templates creates two cards from the same field values. Edit the note
@@ -38,8 +38,8 @@ browser. Use `tag:verb` to find tagged content, or `deck:Japanese` to restrict a
 query to a deck.
 
 - **`search`** matches an Anki browser query, such as `tag:verb`.
-- **`where`** filters resource fields: `mod>1790000000`, `name~=Basic` (names
-  containing “Basic”), `model_name in ["Kiku","Kiku+"]`. Several `where`
+- **`where`** filters resource fields: `modified>1790000000`, `name~=Basic` (names
+  containing “Basic”), `note_type_name in ["Kiku","Kiku+"]`. Several `where`
   clauses must all match.
 - **`select`** chooses returned fields: `select=id,name` returns
   `[{"id": 1, "name": "Basic"}, …]`, and `select=id` returns `[{"id": 1}, …]`.
@@ -48,7 +48,7 @@ query to a deck.
   use Anki's Browser sorts, by their Browser names (`due`, `interval`, `ease`,
   `lapses`, `reviews`, `created`, `note_modified`, `deck`, `note_type`,
   `sort_field`, …), so `due` orders new, learning and review cards as the
-  Browser does. Row fields that sort the same work too: `reps`, `mod`, and `id`
+  Browser does. Row fields that sort the same work too: `reps`, `modified`, and `id`
   on notes. Other resources sort by a field of their rows, such as
   `order=id:desc` for the newest reviews. Without `order`, rows come in
   ascending id.
@@ -70,8 +70,8 @@ starts with and `$=` ends with, matching case as `==` does
 (`GET /v1/tags?where=name^="Japanese::"`, `GET /v1/media?where=filename$=".mp3"`).
 Numbers, `true`, `false` and `null` are written as in JSON. **Write text as a JSON string**, and a list as a JSON array, so any
 name is safe, including quotes and backslashes: build the value with your
-language's JSON encoder, such as `"model_name in " + JSON.stringify(names)` in
-JavaScript or `"model_name in " + json.dumps(names)` in Python.
+language's JSON encoder, such as `"note_type_name in " + JSON.stringify(names)` in
+JavaScript or `"note_type_name in " + json.dumps(names)` in Python.
 
 Check each endpoint for its supported fields and filters. In the request
 console, enter parameter values directly; the client handles URL encoding.
@@ -87,11 +87,11 @@ you get back, and resources Anki can't search, such as reviews and decks.
 - Suspended cards: `search=is:suspended`
 - Cards with an interval of 21 days or more: `search=prop:ivl>=21`
 - Notes edited in the last 2 days: `search=edited:2`
-- Notes edited since an exact moment: `search=edited:2&where=mod>=1790000000`
+- Notes edited since an exact moment: `search=edited:2&where=modified>=1790000000`
   (the search narrows quickly; `where` makes it exact to the second)
 - Notes whose first field is a word: `where=first_field in ["食べる"]`, with
   `search=deck:Mining` to look in one deck only
-- Reviews answered Again: `where=ease==1` on `/v1/reviews`; there, `search`
+- Reviews answered Again: `where=rating==1` on `/v1/reviews`; there, `search`
   chooses the cards whose reviews you get
 
 ### GET parameters or a JSON body

@@ -206,7 +206,7 @@ def on_main(func: Callable[P, R]) -> Callable[P, R]:
     Decorator: ensure the wrapped function executes on Anki's UI thread.
     Usage:
         @on_main
-        def list_models() -> list[ModelInfo]:
+        def list_models() -> list[NoteTypeInfo]:
             ...
     """
     @wraps(func)

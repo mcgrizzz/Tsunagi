@@ -33,7 +33,7 @@ def test_notes_client_receives_queued_changes_after_ready(event_broker):
             # A change between subscription and initial delivery stays queued.
             event_broker.publish("change", affected=["notes", "cards"],
                                  targets={"notes": [42], "cards": [99]},
-                                 origin="api", action="collection.changed",
+                                 by="api", action="collection.changed",
                                  anki={"changes": ["note"]})
             name, initial, frame = await next_event(stream)
             assert name == "ready"
@@ -48,7 +48,7 @@ def test_notes_client_receives_queued_changes_after_ready(event_broker):
             assert "targets" not in change
             assert change["seq"] > initial["after_seq"]
             assert change["session_id"] == initial["session_id"]
-            assert change["origin"] == "api"
+            assert change["by"] == "api"
             assert change["anki"] == {"changes": ["note"]}
 
             event_broker.publish("sync", phase="finished")
@@ -93,13 +93,13 @@ def test_action_only_clients_get_ready_without_data_notifications(event_broker, 
 
 def test_resources_filter_each_named_change(event_broker):
     async def consume():
-        stream = await open_stream(resources="notes,models")
+        stream = await open_stream(resources="notes,note_types")
         try:
-            assert (await next_event(stream))[1]["resources"] == ["models", "notes"]
+            assert (await next_event(stream))[1]["resources"] == ["note_types", "notes"]
             event_broker.publish("change", affected=["notes", "cards"])
             assert (await next_event(stream))[0] == "notes.stale"
             event_broker.publish("change", targets={})  # unknown affected views
-            assert (await next_event(stream))[0] == "models.stale"
+            assert (await next_event(stream))[0] == "note_types.stale"
             assert (await next_event(stream))[0] == "notes.stale"
         finally:
             await stream.aclose()

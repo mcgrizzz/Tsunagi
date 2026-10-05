@@ -1,4 +1,4 @@
-"""Deck scope and check_all_models on the Tsunagi API's duplicate checks.
+"""Deck scope and check_all_note_types on the Tsunagi API's duplicate checks.
 
 The scoped checks report the notes AnkiConnect would; the Shim's
 canAddNotesWithErrorDetail is the reference for the duplicate decision.
@@ -9,7 +9,15 @@ import pytest
 
 def note(front, model="Basic", deck="Default", **options):
     fields = {"Text": front} if model == "Cloze" else {"Front": front, "Back": "x"}
-    return {"modelName": model, "deckName": deck, "fields": fields, **options}
+    return {"noteTypeName": model, "deckName": deck, "fields": fields, **options}
+
+
+def ac_note(front, deck):
+    return {"modelName": "Basic", "deckName": deck, "fields": {"Front": front, "Back": "x"}}
+
+
+# CASES use AnkiConnect's option names; the Tsunagi API names note types its own way.
+V1_OPTION = {"checkAllModels": "checkAllNoteTypes"}
 
 
 def ac_options(scope=None, **scope_options):
@@ -36,7 +44,7 @@ def seeded(client, col):
 
 
 def check(client, candidate):
-    result = client.post("/v1/notes:check?include=duplicate_ids", json={"notes": [candidate]}).json()["results"][0]
+    result = client.post("/v1/notes:check?include=duplicate_ids", json=candidate).json()["results"][0]
     return result["state"], sorted(result["duplicate_note_ids"] or [])
 
 
@@ -60,25 +68,25 @@ def test_scoped_duplicates_match_ankiconnect(client, seeded, front, deck, scope,
     if scope:
         candidate["duplicateScope"] = scope
     if options:
-        candidate["duplicateScopeOptions"] = options
+        candidate["duplicateScopeOptions"] = {V1_OPTION.get(k, k): v for k, v in options.items()}
     state, ids = check(client, candidate)
     assert ids == sorted(seeded[key] for key in expected)
     assert state == ("duplicate" if expected else "normal")
 
     shim = client.post("/", json={"action": "canAddNotesWithErrorDetail", "version": 6, "params": {
-        "notes": [dict(note(front, deck=deck), options=ac_options(scope, **options))]}}).json()["result"][0]
+        "notes": [dict(ac_note(front, deck), options=ac_options(scope, **options))]}}).json()["result"][0]
     assert shim["canAdd"] == (not expected)
 
 
 def test_creation_honors_the_scope(client, col, seeded):
-    blocked = client.post("/v1/notes", json=note("犬", duplicateScopeOptions={"checkAllModels": True},
+    blocked = client.post("/v1/notes", json=note("犬", duplicateScopeOptions={"checkAllNoteTypes": True},
                                                model="Basic (and reversed card)", deck="A"))
     assert blocked.json()["failed"][0]["code"] == "duplicate"
     # With the IDs asked for, the scope decides them, as the check reports them.
     ids = client.post("/v1/notes", params={"include": "duplicate_ids"},
-                      json=note("犬", duplicateScopeOptions={"checkAllModels": True},
+                      json=note("犬", duplicateScopeOptions={"checkAllNoteTypes": True},
                                 model="Basic (and reversed card)", deck="A")).json()["failed"][0]
-    assert sorted(ids["duplicate_note_ids"]) == check(client, note("犬", duplicateScopeOptions={"checkAllModels": True},
+    assert sorted(ids["duplicate_note_ids"]) == check(client, note("犬", duplicateScopeOptions={"checkAllNoteTypes": True},
                                                           model="Basic (and reversed card)", deck="A"))[1]
     allowed = client.post("/v1/notes", json=note("犬", duplicateScope="deck", deck="B"))
     assert allowed.json()["created"]
@@ -86,17 +94,17 @@ def test_creation_honors_the_scope(client, col, seeded):
 
 def test_unknown_scope_deck_is_reported_not_ignored(client, seeded):
     candidate = note("犬", duplicateScope="deck", duplicateScopeOptions={"deckName": "Nope"})
-    result = client.post("/v1/notes:check?include=duplicate_ids", json={"notes": [candidate]}).json()["results"][0]
+    result = client.post("/v1/notes:check?include=duplicate_ids", json=candidate).json()["results"][0]
     assert result["state"] == "invalid" and "Nope" in result["reason"]
 
 
 def test_empty_and_cloze_checks_still_come_from_anki(client, seeded):
-    state, _ = check(client, note("", duplicateScopeOptions={"checkAllModels": True}))
+    state, _ = check(client, note("", duplicateScopeOptions={"checkAllNoteTypes": True}))
     assert state == "empty"
-    state, _ = check(client, note("no cloze", model="Cloze", duplicateScopeOptions={"checkAllModels": True}))
+    state, _ = check(client, note("no cloze", model="Cloze", duplicateScopeOptions={"checkAllNoteTypes": True}))
     assert state == "missing_cloze"
 
 
 def test_options_require_real_booleans(client):
-    candidate = note("x", duplicateScopeOptions={"checkAllModels": "yes"})
-    assert client.post("/v1/notes:check?include=duplicate_ids", json={"notes": [candidate]}).status_code == 422
+    candidate = note("x", duplicateScopeOptions={"checkAllNoteTypes": "yes"})
+    assert client.post("/v1/notes:check?include=duplicate_ids", json=candidate).status_code == 422

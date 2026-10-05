@@ -154,8 +154,10 @@ def test_gui_edit_note_uses_standalone_but_native_uses_browser(client, col, monk
         open_editor=lambda nid: opened.append(col.get_note(nid).id),
     ))
     monkeypatch.setattr(gui, "call_on_main", lambda callback: callback())
-    monkeypatch.setattr(gui, "_browse", lambda query, reorder: browsed.append(query))
-    monkeypatch.setattr(aqt, "mw", SimpleNamespace(col=col), raising=False)
+    monkeypatch.setattr(gui, "_browse", lambda query, reorder, done=None: (browsed.append(query), done and done()))
+    monkeypatch.setattr(gui, "_existing_dialog", lambda name: None)
+    monkeypatch.setattr(aqt, "mw", SimpleNamespace(col=col, taskman=SimpleNamespace(run_on_main=lambda fn: fn())),
+                        raising=False)
     reply = client.post("/", json={"action": "guiEditNote", "version": 6, "params": {"note": note.id}}).json()
     assert reply == {"result": None, "error": None}
     assert opened == [note.id]

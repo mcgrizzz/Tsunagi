@@ -44,11 +44,11 @@ def test_what_the_stream_sends_matches_its_schema(client):
 
     def fire():
         broker.publish("change", changes={"notes": {"created": [1], "updated": [2]}, "cards": {"deleted": [3]}},
-                       origin="api", client="Yomitan", affected=["notes", "cards", "tags"],
+                       by="api", app="Yomitan", affected=["notes", "cards", "tags"],
                        anki={"changes": ["note"], "label": "Add Note"})
-        broker.publish("change", origin=None, affected=["decks"], anki={"changes": ["deck"]})
+        broker.publish("change", by=None, affected=["decks"], anki={"changes": ["deck"]})
         broker.publish("reset")
-        broker.publish("decks.counts", decks=[{"id": 1, "new_count": 2, "learn_count": 0,
+        broker.publish("decks.counts", decks=[{"deck_id": 1, "new_count": 2, "learn_count": 0,
                                                "review_count": 5, "total_in_deck": 9}])
         publish_review(card, 3)
         publish_sync("started")
@@ -66,7 +66,7 @@ def test_what_the_stream_sends_matches_its_schema(client):
 
 def test_x_from_names_resources(client):
     spec = client.get("/openapi.json").json()
-    resources = {"notes", "cards", "decks", "models", "tags", "reviews"}
+    resources = {"notes", "cards", "decks", "note_types", "tags", "reviews"}
     named = [name for path in ("/v1/cards", "/v1/notes", "/v1/reviews")
              for p in spec["paths"][path]["get"]["parameters"] if p.get("name") == "search"
              for name in p["schema"]["x-from"]]

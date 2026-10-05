@@ -33,7 +33,6 @@ from ...shared.schemas.creation import IDEMPOTENCY_HELP
 from ...shared.schemas.media import sanitize_media_filename
 from ...shared.schemas.notes import (
     AttachmentRef,
-    NoteCheckRequest,
     NoteCheckResponse,
     NoteCreate,
     NoteCreateResponse,
@@ -45,7 +44,7 @@ from ...shared.schemas.notes import (
     NoteUpsertResponse,
 )
 from ...shared.schemas.wrappers import VerbResult
-from .media import resolve_upload
+from .media import require_local_files, resolve_upload
 
 
 class _AttachmentFailed(Exception):
@@ -70,14 +69,20 @@ def _fetch_files(req: NoteFiles) -> list:
     return files
 
 
-def _patch_note(note_id: int, updates: dict):
-    """PATCH: fields, tags and files in one update, as one undo step (backlog 6.58)."""
+def fetch_note_files(req: NoteFiles) -> list:
+    """One note's files, for a request about that note alone: a file path needs
+    local_files (403), and a file that can't be fetched is a 400 naming it."""
+    require_local_files(a for _kind, a in req.attachments())
     try:
-        files = _fetch_files(NotePatch.parse_obj(updates))
+        return _fetch_files(req)
     except _AttachmentFailed as failure:
         ref = failure.ref
         raise ValidationError(f"{ref.kind} {ref.position} ({ref.filename}): {failure.message}") from failure
-    return patch_note(note_id, updates, files)
+
+
+def _patch_note(note_id: int, updates: dict):
+    """PATCH: fields, tags and files in one update, as one undo step (backlog 6.58)."""
+    return patch_note(note_id, updates, fetch_note_files(NotePatch.parse_obj(updates)))
 
 
 caps = SourceCaps(
@@ -103,7 +108,7 @@ caps = SourceCaps(
     # keyset-style instead of materializing every note id per page request.
     # A `search=` query still enumerates in full - Anki search has no keyset.
     search=SearchSpec(find_ids=find_note_ids, hydrate=get_notes_by_ids,
-                      page_ids=page_note_ids, id_field="id", reads=("cards", "decks", "models", "tags")),
+                      page_ids=page_note_ids, id_field="id", reads=("cards", "decks", "note_types", "tags")),
     # where clauses on note columns, and first_field by checksum, go into the
     # id query, with or without a search (backlog 9.13).
     sql=NOTE_SQL,
@@ -128,7 +133,7 @@ router = create_resource_routes(
     resource_plural="notes",
     permission_resource="notes",
     tag="Notes",
-    description="Notes hold the content; cards are generated from them by a model's templates. Use `search` for Anki query syntax."
+    description="Notes hold the content; cards are generated from them by a note type's templates. Use `search` for Anki query syntax."
 )
 
 
@@ -137,21 +142,23 @@ router = create_resource_routes(
     openapi_extra=requires("read:notes"),
     response_model=NoteCheckResponse,
     summary="Check whether notes can be added",
-    description=("Reports per candidate whether it can be added, and why not (empty first field, "
-                 "duplicate, unknown model/deck). Adds nothing. include=duplicate_ids also looks up "
+    description=("Takes one note or an array, as POST /v1/notes does, and reports for each whether "
+                 "it can be added, and why not (empty first field, "
+                 "duplicate, unknown note type/deck). Adds nothing. include=duplicate_ids also looks up "
                  "the notes each duplicate matches (duplicate_note_ids; null without it)."),
     tags=["Notes"],
     operation_id="checkNotes",
 )
 @handle_mutation_errors("check")
 def check(
-    body: NoteCheckRequest = Body(..., description="Candidate notes"),
+    body: Union[List[NoteCreate], NoteCreate] = Body(..., description="One note or an array of notes"),
     include: Optional[str] = Query(default=None, description=(
         "duplicate_ids: also look up the notes each duplicate matches.")),
 ) -> dict:
     start = time.perf_counter()
     parts = parse_include(include, ["duplicate_ids"])
-    results = check_notes(body.notes, include_duplicate_ids="duplicate_ids" in parts)
+    results = check_notes(body if isinstance(body, list) else [body],
+                          include_duplicate_ids="duplicate_ids" in parts)
     # Keep response validation in FastAPI instead of building these models twice.
     return {
         "results": results,
@@ -252,6 +259,7 @@ def create(
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", description=IDEMPOTENCY_HELP),
 ) -> Union[NoteCreateResponse, JSONResponse]:
     candidates = body if isinstance(body, list) else [body]
+    require_local_files(a for c in candidates for _kind, a in c.attachments())
     parts = parse_include(include, ["cards", "duplicate_ids"])
     include_cards, include_duplicate_ids = "cards" in parts, "duplicate_ids" in parts
     if not idempotency_key:

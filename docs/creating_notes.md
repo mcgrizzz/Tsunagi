@@ -20,7 +20,7 @@ For one note, send this object to **`POST /v1/notes`**:
 
 ```json
 {
-  "modelName": "Basic",
+  "noteTypeName": "Basic",
   "deckName": "Default",
   "fields": {"Front": "犬", "Back": "dog"},
   "allowDuplicate": false
@@ -31,9 +31,9 @@ For several, send an array of those objects:
 
 ```json
 [
-  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}, "allowDuplicate": false},
-  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}, "allowDuplicate": false},
-  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "猫", "Back": "cat"}, "allowDuplicate": false}
+  {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}, "allowDuplicate": false},
+  {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}, "allowDuplicate": false},
+  {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "猫", "Back": "cat"}, "allowDuplicate": false}
 ]
 ```
 
@@ -69,24 +69,25 @@ same request.
 
 By default, a duplicate is a note of the **same note type** with the same first
 field, anywhere in the collection; this is Anki's own check. To check only
-within a deck, or across all note types, add AnkiConnect's duplicate options:
+within a deck, or across all note types, add the duplicate options (AnkiConnect's,
+with `checkAllNoteTypes` for its `checkAllModels`):
 
 ```json
 {
-  "modelName": "Kiku+",
+  "noteTypeName": "Kiku+",
   "deckName": "Mining",
   "fields": {"Expression": "犬"},
   "duplicateScope": "deck",
-  "duplicateScopeOptions": {"deckName": "Mining", "checkChildren": true, "checkAllModels": true}
+  "duplicateScopeOptions": {"deckName": "Mining", "checkChildren": true, "checkAllNoteTypes": true}
 }
 ```
 
 - `duplicateScope`: `"collection"` (default) or `"deck"`, the note's own deck
   unless `duplicateScopeOptions.deckName` names another.
 - `checkChildren`: with deck scope, also check subdecks.
-- `checkAllModels`: match notes of every note type, not only this one.
+- `checkAllNoteTypes`: match notes of every note type, not only this one.
 
-With deck scope or `checkAllModels`, notes match on the first field's checksum,
+With deck scope or `checkAllNoteTypes`, notes match on the first field's checksum,
 as in AnkiConnect, and `duplicate_note_ids` lists exactly those notes. Empty
 and missing-cloze checks are still Anki's. An unknown `deckName` is reported as
 an invalid input, and other `duplicateScope` values return 422, instead of
@@ -101,7 +102,7 @@ how to merge into it:
 
 ```json
 {
-  "modelName": "Mining", "deckName": "Mining",
+  "noteTypeName": "Mining", "deckName": "Mining",
   "fields": {"Expression": "食べる", "Sentence": "もう食べた。", "Audio": "[sound:taberu.mp3]"},
   "tags": ["mined"],
   "match": {"field": "Expression"},
@@ -153,13 +154,13 @@ Sending the same request again changes nothing: `fields_changed` is empty and
 ## Check without saving
 
 **`POST /v1/notes:check`** answers "could I add these?" without saving
-anything. Send the notes you would create, inside `{"notes": [...]}`:
+anything. Send what you would create: one note, or an array:
 
 ```json
-{"notes": [
-  {"modelName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}},
-  {"modelName": "Basic", "deckName": "Nope", "fields": {"Front": "猫", "Back": "cat"}}
-]}
+[
+  {"noteTypeName": "Basic", "deckName": "Default", "fields": {"Front": "犬", "Back": "dog"}},
+  {"noteTypeName": "Basic", "deckName": "Nope", "fields": {"Front": "猫", "Back": "cat"}}
+]
 ```
 
 If 犬 already exists and there is no deck called Nope:
@@ -198,7 +199,7 @@ later save will succeed.
 their first field, the field Anki compares for duplicates:
 **`GET /v1/notes?where=first_field in ["犬","猫"]&select=id,first_field`**.
 `first_field` is the first field's exact value, HTML included. Add
-`where=model_name=="Basic"` or other filters to narrow it.
+`where=note_type_name=="Basic"` or other filters to narrow it.
 
 ## Add files to your notes
 
@@ -206,7 +207,7 @@ Send the files with the note: **`POST /v1/notes`** takes `audio`, `video` and
 `picture`, each one file or a list, as AnkiConnect's `addNote` does:
 
 ```json
-{"modelName": "Basic", "deckName": "Default",
+{"noteTypeName": "Basic", "deckName": "Default",
  "fields": {"Front": "犬", "Back": "dog"},
  "audio": {"url": "https://example.com/inu.mp3", "filename": "inu.mp3", "fields": ["Front"]},
  "picture": {"data": "iVBORw0KGgo...", "filename": "inu.png", "fields": ["Back"]}}
@@ -219,7 +220,8 @@ duplicate, say) leaves no files behind. A file that can't be read or
 downloaded fails its note with `invalid_attachment`, and the failure's
 `attachment` says which one: `{"kind": "picture", "position": 1, "filename":
 "bad.png"}` is the second picture. Batches work the same way: each note in the
-array carries its own files.
+array carries its own files. A file sent by its `path` on this computer needs
+the `local_files` permission; without it the whole request is refused with 403.
 
 Each created note lists its files in `files`, audio first, then video, then
 pictures, in the same form `POST /v1/media` returns:

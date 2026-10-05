@@ -39,9 +39,9 @@ class CardInfo(BaseModel):
         "Id of the deck the card is in now; a filtered deck's id while it sits in one."))
     original_deck_id: int = Field(0, alias="odid", description=(
         "Home deck id while the card is in a filtered deck; 0 otherwise."))
-    ord: int = Field(0, description=(
+    template_index: int = Field(0, alias="ord", description=(
         "Which template made the card, from 0; on a cloze note type, the cloze number minus 1."))
-    mod: int = Field(0, description="Last modified, Unix seconds.")
+    modified: int = Field(0, alias="mod", description="Last modified, Unix seconds.")
     usn: int = Field(0, description="Update sequence number for syncing; -1 means changed since the last sync.")
 
     type: int = Field(0, description="The card's scheduling stage.",
@@ -62,11 +62,11 @@ class CardInfo(BaseModel):
     original_due: int = Field(0, alias="odue", description=(
         "The card's due value in its home deck while it is in a filtered deck; 0 otherwise."))
     interval: int = Field(0, alias="ivl", description="Current interval in days; 0 for new and learning cards.")
-    factor: int = Field(0, description=(
+    ease_factor: int = Field(0, alias="factor", description=(
         "SM-2 ease in permille (2500 = 250%); 0 until the card graduates. FSRS doesn't use it."))
     reps: int = Field(0, description="How many times the card has been answered.")
     lapses: int = Field(0, description="How many times the card was forgotten (Again on a review card).")
-    left: int = Field(0, description=(
+    steps_left: int = Field(0, alias="left", description=(
         "Learning steps the card still has to pass before it graduates, the current one included; "
         "only meaningful while the card is learning or relearning."))
 
@@ -100,14 +100,14 @@ class CardInfo(BaseModel):
                            **derived("decks"))
 
     # Need the note or the template renderer, so only built when asked for.
-    model_name: Optional[str] = Field(None, description="Name of the card's note type.", **derived("models"))
-    css: Optional[str] = Field(None, description="The note type's styling.", **derived("models"))
+    note_type_name: Optional[str] = Field(None, description="Name of the card's note type.", **derived("note_types"))
+    css: Optional[str] = Field(None, description="The note type's styling.", **derived("note_types"))
     fields: Optional[List[NoteField]] = Field(None, description="The note's fields, in note type order.",
-                                              **derived("notes", "models"))
+                                              **derived("notes", "note_types"))
     question: Optional[str] = Field(None, description="The card's front, rendered as HTML.",
-                                    **derived("notes", "models", "decks"))
+                                    **derived("notes", "note_types", "decks"))
     answer: Optional[str] = Field(None, description="The card's back, rendered as HTML.",
-                                  **derived("notes", "models", "decks"))
+                                  **derived("notes", "note_types", "decks"))
     next_reviews: Optional[List[str]] = Field(None, description=(
         'Next interval for each answer button, Again to Easy, as Anki shows them (e.g. "10m", "4d"); '
         "null if Anki couldn't work them out."), **NULLABLE)
@@ -166,7 +166,7 @@ class SetFlagRequest(CardIds):
 class EaseEntry(RequestBody):
     id: int
     # Anki stores ease x10 as an integer: 250% is 2500.
-    factor: int
+    ease_factor: int
 
 
 class SetEaseRequest(RequestBody):
@@ -195,7 +195,7 @@ class AnswerEntry(RequestBody):
 
     card_id: int = Field(alias="cardId")
     # The answer button: 1 again, 2 hard, 3 good, 4 easy.
-    ease: int = Field(ge=1, le=4)
+    rating: int = Field(ge=1, le=4)
 
 
 class AnswerRequest(RequestBody):

@@ -30,7 +30,7 @@ def package(client, col, tmp_path):
     note['Front'] = 'import job note'
     col.add_note(note, col.decks.id('Default'))
     path = str(tmp_path / 'job.apkg')
-    response = client.post('/v1/collection:export', json={'deck': 'Default', 'path': path})
+    response = client.post('/v1/collection:export', json={'deck_name': 'Default', 'path': path})
     assert response.status_code == 200, response.text
     col.remove_notes([note.id])
     return path

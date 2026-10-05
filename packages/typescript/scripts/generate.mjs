@@ -17,8 +17,6 @@ const resolve = node => node?.$ref ? node.$ref.split("/").slice(1).reduce((at, k
 const parametersOf = operation => (operation.parameters ?? []).map(resolve);
 const camel = name => name.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 const ref = node => node?.$ref?.split("/").pop();
-const clientName = (schema, wire) => names.fieldsBySchema[schema]?.[wire] ?? names.fields[wire] ?? camel(wire);
-const sortName = (schema, wire) => names.sortsBySchema[schema]?.[wire] ?? clientName(schema, wire);
 const omitted = (schema, wire) => [...names.omit["*"], ...(names.omit[schema] ?? [])].includes(wire);
 /** A schema's short name: FastAPI prefixes a module path when two share a name. */
 const short = schema => schema.split("__").pop().replace(/_+$/, "");
@@ -77,7 +75,7 @@ function fieldsOf(schema, answer = false) {
       : type.ts + (nullable ? " | null" : "");
     const optional = answer && !required.includes(wire);
     const from = node["x-from"];
-    out.push({ wire, name: clientName(schema, wire), ts, type, values, nullable, optional, from, description: node.description });
+    out.push({ wire, name: camel(wire), ts, type, values, nullable, optional, from, description: node.description });
   }
   unique(`fields of ${schema}`, out.map(f => f.name));
   return out;
@@ -155,7 +153,7 @@ for (const [path, name] of Object.entries(names.resources)) {
   const type = names.types[name];
   const order = parametersOf(get).find(p => p.name === "order");
   const sorts = (order?.schema?.["x-sorts"] ?? []).filter(wire => !omitted(row, wire))
-    .map(wire => [sortName(row, wire), wire]);
+    .map(wire => [camel(wire), wire]);
   unique(`sorts of ${path}`, sorts.map(([client]) => client));
   const key = names.keys[name] ?? "id";
   if (!fields.some(f => f.name === key)) throw new Error(`${name} has no key field ${key}`);

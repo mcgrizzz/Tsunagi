@@ -17,7 +17,7 @@ data: {"type":"ready","session_id":"5f0c…","after_seq":0,"ts":1790000000000,"r
 
 event: notes.created
 id: 5f0c…:1
-data: {"type":"notes.created","ids":[1790000000123],"origin":"ui",…}
+data: {"type":"notes.created","ids":[1790000000123],"by":"ui",…}
 ```
 
 `ready` means you're connected: load the data you show now. After that, each
@@ -131,7 +131,7 @@ capabilities report.
 | `reviews.created` | Rows were added to the review history. Includes their IDs. |
 | `sync` | A sync started or finished. |
 | `decks.counts` | A deck's new, learning or review counts changed. |
-| `decks.stale`, `models.stale` (note types), `tags.stale`, … | That kind of thing changed. |
+| `decks.stale`, `note_types.stale`, `tags.stale`, … | That kind of thing changed. |
 
 One change can produce several messages. Deleting a note sends
 `notes.deleted` with its ID and `cards.deleted` with its cards' IDs, because
@@ -147,15 +147,15 @@ but not `cards.answered`.
 ```text
 event: notes.updated
 id: 5f0c…:42
-data: {"origin":"api","client":"Yomitan","anki":{"changes":["note","mtime","browser_table","note_text"],"label":"Update Note"},"type":"notes.updated","ids":[123],"seq":42,"session_id":"5f0c…","ts":1790000000000}
+data: {"by":"api","app":"Yomitan","anki":{"changes":["note","mtime","browser_table","note_text"],"label":"Update Note"},"type":"notes.updated","ids":[123],"seq":42,"session_id":"5f0c…","ts":1790000000000}
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `type` | The message name, also sent as `event:`. |
 | `ids` | The IDs that changed. Not on `.stale`. |
-| `origin` | `api` for changes made through either API, `ui` for changes made in Anki. |
-| `client` | For changes made through the API: the app that made them. A dashboard can tell its own writes from another tool's. |
+| `by` | `api` for changes made through either API, `ui` for changes made in Anki. |
+| `app` | For changes made through the API: the app that made them. A dashboard can tell its own writes from another tool's. |
 | `seq`, `session_id`, `ts` | Order, server session and time (milliseconds). The `id:` line is `session_id:seq`. |
 | `anki` | Anki's own description of the change. For debugging; don't rely on it. |
 
@@ -163,16 +163,16 @@ Other messages:
 
 ```text
 event: cards.answered
-data: {"origin":"ui","card_id":1700000000001,"ease":3,"interval":12,"due":20512,"queue":2,"memory_state":{"stability":14.2,"difficulty":5.1},"type":"cards.answered",…}
+data: {"by":"ui","card_id":1700000000001,"rating":3,"interval":12,"due":20512,"queue":2,"memory_state":{"stability":14.2,"difficulty":5.1},"type":"cards.answered",…}
 
 event: sync
 data: {"phase":"started","type":"sync",…}
 
 event: decks.counts
-data: {"decks":[{"id":1,"new_count":20,"learn_count":3,"review_count":41,"total_in_deck":1280}],"type":"decks.counts",…}
+data: {"decks":[{"deck_id":1,"new_count":20,"learn_count":3,"review_count":41,"total_in_deck":1280}],"type":"decks.counts",…}
 ```
 
-`ease` is 1 Again, 2 Hard, 3 Good, 4 Easy. `memory_state` is `null` for cards
+`rating` is 1 Again, 2 Hard, 3 Good, 4 Easy. `memory_state` is `null` for cards
 FSRS hasn't scheduled. `sync` comes with `phase` `started`, then `finished`.
 `decks.counts` lists only the decks whose counts changed.
 

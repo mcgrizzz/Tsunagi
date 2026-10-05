@@ -92,7 +92,7 @@ Browse the [API reference](https://mcgrizzz.github.io/Tsunagi/), or open
 `modelFieldNames` for each type you need. With Tsunagi, ask for both together:
 
 ```sh
-curl --get 'http://127.0.0.1:7777/v1/models' \
+curl --get 'http://127.0.0.1:7777/v1/note-types' \
   --data-urlencode 'select=id,name,fields[].name'
 ```
 

@@ -232,12 +232,12 @@ def check_database() -> bool:
 
 
 @as_query_op
-def export_package(col: Any, deck_name: str, path: str,
+def export_package(col: Any, path: str, deck_id: Optional[int] = None, deck_name: Optional[str] = None,
                    with_scheduling: bool = False, with_media: bool = True) -> bool:
-    """Export one deck in Anki's current package format."""
-    deck = col.decks.by_name(deck_name)
-    if deck is None:
-        raise ResourceNotFoundError("Deck", deck_name)
+    """Export one deck, by id or name (the id when both are given), in Anki's current package format."""
+    deck = col.decks.get(int(deck_id), default=False) if deck_id is not None else col.decks.by_name(deck_name)
+    if not deck:
+        raise ResourceNotFoundError("Deck", deck_id if deck_id is not None else deck_name)
 
     _export_package(col, int(deck["id"]), path,
                     with_scheduling=with_scheduling, with_media=with_media)
@@ -260,10 +260,12 @@ def _export_package(col: Any, deck_id: int, path: str, *,
 
 
 _IMPORT_UPDATE_CONDITIONS = {"if_newer": 0, "always": 1, "never": 2}
-_IMPORT_OPTIONS = (
-    "with_scheduling", "with_deck_configs", "merge_notetypes",
-    "update_notes", "update_notetypes",
-)
+# The API's name for each option -> Anki's (ImportAnkiPackageOptions).
+_IMPORT_OPTIONS = {
+    "with_scheduling": "with_scheduling", "with_deck_presets": "with_deck_configs",
+    "merge_note_types": "merge_notetypes", "update_notes": "update_notes",
+    "update_note_types": "update_notetypes",
+}
 
 
 @as_query_op
@@ -277,42 +279,42 @@ def _read_import_preferences(col: Any) -> Dict[str, Any]:
     supported = options.DESCRIPTOR.fields_by_name
     conditions = {value: name for name, value in _IMPORT_UPDATE_CONDITIONS.items()}
     values = {}
-    for name in _IMPORT_OPTIONS:
-        if name in supported:
-            value = getattr(options, name)
+    for name, field in _IMPORT_OPTIONS.items():
+        if field in supported:
+            value = getattr(options, field)
             values[name] = conditions[value] if name.startswith("update_") else value
     return {
         "options": values,
-        "unsupported_options": [name for name in _IMPORT_OPTIONS if name not in supported],
+        "unsupported_options": [name for name, field in _IMPORT_OPTIONS.items() if field not in supported],
     }
 
 
 @as_collection_op
 def import_package(col: Any, path: str, *,
                    with_scheduling: Optional[bool] = None,
-                   with_deck_configs: Optional[bool] = None,
-                   merge_notetypes: Optional[bool] = None,
+                   with_deck_presets: Optional[bool] = None,
+                   merge_note_types: Optional[bool] = None,
                    update_notes: Optional[str] = None,
-                   update_notetypes: Optional[str] = None) -> ValueWithChanges:
+                   update_note_types: Optional[str] = None) -> ValueWithChanges:
     """Apply explicit overrides to saved choices and publish import changes."""
     from anki.import_export_pb2 import ImportAnkiPackageRequest
 
     options = col._backend.get_import_anki_package_presets()
     overrides = {
         "with_scheduling": with_scheduling,
-        "with_deck_configs": with_deck_configs,
-        "merge_notetypes": merge_notetypes,
+        "with_deck_presets": with_deck_presets,
+        "merge_note_types": merge_note_types,
         "update_notes": update_notes,
-        "update_notetypes": update_notetypes,
+        "update_note_types": update_note_types,
     }
     for name, value in overrides.items():
         if value is None:
             continue
-        if name not in options.DESCRIPTOR.fields_by_name:
+        if _IMPORT_OPTIONS[name] not in options.DESCRIPTOR.fields_by_name:
             raise ValidationError(f"Import option '{name}' is not supported by this Anki version")
         if name.startswith("update_"):
             value = _IMPORT_UPDATE_CONDITIONS[value]
-        setattr(options, name, value)
+        setattr(options, _IMPORT_OPTIONS[name], value)
 
     result = col.import_anki_package(ImportAnkiPackageRequest(package_path=path, options=options))
     log = getattr(result, "log", None)

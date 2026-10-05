@@ -99,7 +99,7 @@ Connect with `?resources=notes` for note events:
 
 Cards use the same names with the cards prefix. Reviews report reviews.created
 with review log IDs. decks.counts lists the decks whose due counts changed
-(answers, suspends, deck changes, syncs, day rollover), each as {id, new_count,
+(answers, suspends, deck changes, syncs, day rollover), each as {deck_id, new_count,
 learn_count, review_count, total_in_deck} like /v1/decks rows. Other resources currently report stale notifications.
 No full notes, card contents or media are sent. Fetch any contents your app needs through the normal API, with select to choose fields.
 A resource with complete ID details does not also emit stale for that operation.
@@ -121,7 +121,7 @@ also use stale.
 
 ### Filters
 
-- resources: comma-separated notes, cards, models, decks, tags, reviews,
+- resources: comma-separated notes, cards, note_types, decks, tags, reviews,
   scheduler, config. Selects events about those resources, including related
   query changes (such as a deck rename affecting a note search).
 - types: exact names such as notes.created, notes.updated, notes.deleted,
@@ -132,8 +132,8 @@ also use stale.
   them. A combination with no matching data type returns HTTP 422, as do empty
   or unknown filter values. Filtering happens before the subscriber queue.
 
-cards.answered is sent for answers in Anki's reviewer (origin ui) and through either API
-(origin api). It contains card_id, ease (1 Again, 2 Hard, 3 Good, 4 Easy) and
+cards.answered is sent for answers in Anki's reviewer (by ui) and through either API
+(by api). It contains card_id, rating (1 Again, 2 Hard, 3 Good, 4 Easy) and
 the card's new interval, due, queue and memory_state, named as in card rows.
 sync contains
 phase started/finished. Exact type filters omit other events, including stale;
@@ -182,9 +182,9 @@ comments keep idle connections alive. No active session returns HTTP 503.
 Browser EventSource can use api_key when it cannot set an authentication header.
 
 General and detailed Add-dialog notifications can overlap. Media/import coverage
-is incomplete; other add-ons can bypass hooks. Optional origin/anki fields are
+is incomplete; other add-ons can bypass hooks. Optional by/app/anki fields are
 diagnostics, not stable identifiers for user actions. Changes made through the
-API carry client, the name of the app that sent the request.
+API carry app, the name of the app that sent the request.
 """
 
 
@@ -254,7 +254,7 @@ def stream_events(
     )] = None,
     resources: Annotated[Optional[str], Query(
         description="Views to keep current, comma-separated: "
-                    "notes, cards, models, decks, tags, reviews, scheduler, config. "
+                    "notes, cards, note_types, decks, tags, reviews, scheduler, config. "
                     "Selects changes unless types is explicit. "
                     "Combined types must match at least one selected data resource.",
     )] = None,

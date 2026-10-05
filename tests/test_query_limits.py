@@ -28,10 +28,10 @@ def test_limit_zero_is_an_empty_page(client, method):
 def test_query_limit_discovery_has_no_numeric_default_or_maximum(client):
     schema = client.get("/openapi.json").json()
     limits = [schema["components"]["schemas"]["QueryRequest"]["properties"]["limit"]]
-    for path in ("/v1/cards", "/v1/notes", "/v1/models", "/v1/decks", "/v1/reviews", "/v1/media"):
+    for path in ("/v1/cards", "/v1/notes", "/v1/note-types", "/v1/decks", "/v1/reviews", "/v1/media"):
         limits.append(next(p["schema"] for p in parameters(schema, schema["paths"][path]["get"])
                            if p["name"] == "limit"))
-    for path, limit in zip(("QueryRequest", "/v1/cards", "/v1/notes", "/v1/models", "/v1/decks",
+    for path, limit in zip(("QueryRequest", "/v1/cards", "/v1/notes", "/v1/note-types", "/v1/decks",
                             "/v1/reviews", "/v1/media"), limits):
         assert limit.get("default") is None
         assert limit["minimum"] == 0, path   # 0: the count alone, with include=total

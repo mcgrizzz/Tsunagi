@@ -17,7 +17,7 @@ def vocab(col):
 
 
 def item(expression="食べる", **fields):
-    return {"modelName": "Mining", "deckName": "Default", "tags": ["mined"],
+    return {"noteTypeName": "Mining", "deckName": "Default", "tags": ["mined"],
             "fields": {"Expression": expression, **fields}}
 
 

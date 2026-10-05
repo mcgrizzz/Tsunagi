@@ -41,7 +41,7 @@ DEFAULTS = {
     "ankiconnect_import_offered": False,
     "ankiconnect_imported_at": None,
     "ankiconnect_ignore_origins": [],
-    "config_version": 5,
+    "config_version": 6,
 }
 CONFIG_VERSION = DEFAULTS["config_version"]
 # Dicts of the user's own entries, filled as a whole or not at all.
@@ -92,6 +92,20 @@ def _v5(cfg: dict) -> None:
     cfg.pop("dev_watch_seconds", None)
 
 
+# v6: the API took Anki's names for note types and deck presets (backlog 6.115).
+_V6_GRANTS = {"read:models": "read:note_types", "write:models": "write:note_types",
+              "read:deck_configs": "read:deck_presets", "write:deck_configs": "write:deck_presets"}
+
+
+def _v6(cfg: dict) -> None:
+    roles = cfg.get("roles")
+    if not isinstance(roles, dict):
+        return
+    for spec in roles.values():
+        if isinstance(spec, dict) and isinstance(spec.get("grants"), list):
+            spec["grants"] = [_V6_GRANTS.get(g, g) for g in spec["grants"]]
+
+
 def _migrate(cfg: dict) -> Tuple[dict, bool]:
     """Fill defaults and upgrade legacy keys. Returns (cfg, changed). Pure.
     A config without config_version is a new one (Anki's config.json has it)."""
@@ -99,7 +113,7 @@ def _migrate(cfg: dict) -> Tuple[dict, bool]:
     # api_key would silently turn auth ON and break existing clients. Drop it.
     had_token = "token" in cfg
     migrated, changed = kiso_config.migrate({k: v for k, v in cfg.items() if k != "token"}, DEFAULTS,
-                                            CONFIG_VERSION, [(3, _v3), (4, _v4), (5, _v5)], FREE_FORM)
+                                            CONFIG_VERSION, [(3, _v3), (4, _v4), (5, _v5), (6, _v6)], FREE_FORM)
     return migrated, changed or had_token
 
 

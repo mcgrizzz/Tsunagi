@@ -42,7 +42,16 @@ class TestMigrate:
         # Kiso's dev watch (a DEV_WATCH file from `kiso sync`) replaced it.
         cfg, changed = _migrate({**DEFAULTS, "dev_watch_seconds": 1, "config_version": 4})
         assert changed
-        assert "dev_watch_seconds" not in cfg and cfg["config_version"] == 5
+        assert "dev_watch_seconds" not in cfg and cfg["config_version"] == DEFAULTS["config_version"]
+
+    def test_v6_renames_note_type_and_preset_grants(self):
+        # The API took Anki's names (6.115): a saved role keeps what it allowed.
+        roles = {"miner": {"name": "Miner", "grants": [
+            "read:models", "write:models", "read:deck_configs", "write:deck_configs", "read:notes"]}}
+        cfg, changed = _migrate({**DEFAULTS, "roles": roles, "config_version": 5})
+        assert changed
+        assert cfg["roles"]["miner"]["grants"] == [
+            "read:note_types", "write:note_types", "read:deck_presets", "write:deck_presets", "read:notes"]
 
     def test_v2_install_gains_localhost_allowlist(self):
         # Pre-v3 installs have an empty allowlist, which blocks browser

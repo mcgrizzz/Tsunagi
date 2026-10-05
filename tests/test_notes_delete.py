@@ -6,7 +6,7 @@ import pytest
 def ids(client, col):
     out = []
     for front in ("犬", "猫", "鳥"):
-        r = client.post("/v1/notes", json={"modelName": "Basic", "deckName": "Default",
+        r = client.post("/v1/notes", json={"noteTypeName": "Basic", "deckName": "Default",
                                            "fields": {"Front": front, "Back": ""}})
         out.append(r.json()["created"][0]["id"])
     return out

@@ -14,7 +14,7 @@ either.
   they send, the responses they get and what the client must return. Every
   client runs them in its tests.
 - [`names.json`](names.json) is the client vocabulary that every client's
-  generator reads: names, renames, and the operations a client sends.
+  generator reads: names and the operations a client sends.
 - Each client also runs a live test against the real server in Tsunagi's
   CI (`tests/test_<language>_client.py`), covering the scenarios listed at
   the end of this page.
@@ -29,16 +29,9 @@ Row types come from Tsunagi's API description
 `resources`, the row schema of its `GET` response. Nested objects (a
 note's fields, a card's memory state) become their own types.
 
-A wire name becomes the client's name by, in order:
-
-1. `fieldsBySchema[schema][wire]`, a rename on one row type;
-2. `fields[wire]`, a rename everywhere (`model_name` is `noteType`, `mod`
-   and `mtime` are `modified`);
-3. otherwise the wire name in the language's case (`deck_name`,
-   `deckName`).
-
-Sorts use `sortsBySchema[schema][wire]` first, then the same rules. A
-row's key, the field that identifies it, is `id` unless `keys` names
+A wire name becomes the client's name in the language's case
+(`note_type_name`, `noteTypeName`): the API keeps one vocabulary, so a
+client renames nothing. Sorts are named the same way. A row's key, the field that identifies it, is `id` unless `keys` names
 another (a tag's `name`, a media file's `filename`). Names in
 `omit` don't exist in the client (`usn` everywhere; a note type's
 `req`). Nested types are named by `nestedTypes`, row types by `types`.
@@ -47,8 +40,8 @@ another (a tag's `name`, a media file's `filename`). Names in
 filters by name, never by number: the value's text in the language's case
 (`sibling_buried` is `siblingBuried` in TypeScript). A string field with an
 `enum` reads the same way (a failure's `invalid_note` is `invalidNote`). `valueOverrides`
-replaces a name: a review's `ease` 0 is null (`rating: null`), since the row
-records no answer.
+replaces a name: a review's `rating` 0 is null, since the row records no
+answer.
 
 **Nullable.** A field is null only where the description says
 `x-nullable`, or where a value override gives null.
@@ -61,8 +54,7 @@ description, and refuses the response (a protocol error) when:
 - a field that can't be null is null;
 - a coded field has a code the description doesn't list.
 
-Nested objects decode the same way and use their client names (a note
-field's `ord` is `index`).
+Nested objects decode the same way and use their client names.
 
 **Generated.** From the description and `names.json`, each client generates
 (and decodes every answer and event message through):
@@ -143,7 +135,7 @@ A clause's operator is `==`, `!=`, `>`, `>=`, `<`, `<=`, `~=` (contains),
 `^=` (starts with), `$=` (ends with), ` in` or ` not in`. The value is
 JSON: strings quoted and escaped, numbers as numbers, `true`, `false`,
 `null`; a list is `[a,b]` with no spaces. A named value is sent as its code
-(`queue in[-2,-3]`; `rating eq null` is `ease==0`).
+(`queue in[-2,-3]`; `rating eq null` is `rating==0`).
 
 ### Pages
 
@@ -164,7 +156,18 @@ A client refuses these before any request, so a mistake fails at the call
 - `in`/`notIn` without a list, or a list with another operator;
 - `values` or `distinctOn` on a list or object field;
 - `is` with a state `names.json` doesn't list, or on a list that takes no search;
-- `select` with no fields; `take` with a negative count; a page size below 1.
+- `select` with no fields; `take` with a negative count; a page size below 1;
+- `watch` or `openBrowser` on a query they can't take (below), with the reason.
+
+A typed client makes the last a compile error that carries the same words as
+the run-time error, so the editor says why:
+
+| Step | `watch` | `openBrowser` |
+| --- | --- | --- |
+| `where` | | `where() can't be shown in Anki's Browser, which takes only search() and is()` |
+| `orderBy` | `orderBy() can't be watched: changes have no order (use onChange() and take())` | `orderBy() can't be shown in Anki's Browser, which takes only search() and is()` |
+| `distinctOn` | `distinctOn() can't be watched: one row per value can't be kept from changes` | `distinctOn() can't be shown in Anki's Browser, which takes only search() and is()` |
+| `values` | `values() can't be watched: a watch needs each row's key (use select())` | |
 
 ## Writes
 
@@ -175,17 +178,18 @@ caller changing its input afterwards can't change what is sent.
 
 | Method | Request | Returns |
 | --- | --- | --- |
-| `notes.create(note)` | `POST /v1/notes`, a list of one | the created note, or an item error |
+| `notes.create(note)` | `POST /v1/notes`, a list of one | the created note, or an item error; with `ifDuplicate: "skip"`, created or skipped |
 | `notes.createMany(notes)` | `POST /v1/notes` | per-item results (below) |
 | `notes.update(id, patch)` | `PATCH /v1/notes/{id}` | nothing |
-| `notes.exists(note)` | `POST /v1/notes:check`, `{notes}`, a list of one; a read, no key | whether it's saved |
-| `notes.exists(notes)` | the same, every note | one answer per note, in order |
-| `notes.check(notes)` | `POST /v1/notes:check`, `{notes}`; a read, no key | one check per note, in order |
+| `notes.exists(note)` | `POST /v1/notes:check`, a list of one; a read, no key | whether it's saved |
+| `notes.existsMany(notes)` | the same, every note | one answer per note, in order |
+| `notes.check(note)` | `POST /v1/notes:check`, a list of one; a read, no key | its check |
+| `notes.checkMany(notes)` | the same, every note | one check per note, in order |
 | `notes.upsert(note)` | `POST /v1/notes:upsert`, a list of one | created or updated, or an item error |
 | `notes.upsertMany(notes)` | `POST /v1/notes:upsert` | per-item results |
 | `notes.delete(ids)` | `POST /v1/notes:delete`, `{note_ids}` | `affected` |
 | `cards.<verb>(ids, ...)` | `POST /v1/cards:<verb>`, `{card_ids, ...}` | `affected` |
-| `cards.answer(answers)` | `POST /v1/cards:answer`, `{answers: [{card_id, ease}]}` | `affected` |
+| `cards.answer(answers)` | `POST /v1/cards:answer`, `{answers: [{card_id, rating}]}` | `affected` |
 | `media.upload(file)` | `POST /v1/media`, a list of one | the stored file, or an item error |
 | `media.uploadMany(files)` | `POST /v1/media` | per-item results |
 | `collection.sync()` | `POST /v1/collection:sync` | the result, after waiting for the job |
@@ -196,29 +200,38 @@ The card verbs are `suspend`, `unsuspend`, `bury`, `unbury`, `forget`
 (`days`, in Anki's syntax), `changeDeck` (a name or an id), `reposition`
 (`starting_from` 0, `step_size` 1, `randomize` and `shift_existing` false by
 default) and `setFlag` (a flag name, sent as its code). `answer` takes a
-rating name, sent as `ease`.
+rating name, sent as its code.
 
 **A note's body.** `deck` and `noteType` are a name (`deck_name`,
-`model_name`) or `{id}` (`deck_id`, `model_id`). `fields`, `tags`.
-`duplicates` maps to `allow_duplicate`, `duplicate_scope` and
-`duplicate_scope_options` (`deck_name`, `check_children`,
-`check_all_models`). `audio`, `video`, `picture`: lists of files, each
+`note_type_name`) or `{id}` (`deck_id`, `note_type_id`). `fields`, `tags`.
+`duplicates` maps to `duplicate_scope` and `duplicate_scope_options` (`deck_name`, `check_children`,
+`check_all_note_types`). `audio`, `video`, `picture`: lists of files, each
 exactly one of `data` (bytes, sent as base64), `url` or `path`, with an
 optional `filename` and `fields`. A patch sends only what was given; `tags`
 replaces, `addTags`/`removeTags` add and remove, `noteType` retypes.
 Upsert adds `match` (`matchField`) and `on_match` (`fieldRules` with
 `replaceIfEmpty` as `replace_if_empty`, `tagRule`, `separator`).
-`create` and `createMany` can ask for card ids and duplicate ids
-(`include=cards,duplicate_ids`), `upsert` for card ids, `check` for
-duplicate ids.
+`create` and `createMany` can ask for card ids (`include=cards`), `upsert`
+for card ids, `check` for duplicate ids. Upsert takes no files.
+
+**Duplicates on create.** `ifDuplicate` decides what a note that duplicates a
+saved one does, for every note of the call: `error` (default) sends
+`include=duplicate_ids` and the duplicate is an item error naming the saved
+notes; `allow` sends `allow_duplicate: true` on each note and no
+`duplicate_ids`; `skip` sends `include=duplicate_ids` and turns each
+`duplicate` failure with ids into `{action: "skipped", index, id, duplicateIds}`
+(`id` the first saved note), and each created note into
+`{action: "created", ...}`. A duplicate failure without ids, and every other
+failure, stays a failure. Any other value is an argument error.
 
 **Exists.** A note is saved when its check's `state` is `duplicate`: by the
 rules a create refuses a duplicate (its first field among notes of its note
 type, or the scope `duplicates` gives). Any other state is not saved, except
 `invalid` (a deck, note type or field that doesn't exist), which raises an
 item error with code `invalid` and the check's `reason`, as a create would.
-`exists` takes one note or a list, as the server does; in a language without
-overloading it is `exists` and `existsMany`. An empty list sends nothing.
+One note and a list are separate methods everywhere (`exists`/`existsMany`,
+`check`/`checkMany`, `create`/`createMany`): apps keep separate paths for one
+and for a batch, and not every language overloads. An empty list sends nothing.
 
 **Per-item results.** A batch's response has `created` (and `updated` for
 upsert) and `failed`, each item with its `index`. The client returns one
@@ -249,6 +262,19 @@ wait 1.5 times longer up to 5 s, until `done` (the result), `failed` or
 deadline (120 s by default); when it passes, the client raises a wait
 timeout carrying the handle, so the app can wait again. Waiting never
 submits again.
+
+**Opening windows in Anki.** Every method that opens a window starts with
+`open`; each is a keyed POST that resolves with nothing once Anki shows the
+window, and raises as any request does (a deck or note that doesn't exist is
+an HTTP 404).
+
+| Method | Request |
+| --- | --- |
+| `query.openBrowser()` on cards and notes | `POST /v1/gui:browse`, `{query}`: the query's search with its `is()` states, `deck:*` when it has none; the server answers once the Browser shows it |
+| `notes.openEditor(id)` | `POST /v1/gui:edit-note`, `{note_id}` |
+| `notes.openAdd(note)` | `POST /v1/gui:add-cards`: the note's body as create sends it, without duplicate options; files are stored and referenced in their fields, and nothing is added until the user confirms |
+| `decks.openOverview(deck)` | `POST /v1/gui:deck-overview`, `{deck_name}` or `{deck_id}` |
+| `decks.openReview(deck)` | `POST /v1/gui:deck-review`, the same |
 
 ## Errors
 
@@ -356,8 +382,8 @@ that listens: the access cache, `onAccessChange`, and the features below.
 search and filters, reported as it changes. It is on `notes`, `cards`,
 `reviews`, `decks`, `noteTypes` and `tags` (the server sends no events for
 media or deck presets), and not on a query with `orderBy`, `distinctOn` or
-`values`: changes have no order, and one row per value can't be kept current
-from per-row changes. Limits don't apply; a watch covers every matching row.
+`values` (Checks before sending): changes have no order, and one row per
+value can't be kept current from per-row changes. Limits don't apply; a watch covers every matching row.
 
 ```text
 watch = query.watch({
@@ -386,12 +412,12 @@ watch = query.watch({
 values (a hash of the row as the server sent it). Not the rows.
 
 **Its connection need:** its resource (`notes`, `cards`, `reviews`,
-`decks`, `models` for note types, `tags`), plus the resources whose changes
+`decks`, `note_types`, `tags`), plus the resources whose changes
 can change its rows, from the description's `x-from`: on the list's
 `search` parameter when the query has a search (what Anki's search reads:
 `deck:`, `note:`, tags, card states), and on each selected field built from
 another resource (a card's `deckName` from `decks`, its `fields` from
-`notes` and `models`). The connection is shared, so a watch acts only on
+`notes` and `note_types`). The connection is shared, so a watch acts only on
 messages about its own resources.
 
 If `ready.resources` lacks the watch's own resource, the app may not read
@@ -456,7 +482,7 @@ the app may not receive what it asked for, and returns a subscription.
   It doesn't follow related resources: for "the 20 newest, kept current",
   run the query again in the listener.
 - **`cards.onAnswered`**: the `cards.answered` message in client names and
-  values: `cardId`, `rating` (from `ease`), `interval`, `due`, `queue` by
+  values: `cardId`, `rating`, `interval`, `due`, `queue` by
   name, `memoryState` (`{stability, difficulty}` or null), who answered
   (`by`, `app`), and `ts`. Every card answer, in Anki or through
   either API. Needs the capabilities report's

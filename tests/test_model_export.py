@@ -76,7 +76,7 @@ def test_nested_selection_keeps_pydantic_behavior(include):
 
 
 def test_exports_read_live_values_and_do_not_share_mutable_containers():
-    row = CardInfo(id=1, nid=2, did=3, fields=[{"name": "Front", "value": "before", "ord": 0}])
+    row = CardInfo(id=1, nid=2, did=3, fields=[{"name": "Front", "value": "before", "index": 0}])
     exported = _as_dict(row, {"id", "note_id", "fields"})
     assert exported == row.dict(include={"id", "note_id", "fields"})
     assert "nid" not in exported

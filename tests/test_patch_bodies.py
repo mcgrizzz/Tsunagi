@@ -4,16 +4,16 @@ import pytest
 
 @pytest.fixture()
 def nid(client, col):
-    return client.post("/v1/notes", json={"modelName": "Basic", "deckName": "Default",
+    return client.post("/v1/notes", json={"noteTypeName": "Basic", "deckName": "Default",
                                           "fields": {"Front": "a", "Back": ""}}).json()["created"][0]["id"]
 
 
 def test_openapi_names_each_patch_schema(client):
     paths = client.get("/openapi.json").json()["paths"]
     for path, schema in [("/v1/notes/{id}", "NotePatch"), ("/v1/decks/{id}", "DeckPatch"),
-                         ("/v1/models/{id}", "ModelPatch"),
-                         ("/v1/models/{model_id}/fields/{field_id}", "FieldPatch"),
-                         ("/v1/models/{model_id}/templates/{template_id}", "TemplatePatch")]:
+                         ("/v1/note-types/{id}", "NoteTypePatch"),
+                         ("/v1/note-types/{note_type_id}/fields/{field_id}", "FieldPatch"),
+                         ("/v1/note-types/{note_type_id}/templates/{template_id}", "TemplatePatch")]:
         body = paths[path]["patch"]["requestBody"]["content"]["application/json"]["schema"]
         assert body["allOf"] == [{"$ref": f"#/components/schemas/{schema}"}], path
 

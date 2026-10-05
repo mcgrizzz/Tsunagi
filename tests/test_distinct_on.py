@@ -4,7 +4,7 @@ import pytest
 
 @pytest.fixture()
 def data(client, col, answer_cards):
-    notes = [{"modelName": "Basic (and reversed card)" if i % 3 == 0 else "Basic", "deckName": "Default",
+    notes = [{"noteTypeName": "Basic (and reversed card)" if i % 3 == 0 else "Basic", "deckName": "Default",
               "fields": {"Front": f"w{i:02}", "Back": "x"}} for i in range(9)]
     assert client.post("/v1/notes", json=notes).json()["failed"] == []
     for _ in range(3):   # several reviews per card, some of them Again
@@ -40,7 +40,7 @@ def test_each_cards_latest_review(client, data, limit):
 
 
 def test_where_applies_before_the_pick(client, data):
-    rows = walk(client, "/v1/reviews", distinct_on="card_id", order="id:desc", where="ease==1", select="id")
+    rows = walk(client, "/v1/reviews", distinct_on="card_id", order="id:desc", where="rating==1", select="id")
     assert [r["id"] for r in rows] == latest(data, "where ease = 1") and rows
 
 
@@ -68,10 +68,10 @@ def test_with_a_browser_sort_and_the_post_form(client, data):
 
 
 def test_notes_and_small_resources(client, data):
-    notes = walk(client, "/v1/notes", distinct_on="model_id", select="id,model_id")
-    assert sorted(n["model_id"] for n in notes) == sorted(set(data.db.list("select mid from notes")))
+    notes = walk(client, "/v1/notes", distinct_on="note_type_id", select="id,note_type_id")
+    assert sorted(n["note_type_id"] for n in notes) == sorted(set(data.db.list("select mid from notes")))
     client.post("/v1/decks", json={"name": "Second"})
-    decks = walk(client, "/v1/decks", distinct_on="config_id", select="id,config_id")
+    decks = walk(client, "/v1/decks", distinct_on="preset_id", select="id,preset_id")
     assert len(decks) == 1 and decks[0]["id"] == min(d["id"] for d in walk(client, "/v1/decks", select="id"))
 
 

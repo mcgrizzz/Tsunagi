@@ -26,7 +26,7 @@ MAX_QUEUED = 500  # per subscriber; beyond this the oldest events drop
 
 
 CHANGE_RESOURCES = frozenset({
-    "notes", "cards", "models", "decks", "tags", "reviews", "scheduler", "config",
+    "notes", "cards", "note_types", "decks", "tags", "reviews", "scheduler", "config",
 })
 DATA_EVENT_TYPES = (frozenset(f"{resource}.stale" for resource in CHANGE_RESOURCES)
                     | frozenset(f"{resource}.{kind}" for resource in ("notes", "cards")
@@ -44,7 +44,7 @@ def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
     resources = (CHANGE_RESOURCES if broad or not affected or "collection" in affected
                  else set(affected))
     results = {} if broad else payload.get("changes", {})
-    metadata = {key: payload[key] for key in ("origin", "client", "anki") if key in payload}
+    metadata = {key: payload[key] for key in ("by", "app", "anki") if key in payload}
     events = []
     for resource in sorted(resources | results.keys()):
         if resource in results:
@@ -297,7 +297,7 @@ _AFFECTED_RESOURCES = {
     "note_text": {"notes"},
     "card": {"cards"},
     "deck": {"decks"},
-    "notetype": {"models"},
+    "notetype": {"note_types"},
     "tag": {"tags"},
     "config": {"config"},
     "deck_config": {"decks"},
@@ -387,8 +387,8 @@ def dispatch_op(changes: Any, handler: Any, label: Optional[str] = None) -> None
     broker.publish("change",
                    **({"changes": record_changes} if record_changes else {}),
                    collection=handler.collection if api else None,
-                   origin=origin, affected=affected_resources(flags),
-                   **({"client": handler.client} if api and handler.client else {}),
+                   by=origin, affected=affected_resources(flags),
+                   **({"app": handler.client} if api and handler.client else {}),
                    anki=anki)
 
 
@@ -397,9 +397,9 @@ def publish_review(card: Any, ease: int, *, origin: str = "ui", collection: Any 
     state costs no extra read; fields match /v1/cards rows."""
     state = getattr(card, "memory_state", None)
     caller = current_caller.get() if origin == "api" else None
-    broker.publish("cards.answered", collection=collection, origin=origin,
-                   **({"client": caller.name} if caller else {}),
-                   card_id=int(card.id), ease=int(ease), interval=int(card.ivl),
+    broker.publish("cards.answered", collection=collection, by=origin,
+                   **({"app": caller.name} if caller else {}),
+                   card_id=int(card.id), rating=int(ease), interval=int(card.ivl),
                    due=int(card.due), queue=int(card.queue),
                    memory_state=None if state is None else {
                        "stability": state.stability, "difficulty": state.difficulty})

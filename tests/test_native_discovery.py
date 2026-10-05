@@ -40,10 +40,7 @@ def test_permissions_apply_to_the_operation_or_its_option(client, reset_settings
     if not enabled:
         assert "does not allow memory_state" in memory["reason"]
         response = client.post("/v1/media", json={"filename": "probe", "path": "/missing"})
-        assert response.status_code == 200
-        assert response.json()["created"] == []
-        assert response.json()["failed"][0]["code"] == "invalid_media"
-        assert "disabled" in response.text
+        assert response.status_code == 403 and "does not allow local_files" in response.json()["detail"]
 
 
 def test_role_change_is_visible_without_restarting(client, reset_settings):

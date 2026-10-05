@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from .decks import DeckRequest
 from .wrappers import RequestBody
 
 
@@ -19,8 +20,8 @@ class ProfileLoad(RequestBody):
 
 
 class ProfileLoadResult(BaseModel):
-    # False when there is no profile by that name. Switching is asynchronous -
-    # Anki may still be closing the old profile when this returns.
+    # An unknown profile is a 404. Switching is asynchronous - Anki may still
+    # be closing the old profile when this returns.
     loaded: bool
     stats: Dict[str, Any] = Field(default_factory=dict)
 
@@ -34,8 +35,8 @@ class SyncResult(BaseModel):
     stats: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ExportRequest(RequestBody):
-    deck: str = Field(..., description="Name of the deck to export")
+class ExportRequest(DeckRequest):
+    """The deck to export, by name or id."""
     path: str = Field(..., description="Destination .apkg path, on the Anki machine")
     with_scheduling: bool = Field(
         False, description="Include due dates and review history")
@@ -47,15 +48,15 @@ class ImportOptions(BaseModel):
 
     with_scheduling: Optional[bool] = Field(
         None, nullable=True, description="Import due dates and review history. Omit or null: use Anki's saved choice.")
-    with_deck_configs: Optional[bool] = Field(
+    with_deck_presets: Optional[bool] = Field(
         None, nullable=True, description=(
             "Import deck presets. Omit or null: use Anki's saved choice. "
             "Explicit values require backend support; inspect /v1/collection/import-options."))
-    merge_notetypes: Optional[bool] = Field(
+    merge_note_types: Optional[bool] = Field(
         None, nullable=True, description="Merge compatible note types. Omit or null: use Anki's saved choice.")
     update_notes: Optional[Literal["if_newer", "always", "never"]] = Field(
         None, nullable=True, description="When to update existing notes. Omit or null: use Anki's saved choice.")
-    update_notetypes: Optional[Literal["if_newer", "always", "never"]] = Field(
+    update_note_types: Optional[Literal["if_newer", "always", "never"]] = Field(
         None, nullable=True, description="When to update existing note types. Omit or null: use Anki's saved choice.")
 
 

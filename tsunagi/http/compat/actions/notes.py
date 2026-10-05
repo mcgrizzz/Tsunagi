@@ -302,9 +302,9 @@ def ac_notesInfo(p: NotesInfoParams) -> List[Dict[str, Any]]:
             "profile": profile,
             "tags": info["tags"],
             # Array -> AnkiConnect's map shape
-            "fields": {f["name"]: {"value": f["value"], "order": f["ord"]} for f in info["fields"]},
-            "modelName": info["model_name"],
-            "mod": info["mod"],
+            "fields": {f["name"]: {"value": f["value"], "order": f["index"]} for f in info["fields"]},
+            "modelName": info["note_type_name"],
+            "mod": info["modified"],
             "cards": (info["cards"] or []) * card_repetitions[nid],
         })
     return out

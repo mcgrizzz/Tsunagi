@@ -10,7 +10,7 @@ def tag_names(client, **params):
 
 def add(client, front, tags):
     return client.post("/v1/notes", json={
-        "modelName": "Basic", "deckName": "Default",
+        "note_type_name": "Basic", "deckName": "Default",
         "fields": {"Front": front}, "tags": tags,
     }).json()["created"][0]["id"]
 

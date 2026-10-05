@@ -23,17 +23,24 @@ for (const front of ["apple", "banana", "carrot"]) {
 const report = await anki.notes.createMany([
   { deck: "Default", noteType: "Basic", fields: { Front: "date" }, audio: [{ data: new Uint8Array([1, 2, 3]), filename: "date.mp3", fields: ["Back"] }] },
   { deck: "Default", noteType: "Basic", fields: { Front: "apple" } },
-], { onError: "collect", cards: true, duplicateIds: true });
+], { onError: "collect", cards: true });
 assert.deepEqual(report.items.map(item => item.ok ? "ok" : item.error.code), ["ok", "duplicate"]);
 assert.equal(report.items[0].value.files[0].filename, "date.mp3");
 assert.equal(report.items[0].value.cards.length, 1);
 assert.deepEqual(report.items[1].error.duplicateNoteIds, [ids[0]]);
 await anki.notes.update(ids[0], { fields: { Back: "A" }, addTags: ["checked"] });
-const [check] = await anki.notes.check([{ deck: "Default", noteType: "Basic", fields: { Front: "banana" } }], { duplicateIds: true });
+const check = await anki.notes.check({ deck: "Default", noteType: "Basic", fields: { Front: "banana" } }, { duplicateIds: true });
 assert.deepEqual([check.state, check.duplicateNoteIds], ["duplicate", [ids[1]]]);
 const banana = { deck: "Default", noteType: "Basic", fields: { Front: "banana" } };
 assert.equal(await anki.notes.exists(banana), true);
-assert.deepEqual(await anki.notes.exists([banana, { ...banana, fields: { Front: "zebra" } }]), [true, false]);
+assert.deepEqual(await anki.notes.existsMany([banana, { ...banana, fields: { Front: "zebra" } }]), [true, false]);
+assert.deepEqual((await anki.notes.checkMany([banana, banana])).map(c => c.state), ["duplicate", "duplicate"]);
+// Find-or-create: a saved word answers its id and writes nothing; a new one is added.
+const skipped = await anki.notes.createMany([banana, { ...banana, fields: { Front: "elderberry" } }], { ifDuplicate: "skip" });
+assert.deepEqual(skipped.map(note => [note.action, note.action === "skipped" ? note.id : typeof note.id]),
+  [["skipped", ids[1]], ["created", "number"]]);
+const twin = await anki.notes.create(banana, { ifDuplicate: "allow" });
+await anki.notes.delete([skipped[1].id, twin.id]);
 await assert.rejects(anki.notes.exists({ ...banana, deck: "No such deck" }),
   error => error instanceof ItemRejectedError && error.failure.code === "invalid");
 const upserted = await anki.notes.upsert({ deck: "Default", noteType: "Basic", fields: { Front: "banana", Back: "B" }, fieldRules: { Back: "replace" } });

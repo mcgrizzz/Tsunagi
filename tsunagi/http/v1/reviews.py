@@ -12,11 +12,16 @@ from ...adapters.anki.reviews import (
     get_reviews_by_ids,
     get_reviews_of_cards,
     insert_reviews,
+    missing_card_ids,
     ordered_review_ids,
     page_review_ids,
     search_review_rows,
 )
-from ...shared.errors import ConflictError, handle_mutation_errors
+from ...shared.errors import (
+    ConflictError,
+    ResourceNotFoundError,
+    handle_mutation_errors,
+)
 from ...shared.permissions import requires
 from ...shared.planning import IndexSpec, OrderSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import create_resource_routes, make_id_getter
@@ -47,7 +52,7 @@ caps = SourceCaps(
     # Anki search has no keyset form.
     search=SearchSpec(find_ids=find_review_ids, hydrate=get_reviews_by_ids,
                       page_ids=page_review_ids, rows=search_review_rows,
-                      reads=("cards", "notes", "decks", "models", "tags")),
+                      reads=("cards", "notes", "decks", "note_types", "tags")),
     # Every review field is a column: where clauses go into the id query (backlog 9.13).
     sql=REVIEW_SQL,
     # order= sorts by any review field in SQL; Anki doesn't sort reviews (backlog 8.1).
@@ -89,7 +94,8 @@ router = create_resource_routes(
         "Appends rows to the revlog behind the scheduler's back - "
         "AnkiConnect's insertReviews, meant for importing review history. "
         "Rows use the same fields GET returns (aliases accepted); `id` is the "
-        "review's epoch-ms timestamp and must be unique. All rows land in one "
+        "review's epoch-ms timestamp and must be unique; each card must exist (404 "
+        "naming the ones that don't). All rows land in one "
         "transaction or none do. Side effects inherent to a raw revlog write: "
         "the undo history and cached study queues are discarded, and no event "
         "is emitted."
@@ -100,11 +106,14 @@ router = create_resource_routes(
 @handle_mutation_errors("insert reviews")
 def create_reviews(body: InsertReviewsRequest = Body(...)) -> InsertReviewsResult:
     start = time.perf_counter()
-    field_names = ("id", "card_id", "usn", "ease", "interval",
-                   "last_interval", "factor", "time_ms", "type")
+    field_names = ("id", "card_id", "usn", "rating", "interval",
+                   "last_interval", "ease_factor", "duration_ms", "type")
     assert len(field_names) == len(COLUMNS)
     # A taken id would fail the insert with a database error (a 500); name it
     # instead. The AnkiConnect shim keeps upstream's error text.
+    missing = missing_card_ids([r.card_id for r in body.reviews])
+    if missing:
+        raise ResourceNotFoundError("Cards", ", ".join(map(str, missing)) + "; nothing was inserted")
     ids = [r.id for r in body.reviews]
     taken = sorted({i for i, n in Counter(ids).items() if n > 1} | set(existing_review_ids(ids)))
     if taken:

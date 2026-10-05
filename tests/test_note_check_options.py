@@ -8,7 +8,7 @@ from tsunagi.shared.schemas.notes import NoteCreate
 
 
 def candidate(front="word", **options):
-    return {"modelName": "Basic", "deckName": "Default",
+    return {"noteTypeName": "Basic", "deckName": "Default",
             "fields": {"Front": front, "Back": "meaning"}, **options}
 
 
@@ -18,7 +18,7 @@ def test_response_schema_still_validates_and_filters_adapter_records(client, mon
     records = [{"index": "0", "can_add": True, "state": "normal",
                 "duplicate_note_ids": [], "internal": "hidden"}]
     monkeypatch.setattr("tsunagi.http.v1.notes.check_notes", lambda *args, **kwargs: records)
-    response = client.post("/v1/notes:check", json={"notes": [candidate()]})
+    response = client.post("/v1/notes:check", json=candidate())
     assert response.status_code == 200
     assert response.json()["results"] == [{
         "index": 0, "can_add": True, "state": "normal", "reason": None,
@@ -27,21 +27,21 @@ def test_response_schema_still_validates_and_filters_adapter_records(client, mon
 
     records[0]["index"] = "invalid"
     with pytest.raises(ResponseValidationError):
-        client.post("/v1/notes:check", json={"notes": [candidate()]})
+        client.post("/v1/notes:check", json=candidate())
 
 
 def test_skipping_ids_preserves_all_other_results(client, col, monkeypatch):
     client.post("/v1/notes", json=candidate())
     submitted = [candidate(), candidate(allowDuplicate=True), candidate("new"),
-                 candidate(""), candidate(modelName="missing"), candidate(deckName="missing"),
+                 candidate(""), candidate(noteTypeName="missing"), candidate(deckName="missing"),
                  candidate(fields={"Missing": "field"})]
     original = deepcopy(submitted)
-    expected = client.post("/v1/notes:check?include=duplicate_ids", json={"notes": submitted}).json()["results"]
+    expected = client.post("/v1/notes:check?include=duplicate_ids", json=submitted).json()["results"]
     before = col.undo_status()
     def unexpected(*args):
         pytest.fail("Validation-only requests must not search for duplicate IDs")
     monkeypatch.setattr(notes, "_duplicate_ids", unexpected)
-    response = client.post("/v1/notes:check", json={"notes": submitted})   # ids only when included
+    response = client.post("/v1/notes:check", json=submitted)   # ids only when included
     assert response.status_code == 200, response.text
     for row in expected:
         row["duplicate_note_ids"] = None
@@ -52,7 +52,7 @@ def test_skipping_ids_preserves_all_other_results(client, col, monkeypatch):
 
 
 def test_included_ids_use_live_collection(client, col):
-    body = {"notes": [candidate()]}
+    body = candidate()
     url = "/v1/notes:check?include=duplicate_ids"
     assert client.post(url, json=body).json()["results"][0]["duplicate_note_ids"] == []
     nid = client.post("/v1/notes", json=candidate()).json()["created"][0]["id"]
@@ -80,8 +80,8 @@ def test_adapter_reuses_validated_candidate_without_converting_or_changing_it(co
 
 
 @pytest.mark.parametrize("params,body", [
-    ({"include": "invalid"}, {"notes": [candidate()]}),
-    ({"include": "duplicate_ids"}, {"notes": [{}]}),
+    ({"include": "invalid"}, candidate()),
+    ({"include": "duplicate_ids"}, [{}]),
 ])
 def test_malformed_request_does_not_reach_anki(client, monkeypatch, params, body):
     def unexpected(*args, **kwargs):
@@ -94,8 +94,7 @@ def test_malformed_request_does_not_reach_anki(client, monkeypatch, params, body
 @pytest.mark.parametrize("scope", ["unknown", "deck-root"])
 def test_unsupported_duplicate_scope_is_not_silently_treated_as_collection(client, col, path, scope):
     submitted = [candidate("valid"), candidate("scoped", duplicateScope=scope)]
-    body = {"notes": submitted} if path.endswith(":check") else submitted
-    response = client.post(path, json=body)
+    response = client.post(path, json=submitted)
     assert response.status_code == 422, response.text
     assert "duplicate_scope" in response.text
     assert col.note_count() == 0
@@ -104,5 +103,5 @@ def test_unsupported_duplicate_scope_is_not_silently_treated_as_collection(clien
 @pytest.mark.parametrize("scope", [None, "collection", "deck"])
 def test_supported_scope_values_remain_accepted(client, scope):
     note = candidate(duplicateScope=scope)
-    assert client.post("/v1/notes:check", json={"notes": [note]}).json()["results"][0]["can_add"]
+    assert client.post("/v1/notes:check", json=note).json()["results"][0]["can_add"]
     assert client.post("/v1/notes", json=note).json()["created"]

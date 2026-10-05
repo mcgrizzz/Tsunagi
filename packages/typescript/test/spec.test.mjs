@@ -42,6 +42,7 @@ async function run(anki, call) {
     const [runner, options = {}] = call.run;
     if (runner === "take") return query.take(options);
     if (runner === "count") return query.count();
+    if (runner === "openBrowser") return query.openBrowser(options);
     if (runner === "page") {
       const page = await query.page(options);
       return { items: page.items, hasMore: page.hasMore, total: page.total };

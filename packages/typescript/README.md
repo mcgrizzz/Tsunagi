@@ -34,22 +34,22 @@ npm test         # generates the code from Tsunagi's API description, builds dis
 
 ## Example
 
-Mine a word with its audio, unless the collection already has it, then read
-back the cards it made:
+Mine a word with its audio, unless the collection already has it (one
+request), then read back the cards it made:
 
 ```ts
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777", apiKey: settings.apiKey });
 
 const word = { deck: "Japanese::Mining", noteType: "Basic", fields: { Front: "犬", Back: "dog" } };
-if (await anki.notes.exists(word)) {
-  console.log("Already have it");
-} else {
-  const note = await anki.notes.create({
-    ...word,
-    tags: ["mined"],
-    audio: [{ data: audio, filename: "inu.mp3", fields: ["Back"] }],
-  }, { cards: true });
+const note = await anki.notes.create({
+  ...word,
+  tags: ["mined"],
+  audio: [{ data: audio, filename: "inu.mp3", fields: ["Back"] }],
+}, { cards: true, ifDuplicate: "skip" });
 
+if (note.action === "skipped") {
+  console.log("Already have it:", note.id); // the saved note; nothing was added
+} else {
   const cards = await anki.cards
     .where("noteId", "eq", note.id)
     .select("id", "queue", "due")
@@ -66,12 +66,14 @@ anki.close(); // access() keeps a connection open to stay current
 | You want to | Use |
 | --- | --- |
 | Know whether it's saved, before the user decides | `notes.exists(word)` |
-| Add it, refusing a duplicate | `notes.create(word)`: a duplicate raises `ItemRejectedError` with code `duplicate` |
+| Add it, refusing a duplicate | `notes.create(word)`: a duplicate raises `ItemRejectedError` with code `duplicate`, naming the saved notes |
+| Add it unless it's saved, and get the saved note if it is | `notes.create(word, { ifDuplicate: "skip" })` |
+| Add it even if it duplicates a note | `notes.create(word, { ifDuplicate: "allow" })` |
 | Add it, or update the note you already have | `notes.upsert(word)` |
-| Know why it can't be added (an empty first field, a missing cloze) | `notes.check([word])` |
+| Know why it can't be added (an empty first field, a missing cloze) | `notes.check(word)` |
 
-`exists` and `check` change nothing. `exists` takes one note, or a list for
-an answer per note; `check` takes a list.
+`exists` and `check` change nothing. For a list, use `createMany`,
+`existsMany` and `checkMany`: one answer per note, in order.
 
 ## Where to go next
 

@@ -27,11 +27,11 @@ def normalize_field_names(data: Dict[str, Any], schema: Type[T]) -> Dict[str, An
         Dictionary with Anki's abbreviated field names
 
     Example:
-        >>> from tsunagi.shared.schemas.models import ModelPatch
-        >>> normalize_field_names({"sort_field": 1, "name": "Basic"}, ModelPatch)
+        >>> from tsunagi.shared.schemas.models import NoteTypePatch
+        >>> normalize_field_names({"sort_field": 1, "name": "Basic"}, NoteTypePatch)
         {"sortf": 1, "name": "Basic"}
 
-        >>> normalize_field_names({"sortf": 1, "name": "Basic"}, ModelPatch)
+        >>> normalize_field_names({"sortf": 1, "name": "Basic"}, NoteTypePatch)
         {"sortf": 1, "name": "Basic"}
     """
     # Validate and parse using the schema (accepts both names due to allow_population_by_field_name=True)

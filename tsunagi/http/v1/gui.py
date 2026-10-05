@@ -3,7 +3,7 @@ Routes that drive Anki's user interface.
 
 Verb routes rather than resources - `POST /v1/gui:browse` opens a window, it
 does not create one - following the same `resource:verb` convention as
-/v1/cards:suspend and /v1/models:find-replace.
+/v1/cards:suspend and /v1/note-types:find-replace.
 
 Everything here needs a live Qt main window, so it is exercised by the manual
 smoke checklist rather than the test suite. The handlers stay thin for exactly
@@ -11,14 +11,15 @@ that reason: the logic they call lives in adapters/anki/gui.py, which the
 AnkiConnect shim uses too.
 """
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 from fastapi import APIRouter, Body
 
 from ...adapters.anki import gui as g
 from ...adapters.anki.cards import find_card_ids
-from ...shared.errors import handle_mutation_errors
+from ...shared.errors import ResourceNotFoundError, handle_mutation_errors
 from ...shared.permissions import requires
+from ...shared.schemas.decks import DeckRequest
 from ...shared.schemas.gui import (
     AddCardsRequest,
     AddCardsResult,
@@ -27,14 +28,14 @@ from ...shared.schemas.gui import (
     BrowseResult,
     CardIdRequest,
     CurrentCardResult,
-    DeckNameRequest,
     GuiResult,
     ImportFileRequest,
     NoteIdList,
     NoteIdRequest,
     SetAddNoteDataRequest,
-    SetAddNoteDataResult,
+    UndoResult,
 )
+from .notes import fetch_note_files
 
 router = APIRouter()
 
@@ -78,8 +79,9 @@ def browse(body: Optional[BrowseRequest] = Body(None)) -> BrowseResult:
 
 
 @_verb("select-card", "Select a card in the Browser",
-       "Selects one card in an already-open Browser. False when none is open - "
-       "this does not open one.")
+       "Selects one card in an already-open Browser. False when none is open (this "
+       "does not open one) or its search doesn't show the card; 404 for a card that "
+       "doesn't exist.")
 def select_card(body: CardIdRequest = Body(...)) -> GuiResult:
     start = time.perf_counter()
     return GuiResult(ok=g.select_card(body.card_id), stats=_stats(start))
@@ -108,45 +110,55 @@ def selected_notes() -> NoteIdList:
     return NoteIdList(note_ids=g.selected_notes(), stats=_stats(start))
 
 
+def _names(deck_id: Optional[int], deck_name: Optional[str], note_type_id: Optional[int] = None,
+           note_type_name: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+    """The deck and note type by name, for the GUI actions: an id wins, and is looked up."""
+    if deck_id is None and note_type_id is None:
+        return deck_name, note_type_name
+    deck, note_type = g.reference_names(deck_id, note_type_id)
+    return deck or deck_name, note_type or note_type_name
+
+
 # ====================
 # Add Cards
 # ====================
 
 @_verb("add-cards", "Open Add Cards",
-       "Opens the Add Cards dialog, prefilled when a note is given. The note is "
-       "NOT added - the user still confirms. Returns the id the editor holds.",
+       "Opens the Add Cards dialog, prefilled when a note is given: its deck and note type "
+       "(each by name or id) and any fields, tags and files (audio, video, picture, as "
+       "POST /v1/notes takes them; each is stored now and referenced in its fields). The "
+       "note is NOT added - the user still confirms. Returns the id the editor holds.",
        response_model=AddCardsResult)
 def add_cards(body: Optional[AddCardsRequest] = Body(None)) -> AddCardsResult:
     start = time.perf_counter()
     body = body or AddCardsRequest()
-    spec = None
-    if body.deck_name or body.model_name:
-        spec = {"deckName": body.deck_name, "modelName": body.model_name,
-                "fields": body.fields or {}, "tags": body.tags}
-    return AddCardsResult(note_id=g.add_cards(spec), stats=_stats(start))
+    if body.deck_id is None and not body.deck_name:
+        return AddCardsResult(note_id=g.add_cards(None), stats=_stats(start))
+    files = fetch_note_files(body)   # before the dialog: a file that can't be read opens nothing
+    deck, note_type = _names(body.deck_id, body.deck_name, body.note_type_id, body.note_type_name)
+    spec = {"deckName": deck, "modelName": note_type, "fields": body.fields or {}, "tags": body.tags}
+    stored: list = []
+    note_id = g.add_cards(spec, files=files, stored=stored)
+    return AddCardsResult(note_id=note_id, files=stored or None, stats=_stats(start))
 
 
 @_verb("set-add-note-data", "Amend the open Add Cards dialog",
-       "Sets deck, notetype, fields or tags on an already-open Add Cards dialog. "
-       "Reports an error payload rather than failing when it is closed.",
-       response_model=SetAddNoteDataResult)
-def set_add_note_data(body: SetAddNoteDataRequest = Body(...)) -> SetAddNoteDataResult:
+       "Sets deck, note type (each by name or id), fields or tags on an already-open "
+       "Add Cards dialog. False when it isn't open.")
+def set_add_note_data(body: SetAddNoteDataRequest = Body(...)) -> GuiResult:
     start = time.perf_counter()
+    deck, note_type = _names(body.deck_id, body.deck_name, body.note_type_id, body.note_type_name)
     spec = {}
-    if body.deck_name:
-        spec["deckName"] = body.deck_name
-    if body.model_name:
-        spec["modelName"] = body.model_name
+    if deck:
+        spec["deckName"] = deck
+    if note_type:
+        spec["modelName"] = note_type
     if body.fields is not None:
         spec["fields"] = body.fields
     if body.tags is not None:
         spec["tags"] = body.tags
 
-    result = g.set_add_note_data(spec, body.append)
-    if result is True:
-        return SetAddNoteDataResult(ok=True, stats=_stats(start))
-    return SetAddNoteDataResult(ok=False, error=result["error"], code=result["code"],
-                                stats=_stats(start))
+    return GuiResult(ok=g.set_add_note_data(spec, body.append) is True, stats=_stats(start))
 
 
 # ====================
@@ -173,7 +185,7 @@ def current_card() -> CurrentCardResult:
             "card_id": card["cardId"], "fields": card["fields"],
             "field_order": card["fieldOrder"], "question": card["question"],
             "answer": card["answer"], "buttons": card["buttons"],
-            "next_reviews": card["nextReviews"], "model_name": card["modelName"],
+            "next_reviews": card["nextReviews"], "note_type_name": card["modelName"],
             "deck_name": card["deckName"], "css": card["css"],
             "template": card["template"],
         },
@@ -199,7 +211,7 @@ def show_answer() -> GuiResult:
        permission="write:cards")
 def answer_card(body: AnswerRequest = Body(...)) -> GuiResult:
     start = time.perf_counter()
-    return GuiResult(ok=g.answer_card(body.ease), stats=_stats(start))
+    return GuiResult(ok=g.answer_card(body.rating), stats=_stats(start))
 
 
 @_verb("start-card-timer", "Restart the answer timer",
@@ -216,11 +228,13 @@ def play_audio() -> GuiResult:
     return GuiResult(ok=g.play_audio(), stats=_stats(start))
 
 
-@_verb("undo", "Undo", "Undoes the last operation, as Ctrl+Z would.",
-       permission="write")  # can revert any kind of change
-def undo() -> GuiResult:
+@_verb("undo", "Undo",
+       "Undoes the last step, as Ctrl+Z would, and names it; `undone` is null when there "
+       "is nothing to undo.",
+       response_model=UndoResult, permission="write")  # can revert any kind of change
+def undo() -> UndoResult:
     start = time.perf_counter()
-    return GuiResult(ok=g.undo(), stats=_stats(start))
+    return UndoResult(undone=g.undo_last(), stats=_stats(start))
 
 
 # ====================
@@ -234,17 +248,23 @@ def deck_browser() -> GuiResult:
 
 
 @_verb("deck-overview", "Show a deck's overview",
-       "Selects a deck and shows its overview screen. False when there is no such deck.")
-def deck_overview(body: DeckNameRequest = Body(...)) -> GuiResult:
+       "Selects a deck, by name or id, and shows its overview screen. 404 when there is no such deck.")
+def deck_overview(body: DeckRequest = Body(...)) -> GuiResult:
     start = time.perf_counter()
-    return GuiResult(ok=g.deck_overview(body.name), stats=_stats(start))
+    name, _ = _names(body.deck_id, body.deck_name)
+    if not g.deck_overview(name):
+        raise ResourceNotFoundError("Deck", name)
+    return GuiResult(stats=_stats(start))
 
 
 @_verb("deck-review", "Start reviewing a deck",
-       "Selects a deck and enters the reviewer. False when there is no such deck.")
-def deck_review(body: DeckNameRequest = Body(...)) -> GuiResult:
+       "Selects a deck, by name or id, and enters the reviewer. 404 when there is no such deck.")
+def deck_review(body: DeckRequest = Body(...)) -> GuiResult:
     start = time.perf_counter()
-    return GuiResult(ok=g.deck_review(body.name), stats=_stats(start))
+    name, _ = _names(body.deck_id, body.deck_name)
+    if not g.deck_review(name):
+        raise ResourceNotFoundError("Deck", name)
+    return GuiResult(stats=_stats(start))
 
 
 @_verb("import-file", "Request the import dialog",

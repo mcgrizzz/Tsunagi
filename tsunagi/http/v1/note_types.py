@@ -40,18 +40,18 @@ from ...shared.schemas.models import (
     FieldPatch,
     FindReplaceRequest,
     FindReplaceResult,
-    ModelCreate,
-    ModelInfo,
-    ModelPatch,
+    NoteTypeCreate,
+    NoteTypeInfo,
+    NoteTypePatch,
     TemplateCreate,
     TemplatePatch,
 )
 
 mutation_caps = MutationCaps(
     create=create_model,
-    create_body=ModelCreate,
+    create_body=NoteTypeCreate,
     patch=patch_model,
-    patch_body=ModelPatch,
+    patch_body=NoteTypePatch,
     delete=delete_model,
     subresources={
         "fields": SubresourceMutations(
@@ -105,20 +105,20 @@ caps = SourceCaps(
     mutations=mutation_caps,
 )
 
-# Creates comprehensive model endpoints:
-# Query: GET /v1/models, POST /v1/models/query
-# Top-level: POST /v1/models, PATCH /v1/models/{model_id}, DELETE /v1/models/{model_id}
-# Fields: POST/PATCH/DELETE /v1/models/{model_id}/fields/..., PUT /v1/models/{model_id}/fields:order
-# Templates: POST/PATCH/DELETE /v1/models/{model_id}/templates/..., PUT /v1/models/{model_id}/templates:order
+# Creates comprehensive note type endpoints:
+# Query: GET /v1/note-types, POST /v1/note-types/query
+# Top-level: POST /v1/note-types, PATCH /v1/note-types/{id}, DELETE /v1/note-types/{id}
+# Fields: POST/PATCH/DELETE /v1/note-types/{note_type_id}/fields/..., PUT /v1/note-types/{note_type_id}/fields:order
+# Templates: POST/PATCH/DELETE /v1/note-types/{note_type_id}/templates/..., PUT /v1/note-types/{note_type_id}/templates:order
 router = create_resource_routes(
-    path="/v1/models",
+    path="/v1/note-types",
     caps=caps,
-    row_model=ModelInfo,
+    row_model=NoteTypeInfo,
     id_getter=make_id_getter("id"),
-    resource_name="model",
-    resource_plural="models",
-    permission_resource="models",
-    tag="Models",
+    resource_name="note_type",
+    resource_plural="note_types",
+    permission_resource="note_types",
+    tag="Note Types",
     description="Note types define the structure of cards in Anki. Select note_count "
                 "for the live number of notes using each type across all decks, or "
                 "filter with where=note_count>0. Counts are included in full native "
@@ -127,19 +127,20 @@ router = create_resource_routes(
 
 
 @router.post(
-    "/v1/models:find-replace",
+    "/v1/note-types:find-replace",
     openapi_extra=requires("write:notes"),
     response_model=FindReplaceResult,
     summary="Find and replace across templates and styling",
-    description="Literal (not regex) replacement in card templates and CSS. Omit `model_name` to sweep every model. Only models that actually contained the text are touched or counted.",
-    tags=["Models"],
-    operation_id="modelsFindReplace",
+    description="Literal (not regex) replacement in card templates and CSS. Name one note type by `note_type_id` or `note_type_name`, or omit both to sweep every note type. Only note types that actually contained the text are touched or counted.",
+    tags=["Note Types"],
+    operation_id="noteTypesFindReplace",
 )
 @handle_mutation_errors("find-replace")
 def find_replace(body: FindReplaceRequest = Body(...)) -> FindReplaceResult:
     start = time.perf_counter()
     affected = find_and_replace_in_models(
-        body.find, body.replace, body.model_name, body.front, body.back, body.css,
+        body.find, body.replace, body.note_type_name, body.front, body.back, body.css,
+        note_type_id=body.note_type_id,
     )
     return FindReplaceResult(
         affected=affected,

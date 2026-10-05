@@ -17,4 +17,4 @@ def test_the_api_description_lists_them(client):
         return order["schema"]["x-sorts"]
     assert sorts("/v1/cards") == list(sorting.CARD_SORTS)
     assert sorts("/v1/notes") == list(sorting.NOTE_SORTS)
-    assert "time_ms" in sorts("/v1/reviews") and "name" in sorts("/v1/decks")
+    assert "duration_ms" in sorts("/v1/reviews") and "name" in sorts("/v1/decks")

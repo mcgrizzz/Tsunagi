@@ -52,7 +52,8 @@ results are in the [archived manual log](archive/manual_test_plan.md).
   the API, with sample data. In the note editor, open **Preview**.
 - [ ] Try it with Anki covered by another window, and with Anki minimized. The
   window opens and, once you switch to it, typing goes into one of the note's
-  fields, not elsewhere. Windows may flash the taskbar
+  fields (Add Cards, the note editor), not elsewhere. The Browser on a search
+  focuses its search bar, as Anki's own does. Windows may flash the taskbar
   button instead of bringing Anki forward; that's fine. A window that doesn't
   open, or typing that lands in the wrong field, is a release problem.
 - [ ] Open the import picker with `POST /v1/gui:import-file`, leave it, then

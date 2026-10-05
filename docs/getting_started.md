@@ -33,7 +33,7 @@ computer gets the Default role, which can read and change the collection.
 
 ```sh
 curl http://127.0.0.1:7777/v1/notes -H 'Content-Type: application/json' -d '
-  {"deckName": "Default", "modelName": "Basic",
+  {"deckName": "Default", "noteTypeName": "Basic",
    "fields": {"Front": "犬", "Back": "dog"}, "tags": ["tsunagi-test"]}'
 ```
 
@@ -59,8 +59,8 @@ curl --get http://127.0.0.1:7777/v1/notes \
 ```json
 {
   "items": [{"id": 1791145125487,
-             "fields": [{"name": "Front", "value": "犬", "ord": 0},
-                        {"name": "Back", "value": "dog", "ord": 1}],
+             "fields": [{"name": "Front", "value": "犬", "index": 0},
+                        {"name": "Back", "value": "dog", "index": 1}],
              "tags": ["tsunagi-test"]}],
   "next_cursor": null
 }
@@ -82,10 +82,11 @@ curl -X POST http://127.0.0.1:7777/v1/gui:undo
 ```
 
 ```json
-{"ok": true}
+{"undone": "Add Note", "stats": {"duration_ms": 18.5}}
 ```
 
-The note from step 2 is gone: step 3's request now returns
+`undone` names the step, as Anki's Edit menu does; it's `null` when there's
+nothing to undo. The note from step 2 is gone: step 3's request now returns
 `{"items": [], "next_cursor": null}`. API writes are Anki operations, so
 they're on Anki's undo list like anything you do in its windows, and
 **Edit → Undo** works on them too. Media files and some add-on actions

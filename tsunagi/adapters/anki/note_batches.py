@@ -62,7 +62,7 @@ def create_notes(col: Collection, candidates: List[NoteCreate], *,
             continue
         files = attachments.get(index, [])
         try:
-            model_key = (req.model_id, req.model_name)
+            model_key = (req.note_type_id, req.note_type_name)
             if model_key not in models:
                 models[model_key] = _resolve_notetype(col, req)
             deck_key = (req.deck_id, req.deck_name)
@@ -130,7 +130,7 @@ def _matches(col: Collection, req: NoteUpsert, note: Any, nt: Dict[str, Any], de
             raise ValidationError("first field is empty")
         return scoped if scoped is not None else _duplicate_ids(col, note)
     if name not in note.keys():
-        raise ValidationError(f"Unknown match field '{name}' for model '{nt['name']}'")
+        raise ValidationError(f"Unknown match field '{name}' for note type '{nt['name']}'")
     if not note[name]:
         raise ValidationError(f"match field '{name}' is empty")
     query = col.build_search_string(
@@ -190,14 +190,8 @@ def upsert_notes(col: Collection, candidates: List[NoteUpsert], *,
             changes = col.merge_undo_entries(target_step)
 
     for index, req in enumerate(candidates):
-        if req.attachments():
-            out.failed.append(NoteUpsertFailure(
-                index=index, code="invalid_note",
-                message="upsert doesn't take attachments; upload them with POST /v1/media "
-                        "and put their names in the fields"))
-            continue
         try:
-            model_key, deck_key = (req.model_id, req.model_name), (req.deck_id, req.deck_name)
+            model_key, deck_key = (req.note_type_id, req.note_type_name), (req.deck_id, req.deck_name)
             if model_key not in models:
                 models[model_key] = _resolve_notetype(col, req)
             if deck_key not in decks:

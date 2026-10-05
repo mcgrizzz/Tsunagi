@@ -7,7 +7,7 @@ import pytest
 
 @pytest.fixture()
 def note(client):
-    return client.post("/v1/notes", json={"model_name": "Basic", "deck_name": "Default",
+    return client.post("/v1/notes", json={"note_type_name": "Basic", "deck_name": "Default",
                                           "fields": {"Front": "a", "Back": ""}}).json()["created"][0]["id"]
 
 
@@ -57,12 +57,12 @@ def test_a_bad_batch_step_is_a_422(client, operations, loc):
 
 
 @pytest.mark.parametrize("method,path,body", [
-    ("POST", "/v1/notes", {"model_name": "Basic", "deck_name": "Default",
+    ("POST", "/v1/notes", {"note_type_name": "Basic", "deck_name": "Default",
                            "fields": {"Front": "b", "Back": ""}, "tags": ["a b"]}),
     ("PATCH", "/v1/notes/{nid}", {"tags": ["ok", "a b"]}),
     ("PATCH", "/v1/notes/{nid}", {"add_tags": ["a\tb"]}),
     ("PATCH", "/v1/notes/{nid}", {"remove_tags": ["a b"]}),
-    ("POST", "/v1/notes:upsert", [{"model_name": "Basic", "deck_name": "Default",
+    ("POST", "/v1/notes:upsert", [{"note_type_name": "Basic", "deck_name": "Default",
                                    "fields": {"Front": "c", "Back": ""}, "tags": ["a b"]}]),
 ])
 def test_a_tag_with_a_space_is_refused(client, col, note, method, path, body):

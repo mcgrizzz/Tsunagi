@@ -14,13 +14,13 @@ def clean_journals():
 
 @pytest.fixture()
 def cid(client, col):
-    nid = client.post("/v1/notes", json={"modelName": "Basic", "deckName": "Default",
+    nid = client.post("/v1/notes", json={"noteTypeName": "Basic", "deckName": "Default",
                                          "fields": {"Front": "a", "Back": ""}}).json()["created"][0]["id"]
     return col.card_ids_of_note(nid)[0]
 
 
-def answer(client, cid, key=None, ease=3, **headers):
-    return client.post("/v1/cards:answer", json={"answers": [{"card_id": cid, "ease": ease}]},
+def answer(client, cid, key=None, rating=3, **headers):
+    return client.post("/v1/cards:answer", json={"answers": [{"card_id": cid, "rating": rating}]},
                        headers={**({"Idempotency-Key": key} if key else {}), **headers})
 
 
@@ -48,7 +48,7 @@ def test_a_new_key_is_a_new_write(client, col, cid):
 
 def test_a_key_reused_for_a_different_request_is_refused(client, col, cid):
     answer(client, cid, "k1")
-    resp = answer(client, cid, "k1", ease=1)
+    resp = answer(client, cid, "k1", rating=1)
     assert resp.status_code == 400 and "different request" in resp.json()["detail"]
     assert reviews(col, cid) == 1
 

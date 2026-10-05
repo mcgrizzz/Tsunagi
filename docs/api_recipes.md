@@ -23,8 +23,8 @@ needs fewer requests and less code.
 
 The requests below are abbreviated: `{...note}` stands for the note in each
 API's format, including the user's duplicate settings. AnkiConnect actions are
-sent to `POST /`. Anki calls note types *models*, so that's the name in both
-APIs' requests.
+sent to `POST /`. AnkiConnect calls note types *models*; the Tsunagi API calls
+them note types.
 
 ## 1. Check a duplicate and find its notes
 
@@ -37,7 +37,7 @@ AnkiConnect:
   findNotes("<search built from the note>")          → the existing note IDs
 
 Tsunagi API:
-  POST /v1/notes:check?include=duplicate_ids {"notes": [{...note}]}
+  POST /v1/notes:check?include=duplicate_ids {...note}
       → state: "duplicate", duplicate_note_ids: [1789200000000]
 ```
 
@@ -103,7 +103,7 @@ AnkiConnect:
   modelFieldNames("Basic")            → ["Front", "Back"]   (one request per selected type)
 
 Tsunagi API:
-  GET /v1/models?select=id,name,fields[].name
+  GET /v1/note-types?select=id,name,fields[].name
       → each note type with its field names
 ```
 
@@ -118,7 +118,7 @@ in both APIs.
 A picker can label a type "Basic · 250 notes" without downloading those notes:
 
 ```text
-GET /v1/models?select=id,name,note_count
+GET /v1/note-types?select=id,name,note_count
   → {items: [{id: 123, name: "Basic", note_count: 250}, ...], ...}
 ```
 
@@ -138,9 +138,9 @@ which sends the requests above. `note` is the note to save.
 
 ```ts
 // 1. Is 食べる saved already? Every note with the word, whatever its note type.
-const [check] = await anki.notes.check([note], { duplicateIds: true });
+const check = await anki.notes.check(note, { duplicateIds: true });
 const saved = await anki.notes.where("firstField", "in", ["食べる"]).select("id", "firstField").take(20);
-if (check?.state === "duplicate") openNotes(saved.map(n => n.id));
+if (check.state === "duplicate") openNotes(saved.map(n => n.id));
 
 // 2. Save it and suspend its cards.
 const created = await anki.notes.create(note, { cards: true });
@@ -181,13 +181,13 @@ optional sync, connection checks and additional note/card details are omitted.
 A Tsunagi API client must preserve the user's settings and map the request formats;
 this is a comparison of selected flows, not a complete Yomitan port.
 
-The model example omits deck loading. An AnkiConnect client can prefetch fields via
-`multi`, but still needs a field-name action per model. The Tsunagi API's `select` trims
-the response; the model record itself is still loaded internally.
+The note type example omits deck loading. An AnkiConnect client can prefetch fields via
+`multi`, but still needs a field-name action per note type. The Tsunagi API's `select` trims
+the response; the note type record itself is still loaded internally.
 
 Implementation: [note checks](../tsunagi/adapters/anki/notes.py),
 [note creation](../tsunagi/adapters/anki/note_batches.py),
-[model adapters](../tsunagi/adapters/anki/models.py), and
+[note type adapters](../tsunagi/adapters/anki/models.py), and
 [query planning](../tsunagi/shared/planning.py).
 
 A disposable-collection check confirmed one note-type resolution and one deck

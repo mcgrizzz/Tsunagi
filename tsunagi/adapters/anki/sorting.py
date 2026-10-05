@@ -21,19 +21,19 @@ NAMES = {
 
 
 # Row field names for the sorts that order exactly by that field's values, so
-# `order` also takes the names `select` and `where` use. Not `factor`: the ease
+# `order` also takes the names `select` and `where` use. Not `ease_factor`: the ease
 # sort puts new cards apart (checked on 26.08, 2026-09-30).
-FIELD_NAMES = {False: {"reps": "cardReps", "mod": "cardMod"},
-               True: {"mod": "noteMod", "id": "noteCrt"}}
+FIELD_NAMES = {False: {"reps": "cardReps", "modified": "cardMod"},
+               True: {"modified": "noteMod", "id": "noteCrt"}}
 
 
 # What the API description lists (6.101): the sorts every supported Anki has,
 # checked against the running Anki by tests/test_sorting.py.
 CARD_SORTS = ("card_modified", "card_type", "created", "deck", "difficulty", "due", "ease",
-              "interval", "lapses", "mod", "note_modified", "note_type", "position", "reps",
+              "interval", "lapses", "modified", "note_modified", "note_type", "position", "reps",
               "retrievability", "reviews", "sort_field", "stability", "tags")
 NOTE_SORTS = ("card_modified", "card_type", "created", "deck", "due", "ease", "id", "interval",
-              "lapses", "mod", "note_modified", "note_type", "position", "reviews", "sort_field", "tags")
+              "lapses", "modified", "note_modified", "note_type", "position", "reviews", "sort_field", "tags")
 
 
 def _sorts(col: Collection, notes: bool) -> Dict[str, Any]:

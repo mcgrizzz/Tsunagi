@@ -15,9 +15,9 @@ from ...shared.helpers import (
 from ...shared.schemas.models import (
     FieldCreate,
     FieldPatch,
-    ModelCreate,
-    ModelInfo,
-    ModelPatch,
+    NoteTypeCreate,
+    NoteTypeInfo,
+    NoteTypePatch,
     TemplateCreate,
     TemplatePatch,
 )
@@ -25,8 +25,8 @@ from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 
 @as_query_op # Read, off the UI thread
-def list_models(col: Collection, wants=None) -> List[ModelInfo]:
-    return [ModelInfo.parse_obj(m) for m in col.models.all()] # 1 query + 3*each notetype This is worst case since it runs on all notetypes
+def list_models(col: Collection, wants=None) -> List[NoteTypeInfo]:
+    return [NoteTypeInfo.parse_obj(m) for m in col.models.all()] # 1 query + 3*each notetype This is worst case since it runs on all notetypes
 
 
 @as_query_op
@@ -41,7 +41,7 @@ def get_models_by_ids(col: Collection, ids: Sequence[int], wants=None, *,
         by_id = {row["id"]: row for row in _model_counts(col)}
         return [by_id[mid] for mid in ids if mid in by_id]
     mm = col.models
-    out: List[ModelInfo] = []
+    out: List[NoteTypeInfo] = []
     for mid in ids:
         m = mm.get(mid)
         if m:
@@ -59,7 +59,7 @@ def get_models_by_names(col: Collection, names: Sequence[str], wants=None, *,
     for nt in mm.all_names_and_ids():
         name_to_id[nt.name] = int(nt.id)
 
-    out: List[ModelInfo] = []
+    out: List[NoteTypeInfo] = []
     for name in names:
         if name in name_to_id:
             m = mm.get(name_to_id[name]) # type: ignore
@@ -69,7 +69,7 @@ def get_models_by_names(col: Collection, names: Sequence[str], wants=None, *,
 
 
 def _model_info(mm, model, wants, include_counts):
-    info = ModelInfo.parse_obj(model)
+    info = NoteTypeInfo.parse_obj(model)
     if (wants is None and include_counts) or (wants is not None and "note_count" in wants):
         info.note_count = int(mm.use_count(model))
     return info
@@ -92,7 +92,7 @@ def get_raw_models(col: Collection, ids: Sequence[int] = (),
     Raw schema11 notetype dicts, keyed by whichever lookup was used.
 
     The compat findModelsBy* actions must return Anki's dict verbatim;
-    routing them through ModelInfo would silently drop any schema11 key the
+    routing them through NoteTypeInfo would silently drop any schema11 key the
     schema doesn't model.
     """
     mm = col.models
@@ -126,18 +126,18 @@ def _saved(mm, model_id: int, changes=None) -> Any:
     append. Serializing the in-memory working copy would emit a null ord (and,
     after a removal or reposition, stale ones). One extra read buys the truth.
     """
-    info = ModelInfo.parse_obj(mm.get(int(model_id)))
+    info = NoteTypeInfo.parse_obj(mm.get(int(model_id)))
     return ValueWithChanges(info, changes) if changes is not None else info
 
 
 # requires: name, flds (need a name), tmpls
 # optional: field properties, template properties, type, css
 @as_collection_op #Undoable, background thread
-def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
+def create_model(col: Collection, data: Dict[str, Any]) -> NoteTypeInfo:
     mm = col.models
 
     # Normalize field names (accepts both "fields"/"flds", "templates"/"tmpls", etc.)
-    data = normalize_field_names(data, ModelCreate)
+    data = normalize_field_names(data, NoteTypeCreate)
 
     # Validate required fields
     validate_required_keys(data, ["name"])
@@ -145,7 +145,7 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
     flds = validate_nonempty_list(data, "flds", "field")
     tmpls = validate_nonempty_list(data, "tmpls", "template")
 
-    ensure_name_free("Model", name, [n.name for n in mm.all_names_and_ids()])
+    ensure_name_free("Note type", name, [n.name for n in mm.all_names_and_ids()])
 
     # Create new model (defaults to standard type)
     m = mm.new(name)
@@ -198,16 +198,18 @@ def create_model(col: Collection, data: Dict[str, Any]) -> ModelInfo:
 @as_collection_op
 def find_and_replace_in_models(col: Collection, find_text: str, replace_text: str,
                                model_name: Optional[str] = None, front: bool = True,
-                               back: bool = True, css: bool = True) -> int:
+                               back: bool = True, css: bool = True,
+                               note_type_id: Optional[int] = None) -> int:
     """
-    Literal (non-regex) replace across template sides and styling.
+    Literal (non-regex) replace across template sides and styling, in one
+    note type (by id, else by name) or all of them.
     Returns how many models actually contained the text.
     """
     mm = col.models
-    if model_name:
-        target = mm.by_name(model_name)
-        if target is None:
-            raise ResourceNotFoundError("Model", model_name)
+    if note_type_id is not None or model_name:
+        target = mm.get(int(note_type_id)) if note_type_id is not None else mm.by_name(model_name)
+        if not target:
+            raise ResourceNotFoundError("Note type", note_type_id if note_type_id is not None else model_name)
         models = [target]
     else:
         models = mm.all()
@@ -237,21 +239,21 @@ def find_and_replace_in_models(col: Collection, find_text: str, replace_text: st
 # ====================
 
 @as_collection_op
-def patch_model(col: Collection, model_id: int, updates: Dict[str, Any]) -> ModelInfo:
+def patch_model(col: Collection, model_id: int, updates: Dict[str, Any]) -> NoteTypeInfo:
     """
     Update top-level model properties (name, css, sort_field/sortf).
 
-    PATCH /v1/models/{id}
+    PATCH /v1/note-types/{id}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     # Normalize field names (accepts both "sort_field"/"sortf", etc.)
-    updates = normalize_field_names(updates, ModelPatch)
+    updates = normalize_field_names(updates, NoteTypePatch)
     if "name" in updates:
-        ensure_name_free("Model", updates["name"],
+        ensure_name_free("Note type", updates["name"],
                          [n.name for n in mm.all_names_and_ids() if int(n.id) != int(model_id)])
 
     # Apply updates to allowed top-level properties. Note: a notetype's "type"
@@ -266,12 +268,12 @@ def delete_model(col: Collection, model_id: int) -> bool:
     """
     Delete a model/notetype.
 
-    DELETE /v1/models/{id}
+    DELETE /v1/note-types/{id}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     changes = mm.remove(model_id)
     return ValueWithChanges(True, changes)
@@ -282,16 +284,16 @@ def delete_model(col: Collection, model_id: int) -> bool:
 # ====================
 
 @as_collection_op
-def create_field(col: Collection, model_id: int, field_data: Dict[str, Any]) -> ModelInfo:
+def create_field(col: Collection, model_id: int, field_data: Dict[str, Any]) -> NoteTypeInfo:
     """
     Add a new field to a model.
 
-    POST /v1/models/{id}/fields
+    POST /v1/note-types/{id}/fields
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     # Normalize field names (accepts both "plain_text"/"plainText", etc.)
     field_data = normalize_field_names(field_data, FieldCreate)
@@ -312,16 +314,16 @@ def create_field(col: Collection, model_id: int, field_data: Dict[str, Any]) -> 
 
 
 @as_collection_op
-def patch_field(col: Collection, model_id: int, field_name: str, updates: Dict[str, Any]) -> ModelInfo:
+def patch_field(col: Collection, model_id: int, field_name: str, updates: Dict[str, Any]) -> NoteTypeInfo:
     """
     Update a field's properties.
 
-    PATCH /v1/models/{id}/fields/{name}
+    PATCH /v1/note-types/{id}/fields/{name}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     # Normalize field names (accepts both "plain_text"/"plainText", etc.)
     updates = normalize_field_names(updates, FieldPatch)
@@ -346,19 +348,19 @@ def patch_field(col: Collection, model_id: int, field_name: str, updates: Dict[s
 
 
 @as_collection_op
-def delete_field(col: Collection, model_id: int, field_name: str) -> ModelInfo:
+def delete_field(col: Collection, model_id: int, field_name: str) -> NoteTypeInfo:
     """
     Remove a field from a model.
 
-    DELETE /v1/models/{id}/fields/{name}
+    DELETE /v1/note-types/{id}/fields/{name}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     if len(m["flds"]) <= 1:
-        raise ValidationError("Cannot delete last field. Model must have at least one field.")
+        raise ValidationError("Cannot delete last field. A note type must have at least one field.")
 
     field = find_in_subresource(m, "flds", field_name, "name")
     mm.remove_field(m, field)
@@ -367,17 +369,17 @@ def delete_field(col: Collection, model_id: int, field_name: str) -> ModelInfo:
 
 
 @as_collection_op
-def reorder_fields(col: Collection, model_id: int, order: List[str]) -> ModelInfo:
+def reorder_fields(col: Collection, model_id: int, order: List[str]) -> NoteTypeInfo:
     """
     Reorder fields in a model.
 
-    PUT /v1/models/{id}/fields:order
+    PUT /v1/note-types/{id}/fields:order
     Body: {"order": ["field1", "field2", ...]}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     validate_subresource_order(m, "flds", order, "name")
 
@@ -395,16 +397,16 @@ def reorder_fields(col: Collection, model_id: int, order: List[str]) -> ModelInf
 # ====================
 
 @as_collection_op
-def create_template(col: Collection, model_id: int, template_data: Dict[str, Any]) -> ModelInfo:
+def create_template(col: Collection, model_id: int, template_data: Dict[str, Any]) -> NoteTypeInfo:
     """
     Add a new template to a model.
 
-    POST /v1/models/{id}/templates
+    POST /v1/note-types/{id}/templates
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     # Normalize template data
     template_data = normalize_field_names(template_data, TemplateCreate)
@@ -423,16 +425,16 @@ def create_template(col: Collection, model_id: int, template_data: Dict[str, Any
 
 
 @as_collection_op
-def patch_template(col: Collection, model_id: int, template_name: str, updates: Dict[str, Any]) -> ModelInfo:
+def patch_template(col: Collection, model_id: int, template_name: str, updates: Dict[str, Any]) -> NoteTypeInfo:
     """
     Update a template's properties.
 
-    PATCH /v1/models/{id}/templates/{name}
+    PATCH /v1/note-types/{id}/templates/{name}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     # Normalize template data
     updates = normalize_field_names(updates, TemplatePatch)
@@ -449,19 +451,19 @@ def patch_template(col: Collection, model_id: int, template_name: str, updates: 
 
 
 @as_collection_op
-def delete_template(col: Collection, model_id: int, template_name: str) -> ModelInfo:
+def delete_template(col: Collection, model_id: int, template_name: str) -> NoteTypeInfo:
     """
     Remove a template from a model.
 
-    DELETE /v1/models/{id}/templates/{name}
+    DELETE /v1/note-types/{id}/templates/{name}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     if len(m["tmpls"]) <= 1:
-        raise ValidationError("Cannot delete last template. Model must have at least one template.")
+        raise ValidationError("Cannot delete last template. A note type must have at least one template.")
 
     template = find_in_subresource(m, "tmpls", template_name, "name")
     mm.remove_template(m, template)
@@ -470,17 +472,17 @@ def delete_template(col: Collection, model_id: int, template_name: str) -> Model
 
 
 @as_collection_op
-def reorder_templates(col: Collection, model_id: int, order: List[str]) -> ModelInfo:
+def reorder_templates(col: Collection, model_id: int, order: List[str]) -> NoteTypeInfo:
     """
     Reorder templates in a model.
 
-    PUT /v1/models/{id}/templates:order
+    PUT /v1/note-types/{id}/templates:order
     Body: {"order": ["template1", "template2", ...]}
     """
     mm = col.models
     m = mm.get(model_id)
     if not m:
-        raise ResourceNotFoundError("Model", model_id)
+        raise ResourceNotFoundError("Note type", model_id)
 
     validate_subresource_order(m, "tmpls", order, "name")
 

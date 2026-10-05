@@ -23,10 +23,8 @@ export interface NoteFiles {
   picture?: readonly Attachment[];
 }
 
-/** How a new note is checked against existing ones. */
+/** Where a new note is compared with existing ones. What happens to a duplicate is create's `ifDuplicate`. */
 export interface DuplicateCheck {
-  /** Add the note even when it duplicates one. */
-  allow?: boolean;
   /** Look in the whole collection (default) or in one deck: the note's own, or `deck`. */
   scope?: "collection" | "deck";
   deck?: string;
@@ -34,13 +32,18 @@ export interface DuplicateCheck {
   /** Compare with notes of every note type, not just the new note's. */
   allNoteTypes?: boolean;
 }
-export interface NoteInput extends NoteFiles {
+/** A note without files: what upsert takes. */
+export interface NoteBase {
   deck: Reference;
   noteType: Reference;
   fields: Readonly<Record<string, string>>;
   tags?: readonly string[];
   duplicates?: DuplicateCheck;
 }
+/** A note to add, with its files. */
+export interface NoteInput extends NoteBase, NoteFiles {}
+/** A note to prefill Add Cards with: a note as create takes it; duplicates are the user's to decide there. */
+export type OpenAddInput = Omit<NoteInput, "duplicates">;
 export interface NotePatch extends NoteFiles {
   /** Only the named fields change. */
   fields?: Readonly<Record<string, string>>;
@@ -52,7 +55,7 @@ export interface NotePatch extends NoteFiles {
   noteType?: Reference;
 }
 export type FieldRule = "keep" | "replace" | "replaceIfEmpty" | "append";
-export interface NoteUpsert extends NoteInput {
+export interface NoteUpsert extends NoteBase {
   /** The field that identifies the note, compared exactly within the note type. Default: the duplicate check. */
   matchField?: string;
   /** Per field when a note matches; "*" for the rest. Default replaceIfEmpty. */
@@ -64,6 +67,12 @@ export interface NoteUpsert extends NoteInput {
 }
 
 export type UpsertedNote = ({ action: "created" } & CreatedNote) | ({ action: "updated" } & UpdatedNote);
+/** What create does with a note that duplicates a saved one: raise (default), add it anyway, or skip it. */
+export type IfDuplicate = "error" | "allow" | "skip";
+/** A note create skipped as a duplicate: the saved note's id, and every saved note it duplicates. */
+export interface SkippedNote { action: "skipped"; index: number; id: number; duplicateIds: number[] }
+/** create's answer with `ifDuplicate: "skip"`. */
+export type AddedNote = ({ action: "created" } & CreatedNote) | SkippedNote;
 /** One submitted item's result: its value, or why the server refused it. */
 export type ItemResult<T, F> = { ok: true; index: number; value: T } | { ok: false; index: number; error: F };
 export interface ItemReport<T, F> { items: readonly ItemResult<T, F>[] }

@@ -12,7 +12,7 @@ from .wrappers import NULLABLE, RequestBody, derived
 
 class NoteField(BaseModel):
     """
-    One field of a note. Deliberately mirrors ModelField's shape so the query
+    One field of a note. Deliberately mirrors NoteTypeField's shape so the query
     DSL reads the same on both resources: where=fields[].name==Front,
     select=fields[].(name,value).
     """
@@ -22,7 +22,7 @@ class NoteField(BaseModel):
 
     name: str = Field(description="Field name.")
     value: str = Field(description="Field content, as stored (HTML).")
-    ord: int = Field(description="Field position in the note type, from 0.")
+    index: int = Field(description="Field position in the note type, from 0.")
 
 
 class NoteInfo(BaseModel):
@@ -34,9 +34,9 @@ class NoteInfo(BaseModel):
     guid: str = Field("", description=(
         "Globally unique id Anki uses to match the note across syncs and imports."))
     # Anki's wire name for a note's notetype id
-    model_id: int = Field(0, alias="mid", description="Id of the note's note type.")
-    model_name: str = Field("", description="Name of the note's note type.", **derived("models"))
-    mod: int = Field(0, description="Last modified, Unix seconds.")
+    note_type_id: int = Field(0, alias="mid", description="Id of the note's note type.")
+    note_type_name: str = Field("", description="Name of the note's note type.", **derived("note_types"))
+    modified: int = Field(0, alias="mod", description="Last modified, Unix seconds.")
     usn: int = Field(0, description="Update sequence number for syncing; -1 means changed since the last sync.")
     tags: List[str] = Field(default_factory=list, description="The note's tags.")
     # The first field's value: what Anki's duplicate check compares.
@@ -44,7 +44,7 @@ class NoteInfo(BaseModel):
     # NOT aliased to "flds": on a note that's Anki's positional list of raw
     # strings, so the alias would describe something else entirely.
     fields: List[NoteField] = Field(default_factory=list, description="The note's fields, in note type order.",
-                                    **derived("models"))
+                                    **derived("note_types"))
     # Costs one backend call per note (Anki has no batch lookup), so it is
     # only populated when the caller's select/where references it.
     cards: Optional[List[int]] = Field(None, description="Ids of the note's cards, in template order.")
@@ -57,8 +57,8 @@ class NoteFieldValue(RequestBody):
     """Array form of a field on write."""
     name: str
     value: str = ""
-    # So a field read from GET (name, value, ord) can be sent back as it is.
-    ord: Optional[int] = Field(None, description="Accepted and ignored: a field's position comes from its note type")
+    # So a field read from GET (name, value, index) can be sent back as it is.
+    index: Optional[int] = Field(None, description="Accepted and ignored: a field's position comes from its note type")
 
 
 # Writes accept either {"Front": "犬"} or [{"name": "Front", "value": "犬"}].
@@ -76,8 +76,8 @@ class DuplicateScopeOptions(RequestBody):
     check_children: StrictBool = Field(
         alias="checkChildren", default=False,
         description="Deck scope: also check the deck's subdecks.")
-    check_all_models: StrictBool = Field(
-        alias="checkAllModels", default=False,
+    check_all_note_types: StrictBool = Field(
+        alias="checkAllNoteTypes", default=False,
         description="Match notes of every note type, not just the candidate's.")
 
 
@@ -117,15 +117,16 @@ def tags_without_spaces(tags: Optional[List[str]]) -> Optional[List[str]]:
     return tags
 
 
-class NoteCreate(NoteFiles):
+class NoteInput(RequestBody):
+    """A note as creation, checks and upsert take it; NoteCreate adds files."""
     class Config:
         allow_population_by_field_name = True
         # Without smart_union pydantic v1 tries Dict[str, str] first and
         # mangles the array form into a dict of stringified indices.
         smart_union = True
 
-    model_id: Optional[int] = Field(alias="modelId", default=None)
-    model_name: Optional[str] = Field(alias="modelName", default=None)
+    note_type_id: Optional[int] = Field(alias="noteTypeId", default=None)
+    note_type_name: Optional[str] = Field(alias="noteTypeName", default=None)
     deck_id: Optional[int] = Field(alias="deckId", default=None)
     # Never auto-creates a deck; POST /v1/decks does that explicitly.
     deck_name: Optional[str] = Field(alias="deckName", default=None)
@@ -139,11 +140,15 @@ class NoteCreate(NoteFiles):
     duplicate_scope_options: Optional[DuplicateScopeOptions] = Field(
         alias="duplicateScopeOptions", default=None,
         description=("Deck and note-type options for the duplicate check. When deck scope or "
-                     "check_all_models is used, notes match on the first field's checksum, "
+                     "check_all_note_types is used, notes match on the first field's checksum, "
                      "as in AnkiConnect."),
     )
 
     _tags = validator("tags", allow_reuse=True)(tags_without_spaces)
+
+
+class NoteCreate(NoteInput, NoteFiles):
+    pass
 
 
 class NotePatch(NoteFiles):
@@ -157,9 +162,9 @@ class NotePatch(NoteFiles):
     add_tags: Optional[List[str]] = Field(alias="addTags", default=None)
     remove_tags: Optional[List[str]] = Field(alias="removeTags", default=None)
     _tags = validator("tags", "add_tags", "remove_tags", allow_reuse=True)(tags_without_spaces)
-    # Retype the note. Requires `fields`: the new model's fields start empty.
-    model_id: Optional[int] = Field(alias="modelId", default=None)
-    model_name: Optional[str] = Field(alias="modelName", default=None)
+    # Retype the note. Requires `fields`: the new note type's fields start empty.
+    note_type_id: Optional[int] = Field(alias="noteTypeId", default=None)
+    note_type_name: Optional[str] = Field(alias="noteTypeName", default=None)
 
 
 def unique_ids(ids: List[int]) -> List[int]:
@@ -180,13 +185,6 @@ class NoteIds(RequestBody):
 
 
 # ----------------- Duplicate/empty check -----------------
-
-
-class NoteCheckRequest(RequestBody):
-    class Config:
-        allow_population_by_field_name = True
-
-    notes: List[NoteCreate]
 
 
 class NoteCheckResult(BaseModel):
@@ -270,7 +268,7 @@ class OnMatch(RequestBody):
     separator: str = Field(default="<br>", description="Put between the old and new value by append.")
 
 
-class NoteUpsert(NoteCreate):
+class NoteUpsert(NoteInput):
     match: UpsertMatch = Field(default_factory=UpsertMatch)
     on_match: OnMatch = Field(alias="onMatch", default_factory=OnMatch)
 
@@ -278,7 +276,7 @@ class NoteUpsert(NoteCreate):
 class NoteUpsertFailure(CreationFailure):
     code: Literal["duplicate", "invalid_note", "ambiguous", "anki_error"] = Field(description=(
         "duplicate: no note matched and the new one would duplicate one. invalid_note: it can't be "
-        "made as sent, such as a field that doesn't exist or attachments (see message). ambiguous: "
+        "made as sent, such as a field that doesn't exist (see message). ambiguous: "
         "more than one note matched. anki_error: Anki refused it (see message)."))
 
 

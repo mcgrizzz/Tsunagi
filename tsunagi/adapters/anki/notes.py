@@ -68,7 +68,7 @@ def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
     fields = []
     if wants is None or "fields" in wants:
         names = list(note.keys())
-        fields = [{"name": n, "value": v, "ord": i}
+        fields = [{"name": n, "value": v, "index": i}
                   for i, (n, v) in enumerate(zip(names, note.fields))]
     # A backend call per note unless the page prefetched the map, and only
     # when the caller asked for the field at all.
@@ -81,9 +81,9 @@ def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
     return {
         "id": int(note.id),
         "guid": getattr(note, "guid", "") or "",
-        "model_id": int(note.mid),
-        "model_name": model_names.get(int(note.mid), ""),
-        "mod": int(getattr(note, "mod", 0) or 0),
+        "note_type_id": int(note.mid),
+        "note_type_name": model_names.get(int(note.mid), ""),
+        "modified": int(getattr(note, "mod", 0) or 0),
         "usn": int(getattr(note, "usn", 0) or 0),
         "tags": list(note.tags),
         "first_field": note.fields[0] if note.fields else "",
@@ -99,17 +99,17 @@ def _model_names(col: Collection) -> Dict[int, str]:
 
 
 def _resolve_notetype(col: Collection, req: NoteCreate) -> Dict[str, Any]:
-    if req.model_id is not None:
-        nt = col.models.get(int(req.model_id))
+    if req.note_type_id is not None:
+        nt = col.models.get(int(req.note_type_id))
         if not nt:
-            raise ValidationError(f"Unknown model id {req.model_id}")
+            raise ValidationError(f"Unknown note type id {req.note_type_id}")
         return nt
-    if req.model_name:
-        nt = col.models.by_name(req.model_name)
+    if req.note_type_name:
+        nt = col.models.by_name(req.note_type_name)
         if not nt:
-            raise ValidationError(f"Unknown model '{req.model_name}'")
+            raise ValidationError(f"Unknown note type '{req.note_type_name}'")
         return nt
-    raise ValidationError("one of 'model_id' or 'model_name' is required")
+    raise ValidationError("one of 'note_type_id' or 'note_type_name' is required")
 
 
 def _resolve_deck_id(col: Collection, req: NoteCreate) -> int:
@@ -166,7 +166,7 @@ def _check_fields(note: Any, names: Any, notetype_name: str) -> None:
     for name in names:
         if name not in known:
             raise ValidationError(
-                f"Unknown field '{name}' for model '{notetype_name}'. Available: {sorted(known)}"
+                f"Unknown field '{name}' for note type '{notetype_name}'. Available: {sorted(known)}"
             )
 
 
@@ -194,7 +194,7 @@ def _duplicate_state(col: Collection, note: Any, req: NoteCreate,
     for a scoped check, the matching note ids (None: use _duplicate_ids).
 
     Collection scope for the same note type is Anki's own check. Deck scope or
-    check_all_models matches the first field's checksum like AnkiConnect, so a
+    check_all_note_types matches the first field's checksum like AnkiConnect, so a
     client gets the notes AnkiConnect would report. Empty and cloze checks stay
     Anki's.
     """
@@ -203,7 +203,7 @@ def _duplicate_state(col: Collection, note: Any, req: NoteCreate,
     state = fields_check_impl(col, note)
     opts = req.duplicate_scope_options
     deck_scope = req.duplicate_scope == "deck"
-    all_models = bool(opts and opts.check_all_models)
+    all_models = bool(opts and opts.check_all_note_types)
     if state not in (NORMAL, DUPLICATE) or not (deck_scope or all_models):
         return state, None
 
@@ -279,7 +279,7 @@ def find_note_ids(col: Collection, query: str) -> List[int]:
 @as_query_op
 def get_notes_by_ids(col: Collection, ids: Sequence[int],
                      wants: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
-    model_names = _model_names(col) if wants is None or "model_name" in wants else {}
+    model_names = _model_names(col) if wants is None or "note_type_name" in wants else {}
     ints = [int(i) for i in ids]
     # One query for the whole page's card ids instead of a backend call per
     # note (ids are ints we produced; `order by nid, ord` matches
@@ -319,8 +319,8 @@ def _first_field_checksums(values: List[Any]) -> Optional[Tuple[str, List[Any]]]
 
 # Note fields that are columns, for the shared SQL layer; `first_field` narrows by checksum.
 NOTE_SQL = ColumnSource("notes", {
-    "id": Column("id", "int"), "guid": Column("guid", "text"), "model_id": Column("mid", "int"),
-    "mod": Column("mod", "int"), "usn": Column("usn", "int"),
+    "id": Column("id", "int"), "guid": Column("guid", "text"), "note_type_id": Column("mid", "int"),
+    "modified": Column("mod", "int"), "usn": Column("usn", "int"),
 }, select_ids, {"first_field": _first_field_checksums}, rows=select_rows)
 
 
@@ -358,7 +358,7 @@ def check_notes(col: Collection, candidates: List[NoteCreate], *,
     deck_cache: Dict[Any, int] = {}
     for index, req in enumerate(candidates):
         try:
-            nt_key = (req.model_id, req.model_name)
+            nt_key = (req.note_type_id, req.note_type_name)
             nt = nt_cache.get(nt_key)
             if nt is None:
                 nt = nt_cache[nt_key] = _resolve_notetype(col, req)
@@ -439,18 +439,18 @@ def _change_notetype(col: Collection, note: Any, req: NotePatch) -> None:
     """
     if req.fields is None:
         raise ValidationError(
-            "changing a note's model requires 'fields': the new model's fields "
+            "changing a note's note type requires 'fields': the new note type's fields "
             "start empty, so omitting them would erase the note"
         )
 
-    if req.model_id is not None:
-        notetype = col.models.get(int(req.model_id))
-        missing: Any = req.model_id
+    if req.note_type_id is not None:
+        notetype = col.models.get(int(req.note_type_id))
+        missing: Any = req.note_type_id
     else:
-        notetype = col.models.by_name(str(req.model_name))
-        missing = req.model_name
+        notetype = col.models.by_name(str(req.note_type_name))
+        missing = req.note_type_name
     if not notetype:
-        raise ValidationError(f"model was not found: {missing}")
+        raise ResourceNotFoundError("Note type", missing)
 
     note.mid = int(notetype["id"])
     note._fmap = col.models.field_map(notetype)
@@ -474,7 +474,7 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any],
             raise ResourceNotFoundError("Note", note_id) from e
         raise
 
-    if req.model_id is not None or req.model_name is not None:
+    if req.note_type_id is not None or req.note_type_name is not None:
         _change_notetype(col, note, req)
 
     model_names = _model_names(col)

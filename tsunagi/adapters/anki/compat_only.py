@@ -78,7 +78,7 @@ def remove_unused_note_types(col: Collection) -> int:
     AnkiConnect's `removeEmptyNotes`, which despite the name removes note
     *types* that no note uses - most likely "empty note type" phrased loosely
     rather than a bug. Destroys no content: use_count == 0 means there are no
-    notes to lose. Compat-only; the native equivalent is DELETE /v1/models/{id}.
+    notes to lose. Compat-only; the native equivalent is DELETE /v1/note-types/{id}.
     """
     removed = 0
     changes = None

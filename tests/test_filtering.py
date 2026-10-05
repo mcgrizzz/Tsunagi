@@ -21,7 +21,7 @@ class TestParseWhere:
         # A client can JSON-encode any name, quotes and backslashes included.
         import json
         names = ['Ki"ku', "a\\b", "日本", "a]b, c"]
-        assert parse_where(f"model_name in {json.dumps(names)}").value == names
+        assert parse_where(f"note_type_name in {json.dumps(names)}").value == names
         assert parse_where('name=="\\u65e5"').value == "日"
         with pytest.raises(WhereParseError):
             parse_where('name=="bad \\q escape"')

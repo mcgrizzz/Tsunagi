@@ -8,7 +8,7 @@ from test_events_broker import recorded_ops as recorded_ops
 
 
 def candidate(front, **overrides):
-    return {"modelName": "Basic", "deckName": "Default",
+    return {"noteTypeName": "Basic", "deckName": "Default",
             "fields": {"Front": front, "Back": "meaning"}, **overrides}
 
 
@@ -20,7 +20,7 @@ def create(client, notes):
 
 def test_partial_success_maps_inputs_and_observes_earlier_additions(client, col):
     submitted = [candidate("first"), candidate("first"), candidate(""),
-                 candidate("bad", modelName="missing"), candidate("last")]
+                 candidate("bad", noteTypeName="missing"), candidate("last")]
     original = deepcopy(submitted)
     result = create(client, submitted)
     assert submitted == original

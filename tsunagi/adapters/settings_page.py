@@ -53,8 +53,8 @@ AREAS: List[Tuple[str, str, str, str]] = [
      "Run the add-on actions enabled on the Add-ons page, including destructive ones."),
 ]
 NAMES: Dict[str, str] = {
-    "notes": "Notes", "cards": "Cards", "decks": "Decks", "deck_configs": "Deck options",
-    "models": "Note types", "tags": "Tags", "reviews": "Review history", "media": "Media",
+    "notes": "Notes", "cards": "Cards", "decks": "Decks", "deck_presets": "Deck presets",
+    "note_types": "Note types", "tags": "Tags", "reviews": "Review history", "media": "Media",
     "collection": "Collection info, jobs and the event stream", "addons": "Installed add-ons",
     "changes": "Changes to your collection", "reviews_live": "Each card you answer",
 }

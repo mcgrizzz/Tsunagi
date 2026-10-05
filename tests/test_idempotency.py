@@ -9,7 +9,7 @@ from tsunagi.http.v1 import notes as notes_route
 
 
 def note(front="hello"):
-    return {"model_name": "Basic", "deck_name": "Default", "fields": {"Front": front, "Back": "x"}}
+    return {"note_type_name": "Basic", "deck_name": "Default", "fields": {"Front": front, "Back": "x"}}
 
 
 @pytest.fixture(autouse=True)
@@ -104,8 +104,8 @@ def test_keyed_media_keeps_the_callers_permissions(client, col, reset_settings, 
     source = tmp_path / "pic.txt"
     source.write_text("x")
     body = {"filename": "pic.txt", "path": str(source)}
-    denied = client.post("/v1/media", json=body, headers={"Idempotency-Key": "m2"}).json()
-    assert denied["created"] == [] and denied["failed"]
+    denied = client.post("/v1/media", json=body, headers={"Idempotency-Key": "m2"})
+    assert denied.status_code == 403
     reset_settings.update(no_key_local_role="everything")
     allowed = client.post("/v1/media", json=body, headers={"Idempotency-Key": "m3"}).json()
     assert [c["filename"] for c in allowed["created"]] == ["pic.txt"]

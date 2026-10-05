@@ -2,7 +2,7 @@
 
 
 def test_validation_errors_have_a_string_detail_and_a_list(client):
-    response = client.post("/v1/notes", json={"modelName": "Basic", "deckName": "Default"})
+    response = client.post("/v1/notes", json={"noteTypeName": "Basic", "deckName": "Default"})
     assert response.status_code == 422
     body = response.json()
     assert body["detail"].startswith("Invalid request: body")

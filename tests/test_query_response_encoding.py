@@ -48,11 +48,11 @@ def test_query_encoding_matches_framework(method, monkeypatch):
 
 
 def test_narrow_projection_keeps_validation_and_human_field_names():
-    from tsunagi.shared.schemas.models import ModelInfo
+    from tsunagi.shared.schemas.models import NoteTypeInfo
 
     raw = {"id": 1, "name": "Basic", "sortf": 1, "tmpls": [],
            "flds": [{"name": " Front ", "ord": 0, "plainText": True}]}
-    row = ModelInfo.parse_obj(raw)
+    row = NoteTypeInfo.parse_obj(raw)
     page = route_factory._finish([row], None, "sort_field,fields[].(name,plain_text)", "object", 0)
     assert page.items == [{"sort_field": 1, "fields": [{"name": "Front", "plain_text": True}]}]
     assert route_factory._as_dict(row, {"fields"}) == {"fields": row.dict()["fields"]}
@@ -64,14 +64,14 @@ def test_narrow_projection_keeps_validation_and_human_field_names():
     "name,fields[].missing,templates[].qfmt", "fields[].name,name",
 ])
 def test_partial_model_conversion_matches_full_conversion(select):
-    from tsunagi.shared.schemas.models import ModelInfo
+    from tsunagi.shared.schemas.models import NoteTypeInfo
     from tsunagi.shared.selecting import (
         parse_select_csv,
         project_scalars,
         selection_include,
     )
 
-    row = ModelInfo.parse_obj({"id": 1, "name": "Basic", "tmpls": [{"name": "Card", "ord": 0}],
+    row = NoteTypeInfo.parse_obj({"id": 1, "name": "Basic", "tmpls": [{"name": "Card", "ord": 0}],
                                "flds": [{"name": "Front", "ord": 0, "plainText": True}]})
     nodes = parse_select_csv(select)
     actual = project_scalars(row.dict(include=selection_include(nodes)), nodes)

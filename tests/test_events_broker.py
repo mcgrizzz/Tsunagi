@@ -161,42 +161,42 @@ class TestDispatchOp:
         dispatch_op(op_changes(card=True, study_queues=True), ApiOp())
         event = broker.drain(token)[0]
         assert event["type"] == "cards.stale"
-        assert event["origin"] == "api"
+        assert event["by"] == "api"
         assert sorted(event["anki"]["changes"]) == ["card", "study_queues"]
 
     def test_api_events_name_the_app(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True), ApiOp(client="Yomitan"))
-        assert broker.drain(token)[0]["client"] == "Yomitan"
+        assert broker.drain(token)[0]["app"] == "Yomitan"
         dispatch_op(op_changes(note=True), ApiOp())
-        assert "client" not in broker.drain(token)[0]
+        assert "app" not in broker.drain(token)[0]
 
     def test_api_details_are_merged_into_the_event(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True), ApiOp({"note_ids": [42, 43]}))
         event = broker.drain(token)[0]
-        assert event["origin"] == "api"
+        assert event["by"] == "api"
         assert "ids" not in event
         assert "targets" not in event  # inputs are not confirmed changes
 
     def test_api_details_cannot_clobber_core_keys(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True),
-                    ApiOp({"origin": "spoofed", "changes": [], "seq": -1}))
+                    ApiOp({"by": "spoofed", "changes": [], "seq": -1}))
         event = broker.drain(token)[0]
-        assert event["origin"] == "api"
+        assert event["by"] == "api"
         assert event["anki"]["changes"] == ["note"]
         assert event["seq"] > 0
 
     def test_ui_origin(self):
         token = broker.subscribe()
         dispatch_op(op_changes(note=True), object())
-        assert broker.drain(token)[0]["origin"] == "ui"
+        assert broker.drain(token)[0]["by"] == "ui"
 
     def test_null_origin(self):
         token = broker.subscribe()
         dispatch_op(op_changes(deck=True), None)
-        assert broker.drain(token)[0]["origin"] is None
+        assert broker.drain(token)[0]["by"] is None
 
     def test_undo_does_not_inherit_the_next_undoable_actions_label(self):
         # Observed after undoing Card Batch: Anki supplies no handler, and
@@ -207,7 +207,7 @@ class TestDispatchOp:
         events = broker.drain(token)
         assert {e["type"] for e in events} == {
             "cards.stale", "reviews.stale", "scheduler.stale"}
-        assert events[0]["origin"] is None
+        assert events[0]["by"] is None
         assert sorted(events[0]["anki"]["changes"]) == ["card", "study_queues"]
         assert "label" not in events[0]["anki"]
 
@@ -217,7 +217,7 @@ class TestDispatchOp:
                     label="Suspend")
         event = broker.drain(token)[0]
         assert event["anki"]["label"] == "Suspend"
-        assert event["origin"] == "api"
+        assert event["by"] == "api"
         assert "ids" not in event
 
     def test_label_is_carried_when_known(self):
@@ -277,8 +277,8 @@ class TestPublishHelpers:
         card = SimpleNamespace(id=1690000000000, ivl=4, due=120, queue=2, memory_state=None)
         publish_review(card, 3)
         event = broker.drain(token)[0]
-        assert event["type"] == "cards.answered" and event["origin"] == "ui"
-        assert (event["card_id"], event["ease"], event["interval"], event["due"],
+        assert event["type"] == "cards.answered" and event["by"] == "ui"
+        assert (event["card_id"], event["rating"], event["interval"], event["due"],
                 event["queue"], event["memory_state"]) == (1690000000000, 3, 4, 120, 2, None)
 
     def test_sync(self):
@@ -390,7 +390,7 @@ def test_flags_name_only_the_resources_whose_rows_changed():
         "note", "note_text", "card", "deck", "notetype", "tag", "config",
         "deck_config", "study_queues")} == {
         "note": ["notes"], "note_text": ["notes"], "card": ["cards"],
-        "deck": ["decks"], "notetype": ["models"], "tag": ["tags"],
+        "deck": ["decks"], "notetype": ["note_types"], "tag": ["tags"],
         "config": ["config"], "deck_config": ["decks"],
         "study_queues": ["reviews", "scheduler"]}
 

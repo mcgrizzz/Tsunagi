@@ -67,20 +67,20 @@ def test_a_failed_import_keeps_its_status_and_runs_again(client, monkeypatch, tm
 
 
 def test_a_main_thread_action_that_ends_after_a_503_runs_once(client, monkeypatch):
-    # gui:undo: the first attempt outlasts op_timeout_seconds and answers 503,
-    # but Anki runs the queued undo later. The retry gets that result instead
-    # of undoing a second step.
-    undos, queued = [], []
-    monkeypatch.setattr(mw, "undo", lambda: undos.append(1), raising=False)
+    # gui:deck-browser: the first attempt outlasts op_timeout_seconds and
+    # answers 503, but Anki runs the queued call later. The retry gets that
+    # result instead of running it a second time.
+    moves, queued = [], []
+    monkeypatch.setattr(mw, "moveToState", moves.append, raising=False)
     monkeypatch.setattr(mw.taskman, "run_on_main", queued.append)
     monkeypatch.setattr(ops, "op_timeout", lambda: 0.05)
-    first = client.post("/v1/gui:undo", headers=keyed("late"))
+    first = client.post("/v1/gui:deck-browser", headers=keyed("late"))
     assert first.status_code == 503
     for call in queued:
         call()
-    again = client.post("/v1/gui:undo", headers=keyed("late"))
+    again = client.post("/v1/gui:deck-browser", headers=keyed("late"))
     assert again.status_code == 200 and again.headers["idempotent-replayed"] == "true"
-    assert undos == [1]
+    assert moves == ["deckBrowser"]
 
 
 def test_export_with_a_key_exports_once(client, monkeypatch, tmp_path):
@@ -90,7 +90,7 @@ def test_export_with_a_key_exports_once(client, monkeypatch, tmp_path):
     monkeypatch.setattr(adapter, "_export_package", lambda col, *a, **k: calls.append(a))
     path = str(tmp_path / "out.apkg")
     for _ in range(2):
-        resp = client.post("/v1/collection:export", json={"deck": "Default", "path": path},
+        resp = client.post("/v1/collection:export", json={"deck_name": "Default", "path": path},
                            headers=keyed("k1"))
         assert resp.status_code == 200
     assert len(calls) == 1 and resp.headers["idempotent-replayed"] == "true"

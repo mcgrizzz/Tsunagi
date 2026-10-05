@@ -26,7 +26,7 @@ def test_what_is_pushed(clause, pushed):
 
 @pytest.fixture()
 def data(client, col, answer_cards):
-    notes = [{"modelName": "Basic (and reversed card)" if i % 3 == 0 else "Basic",
+    notes = [{"noteTypeName": "Basic (and reversed card)" if i % 3 == 0 else "Basic",
               "deckName": "Default", "tags": ["even"] if i % 2 == 0 else [],
               "fields": {"Front": f"<b>w{i}</b>" if i == 4 else f"w{i}", "Back": "x"}} for i in range(12)]
     assert client.post("/v1/notes", json=notes).json()["failed"] == []
@@ -52,9 +52,9 @@ CLAUSES = {
     "/v1/cards": ["queue==-1", "queue!=0", "reps>=1", "interval>0", "type in [1,2]", "type not in [0]",
                   "suspended==true", "suspended==false", "buried in [false]", "due<100000", "flag==0",
                   "queue==true", "note_id>0"],
-    "/v1/notes": ["mod>0", "model_id>0", "usn!=-2", 'first_field in ["w1","w4","nope"]', 'first_field=="w5"',
+    "/v1/notes": ["modified>0", "note_type_id>0", "usn!=-2", 'first_field in ["w1","w4","nope"]', 'first_field=="w5"',
                   'first_field=="<b>w4</b>"', 'guid!=""', "id>0", 'tags[]=="even"'],
-    "/v1/reviews": ["ease==1", "ease in [1,3]", "interval<0", "type!=0", "time_ms>=0", "card_id>0",
+    "/v1/reviews": ["rating==1", "rating in [1,3]", "interval<0", "type!=0", "duration_ms>=0", "card_id>0",
                     "last_interval<=0"],
 }
 

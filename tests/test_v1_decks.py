@@ -34,7 +34,7 @@ class TestStats:
                if d["name"] == "JP"][0]
         for i in range(3):
             client.post("/v1/notes", json={
-                "modelName": "Basic", "deckName": "JP",
+                "noteTypeName": "Basic", "deckName": "JP",
                 "fields": {"Front": f"card{i}"}})
         return did
 
@@ -81,7 +81,7 @@ class TestStats:
     def test_parent_aggregates_children(self, client):
         client.post("/v1/decks", json={"name": "A::B"})
         client.post("/v1/notes", json={
-            "modelName": "Basic", "deckName": "A::B", "fields": {"Front": "x"}})
+            "noteTypeName": "Basic", "deckName": "A::B", "fields": {"Front": "x"}})
         decks = {d["name"]: d for d in client.get(
             "/v1/decks", params={"select": "name,total_in_deck", "shape": "object"}).json()["items"]}
         assert decks["A::B"]["total_in_deck"] == 1
