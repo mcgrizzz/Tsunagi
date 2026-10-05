@@ -831,7 +831,7 @@
             "x-nullable": true
           },
           "due": {
-            "description": "New: position in the new queue. Learning: epoch seconds. Review: days since the collection was created.",
+            "description": "Anki's stored value, not days from today. New: position in the new queue. Learning: epoch seconds. Review: days since the collection was created. For cards due on a day, search `prop:due=1` (days from today: 0 today, -1 yesterday); `is:due` for cards due now.",
             "type": "integer"
           },
           "factor": {

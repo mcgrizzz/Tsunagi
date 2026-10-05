@@ -56,8 +56,9 @@ class CardInfo(BaseModel):
     # new cards, a day number for review cards, epoch seconds while learning -
     # so normalizing it would destroy information the client needs.
     due: int = Field(0, description=(
-        "New: position in the new queue. Learning: epoch seconds. Review: days since the "
-        "collection was created."))
+        "Anki's stored value, not days from today. New: position in the new queue. Learning: "
+        "epoch seconds. Review: days since the collection was created. For cards due on a day, "
+        "search `prop:due=1` (days from today: 0 today, -1 yesterday); `is:due` for cards due now."))
     original_due: int = Field(0, alias="odue", description=(
         "The card's due value in its home deck while it is in a filtered deck; 0 otherwise."))
     interval: int = Field(0, alias="ivl", description="Current interval in days; 0 for new and learning cards.")
