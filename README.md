@@ -125,8 +125,8 @@ Anki changes. Install it with `npm install tsunagi-client`
 ```ts
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777" });
 
-// Named values, not Anki's codes: a suspended card's queue is "suspended", not -1.
-const suspended = await anki.cards.search("deck:Mining").where("queue", "eq", "suspended").count();
+// Anki's states by name, checked as you type: is("suspended"), is("due")...
+const suspended = await anki.cards.search("deck:Mining").is("suspended").count();
 
 // Keep a list of the deck's notes current as Anki changes, whoever changes it.
 await anki.notes.search("deck:Mining").select("id", "firstField").watch({

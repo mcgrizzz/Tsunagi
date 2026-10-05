@@ -93,7 +93,8 @@ query; the old one is unchanged.
 
 | Method | Effect |
 | --- | --- |
-| `search(text)` | Anki search (cards, notes, reviews). Replaces a previous search. |
+| `search(text)` | Anki search (cards, notes, reviews). Replaces a previous search; `is` states stay. |
+| `is(state)` | Rows in one of Anki's states (cards, notes, reviews). Several mean all must hold. |
 | `where(field, operator, value)` | A filter. Several mean all must hold. |
 | `orderBy(sort, direction)` | One of the resource's sorts, ascending by default. Replaces a previous order. |
 | `distinctOn(field)` | One row per value of a field: the first in the order. |
@@ -107,6 +108,13 @@ query; the old one is unchanged.
 Without `select`, rows have every field, as the server sends them. On cards
 that renders each card's question and answer, so a client's docs say to
 select what you need.
+
+**States.** `is` takes a name from `states` in `names.json`, each one of
+Anki's search states: `new`, `learning` (`is:learn`), `review`, `due`,
+`buried`, `siblingBuried` (`is:buried-sibling`), `manuallyBuried`
+(`is:buried-manually`) and `suspended`. They are the queue's names where both
+have one. It means what Anki's search means: `due` has no field, and a note
+is in a state when one of its cards is.
 
 **Operators.** `eq` and `ne` on any single value; `gt`, `gte`, `lt`,
 `lte` on numbers; `contains`, `startsWith`, `endsWith` on free text (not on
@@ -124,7 +132,7 @@ JSON body:
 | `select` | Wire names, comma-separated. Left out without `select`. |
 | `shape` | `scalar` for `values`, otherwise `object`. |
 | `where` | One clause per filter, repeated: `<wire><op><value>`. |
-| `search` | The Anki search, as given. |
+| `search` | The Anki search, as given, then each `is` term once, in order: `(<search>) is:suspended`, or the terms alone without a search. |
 | `order` | `<wire sort>:asc` or `:desc`. |
 | `distinct_on` | The wire name. |
 | `include` | `total` with `page(total)` and `count()`. |
@@ -155,6 +163,7 @@ A client refuses these before any request, so a mistake fails at the call
 - `null` on a field that can't be null;
 - `in`/`notIn` without a list, or a list with another operator;
 - `values` or `distinctOn` on a list or object field;
+- `is` with a state `names.json` doesn't list, or on a list that takes no search;
 - `select` with no fields; `take` with a negative count; a page size below 1.
 
 ## Writes
@@ -169,6 +178,8 @@ caller changing its input afterwards can't change what is sent.
 | `notes.create(note)` | `POST /v1/notes`, a list of one | the created note, or an item error |
 | `notes.createMany(notes)` | `POST /v1/notes` | per-item results (below) |
 | `notes.update(id, patch)` | `PATCH /v1/notes/{id}` | nothing |
+| `notes.exists(note)` | `POST /v1/notes:check`, `{notes}`, a list of one; a read, no key | whether it's saved |
+| `notes.exists(notes)` | the same, every note | one answer per note, in order |
 | `notes.check(notes)` | `POST /v1/notes:check`, `{notes}`; a read, no key | one check per note, in order |
 | `notes.upsert(note)` | `POST /v1/notes:upsert`, a list of one | created or updated, or an item error |
 | `notes.upsertMany(notes)` | `POST /v1/notes:upsert` | per-item results |
@@ -200,6 +211,14 @@ Upsert adds `match` (`matchField`) and `on_match` (`fieldRules` with
 `create` and `createMany` can ask for card ids and duplicate ids
 (`include=cards,duplicate_ids`), `upsert` for card ids, `check` for
 duplicate ids.
+
+**Exists.** A note is saved when its check's `state` is `duplicate`: by the
+rules a create refuses a duplicate (its first field among notes of its note
+type, or the scope `duplicates` gives). Any other state is not saved, except
+`invalid` (a deck, note type or field that doesn't exist), which raises an
+item error with code `invalid` and the check's `reason`, as a create would.
+`exists` takes one note or a list, as the server does; in a language without
+overloading it is `exists` and `existsMany`. An empty list sends nothing.
 
 **Per-item results.** A batch's response has `created` (and `updated` for
 upsert) and `failed`, each item with its `index`. The client returns one

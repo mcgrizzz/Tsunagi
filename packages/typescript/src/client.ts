@@ -116,7 +116,30 @@ class Notes extends Resource<"notes"> {
   readonly update = sends(async (id: number, patch: NotePatch, options: WriteOptions = {}): Promise<void> =>
     this.protocol.updateNote(id, patch, options), this.protocol, "notesUpdate");
 
-  /** Could these notes be added? A read: nothing changes. One result per note, in order. */
+  /**
+   * Is the note already saved? By the rules create uses to refuse a duplicate:
+   * its first field, among notes of its note type (or the scope `duplicates`
+   * gives). A read: nothing changes. Pass a list for one answer per note, in
+   * order. A note naming a deck, note type or field that doesn't exist raises
+   * ItemRejectedError, as create would.
+   */
+  readonly exists = sends(this.existsImpl.bind(this) as {
+    (note: NoteInput, options?: RequestOptions): Promise<boolean>;
+    (notes: readonly NoteInput[], options?: RequestOptions): Promise<boolean[]>;
+  }, this.protocol, "notesCheck");
+  private async existsImpl(input: NoteInput | readonly NoteInput[], options: RequestOptions = {}): Promise<boolean | boolean[]> {
+    options.signal?.throwIfAborted();
+    const many = Array.isArray(input);
+    const notes = many ? list(input as readonly NoteInput[]) : [input as NoteInput];
+    if (!notes.length) return [];
+    const found = (await this.protocol.checkNotes(notes, [], options)).map(check => {
+      if (check.state === "invalid") throw new ItemRejectedError({ index: check.index, code: "invalid", message: check.reason ?? "invalid" });
+      return check.state === "duplicate";
+    });
+    return many ? found : found[0]!;
+  }
+
+  /** Could these notes be added, and if not, why? A read: nothing changes. One result per note, in order. */
   readonly check = sends(async (input: readonly NoteInput[], options: RequestOptions & { duplicateIds?: boolean } = {}): Promise<NoteCheck[]> =>
     this.protocol.checkNotes(list(input), included({ duplicate_ids: options.duplicateIds }), options),
   this.protocol, "notesCheck");

@@ -45,6 +45,21 @@ async function contract() {
   const index: number | undefined = page.items[0]?.fields[0]?.index;
   const total: number | null = page.total;
   void [field, index, total];
+  const suspended: number = await anki.cards.search("deck:Mining").is("suspended").count();
+  const dueNotes = await anki.notes.is("due").is("siblingBuried").select("id").take(5);
+  void [suspended, dueNotes];
+  // @ts-expect-error Decks take no Anki search, so no states.
+  anki.decks.is("suspended");
+  // @ts-expect-error A state Anki doesn't have.
+  anki.cards.is("sleeping");
+  // @ts-expect-error The client's names, not Anki's search terms.
+  anki.cards.is("learn");
+  const word = { deck: "Mining", noteType: "Basic", fields: { Front: "犬" } };
+  const saved: boolean = await anki.notes.exists(word);
+  const each: boolean[] = await anki.notes.exists([word, word]);
+  // @ts-expect-error One note answers one boolean, not a list.
+  const wrong: boolean[] = await anki.notes.exists(word);
+  void [saved, each, wrong];
   const count: number = await anki.reviews.where("cardId", "eq", 1).count();
   const latest = await anki.reviews.distinctOn("cardId").orderBy("id", "desc").select("cardId", "rating", "interval").take(10);
   const rating: "again" | "hard" | "good" | "easy" | null | undefined = latest[0]?.rating;

@@ -41,8 +41,7 @@ back the cards it made:
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777", apiKey: settings.apiKey });
 
 const word = { deck: "Japanese::Mining", noteType: "Basic", fields: { Front: "犬", Back: "dog" } };
-const [check] = await anki.notes.check([word]);
-if (check?.state === "duplicate") {
+if (await anki.notes.exists(word)) {
   console.log("Already have it");
 } else {
   const note = await anki.notes.create({
@@ -61,6 +60,18 @@ if (check?.state === "duplicate") {
 }
 anki.close(); // access() keeps a connection open to stay current
 ```
+
+## Adding notes: which method?
+
+| You want to | Use |
+| --- | --- |
+| Know whether it's saved, before the user decides | `notes.exists(word)` |
+| Add it, refusing a duplicate | `notes.create(word)`: a duplicate raises `ItemRejectedError` with code `duplicate` |
+| Add it, or update the note you already have | `notes.upsert(word)` |
+| Know why it can't be added (an empty first field, a missing cloze) | `notes.check([word])` |
+
+`exists` and `check` change nothing. `exists` takes one note, or a list for
+an answer per note; `check` takes a list.
 
 ## Where to go next
 

@@ -85,6 +85,21 @@ cases = [
                  "response": page([12])}],
   "result": [12]},
  {"name": "take(0) sends nothing", "call": q("cards", [], ["take", 0]), "exchanges": [], "result": []},
+ {"name": "is adds Anki states to the search, after the text, all of which must hold",
+  "call": q("cards", [["search", "deck:Mining OR deck:Kaishi"], ["is", "suspended"], ["is", "due"], ["select", "id"]], ["take", 5]),
+  "exchanges": [{"request": get("/v1/cards", select="id", shape="object", search="(deck:Mining OR deck:Kaishi) is:suspended is:due", limit="5"),
+                 "response": page([{"id": 1}])}],
+  "result": [{"id": 1}]},
+ {"name": "is without a search sends the terms alone, in Anki's words, each once",
+  "call": q("notes", [["is", "siblingBuried"], ["is", "learning"], ["is", "siblingBuried"], ["select", "id"]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/notes", select="id", shape="object", search="is:buried-sibling is:learn", limit="1"),
+                 "response": page([{"id": 7}])}],
+  "result": [{"id": 7}]},
+ {"name": "a later search replaces the text and keeps the states; count sends them too",
+  "call": q("reviews", [["search", "deck:A"], ["is", "manuallyBuried"], ["search", "deck:B"]], ["count"]),
+  "exchanges": [{"request": get("/v1/reviews", shape="object", search="(deck:B) is:buried-manually", include="total", limit="0"),
+                 "response": page([], total=3)}],
+  "result": 3},
 ]
 refused = [
  ("an unknown field", "cards", [["select", "questoin"]]),
@@ -102,6 +117,9 @@ refused = [
  ("distinctOn on a list field", "notes", [["distinctOn", "fields"]]),
  ("an unknown sort", "cards", [["orderBy", "question"]]),
  ("select with no fields", "cards", [["select"]]),
+ ("a state Anki doesn't have", "cards", [["is", "sleeping"]]),
+ ("Anki's term instead of the client's name", "cards", [["is", "learn"]]),
+ ("is on a list that takes no search", "decks", [["is", "suspended"]]),
 ]
 for name, resource, steps in refused:
     cases.append({"name": f"refused before sending: {name}", "call": q(resource, steps, ["take", 1]), "exchanges": [], "error": {"kind": "argument"}})

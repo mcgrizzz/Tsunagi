@@ -5,7 +5,7 @@ import type { AccessTarget } from "./access-target.js";
 import { ProtocolError } from "./errors.js";
 import { decodeField, decodeObject } from "./decode.js";
 import type { FieldDescription } from "./decode.js";
-import { resources } from "./generated.js";
+import { resources, states as stateTerms } from "./generated.js";
 import type { Rows } from "./generated.js";
 import { DraftProtocol } from "./protocol.js";
 import type { QueryParams } from "./protocol.js";
@@ -18,6 +18,10 @@ import type { WatchHandlers } from "./watch.js";
 /** The resources read with a query (add-ons are a plain list). */
 export type QueryResource = Exclude<keyof Rows, "addons">;
 export type SortOf<N extends QueryResource> = Extract<keyof (typeof resources)[N]["sorts"], string>;
+/** The resources that take an Anki search: cards, notes and reviews. */
+export type SearchResource = { [K in QueryResource]: (typeof resources)[K]["search"] extends null ? never : K }[QueryResource];
+/** One of Anki's states, for is(): its search term is is:<term> (packages/spec/names.json, states). */
+export type CardState = keyof typeof stateTerms;
 type Key<T> = Extract<keyof T, string>;
 type ScalarKey<T> = { [K in Key<T>]: T[K] extends string | number | boolean | null ? K : never }[Key<T>];
 /** Comparisons for numbers; contains/startsWith/endsWith for free text (not named values). */
@@ -56,6 +60,7 @@ interface State {
   readonly scalar: boolean;
   readonly where: readonly string[];
   readonly search?: string;
+  readonly states: readonly string[];  // Anki search terms from is(), in order
   readonly order?: string;
   readonly distinctOn?: string;
 }
@@ -94,7 +99,7 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
   constructor(
     protected readonly protocol: DraftProtocol,
     protected readonly resource: N,
-    private readonly state: State = { select: null, scalar: false, where: [] },
+    private readonly state: State = { select: null, scalar: false, where: [], states: [] },
   ) {
     registerAccess(this, protocol, `GET ${resources[resource].path}`);
   }
@@ -115,10 +120,23 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
     return new Query(this.protocol, this.resource, { ...this.state, ...state });
   }
 
-  /** Anki search, on cards, notes and reviews. */
+  /** Anki search, on cards, notes and reviews. Replaces a previous search; is() states stay. */
   search(search: string): Query<N, R, W> {
     if (typeof search !== "string") throw new TypeError("search must be a string");
     return this.with({ search });
+  }
+  /** Rows in one of Anki's states, as Anki's search means it (is:suspended, is:due...). Several must all hold. */
+  is(this: Query<N & SearchResource, R, W>, state: CardState): Query<N, R, W> {
+    if (typeof state !== "string" || !Object.hasOwn(stateTerms, state)) throw new TypeError(`Unknown state: ${String(state)}`);
+    if (resources[this.resource].search === null) throw new TypeError(`${this.resource} take no Anki search`);
+    return this.with({ states: [...this.state.states, `is:${stateTerms[state]}`] }) as unknown as Query<N, R, W>;
+  }
+  /** The search sent: the text, then each is() state, all of which must hold. */
+  private get fullSearch(): string | undefined {
+    const { search, states } = this.state;
+    if (!states.length) return search;
+    const terms = [...new Set(states)].join(" ");
+    return search === undefined || !search.trim() ? terms : `(${search}) ${terms}`;
   }
   where<K extends ScalarKey<Rows[N]>, O extends Operator<Rows[N][K]>>(field: K, operator: O, value: Operand<NoInfer<Rows[N][K]>, O>): Query<N, R, W> {
     const description = this.field(field, true);
@@ -188,7 +206,8 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
     handlers: N extends WatchResource ? WatchHandlers<WatchRow<N, R>, WatchKey<N>> : never,
     options: { signal?: AbortSignal } = {},
   ): Promise<Subscription> {
-    const { select, scalar, order, distinctOn, search } = this.state;
+    const { select, scalar, order, distinctOn } = this.state;
+    const search = this.fullSearch;
     if (!watchable.has(this.resource)) throw new TypeError(`Tsunagi sends no events for ${this.resource}`);
     if (scalar || order !== undefined || distinctOn !== undefined) throw new TypeError("A watched query can't use orderBy, distinctOn or values");
     const key: string = resources[this.resource].key;
@@ -217,7 +236,8 @@ export class Query<N extends QueryResource, R = Rows[N], W extends boolean = tru
   }
 
   private params(total: boolean): QueryParams {
-    const { select, scalar, where, search, order, distinctOn } = this.state;
+    const { select, scalar, where, order, distinctOn } = this.state;
+    const search = this.fullSearch;
     return {
       ...(select ? { select: select.map(name => this.fields[name]!.wire).join(",") } : {}),
       shape: scalar ? "scalar" : "object",

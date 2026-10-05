@@ -90,6 +90,17 @@
       "0": null
     }
   },
+  "states": {
+    "_": "is(state): the client's name for each of Anki's search states (is:<term>), in the queue's vocabulary.",
+    "new": "new",
+    "learning": "learn",
+    "review": "review",
+    "due": "due",
+    "buried": "buried",
+    "siblingBuried": "buried-sibling",
+    "manuallyBuried": "buried-manually",
+    "suspended": "suspended"
+  },
   "types": {
     "cards": "Card",
     "notes": "Note",

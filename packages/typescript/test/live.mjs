@@ -2,7 +2,7 @@
 // Run by Tsunagi's tests/test_typescript_client.py, which starts the server on
 // a throwaway collection, waits for "WATCHING", then changes this app's role.
 import assert from "node:assert/strict";
-import { Tsunagi } from "../dist/index.js";
+import { ItemRejectedError, Tsunagi } from "../dist/index.js";
 import { resources } from "../dist/generated.js";
 
 let reports = 0;  // capabilities requests: the access cache should spare most
@@ -31,6 +31,11 @@ assert.deepEqual(report.items[1].error.duplicateNoteIds, [ids[0]]);
 await anki.notes.update(ids[0], { fields: { Back: "A" }, addTags: ["checked"] });
 const [check] = await anki.notes.check([{ deck: "Default", noteType: "Basic", fields: { Front: "banana" } }], { duplicateIds: true });
 assert.deepEqual([check.state, check.duplicateNoteIds], ["duplicate", [ids[1]]]);
+const banana = { deck: "Default", noteType: "Basic", fields: { Front: "banana" } };
+assert.equal(await anki.notes.exists(banana), true);
+assert.deepEqual(await anki.notes.exists([banana, { ...banana, fields: { Front: "zebra" } }]), [true, false]);
+await assert.rejects(anki.notes.exists({ ...banana, deck: "No such deck" }),
+  error => error instanceof ItemRejectedError && error.failure.code === "invalid");
 const upserted = await anki.notes.upsert({ deck: "Default", noteType: "Basic", fields: { Front: "banana", Back: "B" }, fieldRules: { Back: "replace" } });
 assert.deepEqual([upserted.action, upserted.id, upserted.fieldsChanged], ["updated", ids[1], ["Back"]]);
 
@@ -60,6 +65,10 @@ await anki.cards.setFlag(cardIds.slice(0, 1), "green");
 await anki.cards.suspend(cardIds.slice(1, 2));
 assert.deepEqual(await anki.cards.where("flag", "eq", "green").values("id").take(10), cardIds.slice(0, 1));
 assert.deepEqual(await anki.cards.where("queue", "eq", "suspended").values("id").take(10), cardIds.slice(1, 2));
+assert.deepEqual(await anki.cards.is("suspended").values("id").take(10), cardIds.slice(1, 2));
+assert.equal(await anki.cards.search("deck:Default OR deck:Nothing").is("suspended").count(), 1);
+assert.deepEqual(await anki.notes.is("suspended").values("id").take(10),
+  await anki.cards.is("suspended").values("noteId").take(10));
 await anki.cards.answer([{ cardId: cardIds[2], rating: "good" }]);
 const [review] = await anki.reviews.distinctOn("cardId").orderBy("id", "desc").select("cardId", "rating", "type").take(5);
 assert.deepEqual(review, { cardId: cardIds[2], rating: "good", type: "learning" });

@@ -7,8 +7,7 @@ declare const audio: Uint8Array;
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:7777", apiKey: settings.apiKey });
 
 const word = { deck: "Japanese::Mining", noteType: "Basic", fields: { Front: "犬", Back: "dog" } };
-const [check] = await anki.notes.check([word]);
-if (check?.state === "duplicate") {
+if (await anki.notes.exists(word)) {
   console.log("Already have it");
 } else {
   const note = await anki.notes.create({

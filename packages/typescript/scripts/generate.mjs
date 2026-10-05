@@ -226,5 +226,7 @@ out.push(`export const objectFields = {\n${tables.join("\n")}\n} as const;`, "")
 out.push(`export const operations = {\n${operations.join("\n")}\n} as const;`, "");
 out.push(`export const events = {\n${events.join("\n")}\n} as const;`, "");
 out.push(`export const resources = {\n${resources.join("\n")}\n} as const;`, "");
+const states = Object.fromEntries(Object.entries(names.states).filter(([name]) => name !== "_"));
+out.push(`/** Anki's search states as the client names them, and their search terms (is:<term>). */\nexport const states = ${JSON.stringify(states)} as const;`, "");
 
 writeFileSync(target, out.join("\n"));
