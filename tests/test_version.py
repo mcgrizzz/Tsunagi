@@ -16,14 +16,13 @@ def test_the_reported_version_is_the_projects():
     assert ADDON_VERSION == pyproject["project"]["version"]
 
 
-def test_the_clients_carry_the_same_version():
-    # Each client in packages/ is released with the add-on it was tested against.
+def test_the_clients_share_the_api_version():
+    # A client's major.minor is the add-on's (the API it speaks); its patch is
+    # its own, so a client-only change ships without an add-on release.
     import json
 
-    root = Path(__file__).resolve().parents[1] / "packages"
-    typescript = root / "typescript"
-    for manifest in ("package.json", "package-lock.json"):
-        data = json.loads((typescript / manifest).read_text(encoding="utf-8"))
-        assert data["version"] == ADDON_VERSION, manifest
+    typescript = Path(__file__).resolve().parents[1] / "packages" / "typescript"
+    package = json.loads((typescript / "package.json").read_text(encoding="utf-8"))["version"]
     lock = json.loads((typescript / "package-lock.json").read_text(encoding="utf-8"))
-    assert lock["packages"][""]["version"] == ADDON_VERSION
+    assert lock["version"] == lock["packages"][""]["version"] == package
+    assert package.split(".")[:2] == ADDON_VERSION.split(".")[:2], (package, ADDON_VERSION)

@@ -1,19 +1,28 @@
 name: Client publish
 
-# Stages the TypeScript client (packages/typescript) on npm as tsunagi-client
-# when a release is published: the client at the release's tag, at the release's
-# version, tested first, with provenance. npm trusts this workflow file (trusted
-# publishing on npmjs.com, staged only), so there's no token; the version goes
-# live when a maintainer approves it on npmjs.com with 2FA. Run it by hand with
-# a tag to stage a release's client again; a version npm already has is skipped.
+# Stages the TypeScript client (packages/typescript) on npm as tsunagi-client.
+# A client's major.minor is the add-on's (the API it speaks); its patch is its
+# own. Two ways in:
+#   - an add-on release (tag v0.7.0) stages the client at that tag, which must
+#     share the release's major.minor;
+#   - a client-only release (tag client-v0.6.1, pushed by hand) stages that
+#     version, if the API description at the tag matches the newest add-on
+#     release of the same major.minor apart from wording
+#     (tools/client_api_matches.py), so the client never needs an unreleased API.
+# Tested first, with provenance. npm trusts this workflow file (trusted
+# publishing, staged only): the version goes live when a maintainer approves it
+# on npmjs.com with 2FA. A version npm already has is skipped. Run it by hand
+# with either kind of tag to stage it again.
 
 on:
   release:
     types: [published]
+  push:
+    tags: ["client-v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to publish the client from, such as v0.7.0
+        description: A release tag (v0.7.0) or a client tag (client-v0.6.1)
         required: true
 
 permissions:
@@ -27,11 +36,12 @@ jobs:
       run:
         working-directory: packages/typescript
     env:
-      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
@@ -43,10 +53,28 @@ jobs:
         id: version
         run: |
           version="$(node -p "require('./package.json').version")"
-          if [ "v$version" != "$TAG" ]; then
-            echo "packages/typescript is $version, the release is $TAG" >&2
-            exit 1
-          fi
+          minor="${version%.*}"
+          case "$TAG" in
+            client-v*)
+              if [ "client-v$version" != "$TAG" ]; then
+                echo "packages/typescript is $version, the tag is $TAG" >&2; exit 1
+              fi
+              addon="$(git tag --list "v$minor.*" --sort=-v:refname | head -n 1)"
+              if [ -z "$addon" ]; then
+                echo "No add-on release v$minor.x for client $version" >&2; exit 1
+              fi
+              python3 ../../tools/client_api_matches.py "$addon"
+              ;;
+            v*)
+              release="${TAG#v}"
+              if [ "$minor" != "${release%.*}" ]; then
+                echo "packages/typescript is $version, the release is $TAG: major.minor must match" >&2; exit 1
+              fi
+              ;;
+            *)
+              echo "Not a release or client tag: $TAG" >&2; exit 1
+              ;;
+          esac
           if npm view "tsunagi-client@$version" version >/dev/null 2>&1; then
             echo "npm already has tsunagi-client $version; nothing to publish."
             echo "skip=true" >> "$GITHUB_OUTPUT"

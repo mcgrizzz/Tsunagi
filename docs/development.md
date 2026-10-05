@@ -150,10 +150,10 @@ kiso sync --watch     # or KISO_ADDON_DIR=/path/to/Anki2/addons21/tsunagi kiso s
 
 ## Package for AnkiWeb
 
-Keep the version the same in `pyproject.toml`, `tsunagi/shared/version.py`
-and the client's `packages/typescript/package.json` and `package-lock.json`
-(a test checks; each client is released with the add-on it was tested
-against), then run `kiso build`. It writes:
+Keep the version the same in `pyproject.toml` and `tsunagi/shared/version.py`,
+and the client's major.minor (`packages/typescript/package.json` and
+`package-lock.json`) the same as theirs (a test checks both), then run
+`kiso build`. It writes:
 
 | File | Purpose |
 | --- | --- |
@@ -204,12 +204,21 @@ The [Release workflow](../.github/workflows/release.yml):
   `python -m http.server -d site`. It needs **Settings → Pages → Source:
   GitHub Actions** once.
 - Publishing a release also stages the TypeScript client on npm as
-  `tsunagi-client`, at the release's version, through the
+  `tsunagi-client`, through the
   [client publish workflow](../.github/workflows/client-publish.yml): the client
-  at the release's tag, tested first, with provenance. Approve the staged
-  version on npmjs.com (2FA) to publish it. npm trusts that workflow file
-  (trusted publishing, staged only), so it needs no token. A version npm
-  already has is skipped.
+  at the release's tag, which must share its major.minor, tested first, with
+  provenance. Approve the staged version on npmjs.com (2FA) to publish it.
+  npm trusts that workflow file (trusted publishing, staged only), so it needs
+  no token. A version npm already has is skipped, so bump the client when it
+  changed.
+- **A client-only release** ships client changes without an add-on release:
+  bump the client's patch (`npm version 0.6.1 --no-git-tag-version` in
+  `packages/typescript`), commit, push, then
+  `git tag client-v0.6.1 && git push origin client-v0.6.1`. The same workflow
+  stages it, but only if the API description at the tag matches the newest
+  add-on release of the same major.minor apart from wording
+  (`tools/client_api_matches.py`): a client that needs an API change waits for
+  an add-on release.
 - The browser check isn't part of CI; run it [before tagging](#tests).
 
 ## Code organization
