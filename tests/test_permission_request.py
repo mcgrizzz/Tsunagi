@@ -206,3 +206,28 @@ def test_ankiconnect_request_permission_gives_no_key(client, prompt, monkeypatch
 def test_a_malformed_request_is_422_without_asking(client, prompt, body):
     shown, _answers, _settings = prompt
     assert ask_access(client, body=body).status_code == 422 and shown == []
+
+
+def test_a_website_allowed_as_an_app_needs_its_key(client, prompt):
+    """Without it, a site allowed as Read-only could leave the key out and get the keyless role."""
+    _shown, answers, _settings = prompt
+    answers.extend([allow("read_only"), allow("read_only")])
+    old = ask_access(client).json()["key"]
+    key = ask_access(client).json()["key"]
+    keyless = client.get("/v1/decks", headers={"Origin": SITE})
+    assert keyless.status_code == 403 and "its own key" in keyless.text
+    assert client.get("/v1/decks", headers={"Origin": SITE, "X-Api-Key": old}).status_code == 403
+    assert client.get("/v1/decks", headers={"Origin": SITE, "X-Api-Key": key}).status_code == 200
+    preflight = client.options("/v1/decks", headers={"Origin": SITE, "Access-Control-Request-Method": "GET",
+                                                     "Access-Control-Request-Headers": "x-api-key"})
+    assert preflight.status_code == 200
+
+
+def test_on_ankiconnects_endpoint_too_a_website_app_needs_its_key(client, prompt):
+    _shown, answers, _settings = prompt
+    answers.append(allow("read_only"))
+    key = ask_access(client).json()["key"]
+    keyless = client.post("/", json={"action": "deckNames", "version": 6}, headers={"Origin": SITE})
+    keyed = client.post("/", json={"action": "deckNames", "version": 6, "key": key}, headers={"Origin": SITE})
+    assert keyless.status_code == 403
+    assert keyed.status_code == 200 and keyed.json()["error"] is None

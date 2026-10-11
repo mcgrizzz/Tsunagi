@@ -139,6 +139,27 @@ class Settings:
                       grants=grants if enabled else frozenset(), key=key, local=local,
                       enabled=enabled)
 
+    def site_app(self, origin: Any) -> Optional[Dict[str, Any]]:
+        """The app of a website that asked for access (6.124), on or off."""
+        for app in self.get("apps") or []:
+            if isinstance(app, dict) and origin and app.get("origin") == origin:
+                return app
+        return None
+
+    def origin_allowed_with(self, origin: str, key: Any) -> bool:
+        """
+        An allowed origin, or a website's own origin with its app's key while
+        the app is on (6.124). Only with the key: otherwise a site you allowed
+        as Read-only could leave the key out and get the keyless role.
+        """
+        if self.is_origin_allowed(origin):
+            return True
+        app = self.site_app(origin)
+        app_key = app.get("key") if app else None
+        return (app is not None and app.get("enabled") is not False and isinstance(key, str)
+                and isinstance(app_key, str) and bool(app_key)
+                and secrets.compare_digest(key.encode(), app_key.encode()))
+
     def add_cors_origin(self, origin: str) -> None:
         allowlist = list(self.get("cors_allowlist", []))
         if origin in allowlist:
@@ -153,17 +174,13 @@ class Settings:
         127.0.0.1 origins and browser extensions (this is why Yomitan works
         against a stock AnkiConnect install with no setup). One deviation:
         Anki's own page origin also needs gates.anki_page_scripts. A website
-        that asked for access is allowed while its app is on (6.124).
+        that asked for access is let in by origin_allowed_with, with its key.
         """
         allowlist = self.get("cors_allowlist", [])
         if origin in allowlist:
             return True
         if self.is_blocked_anki_page(origin):
             return False  # not even "*" or the 127.0.0.1 rule
-        # A website you allowed when it asked (6.124): in while its app is on.
-        if any(isinstance(a, dict) and a.get("origin") == origin and a.get("enabled") is not False
-               for a in self.get("apps") or []):
-            return True
         if "*" in allowlist:
             return True
         if "http://localhost" in allowlist:

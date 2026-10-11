@@ -115,7 +115,8 @@ Saved as `apps`:
 address or a program by the name it gives (which Tsunagi can't check), and a
 role to give it. **Allow** adds it here with that role and sends it its key,
 once. A website's app shows its address under its name, and the site can call
-Tsunagi only while the app is on. If it asks again, Anki asks you again, and
+Tsunagi only with that key, while the app is on: without it, the site is
+refused, so it can't skip the role you chose. If it asks again, Anki asks you again, and
 allowing gives it a new key.
 
 ## Requests without a key

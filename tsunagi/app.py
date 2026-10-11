@@ -379,7 +379,7 @@ async def ankiconnect_rpc_endpoint(request: Request) -> Any:
     if entry is not None and error is None:
         entry["action"] = action
         entry["app"] = settings.resolve_caller(body.get("key"), local).name
-    if not origin_allowed_for(action, origin):
+    if not origin_allowed_for(action, origin, key=body.get("key") if error is None else None):
         # Same wire response AnkiConnect gives a disallowed origin
         from fastapi import Response
         return Response(status_code=403)

@@ -222,18 +222,19 @@ def handle_ankiconnect_rpc(
         current_caller.reset(token)
 
 
-def origin_allowed_for(action: str, origin: Optional[str], settings: Any = None) -> bool:
+def origin_allowed_for(action: str, origin: Optional[str], settings: Any = None, key: Any = None) -> bool:
     """
     AnkiConnect's rule: a request with no Origin (non-browser client) is fine,
     an allowlisted origin is fine, and requestPermission is always let through
-    so a browser client can ask for access.
+    so a browser client can ask for access. A website that got its own key
+    (6.124) is let in with that key, as on /v1.
     """
     if origin is None:
         return True
     if action == "requestPermission":
         return True
     settings = settings if settings is not None else _default_settings()
-    return settings.is_origin_allowed(origin)
+    return settings.origin_allowed_with(origin, key)
 
 
 def get_available_actions() -> Dict[str, list[str]]:

@@ -45,7 +45,7 @@ reviewed 2026-10-03 against Tsunagi 0.5.1 and Anki 26.09.
 | Browser extension | Default role | The default allowed origin `http://localhost` also allows every extension, as in AnkiConnect, so Yomitan works with no setup. |
 | Web page served from `127.0.0.1`, any port | Default role | Same rule. Includes local dev servers and other apps' web pages. |
 | Anki's own pages (reviewer, previewer, add-on pages) | None, unless **Allow card templates and add-on pages** is on | Card templates run JavaScript there. See [check 4](#how-the-checks-work). |
-| Web page on another site | None, unless you allow it | Refused before anything runs. You allow a site by adding it under **Allowed website origins**, or by allowing it when it asks. Through `POST /v1/permissions:request` it gets its own app, key and role, and is let in while that app is on. Through AnkiConnect's `requestPermission`, or the allowed list, its requests come from your browser on this computer, so without a key it gets the "No key, this computer" role (Default), like a local page. |
+| Web page on another site | None, unless you allow it | Refused before anything runs. You allow a site by adding it under **Allowed website origins**, or by allowing it when it asks. Through `POST /v1/permissions:request` it gets its own app, key and role, and is let in with that key while that app is on. Through AnkiConnect's `requestPermission`, or the allowed list, its requests come from your browser on this computer, so without a key it gets the "No key, this computer" role (Default), like a local page. |
 | Another device on the network | Only with an app's key | The default host `127.0.0.1` isn't reachable from it. With another host, keyless requests get the role for other devices under **Requests without a key**: No access unless you change it. Tsunagi serves plain HTTP, so the connection doesn't encrypt the key or your data; someone able to intercept that traffic could read them. |
 | Another device through a proxy on this computer (Tailscale Serve) | Only with an app's key | The proxy's name must be under **Other host names**, and forwarded requests always count as other devices. Tailscale encrypts the traffic between devices, so this is the safer way to connect from elsewhere. |
 
@@ -172,7 +172,9 @@ response without CORS headers.
     program by the name it gives, marked as unchecked, with its address when
     it's another device. You choose its role; **Allow** makes it an app and
     sends its key once. A website's app keeps its origin, and the site is
-    let through only while the app is on. Asking again always asks you, and
+    let through only with that key, while the app is on (on `/` too, with
+    the key in the body); without it, it's refused rather than given the
+    keyless role, which would undo the role you chose. Asking again always asks you, and
     allowing replaces the key; a request with no Origin asks too, so no
     program gets a key without you.
   - A key, not an origin, carries the role: any program can send any Origin

@@ -321,12 +321,14 @@ class DynamicCORSMiddleware:
         # same-origin requests; the external-site allowlist does not apply.
         host = headers.get("host")
         same_origin = bool(host) and origin == f"{scope.get('scheme', 'http')}://{host}"
-        allowed = same_origin or self.settings.is_origin_allowed(origin)
         asks = scope["path"] in PERMISSION_PATHS
+        # A website's own app (6.124): a preflight carries no key, so its origin
+        # passes; the request itself needs the app's key.
+        site_app = self.settings.site_app(origin) is not None
 
         # Preflight
         if scope["method"] == "OPTIONS" and "access-control-request-method" in headers:
-            if allowed or asks:
+            if same_origin or self.settings.is_origin_allowed(origin) or asks or site_app:
                 resp = PlainTextResponse("OK", headers={
                     # Echo the concrete origin, never the literal "*"
                     "Access-Control-Allow-Origin": origin,
@@ -341,6 +343,7 @@ class DynamicCORSMiddleware:
             return await resp(scope, receive, send)
 
         # Actual request
+        allowed = same_origin or self.settings.origin_allowed_with(origin, provided_key(scope))
         if allowed or (asks and scope["method"] == "POST"):
             async def send_with_cors(message):
                 if message["type"] == "http.response.start":
@@ -350,6 +353,7 @@ class DynamicCORSMiddleware:
                 await send(message)
             return await self.app(scope, receive, send_with_cors)
 
-        resp = PlainTextResponse("Disallowed CORS origin", status_code=403,
-                                 headers={"Vary": "Origin"})
+        detail = ("This website has its own key in Tsunagi: send it as X-Api-Key, or ask for access "
+                  "again" if site_app else "Disallowed CORS origin")
+        resp = PlainTextResponse(detail, status_code=403, headers={"Vary": "Origin"})
         await resp(scope, receive, send)
