@@ -4,14 +4,15 @@ Each version of the TypeScript client, newest first. Its major.minor is
 Tsunagi's: 0.7.x speaks the API of Tsunagi 0.7.x. Patch versions are client
 changes that need no add-on release.
 
-## Unreleased
+## 0.7.1 (2026-10-11)
+
+Needs Tsunagi 0.7.1 for `requestAccess()` and day changes; the rest works with 0.7.0.
 
 - **Ask for access:** `anki.requestAccess({ name, role })` asks Tsunagi for a
   key. Anki shows the user your app (its website, or the name you give) and
   the role you suggest; if they allow it, the answer carries the key, once.
   Keep it and make a client with it. It waits for the user, up to two minutes.
-  Needs a Tsunagi that issues keys this way (0.7.1).
-
+  Needs Tsunagi 0.7.1.
 - **Typed `raw`:** `anki.raw.request("PATCH /v1/notes/{id}", { path: { id },
   body })` reaches every operation in Tsunagi's API description. The route
   autocompletes; path and query parameters, the body and the answer are typed
@@ -28,8 +29,8 @@ changes that need no add-on release.
   untyped, and a write is keyed only when you pass an `idempotencyKey`.
 - **Watches stay right overnight:** when Anki's day changes, a watch reads
   everything again (a search like `is:due` or `rated:1` matches other cards
-  though none changed), and `onChange` is called. Needs a Tsunagi that sends
-  `day.changed`; with Tsunagi 0.7.0 nothing changes.
+  though none changed), and `onChange` is called. Needs Tsunagi 0.7.1; with
+  0.7.0 nothing changes.
 
 ## 0.7.0 (2026-10-05)
 
