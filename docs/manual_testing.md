@@ -67,6 +67,13 @@ results are in the [archived manual log](archive/manual_test_plan.md).
   screen: `day.changed` arrives just after 13:00. Then, at 12:55 with the hour set to 4 and the profile reopened, set
   it to 13: `day.changed` arrives at once (Anki's day steps back) and again
   just after 13:00. Turn automatic time back on afterwards.
+- [ ] A website asks for access: from a browser tab on a site not in Allowed
+  websites, run `fetch('<address>/v1/permissions:request', {method: 'POST'})`
+  in its console. Anki shows the prompt naming the site, with **Don't allow**
+  as the default; Enter doesn't allow it. **Allow** answers `granted` and adds
+  the site; ask again from another site and choose **Don't allow** with
+  **Don't ask again for this website**: `denied`, and a second request
+  answers at once without a prompt. Remove both afterwards.
 - [ ] Close and reopen Anki: the server starts and the tool reconnects.
 
 Test sync, profile switching or closing Anki only when that's the point of the
