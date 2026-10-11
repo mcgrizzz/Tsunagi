@@ -1614,6 +1614,78 @@
         ],
         "type": "object"
       },
+      "EmptyCardsNote": {
+        "properties": {
+          "card_ids": {
+            "description": "The note's empty cards that are (or would be) deleted.",
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "note_deleted": {
+            "description": "The note goes too: all its cards were empty.",
+            "type": "boolean"
+          },
+          "note_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "note_id",
+          "card_ids",
+          "note_deleted"
+        ],
+        "type": "object"
+      },
+      "EmptyCardsRequest": {
+        "additionalProperties": false,
+        "description": "Body for POST /v1/cards:delete-empty (6.119), the options of Anki's Empty Cards window.",
+        "properties": {
+          "dry_run": {
+            "default": false,
+            "description": "Answer what would be deleted, and delete nothing.",
+            "type": "boolean"
+          },
+          "keep_notes": {
+            "default": true,
+            "description": "Keep a note whose cards are all empty, with its first card, as Anki's \"Keep notes with no valid cards\" does; false deletes such notes.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "EmptyCardsResult": {
+        "properties": {
+          "cards_deleted": {
+            "type": "integer"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "notes": {
+            "description": "Each note with cards deleted.",
+            "items": {
+              "$ref": "#/components/schemas/EmptyCardsNote"
+            },
+            "type": "array"
+          },
+          "notes_deleted": {
+            "type": "integer"
+          },
+          "stats": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "notes",
+          "cards_deleted",
+          "notes_deleted",
+          "dry_run",
+          "stats"
+        ],
+        "type": "object"
+      },
       "ErrorBody": {
         "properties": {
           "detail": {
@@ -5518,6 +5590,57 @@
           }
         ],
         "summary": "Move cards to another deck",
+        "tags": [
+          "Cards"
+        ],
+        "x-permission": "write:cards"
+      }
+    },
+    "/v1/cards:delete-empty": {
+      "post": {
+        "description": "Anki's Tools > Empty Cards: deletes the cards whose template shows nothing, in the whole collection, as one undo step. A note whose cards are all empty keeps its first card unless `keep_notes` is false, which deletes the note (and needs `write:notes`). With `dry_run`, answers what would be deleted and deletes nothing.",
+        "operationId": "cardsDeleteEmpty",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCardsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyCardsResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete empty cards",
         "tags": [
           "Cards"
         ],

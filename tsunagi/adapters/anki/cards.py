@@ -796,3 +796,35 @@ def batch_cards(col: Collection, operations: Sequence[Any]) -> Any:
 
     value = {"affected": sum(r["affected"] for r in results), "results": results}
     return ValueWithChanges(value, changes)
+
+
+def _empty_cards_plan(col: Collection, keep_notes: bool) -> Dict[str, Any]:
+    """Anki's Empty Cards report, and what its window's Delete would remove (6.119)."""
+    notes, card_ids = [], []
+    for found in col.get_empty_cards().notes:
+        ids = [int(i) for i in found.card_ids]
+        if found.will_delete_note and keep_notes:
+            ids = ids[1:]  # the window keeps such a note's first card
+        if ids:
+            notes.append({"note_id": int(found.note_id), "card_ids": ids,
+                          "note_deleted": bool(found.will_delete_note and not keep_notes)})
+            card_ids.extend(ids)
+    return {"notes": notes, "card_ids": card_ids, "cards_deleted": len(card_ids),
+            "notes_deleted": sum(n["note_deleted"] for n in notes)}
+
+
+@as_query_op
+def plan_empty_cards(col: Collection, keep_notes: bool) -> Dict[str, Any]:
+    return _empty_cards_plan(col, keep_notes)
+
+
+@as_collection_op
+def delete_empty_cards(col: Collection, keep_notes: bool) -> Any:
+    """As Anki's Empty Cards window deletes them: one undo step."""
+    plan = _empty_cards_plan(col, keep_notes)
+    if not plan["card_ids"]:
+        return plan  # nothing empty, no write: Anki would still record an empty step
+    changes = col.remove_cards_and_orphaned_notes(plan["card_ids"])
+    gone = [n["note_id"] for n in plan["notes"] if n["note_deleted"]]
+    return ValueWithChanges(plan, changes, event_changes=lambda: {
+        "cards": {"deleted": list(plan["card_ids"])}, "notes": {"deleted": gone}})

@@ -1,7 +1,7 @@
 import time
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
-from fastapi import Body
+from fastapi import Body, HTTPException
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError as PydanticValidationError
 
@@ -15,11 +15,13 @@ from ...adapters.anki.cards import (
     batch_cards,
     bury_cards,
     change_deck,
+    delete_empty_cards,
     find_card_ids,
     forget_cards,
     get_card_rows_by_ids,
     get_cards_of_notes,
     page_card_ids,
+    plan_empty_cards,
     reposition_cards,
     set_card_values,
     set_due_date,
@@ -37,7 +39,7 @@ from ...shared.errors import (
     field_loc,
     handle_mutation_errors,
 )
-from ...shared.permissions import requires
+from ...shared.permissions import current_denial, permitted, requires
 from ...shared.planning import IndexSpec, OrderSpec, SearchSpec, SourceCaps
 from ...shared.route_factory import create_resource_routes, make_id_getter
 from ...shared.schemas.cards import (
@@ -47,6 +49,8 @@ from ...shared.schemas.cards import (
     CardIds,
     CardInfo,
     ChangeDeckRequest,
+    EmptyCardsRequest,
+    EmptyCardsResult,
     ForgetRequest,
     RepositionRequest,
     SetCardValuesRequest,
@@ -163,6 +167,32 @@ def forget(body: ForgetRequest = Body(...)) -> VerbResult:
         reset_counts=body.reset_counts,
     )
     return _result(affected, start)
+
+
+@router.post(
+    "/v1/cards:delete-empty",
+    openapi_extra=requires("write:cards"),
+    response_model=EmptyCardsResult,
+    summary="Delete empty cards",
+    description=(
+        "Anki's Tools > Empty Cards: deletes the cards whose template shows nothing, in the "
+        "whole collection, as one undo step. A note whose cards are all empty keeps its first "
+        "card unless `keep_notes` is false, which deletes the note (and needs `write:notes`). "
+        "With `dry_run`, answers what would be deleted and deletes nothing."
+    ),
+    tags=["Cards"],
+    operation_id="cardsDeleteEmpty",
+)
+@handle_mutation_errors("delete-empty")
+def delete_empty(body: Optional[EmptyCardsRequest] = Body(None)) -> dict:
+    start = time.perf_counter()
+    body = body or EmptyCardsRequest()  # no body: Anki's defaults
+    if not body.keep_notes and not permitted("write:notes"):
+        raise HTTPException(status_code=403, detail=current_denial("write:notes"))
+    plan = plan_empty_cards(body.keep_notes) if body.dry_run else delete_empty_cards(body.keep_notes)
+    plan = {k: v for k, v in plan.items() if k != "card_ids"}
+    return {**plan, "dry_run": body.dry_run,
+            "stats": {"duration_ms": round((time.perf_counter() - start) * 1000, 3)}}
 
 
 @_verb("set-due-date", "Set the due date",

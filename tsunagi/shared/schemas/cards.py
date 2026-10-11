@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, StrictBool, validator
 
 from .notes import NoteField, unique_ids
 from .wrappers import NULLABLE, RequestBody, coded, derived
@@ -227,4 +227,30 @@ class BatchOpResult(BaseModel):
 class BatchResult(BaseModel):
     affected: int
     results: List[BatchOpResult]
+    stats: dict
+
+
+class EmptyCardsRequest(RequestBody):
+    """Body for POST /v1/cards:delete-empty (6.119), the options of Anki's Empty Cards window."""
+    class Config:
+        allow_population_by_field_name = True
+
+    keep_notes: StrictBool = Field(True, alias="keepNotes", description=(
+        "Keep a note whose cards are all empty, with its first card, as Anki's \"Keep notes "
+        "with no valid cards\" does; false deletes such notes."))
+    dry_run: StrictBool = Field(False, alias="dryRun", description=(
+        "Answer what would be deleted, and delete nothing."))
+
+
+class EmptyCardsNote(BaseModel):
+    note_id: int
+    card_ids: List[int] = Field(description="The note's empty cards that are (or would be) deleted.")
+    note_deleted: bool = Field(description="The note goes too: all its cards were empty.")
+
+
+class EmptyCardsResult(BaseModel):
+    notes: List[EmptyCardsNote] = Field(description="Each note with cards deleted.")
+    cards_deleted: int
+    notes_deleted: int
+    dry_run: bool
     stats: dict
