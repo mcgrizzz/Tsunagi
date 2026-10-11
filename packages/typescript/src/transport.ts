@@ -30,6 +30,7 @@ export function deadline(timeoutMs: number, parent?: AbortSignal) {
 }
 
 export interface JsonResponse { status: number; data: unknown; headers: Headers; idempotencyKey: string | undefined }
+export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export class Transport {
   private readonly root: URL;
@@ -61,7 +62,7 @@ export class Transport {
   }
 
   async request(
-    method: "GET" | "POST" | "PATCH" | "DELETE",
+    method: Method,
     path: string,
     { body, query, write = false, ...options }: WriteOptions & {
       body?: unknown; query?: URLSearchParams | undefined; write?: false | "keyed" | "unkeyed";

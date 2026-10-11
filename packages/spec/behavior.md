@@ -433,7 +433,7 @@ ignored.
 | cards ids on a notes watch | find their notes (`notes`, `search=cid:<ids>`, values `id`), then check those |
 | notes ids on a cards watch | find their cards (`cards`, `where=note_id in[<ids>]`, values `id`), then check those |
 | ids from another of its resources (cards on a reviews watch) | nothing: only that resource's `.stale` is followed |
-| any `.stale` of its resources; `gap`; a `ready` after a drop | read everything again |
+| any `.stale` of its resources; `day.changed`; `gap`; a `ready` after a drop | read everything again |
 
 **Checking keys** is one request, read in pages of 2,000: the query
 (search, filters, select) narrowed to those keys. On notes and cards with a
@@ -476,9 +476,10 @@ the app may not receive what it asked for, and returns a subscription.
 
 - **`onChange`** is on every resource Tsunagi sends events for (the ones a
   watch is on). Each of the resource's messages counts (created, updated,
-  deleted, stale), and so do `gap` and a `ready` after a drop. Messages that
-  arrive while the listener is still running (until the value it returns
-  settles, when it returns one) are one more call afterwards, not one each.
+  deleted, stale), and so do `day.changed` (Anki's day changed), `gap` and a
+  `ready` after a drop. Messages that arrive while the listener is still
+  running (until the value it returns settles, when it returns one) are one
+  more call afterwards, not one each.
   It doesn't follow related resources: for "the 20 newest, kept current",
   run the query again in the listener.
 - **`cards.onAnswered`**: the `cards.answered` message in client names and
@@ -504,9 +505,18 @@ the app may not receive what it asked for, and returns a subscription.
 - The key goes in `X-Api-Key`, read again for every request (it may
   rotate), never in a URL.
 - Redirects are refused; cookies are never sent.
-- `raw.request(method, path, body)` reaches any endpoint and returns the
-  status, headers and undecoded JSON. A raw write sends a key only when the
-  caller gives one.
+- `raw.request(route, {path, query, body})` reaches every operation in the
+  API description by its route, `"METHOD /v1/path"` with path parameters in
+  braces (`"PATCH /v1/notes/{id}"`), generated from the description: path
+  and query parameters and the body in wire names, typed where the language
+  allows. It answers the status, headers and the JSON undecoded, in wire
+  names, its type chosen by the status. A write the description gives an
+  `Idempotency-Key` is keyed like the client's own writes; a read (`GET`, or
+  a `POST …/query`) sends no key. A path parameter is one encoded segment;
+  empty, `.` or `..` is refused before sending. Nothing is retried.
+- `raw.request(method, path, options)`, the older form, is deprecated: untyped,
+  for routes newer than the client; a write sends a key only when the caller
+  gives one.
 
 ## Live scenarios
 

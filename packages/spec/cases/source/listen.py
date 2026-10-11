@@ -20,13 +20,14 @@ CAPS = {"method": "GET", "path": "/v1/capabilities"}
 def with_access(**kw):  # the listener checks its option with access(): the cache joins first
     return [{"expect": events(), "stream": True}, ready(), {"expect": CAPS, "response": caps(**kw)}]
 cases = [
- {"name": "onChange is called when something in its resource changes, and not for other resources",
+ {"name": "onChange is called when something in its resource changes or Anki's day changes, and not for other resources",
   "script": [{"call": {"method": "notes.onChange"}, "as": "s", "listener": "c"},
              {"expect": events(["notes"]), "stream": True}, ready(["notes"]), {"settle": "s", "ok": True},
              send(msg("notes.created", ids=[1], by="ui")), {"heard": "c", "calls": [None]},
              send(msg("cards.updated", ids=[2], by="ui")), {"heard": "c", "calls": []},
              send(msg("notes.stale", reason="collection")), {"heard": "c", "calls": [None]},
              send({"event": "gap", "data": {"type": "gap", "after_seq": 0, "session_id": "s", "ts": 1, "reason": "lagged", "discarded": 2}}), {"heard": "c", "calls": [None]},
+             send(msg("day.changed")), {"heard": "c", "calls": [None]},
              {"end": True}, {"wait": 1000}, {"expect": events(["notes"]), "stream": True}, ready(["notes"]), {"heard": "c", "calls": [None]}]},
  {"name": "a connection that can't be made at first fails the call instead of waiting",
   "script": [{"call": {"method": "notes.onChange"}, "as": "s", "listener": "c"},

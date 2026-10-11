@@ -4,6 +4,22 @@ Each version of the TypeScript client, newest first. Its major.minor is
 Tsunagi's: 0.7.x speaks the API of Tsunagi 0.7.x. Patch versions are client
 changes that need no add-on release.
 
+## Unreleased
+
+- **Typed `raw`:** `anki.raw.request("PATCH /v1/notes/{id}", { path: { id },
+  body })` reaches every operation in Tsunagi's API description. The route
+  autocompletes; path and query parameters, the body and the answer are typed
+  in Tsunagi's own names (`note_type_name`), so a misspelled key doesn't
+  compile; the answer's type follows its status (`202` for a job still
+  running). Writes are keyed like the client's own methods. `PUT` routes
+  (field and template order) are reachable now.
+- `raw.request(method, path, options)` still works but is deprecated: it is
+  untyped, and a write is keyed only when you pass an `idempotencyKey`.
+- **Watches stay right overnight:** when Anki's day changes, a watch reads
+  everything again (a search like `is:due` or `rated:1` matches other cards
+  though none changed), and `onChange` is called. Needs a Tsunagi that sends
+  `day.changed`; with Tsunagi 0.7.0 nothing changes.
+
 ## 0.7.0 (2026-10-05)
 
 Needs Tsunagi 0.7.0. Breaking: what to change is below.

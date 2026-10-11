@@ -188,6 +188,28 @@ async function contract() {
   const raw = await anki.raw.request("GET", "/v1/capabilities");
   // @ts-expect-error Raw JSON requires checking/decoding.
   raw.data.operations;
+  // Typed raw: the route names the operation; parameters, body and answers in wire names.
+  const rawPage = await anki.raw.request("GET /v1/cards", { query: { search: "is:due", select: "id,note_id", limit: 50, where: ["interval gte 30"] } });
+  const noteId: number | undefined = rawPage.data.items[0]?.note_id;
+  const cursor: string | null | undefined = rawPage.data.next_cursor;
+  void [noteId, cursor];
+  await anki.raw.request("PATCH /v1/notes/{id}", { path: { id: 1 }, body: { fields: { Front: "犬" } }, idempotencyKey: "patch-1" });
+  await anki.raw.request("PUT /v1/note-types/{note_type_id}/fields:order", { path: { note_type_id: 1 }, body: { order: ["Back", "Front"] } });
+  // @ts-expect-error A misspelled body key is refused.
+  await anki.raw.request("PATCH /v1/notes/{id}", { path: { id: 1 }, body: { feilds: { Front: "犬" } } });
+  // @ts-expect-error A route's path parameters are required.
+  await anki.raw.request("PATCH /v1/notes/{id}", { body: { tags: [] } });
+  // @ts-expect-error Query parameters are typed.
+  await anki.raw.request("GET /v1/cards", { query: { limit: "50" } });
+  // @ts-expect-error A read takes no idempotency key.
+  await anki.raw.request("GET /v1/cards", { idempotencyKey: "read" });
+  // @ts-expect-error Only the API's routes.
+  await anki.raw.request("GET /v1/nothing");
+  const rawCreated = await anki.raw.request("POST /v1/notes", { body: { deck_name: "Default", note_type_name: "Basic", fields: { Front: "a", Back: "b" } } });
+  // @ts-expect-error Answers keep wire names.
+  rawCreated.data.noteIds;
+  const job = await anki.raw.request("POST /v1/collection:sync");
+  if (job.status === 202) { const jobId: string = job.data.job_id; void jobId; }
   await anki.collection.sync({ idempotencyKey: "sync-operation" });
   const keyedWrite = { idempotencyKey: "note-operation", timeoutMs: 1_000 };
   await anki.collection.startSync(keyedWrite);

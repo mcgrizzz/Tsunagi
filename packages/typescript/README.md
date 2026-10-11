@@ -86,7 +86,10 @@ anki.close(); // access() keeps a connection open to stay current
 - `query.watch({ added, updated, removed })` keeps an app in step with a
   query as Anki changes; `cards.onAnswered`, `collection.onSync`,
   `decks.onCounts` and `onAccessChange` report events.
-- `anki.raw.request()` reaches any endpoint the client doesn't cover.
+- `anki.raw.request("POST /v1/cards:set-ease", { body })` reaches every
+  operation the client has no method for, typed from the API description in
+  Tsunagi's own names: the route autocompletes, a misspelled key doesn't
+  compile, and writes are keyed like the client's own.
 - [`../spec/behavior.md`](https://github.com/mcgrizzz/Tsunagi/blob/main/packages/spec/behavior.md) is what every Tsunagi client
   does, in any language.
 - [Tsunagi's documentation](https://github.com/mcgrizzz/Tsunagi/blob/main/docs/README.md) for what the server does.

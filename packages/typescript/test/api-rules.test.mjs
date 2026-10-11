@@ -69,7 +69,7 @@ test("uncertain sync submissions retain their cause and key without automatic re
   }
 });
 
-test("raw writes require an explicit key and still report uncertain completion without one", async () => {
+test("the older raw form keys a write only when given a key, and still reports uncertain completion without one", async () => {
   const keys = [];
   const dropped = new TypeError("Lost response");
   const anki = new Tsunagi({

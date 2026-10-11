@@ -1,0 +1,46 @@
+"""Raw requests: every operation by its route, in wire names. Built into ../raw.json by build.py."""
+ok = lambda body, status=200: {"status": status, "body": body}
+m = lambda *args: {"method": "raw.request", "args": list(args)}
+def req(method, path, keyed, body=None, query=None):
+    return {"method": method, "path": path, "query": query or {}, **({} if body is None else {"body": body}), "keyed": keyed}
+done = {"result": None, "stats": {}}
+cases = [
+ {"name": "a route's path parameters are filled in; a write is keyed like the client's own",
+  "call": m("PATCH /v1/notes/{id}", {"path": {"id": 7}, "body": {"fields": {"Front": "犬"}, "add_tags": ["mined"]}}),
+  "exchanges": [{"request": req("PATCH", "/v1/notes/7", True, {"fields": {"Front": "犬"}, "add_tags": ["mined"]}), "response": ok(done)}],
+  "result": {"status": 200, "data": done}},
+ {"name": "a path parameter is one segment, encoded",
+  "call": m("DELETE /v1/tags/{tag}", {"path": {"tag": "a b/c"}}),
+  "exchanges": [{"request": req("DELETE", "/v1/tags/a%20b%2Fc", True), "response": ok(done)}],
+  "result": {"status": 200, "data": done}},
+ {"name": "query parameters in wire names, a list repeated; a read sends no key",
+  "call": m("GET /v1/cards", {"query": {"search": "is:due", "select": "id,note_id", "limit": 5, "where": ["interval>1", "lapses==0"]}}),
+  "exchanges": [{"request": req("GET", "/v1/cards", False, query={"search": "is:due", "select": "id,note_id", "limit": "5", "where": ["interval>1", "lapses==0"]}),
+                 "response": ok({"items": [{"id": 1, "note_id": 2}], "next_cursor": None, "stats": {}})}],
+  "result": {"status": 200, "data": {"items": [{"id": 1, "note_id": 2}], "next_cursor": None, "stats": {}}}},
+ {"name": "a query sent as POST is a read: no key",
+  "call": m("POST /v1/cards/query", {"body": {"search": "is:due", "select": ["id"]}}),
+  "exchanges": [{"request": req("POST", "/v1/cards/query", False, {"search": "is:due", "select": ["id"]}),
+                 "response": ok({"items": [], "next_cursor": None, "stats": {}})}],
+  "result": {"status": 200, "data": {"items": [], "next_cursor": None, "stats": {}}}},
+ {"name": "the caller's key is sent as given",
+  "call": m("PUT /v1/note-types/{note_type_id}/fields:order", {"path": {"note_type_id": 3}, "body": {"order": ["Back", "Front"]}, "idempotencyKey": "order-1"}),
+  "exchanges": [{"request": req("PUT", "/v1/note-types/3/fields:order", "order-1", {"order": ["Back", "Front"]}), "response": ok(done)}],
+  "result": {"status": 200, "data": done}},
+ {"name": "the answer's status says which data: 202 for a job still running",
+  "call": m("POST /v1/collection:sync"),
+  "exchanges": [{"request": req("POST", "/v1/collection:sync", True), "response": ok({"job_id": "j1", "status": "running", "stats": {}}, 202)}],
+  "result": {"status": 202, "data": {"job_id": "j1", "status": "running", "stats": {}}}},
+ {"name": "an error answer is an error, as for the client's own methods",
+  "call": m("GET /v1/notes/{id}", {"path": {"id": 9}}),
+  "exchanges": [{"request": req("GET", "/v1/notes/9", False), "response": ok({"detail": "Note 9 not found"}, 404)}],
+  "error": {"kind": "http", "status": 404}},
+ {"name": "a path parameter that would leave its segment is refused before sending",
+  "call": m("GET /v1/notes/{id}", {"path": {"id": ".."}}), "exchanges": [], "error": {"kind": "argument"}},
+ {"name": "a missing path parameter is refused before sending",
+  "call": m("GET /v1/notes/{id}", {}), "exchanges": [], "error": {"kind": "argument"}},
+ {"name": "the older method-and-path form still works; a write is keyed only with a key",
+  "call": m("POST", "/v1/notes", {"body": []}),
+  "exchanges": [{"request": req("POST", "/v1/notes", False, []), "response": ok({"created": [], "failed": []})}],
+  "result": {"status": 200, "data": {"created": [], "failed": []}}},
+]

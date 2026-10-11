@@ -131,6 +131,8 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
 
   const gather = (raw: Readonly<Record<string, unknown>>) => {
     const type = String(raw.type);
+    // Searches relative to today (is:due) match other rows, though none was written.
+    if (type === "day.changed") { pending.reread = true; return; }
     const entry = Object.hasOwn(events, type) ? events[type as keyof typeof events] : undefined;
     // The connection is shared: only this watch's resources count.
     if (!entry || !("resource" in entry) || !resources.includes(entry.resource)) return;

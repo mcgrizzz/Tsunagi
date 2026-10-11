@@ -32,7 +32,9 @@ tests build it first (`npm test` in `packages/typescript` runs `npm run cases`).
 
 Names are the client's, in camelCase (`noteType`, `createMany`,
 `idempotencyKey`). A client in another case converts them, in calls and in
-results. `{"$bytes": "<base64>"}` in an argument is a byte array.
+results, except inside a raw request's `path`, `query` and `body` and its
+answer's `data`, which are the server's names. `{"$bytes": "<base64>"}` in an
+argument is a byte array.
 
 **`exchanges`**, in order. Each `request` lists:
 
@@ -89,5 +91,6 @@ scenarios: a `script` of steps run in order, with a clock the runner moves.
 | `close` | The client's `close()`. |
 
 An access snapshot, as a result or a listener argument, is compared as
-`{ "role": <caller role> }`. Unless the case says otherwise, the client is
+`{ "role": <caller role> }`, and a raw request's answer as
+`{ "status": <status>, "data": <JSON> }`. Unless the case says otherwise, the client is
 made with the key `k1`. At the end, no request may be pending.

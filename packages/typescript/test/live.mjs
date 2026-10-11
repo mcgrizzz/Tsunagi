@@ -100,6 +100,23 @@ assert.equal(stored.size, 2);
 assert.deepEqual(await anki.notes.delete([ids[2]]), { affected: 1 });
 assert.equal(await anki.notes.count(), 3);
 
+// Typed raw: one operation in each area the test server runs (no GUI, FSRS or
+// add-ons here), wire names both ways; a write is keyed like the client's own.
+const rawNotes = await anki.raw.request("GET /v1/notes", { query: { search: "tag:live", select: "id,first_field", where: ["first_field==\"apple\""] } });
+assert.deepEqual(rawNotes.data.items, [{ id: ids[0], first_field: "apple" }]);
+const patched = await anki.raw.request("PATCH /v1/notes/{id}", { path: { id: ids[0] }, body: { add_tags: ["raw"] } });
+assert.equal(patched.status, 200);
+assert.ok(patched.idempotencyKey);
+assert.deepEqual(await anki.notes.search("tag:raw").values("id").take(5), [ids[0]]);
+await anki.raw.request("POST /v1/cards:set-flag", { body: { card_ids: cardIds.slice(0, 1), flag: 1 } });
+assert.deepEqual(await anki.cards.where("flag", "eq", "red").values("id").take(10), cardIds.slice(0, 1));
+for (const route of ["GET /v1/decks", "GET /v1/deck-presets", "GET /v1/note-types", "GET /v1/tags", "GET /v1/media", "GET /v1/reviews"]) {
+  assert.ok(Array.isArray((await anki.raw.request(route, { query: { limit: 1 } })).data.items), route);
+}
+assert.equal((await anki.raw.request("GET /v1/health")).data.collection.state, "ready");
+assert.equal((await anki.raw.request("GET /v1/collection")).status, 200);
+await assert.rejects(anki.raw.request("GET /v1/jobs/{job_id}", { path: { job_id: "none" } }), error => error.status === 404);
+
 // Access is answered from the cache, and follows a role change: Default can't
 // see card answers, Everything can.
 const answers = access => access.capabilities.operations["GET /v1/events"].options["cards.answered"].status;

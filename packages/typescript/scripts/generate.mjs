@@ -20,6 +20,10 @@ const ref = node => node?.$ref?.split("/").pop();
 const omitted = (schema, wire) => [...names.omit["*"], ...(names.omit[schema] ?? [])].includes(wire);
 /** A schema's short name: FastAPI prefixes a module path when two share a name. */
 const short = schema => schema.split("__").pop().replace(/_+$/, "");
+const counts = Object.keys(schemas).map(short).reduce((seen, name) => seen.set(name, (seen.get(name) ?? 0) + 1), new Map());
+/** The short name, after its module's when another schema shares it (cards and gui both have AnswerRequest). */
+const qualified = schema => counts.get(short(schema)) > 1
+  ? schema.split("__").at(-2).replace(/^./, c => c.toUpperCase()) + short(schema) : short(schema);
 const typeName = schema => names.typeNames[schema] ?? short(schema).replace(/_/g, "");
 const unique = (what, list) => {
   const seen = new Set();
@@ -110,7 +114,7 @@ function fieldTable(fields) {
 // ----- Request bodies, in wire names -----
 
 const bodies = new Set();
-const bodyName = schema => `${short(schema).replace(/_/g, "")}Body`;
+const bodyName = schema => `${qualified(schema).replace(/_/g, "")}Body`;
 function bodyType(node) {
   if (node.anyOf) return [...new Set(node.anyOf.filter(item => item.type !== "null").map(bodyType))].join(" | ");
   if (node.allOf) return bodyType(node.allOf[0]);
@@ -135,6 +139,83 @@ function bodyInterface(schema) {
   return `export interface ${bodyName(schema)} {\n${lines.join("\n")}\n}`;
 }
 
+// ----- Answers in wire names, for raw requests -----
+
+const wires = new Set();
+const wireKey = schema => qualified(schema);
+function wireType(node) {
+  const base = wireBase(node);
+  return (node["x-nullable"] || node.anyOf?.some(item => item.type === "null")) && base !== "unknown" ? `${base} | null` : base;
+}
+function wireBase(node) {
+  if (node.anyOf) return [...new Set(node.anyOf.filter(item => item.type !== "null").map(wireBase))].join(" | ");
+  if (node.allOf) return wireBase(node.allOf[0]);
+  const schema = ref(node);
+  if (schema) { wires.add(schema); return `Wire[${JSON.stringify(wireKey(schema))}]`; }
+  if (node.enum) return node.enum.map(value => JSON.stringify(value)).join(" | ");
+  switch (node.type) {
+    case "integer": case "number": return "number";
+    case "string": return "string";
+    case "boolean": return "boolean";
+    case "array": { const item = wireType(node.items ?? {}); return item.includes(" ") ? `(${item})[]` : `${item}[]`; }
+    case "object":
+      return node.additionalProperties && typeof node.additionalProperties === "object"
+        ? `Record<string, ${wireType(node.additionalProperties)}>` : "Record<string, unknown>";
+    default: return "unknown";
+  }
+}
+/** A list's row schema; its fields are optional for `select`, and say themselves when they can be null. */
+const rowOf = path => ref(schemas[ref(api.paths[path].get.responses["200"].content["application/json"].schema)].properties.items.items);
+const rowSchemas = new Set(Object.keys(names.resources).map(rowOf));
+/** Elsewhere a field the schema doesn't require may be absent, or null unless it has another default (pydantic's Optional). */
+function wireInterface(schema) {
+  const required = schemas[schema].required ?? [];
+  const lines = Object.entries(schemas[schema].properties ?? {}).map(([wire, node]) => {
+    let type = wireType(node);
+    if (!rowSchemas.has(schema) && !required.includes(wire) && (node.default ?? null) === null
+      && type !== "unknown" && !type.endsWith(" | null")) type += " | null";
+    return `${comment(node.description, "    ")}    ${wire}${required.includes(wire) ? "" : "?"}: ${type};`;
+  });
+  return `  ${JSON.stringify(wireKey(schema))}: {\n${lines.join("\n")}\n  };`;
+}
+
+// ----- Every operation, for raw requests: route, parameters, body, answers -----
+
+const routes = [];
+const routeWrites = [];
+for (const [path, item] of Object.entries(api.paths)) {
+  if (!path.startsWith("/v1/")) continue;
+  for (const [method, spec] of Object.entries(item)) {
+    const answered = Object.entries(spec.responses ?? {}).filter(([status]) => status.startsWith("2"));
+    // The event stream has its own connection; a media file answers bytes.
+    if (answered.some(([, response]) => response.content?.["text/event-stream"])
+      || !answered.every(([, response]) => response.content?.["application/json"])) continue;
+    const route = `${method.toUpperCase()} ${path}`;
+    const parameters = parametersOf(spec);
+    const keyed = (spec.parameters ?? []).some(p => ref(p) === "IdempotencyKey");
+    const group = place => {
+      const listed = parameters.filter(p => p.in === place);
+      const lines = listed.map(p => `${p.name}${p.required ? "" : "?"}: ${wireType(p.schema ?? {})}`);
+      return { lines, required: listed.some(p => p.required) };
+    };
+    const options = [];
+    for (const [place, name] of [["path", "path"], ["query", "query"]]) {
+      const { lines, required } = group(place);
+      if (lines.length) options.push(`${name}${required ? "" : "?"}: { ${lines.join("; ")} }`);
+    }
+    const body = spec.requestBody?.content?.["application/json"]?.schema;
+    if (body) options.push(`body${spec.requestBody.required ? "" : "?"}: ${bodyType(body)}`);
+    const answers = answered.map(([status, response]) => `${status}: ${wireType(response.content["application/json"].schema)}`);
+    routes.push(`${comment(spec.summary, "  ")}  ${JSON.stringify(route)}: {\n    options: { ${options.join("; ")} };\n    answers: { ${answers.join("; ")} };\n    keyed: ${keyed};\n  };`);
+    routeWrites.push(`  ${JSON.stringify(route)}: ${keyed ? '"keyed"' : "false"},`);
+  }
+}
+const wireLines = [];
+for (let pending = [...wires], seen = new Set(); pending.length; pending = [...wires].filter(schema => !seen.has(schema))) {
+  for (const schema of pending.sort()) { seen.add(schema); wireLines.push(wireInterface(schema)); }
+}
+unique("wire types", [...wires].map(wireKey));
+
 // ----- Output -----
 
 const out = [
@@ -147,8 +228,7 @@ const rows = [];
 for (const [path, name] of Object.entries(names.resources)) {
   const get = api.paths[path]?.get;
   if (!get) throw new Error(`${path} is not in the API description`);
-  const page = ref(get.responses["200"].content["application/json"].schema);
-  const row = ref(schemas[page].properties.items.items);
+  const row = rowOf(path);
   const fields = fieldsOf(row);
   const type = names.types[name];
   const order = parametersOf(get).find(p => p.name === "order");
@@ -215,6 +295,7 @@ const bodyLines = [];
 for (let pending = [...bodies], seen = new Set(); pending.length; pending = [...bodies].filter(schema => !seen.has(schema))) {
   for (const schema of pending.sort()) { seen.add(schema); bodyLines.push(bodyInterface(schema), ""); }
 }
+unique("request bodies", [...bodies].map(bodyName));
 out.push("// Request bodies, as the server takes them.", "", ...bodyLines);
 
 out.push(`/** Each resource's row type. */\nexport interface Rows {\n${rows.join("\n")}\n}`, "");
@@ -224,6 +305,9 @@ out.push(`export const objectFields = {\n${tables.join("\n")}\n} as const;`, "")
 out.push(`export const operations = {\n${operations.join("\n")}\n} as const;`, "");
 out.push(`export const events = {\n${events.join("\n")}\n} as const;`, "");
 out.push(`export const resources = {\n${resources.join("\n")}\n} as const;`, "");
+out.push(`/** The server's objects in wire names, as raw requests answer them. */\nexport interface Wire {\n${wireLines.join("\n")}\n}`, "");
+out.push(`/** Every operation raw.request reaches: its options (wire names) and answers by status. */\nexport interface RawRoutes {\n${routes.join("\n")}\n}`, "");
+out.push(`/** How each route writes: "keyed" sends an Idempotency-Key; false is a read. */\nexport const routeWrites = {\n${routeWrites.join("\n")}\n} as const;`, "");
 const states = Object.fromEntries(Object.entries(names.states).filter(([name]) => name !== "_"));
 out.push(`/** Anki's search states as the client names them, and their search terms (is:<term>). */\nexport const states = ${JSON.stringify(states)} as const;`, "");
 

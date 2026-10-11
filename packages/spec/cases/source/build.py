@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-NAMES = ["queries", "writes", "access", "watch", "listen"]
+NAMES = ["queries", "writes", "access", "watch", "listen", "raw"]
 
 
 def render(name: str) -> str:

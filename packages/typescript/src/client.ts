@@ -8,6 +8,7 @@ import { decodeAs } from "./decode.js";
 import { decodeSync, DraftProtocol, flagCode, inputId, operationName, ratingCode } from "./protocol.js";
 import type { Operation } from "./protocol.js";
 import { Query } from "./query.js";
+import { raw } from "./raw.js";
 import { deadline, pause, positive, Transport } from "./transport.js";
 import type {
   AddedNote, ClientOptions, Health, IfDuplicate, ItemReport, JobStartOptions, MediaInput, NoteCheck, NoteInput, NotePatch, NoteUpsert, OpenAddInput,
@@ -66,8 +67,9 @@ const sends = <T extends object>(method: T, protocol: DraftProtocol, operation: 
 class Resource<N extends WatchResource> extends Query<N> {
   /**
    * Called when something in this resource changed, without saying what (a
-   * coarse signal: no request of its own). Changes during a call that is still
-   * running (until what it returns settles) make one more call afterwards.
+   * coarse signal: no request of its own), and when Anki's day changed.
+   * Changes during a call that is still running (until what it returns
+   * settles) make one more call afterwards.
    */
   onChange(listener: () => unknown, options: { signal?: AbortSignal } = {}): Promise<Subscription> {
     const events = resources[this.resource].path.split("/").at(-1)!.replaceAll("-", "_");
@@ -78,7 +80,8 @@ class Resource<N extends WatchResource> extends Query<N> {
       hear: (signal, subscription) => {
         if (signal.kind === "down") dropped = true;
         else if (signal.kind === "gap" || (signal.kind === "ready" && dropped)
-          || (signal.kind === "message" && String(signal.message.type).startsWith(`${events}.`))) {
+          || (signal.kind === "message" && (String(signal.message.type).startsWith(`${events}.`)
+            || signal.message.type === "day.changed"))) {
           dropped = false;
           fire(subscription);
         }
@@ -376,12 +379,7 @@ export class Tsunagi {
           },
         }, () => this.access(), options.signal),
     };
-    this.raw = {
-      /** Unknown JSON until the caller validates it. No generic cast to a result type. */
-      request(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, request: WriteOptions & { body?: unknown; query?: URLSearchParams } = {}) {
-        return transport.request(method, path, { ...request, write: method === "GET" ? false : "unkeyed" });
-      },
-    };
+    this.raw = raw(transport);
   }
 
   async health(request: RequestOptions = {}): Promise<Health> {

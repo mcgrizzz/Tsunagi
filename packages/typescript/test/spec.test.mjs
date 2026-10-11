@@ -90,9 +90,10 @@ function compare(spec, outcome) {
   if ("error" in spec) assert.deepEqual(outcome, { error: spec.error });
   else assert.deepEqual(JSON.parse(JSON.stringify({ result: project(outcome.result) ?? null })), { result: spec.result ?? null });
 }
-/** An access snapshot is compared as its caller's role (cases/README.md). */
+/** An access snapshot is compared as its caller's role, a raw answer as its status and data (cases/README.md). */
 function project(value) {
   if (value && typeof value === "object" && "capabilities" in value && "caller" in value) return { role: value.caller.role };
+  if (value && typeof value === "object" && value.headers instanceof Headers) return { status: value.status, data: value.data };
   if (Array.isArray(value)) return value.map(project);
   return value;
 }
