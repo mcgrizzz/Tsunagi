@@ -63,7 +63,7 @@ def _default_ask(origin: Any) -> PermissionDecision:
     return ask_permission_dialog(origin)
 
 
-def _request_permission(
+def request_permission(
     origin: Any,
     settings: Any,
     ask: Optional[Callable[[Any], bool | PermissionDecision]],
@@ -72,7 +72,8 @@ def _request_permission(
     local: bool = True,
 ) -> Dict[str, Any]:
     """
-    AnkiConnect requestPermission contract (API v6).
+    AnkiConnect requestPermission contract (API v6), and the approval flow
+    POST /v1/permissions:request shares (6.26).
     Known/local callers are granted without a dialog; an unknown browser
     origin triggers a main-thread Yes/No dialog and, on accept, is persisted
     to cors_allowlist (picked up live by the CORS middleware).
@@ -155,10 +156,10 @@ def handle_ankiconnect_rpc(
             else:
                 validate_arguments(action, params)
             if _nested:
-                return _success(version, _request_permission(
+                return _success(version, request_permission(
                     params["origin"], settings, ask_permission, allowed=params["allowed"],
                     local=local))
-            return _success(version, _request_permission(origin, settings, ask_permission,
+            return _success(version, request_permission(origin, settings, ask_permission,
                                                          local=local))
         except ValueError as e:
             return _error(str(e))

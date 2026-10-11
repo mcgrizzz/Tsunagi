@@ -44,6 +44,7 @@ from .http.v1.gui import router as gui_router
 from .http.v1.media import router as media_router
 from .http.v1.note_types import router as note_types_router
 from .http.v1.notes import router as notes_router
+from .http.v1.permissions import router as permissions_router
 from .http.v1.reviews import router as reviews_router
 from .http.v1.statistics import router as statistics_router
 from .http.v1.tags import router as tags_router
@@ -287,6 +288,7 @@ app.include_router(gui_router)
 app.include_router(media_router)
 app.include_router(events_router)
 app.include_router(addons_router)
+app.include_router(permissions_router)
 # AnkiBusyError / CollectionUnavailableError -> 503 with a reason
 register_exception_handlers(app, syncing=lambda: anki_collection.syncing)
 

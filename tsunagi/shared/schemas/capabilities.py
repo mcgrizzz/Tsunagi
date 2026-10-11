@@ -59,3 +59,12 @@ def runtime_versions() -> Versions:
     from anki.buildinfo import version
 
     return Versions(anki=version)
+
+
+class PermissionRequestResult(BaseModel):
+    """A website's request for access (6.26)."""
+    permission: Literal["granted", "denied"] = Field(description=(
+        "granted: the website is allowed (it was, or you allowed it in Anki); denied: you "
+        "didn't allow it, it's on the list of websites to ignore, or no one answered in time."))
+    key_required: bool = Field(description=(
+        "Whether requests need an app's key: true when a request without a key has No access."))

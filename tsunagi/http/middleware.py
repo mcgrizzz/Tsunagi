@@ -31,7 +31,10 @@ from ..shared.permissions import ADDON, PUBLIC, allows, current_caller, denied_m
 # - docs       : opened in a browser, where custom headers can't be sent. The
 #                schema leaks structure, not data, on a loopback-bound server.
 # - /v1/health : liveness probe; leaks nothing an open port doesn't already.
-AUTH_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect", "/v1/health"}
+AUTH_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect", "/v1/health",
+                     "/v1/permissions:request"}
+# Where a website not yet allowed asks to be: any origin may reach them (6.26).
+PERMISSION_PATHS = {"/", "/v1/permissions:request"}
 
 
 # Set by a proxy in front of Tsunagi. Tailscale Serve always adds
@@ -290,9 +293,9 @@ class DynamicCORSMiddleware:
     CORS against the live cors_allowlist ("*" allowed). Unknown origins get a
     hard 403 - that's the actual enforcement for keyless local requests (blocks
     cross-origin side effects, not just response reads). Exception: the
-    AnkiConnect root path "/" stays reachable from any origin so that
-    requestPermission can be called and its response read; origin enforcement
-    for "/" happens in the compat dispatcher (as AnkiConnect does it).
+    AnkiConnect root path "/" and POST /v1/permissions:request stay reachable
+    from any origin so that a website can ask for access and read the answer;
+    origin enforcement there happens in the handler (as AnkiConnect does it).
     """
 
     def __init__(self, app, settings):
@@ -319,11 +322,11 @@ class DynamicCORSMiddleware:
         host = headers.get("host")
         same_origin = bool(host) and origin == f"{scope.get('scheme', 'http')}://{host}"
         allowed = same_origin or self.settings.is_origin_allowed(origin)
-        is_compat_root = scope["path"] == "/"
+        asks = scope["path"] in PERMISSION_PATHS
 
         # Preflight
         if scope["method"] == "OPTIONS" and "access-control-request-method" in headers:
-            if allowed or is_compat_root:
+            if allowed or asks:
                 resp = PlainTextResponse("OK", headers={
                     # Echo the concrete origin, never the literal "*"
                     "Access-Control-Allow-Origin": origin,
@@ -338,7 +341,7 @@ class DynamicCORSMiddleware:
             return await resp(scope, receive, send)
 
         # Actual request
-        if allowed or (is_compat_root and scope["method"] == "POST"):
+        if allowed or (asks and scope["method"] == "POST"):
             async def send_with_cors(message):
                 if message["type"] == "http.response.start":
                     hdrs = MutableHeaders(scope=message)

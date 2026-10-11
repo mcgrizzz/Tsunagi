@@ -48,16 +48,20 @@ def ask_permission_dialog(origin: Any, *, timeout: float = 120.0) -> PermissionD
             return PermissionDecision()
         msg = QMessageBox(None)
         msg.setWindowTitle("Tsunagi")
-        msg.setText(f'Allow "{origin}" to access Anki through Tsunagi?')
+        msg.setText(f'The website "{origin}" wants to use Anki through Tsunagi.')
         msg.setInformativeText(
-            "Granting access allows this website to modify your collection, "
-            "including deleting decks and notes."
+            "If you allow it, it can do what apps on this computer can: read and change "
+            "your collection, including deleting notes and decks. Allow only websites "
+            "you trust."
         )
         msg.setWindowIcon(mw.windowIcon())
         msg.setIcon(QMessageBox.Icon.Question)
         msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        # Deny is the default: Enter or a stray click doesn't allow a website (6.26).
+        msg.button(QMessageBox.StandardButton.Yes).setText("Allow")
+        msg.button(QMessageBox.StandardButton.No).setText("Don't allow")
         msg.setDefaultButton(QMessageBox.StandardButton.No)
-        msg.setCheckBox(QCheckBox(text=f'Ignore further requests from "{origin}"', parent=msg))
+        msg.setCheckBox(QCheckBox(text="Don't ask again for this website", parent=msg))
         if hasattr(Qt, "WindowStaysOnTopHint"):
             msg.setWindowFlags(Qt.WindowStaysOnTopHint)
         else:

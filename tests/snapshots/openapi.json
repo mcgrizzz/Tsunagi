@@ -3728,6 +3728,28 @@
         ],
         "type": "object"
       },
+      "PermissionRequestResult": {
+        "description": "A website's request for access (6.26).",
+        "properties": {
+          "key_required": {
+            "description": "Whether requests need an app's key: true when a request without a key has No access.",
+            "type": "boolean"
+          },
+          "permission": {
+            "description": "granted: the website is allowed (it was, or you allowed it in Anki); denied: you didn't allow it, it's on the list of websites to ignore, or no one answered in time.",
+            "enum": [
+              "granted",
+              "denied"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "permission",
+          "key_required"
+        ],
+        "type": "object"
+      },
       "ProfileList": {
         "description": "Every profile Anki knows about, and which one is open.",
         "properties": {
@@ -9914,6 +9936,37 @@
           "Notes"
         ],
         "x-permission": "write:notes"
+      }
+    },
+    "/v1/permissions:request": {
+      "post": {
+        "description": "For a website (a request with an Origin header) that isn't in Allowed websites yet. Anki asks you whether to allow it, and the answer comes back when you choose, or as denied after two minutes. An allowed website is answered at once, without asking; so is a request with no Origin (not a website). A website you asked Anki to ignore is denied without asking. Needs no key and no permission; `key_required` says whether the website's other requests will need an app's key.",
+        "operationId": "requestPermission",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionRequestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Ask for access from a website",
+        "tags": [
+          "Collection"
+        ],
+        "x-permission": "public"
       }
     },
     "/v1/profiles": {

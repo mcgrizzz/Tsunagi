@@ -239,9 +239,10 @@ is calling and why something failed.
 Edit these by hand: close Anki, open the add-on's folder (**Tools → Add-ons**,
 select Tsunagi, **View Files**) and change the `config` section of `meta.json`.
 
-- `ankiconnect_ignore_origins` (default none): websites whose AnkiConnect
-  permission requests are refused without asking. Choosing **No** with
-  **Ignore further requests** adds one. Remove it to let the site ask again.
+- `ankiconnect_ignore_origins` (default none): websites whose requests for
+  access (AnkiConnect's `requestPermission` or `POST /v1/permissions:request`)
+  are refused without asking. Choosing **Don't allow** with **Don't ask again
+  for this website** adds one. Remove it to let the site ask again.
 - `ankiconnect_import_offered`, `ankiconnect_imported_at`, `config_version`:
   bookkeeping; don't edit. Set `ankiconnect_import_offered` to `false` to be
   asked again, at the next start, whether to take over from AnkiConnect.
