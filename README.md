@@ -173,3 +173,12 @@ private note content first.
 | [Benchmarks](docs/benchmarks.md) | [Yomitan case study](docs/api_recipes.md) · [TypeScript client](packages/typescript/README.md) |
 
 [All documentation](docs/README.md) · [Working on Tsunagi](docs/development.md)
+
+## Licence
+
+MIT ([LICENSE](LICENSE)). The AnkiConnect Shim reproduces
+[AnkiConnect](https://git.sr.ht/~foosoft/anki-connect)'s API, by Alex Yatskov
+(GPL-3.0): its actions, parameters and error messages, so tools built for it
+keep working. The libraries Tsunagi bundles keep their own licences, shipped
+beside them in `lib/shared/`. [Kiso](https://github.com/mcgrizzz/Kiso),
+bundled in `tsunagi/_kiso/`, is by the same author and also MIT.

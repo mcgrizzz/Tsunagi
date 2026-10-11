@@ -150,7 +150,7 @@ class EditDialog(QMainWindow):
         self.previous_action.setEnabled(position > 0)
         self.next_action.setEnabled(0 <= position < len(ids) - 1)
         if any(card.queue == QUEUE_TYPE_SUSPENDED for card in cards):
-            tooltip("Some of the cards associated with this note have been suspended", parent=self)
+            tooltip("Some of this note's cards are suspended.", parent=self)
 
     def _switch(self, note_id, remember):
         self._request += 1
