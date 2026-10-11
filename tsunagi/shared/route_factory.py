@@ -800,7 +800,9 @@ def create_resource_routes(
             "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.")),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         # Documented only where it works (6.103); elsewhere it is a 400.
-        search: Optional[str] = Query(default=None, include_in_schema=getattr(caps, "search", None) is not None,
+        search: Optional[str] = Query(default=None, include_in_schema=(
+                                          getattr(caps, "search", None) is not None
+                                          or getattr(caps, "searched", None) is not None),
                                       description="Anki search string (e.g. 'deck:Japanese tag:verb').",
                                       json_schema_extra={"x-from": list(getattr(getattr(caps, "search", None), "reads", ()))}),
         order: Optional[str] = Query(default=None, description=(

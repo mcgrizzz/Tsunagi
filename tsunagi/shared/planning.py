@@ -159,6 +159,11 @@ class SourceCaps:
     # Type of the row key (id_getter) the cursor carries: str for lists keyed
     # by name (tags, media files), int for everything else.
     key_type: type = int
+    # A small resource computed from Anki's search: (query, wants) -> every
+    # row, the empty query meaning the whole collection. The search decides
+    # what the rows hold (review days count the reviews of the cards it
+    # finds), and the shared parameters then work on them as on fetch_all's.
+    searched: Optional[Callable[[str, Wants], List[Row]]] = None
 
 @dataclass
 class Plan:
@@ -307,6 +312,8 @@ def make_plan(
     # other tiers can't evaluate Anki search syntax, so letting one of them win
     # would silently drop the search terms.
     if search is not None:
+        if caps.searched is not None:
+            return Plan("full", lambda wants: caps.searched(search, wants))
         if caps.search is None:
             raise ValueError("search is not supported for this resource")
         spec, q = caps.search, search
@@ -330,6 +337,8 @@ def make_plan(
     # 4) FALLBACK
     if caps.fetch_all is not None:
         return Plan("full", caps.fetch_all)
+    if caps.searched is not None:
+        return Plan("full", lambda wants: caps.searched("", wants))
 
     # 5) SCAN — search-backed resources with no fetch_all: a bare listing is
     # the same path as a search, with the empty query (= whole collection).

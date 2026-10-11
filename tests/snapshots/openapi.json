@@ -99,16 +99,6 @@
           "type": "integer"
         }
       },
-      "query.search": {
-        "description": "Anki search: only reviews of the cards it finds count, e.g. `deck:Japanese` or `tag:verbs`. Empty: the whole collection.",
-        "in": "query",
-        "name": "search",
-        "required": false,
-        "schema": {
-          "default": "",
-          "type": "string"
-        }
-      },
       "query.select": {
         "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
         "in": "query",
@@ -3751,6 +3741,31 @@
         ],
         "type": "object"
       },
+      "Paginated_ReviewDayRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewDayRow"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          },
+          "stats": {
+            "type": "object"
+          },
+          "total": {
+            "description": "With include=total: every row the query matches, across all pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "stats"
+        ],
+        "type": "object"
+      },
       "Paginated_ReviewRow_": {
         "properties": {
           "items": {
@@ -3989,7 +4004,8 @@
         ],
         "type": "object"
       },
-      "ReviewDay": {
+      "ReviewDayRow": {
+        "description": "A review day row. Without `select`, every field is present; with `select`, only those it names. With `shape=scalar`, each item is the selected field's bare value instead.",
         "properties": {
           "date": {
             "description": "The Anki day, as the date it started (days start at the \"Next day starts at\" hour).",
@@ -4023,44 +4039,6 @@
             "type": "integer"
           }
         },
-        "required": [
-          "date",
-          "reviews",
-          "duration_ms",
-          "learn",
-          "young",
-          "mature",
-          "relearn",
-          "filtered"
-        ],
-        "type": "object"
-      },
-      "ReviewDays": {
-        "properties": {
-          "days_studied": {
-            "description": "How many days in the range had reviews.",
-            "type": "integer"
-          },
-          "items": {
-            "description": "Days with reviews, newest first.",
-            "items": {
-              "$ref": "#/components/schemas/ReviewDay"
-            },
-            "type": "array"
-          },
-          "stats": {
-            "type": "object"
-          },
-          "streak": {
-            "description": "Days in a row with reviews, up to today; while today has none yet, up to yesterday. Counted within the range.",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "days_studied",
-          "streak"
-        ],
         "type": "object"
       },
       "ReviewInfo": {
@@ -4716,6 +4694,10 @@
           },
           "stats": {
             "type": "object"
+          },
+          "streak": {
+            "description": "Days in a row with reviews, up to today; while today has none yet, up to yesterday.",
+            "type": "integer"
           }
         },
         "required": [
@@ -4726,7 +4708,8 @@
           "review",
           "relearn",
           "filtered",
-          "mature"
+          "mature",
+          "streak"
         ],
         "type": "object"
       },
@@ -10180,6 +10163,147 @@
         "x-permission": "manage"
       }
     },
+    "/v1/review-days": {
+      "get": {
+        "description": "Query review days with filtering, field selection, and pagination. One row per Anki day with reviews: what a heatmap needs. `search` counts only the reviews of the cards an Anki search finds (a deck, a tag...); without it, the whole collection. include=total is the number of days studied.",
+        "operationId": "listReviewDays",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/query.select"
+          },
+          {
+            "$ref": "#/components/parameters/query.where"
+          },
+          {
+            "description": "Anki search string (e.g. 'deck:Japanese tag:verb').",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "x-from": []
+            }
+          },
+          {
+            "description": "Sort: a name, optionally with :asc (default) or :desc, e.g. due:desc. Cards and notes use Anki's Browser sorts (due, interval, ease, lapses, reviews, created, card_modified, note_modified, deck, note_type, sort_field, tags, position, card_type; difficulty, stability and retrievability on cards), and the row fields that sort the same (reps, modified; id on notes); other resources a field of their rows. Ties in ascending id. Without it, rows come in ascending id.",
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "x-sorts": [
+                "date",
+                "duration_ms",
+                "filtered",
+                "learn",
+                "mature",
+                "relearn",
+                "reviews",
+                "young"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/query.distinct_on"
+          },
+          {
+            "$ref": "#/components/parameters/query.shape"
+          },
+          {
+            "$ref": "#/components/parameters/query.include"
+          },
+          {
+            "$ref": "#/components/parameters/query.limit"
+          },
+          {
+            "$ref": "#/components/parameters/query.cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Paginated_ReviewDayRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List review days",
+        "tags": [
+          "Statistics"
+        ],
+        "x-permission": "read:reviews"
+      }
+    },
+    "/v1/review-days/query": {
+      "post": {
+        "description": "Query review days using request body. Supports complex queries with filtering and field selection. Omit cursor or use null to start at page one; malformed or empty cursors return 400.",
+        "operationId": "queryReviewDays",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/QueryRequest"
+                  }
+                ],
+                "description": "Query parameters in request body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Paginated_ReviewDayRow_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Query review days (POST)",
+        "tags": [
+          "Statistics"
+        ],
+        "x-permission": "read:reviews"
+      }
+    },
     "/v1/reviews": {
       "get": {
         "description": "Query reviews with filtering, field selection, and pagination. Review history from the revlog, newest last. `id` is the review's epoch-ms timestamp and its identity, so pages come back in review order. `search` takes Anki query syntax and means \"reviews of the cards this matches\" - the revlog itself is not searchable. Reviews are recorded by the scheduler; POST inserts raw rows for history imports.",
@@ -10378,67 +10502,20 @@
         "x-permission": "read:reviews"
       }
     },
-    "/v1/statistics/review-days": {
-      "get": {
-        "description": "One row per Anki day with reviews, newest first, with how many days had reviews and the current streak: what a heatmap or a streak counter needs.",
-        "operationId": "getReviewDays",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/query.search"
-          },
-          {
-            "description": "How many days back from today, today included; 0 for all history.",
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 365,
-              "maximum": 36500.0,
-              "minimum": 0.0,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReviewDays"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "$ref": "#/components/responses/ValidationFailed"
-          },
-          "default": {
-            "$ref": "#/components/responses/Error"
-          }
-        },
-        "security": [
-          {
-            "ApiKey": []
-          },
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Days studied",
-        "tags": [
-          "Statistics"
-        ],
-        "x-permission": "read:reviews"
-      }
-    },
     "/v1/statistics/today": {
       "get": {
-        "description": "Anki's day so far, as its Statistics screen's Today section counts it: cards answered, time, correct answers, by kind, and mature cards.",
+        "description": "Anki's day so far, as its Statistics screen's Today section counts it: cards answered, time, correct answers, by kind, and mature cards; and the current streak of days with reviews.",
         "operationId": "getTodayStatistics",
         "parameters": [
           {
-            "$ref": "#/components/parameters/query.search"
+            "description": "Anki search: only reviews of the cards it finds count, e.g. `deck:Japanese` or `tag:verbs`. Empty: the whole collection.",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
           }
         ],
         "responses": {
