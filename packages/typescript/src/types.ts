@@ -2,7 +2,7 @@ export type {
   Rows, Card, Note, Review, Deck, NoteType, DeckPreset, Tag, MediaFile, Addon, MemoryState, NoteField, NoteTypeField, CardTemplate,
   CreatedNote, UpdatedNote, StoredFile, UploadedFile, NoteFailure, UpsertFailure, MediaFailure, AttachmentRef, NoteCheck,
   VerbReport, SyncResult, Job, JobProgress, Health, CollectionHealth, Caller, Versions, Capabilities, CapabilityState,
-  OperationCapability, Answer, DeckCounts, ErrorBody,
+  OperationCapability, Answer, DeckCounts, ErrorBody, AccessAnswer,
 } from "./generated.js";
 import type { CreatedNote, UpdatedNote } from "./generated.js";
 
@@ -84,6 +84,13 @@ export interface ItemReport<T, F> { items: readonly ItemResult<T, F>[] }
 export interface RequestOptions {
   signal?: AbortSignal | undefined;
   timeoutMs?: number | undefined;
+}
+/** What an app may suggest when it asks for access; you decide in Anki. */
+export interface AccessRequestInput {
+  /** Its name in Apps & keys. A website's default is its host. */
+  name?: string;
+  /** The role to preselect, by id or name (`"read_only"`, `"Read-only"`). Default otherwise. */
+  role?: string;
 }
 export interface WriteOptions extends RequestOptions {
   /** Reuse only for the same logical request with identical input. */

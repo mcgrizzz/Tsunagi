@@ -178,6 +178,21 @@
         ],
         "type": "object"
       },
+      "AccessRequest": {
+        "additionalProperties": false,
+        "description": "What a website or program may suggest when it asks for access (6.124); you decide.",
+        "properties": {
+          "name": {
+            "description": "The name for its app in Apps & keys. A website's default is its host; a program's is shown as the name it gives itself, which Tsunagi can't check.",
+            "type": "string"
+          },
+          "role": {
+            "description": "The role to preselect in the prompt, by id or name (`read_only`, `Read-only`); Default otherwise.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ActionInfo": {
         "properties": {
           "backup": {
@@ -3817,19 +3832,34 @@
         "type": "object"
       },
       "PermissionRequestResult": {
-        "description": "A website's request for access (6.26).",
+        "description": "The answer to an access request (6.26, 6.124).",
         "properties": {
+          "app": {
+            "description": "Its app's name in Apps & keys. Null when denied.",
+            "type": "string",
+            "x-nullable": true
+          },
+          "key": {
+            "description": "Its app's key, sent this once: keep it and send it as X-Api-Key. Null when denied.",
+            "type": "string",
+            "x-nullable": true
+          },
           "key_required": {
-            "description": "Whether requests need an app's key: true when a request without a key has No access.",
+            "description": "Whether a request without a key has No access here (the \"No key, this computer\" row).",
             "type": "boolean"
           },
           "permission": {
-            "description": "granted: the website is allowed (it was, or you allowed it in Anki); denied: you didn't allow it, it's on the list of websites to ignore, or no one answered in time.",
+            "description": "granted: you allowed it; denied: you didn't, it's on a list to ignore, or no one answered in two minutes.",
             "enum": [
               "granted",
               "denied"
             ],
             "type": "string"
+          },
+          "role": {
+            "description": "The role you gave it, by name. Null when denied.",
+            "type": "string",
+            "x-nullable": true
           }
         },
         "required": [
@@ -10048,13 +10078,22 @@
     },
     "/v1/permissions:request": {
       "post": {
-        "description": "For a website (a request with an Origin header) that isn't in Allowed websites yet. Anki asks you whether to allow it, and the answer comes back when you choose, or as denied after two minutes. An allowed website is answered at once, without asking; so is a request with no Origin (not a website). A website you asked Anki to ignore is denied without asking. Needs no key and no permission; `key_required` says whether the website's other requests will need an app's key.",
+        "description": "For a website or a program that has no key yet. Anki asks you whether to allow it and which role it gets; the answer comes when you choose, or as denied after two minutes. Allowed, it becomes an app in Apps & keys and the answer carries its key, this once: send it as X-Api-Key from then on. A website is told apart by its Origin, a program by the `name` it sends (Anki shows that it can't be checked). Asking again always asks you, and allowing gives the app a new key; the old one stops working. A website or program you asked Anki to ignore is denied without asking. Needs no key and no permission. AnkiConnect's requestPermission gives no key.",
         "operationId": "requestPermission",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -10066,11 +10105,14 @@
             },
             "description": "Successful Response"
           },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
         },
-        "summary": "Ask for access from a website",
+        "summary": "Ask for access",
         "tags": [
           "Collection"
         ],

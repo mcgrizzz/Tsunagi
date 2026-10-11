@@ -72,12 +72,17 @@ results are in the [archived manual log](archive/manual_test_plan.md).
     stream and a deck's review screen: `day.changed` arrives just after
     13:00. Turn automatic time back on afterwards.
 - [ ] A website asks for access: from a browser tab on a site not in Allowed
-  websites, run `fetch('<address>/v1/permissions:request', {method: 'POST'})`
-  in its console. Anki shows the prompt naming the site, with **Don't allow**
-  as the default; Enter doesn't allow it. **Allow** answers `granted` and adds
-  the site; ask again from another site and choose **Don't allow** with
-  **Don't ask again for this website**: `denied`, and a second request
-  answers at once without a prompt. Remove both afterwards.
+  websites, run `fetch('<address>/v1/permissions:request', {method: 'POST',
+  headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role:
+  'read_only'})}).then(r => r.json()).then(console.log)` in its console. Anki
+  names the site, preselects Read-only, and **Don't allow** is the default
+  (Enter doesn't allow it). **Allow**: the answer has a key, and Apps & keys
+  shows the site's app with its address. A read with the key works, a write is
+  refused; untick the app and the site is refused. Ask again: Anki says it
+  already has access, and the old key stops working. From a terminal,
+  `curl -X POST <address>/v1/permissions:request -d '{"name": "Test script"}'
+  -H 'Content-Type: application/json'` asks as a program, shown as unchecked.
+  Remove the test apps afterwards.
 - [ ] Close and reopen Anki: the server starts and the tool reconnects.
 
 Test sync, profile switching or closing Anki only when that's the point of the

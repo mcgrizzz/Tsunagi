@@ -4,7 +4,7 @@ from typing import Dict, Literal, Optional
 from pydantic import BaseModel, Field
 
 from ..version import ADDON_VERSION, API_VERSION
-from .wrappers import NULLABLE
+from .wrappers import NULLABLE, RequestBody
 
 
 class Versions(BaseModel):
@@ -61,10 +61,27 @@ def runtime_versions() -> Versions:
     return Versions(anki=version)
 
 
+class AccessRequest(RequestBody):
+    """What a website or program may suggest when it asks for access (6.124); you decide."""
+    name: Optional[str] = Field(None, description=(
+        "The name for its app in Apps & keys. A website's default is its host; a program's is "
+        "shown as the name it gives itself, which Tsunagi can't check."))
+    role: Optional[str] = Field(None, description=(
+        "The role to preselect in the prompt, by id or name (`read_only`, `Read-only`); "
+        "Default otherwise."))
+
+
 class PermissionRequestResult(BaseModel):
-    """A website's request for access (6.26)."""
+    """The answer to an access request (6.26, 6.124)."""
     permission: Literal["granted", "denied"] = Field(description=(
-        "granted: the website is allowed (it was, or you allowed it in Anki); denied: you "
-        "didn't allow it, it's on the list of websites to ignore, or no one answered in time."))
+        "granted: you allowed it; denied: you didn't, it's on a list to ignore, or no one "
+        "answered in two minutes."))
+    key: Optional[str] = Field(None, description=(
+        "Its app's key, sent this once: keep it and send it as X-Api-Key. Null when denied."),
+        **NULLABLE)
+    app: Optional[str] = Field(None, description="Its app's name in Apps & keys. Null when denied.",
+                               **NULLABLE)
+    role: Optional[str] = Field(None, description="The role you gave it, by name. Null when denied.",
+                                **NULLABLE)
     key_required: bool = Field(description=(
-        "Whether requests need an app's key: true when a request without a key has No access."))
+        "Whether a request without a key has No access here (the \"No key, this computer\" row)."))

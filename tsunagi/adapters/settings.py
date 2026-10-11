@@ -152,13 +152,18 @@ class Settings:
         matches win, and the "http://localhost" entry additionally allows
         127.0.0.1 origins and browser extensions (this is why Yomitan works
         against a stock AnkiConnect install with no setup). One deviation:
-        Anki's own page origin also needs gates.anki_page_scripts.
+        Anki's own page origin also needs gates.anki_page_scripts. A website
+        that asked for access is allowed while its app is on (6.124).
         """
         allowlist = self.get("cors_allowlist", [])
         if origin in allowlist:
             return True
         if self.is_blocked_anki_page(origin):
             return False  # not even "*" or the 127.0.0.1 rule
+        # A website you allowed when it asked (6.124): in while its app is on.
+        if any(isinstance(a, dict) and a.get("origin") == origin and a.get("enabled") is not False
+               for a in self.get("apps") or []):
+            return True
         if "*" in allowlist:
             return True
         if "http://localhost" in allowlist:

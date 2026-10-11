@@ -110,6 +110,14 @@ Saved as `apps`:
 - A key that matches no app counts as no key, as in AnkiConnect. To check a
   key, send it to `GET /v1/health`: `caller.key` is `valid` or `unknown`.
 
+**Apps that asked.** A website or program can ask for access
+(`POST /v1/permissions:request`). Anki shows who is asking, a website by its
+address or a program by the name it gives (which Tsunagi can't check), and a
+role to give it. **Allow** adds it here with that role and sends it its key,
+once. A website's app shows its address under its name, and the site can call
+Tsunagi only while the app is on. If it asks again, Anki asks you again, and
+allowing gives it a new key.
+
 ## Requests without a key
 
 ![The Requests without a key page](docs/images/settings-nokey.png)
@@ -243,6 +251,8 @@ select Tsunagi, **View Files**) and change the `config` section of `meta.json`.
   access (AnkiConnect's `requestPermission` or `POST /v1/permissions:request`)
   are refused without asking. Choosing **Don't allow** with **Don't ask again
   for this website** adds one. Remove it to let the site ask again.
+- `ignored_programs` (default none): the same for programs, by the name they
+  asked with (**Don't ask again for this program**).
 - `ankiconnect_import_offered`, `ankiconnect_imported_at`, `config_version`:
   bookkeeping; don't edit. Set `ankiconnect_import_offered` to `false` to be
   asked again, at the next start, whether to take over from AnkiConnect.

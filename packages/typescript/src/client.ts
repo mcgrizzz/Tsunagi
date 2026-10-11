@@ -3,7 +3,7 @@ import { AccessCache } from "./access-cache.js";
 import { registerAccess } from "./access-target.js";
 import { ItemRejectedError, JobFailedError, JobWaitTimeoutError, PartialWriteError, RequestTimeoutError } from "./errors.js";
 import { resources } from "./generated.js";
-import type { Answer, Card, CreatedNote, DeckCounts, DecksCounts, MediaFailure, NoteFailure, UploadedFile, UpsertFailure } from "./generated.js";
+import type { AccessAnswer, Answer, Card, CreatedNote, DeckCounts, DecksCounts, MediaFailure, NoteFailure, UploadedFile, UpsertFailure } from "./generated.js";
 import { decodeAs } from "./decode.js";
 import { decodeSync, DraftProtocol, flagCode, inputId, operationName, ratingCode } from "./protocol.js";
 import type { Operation } from "./protocol.js";
@@ -11,7 +11,7 @@ import { Query } from "./query.js";
 import { raw } from "./raw.js";
 import { deadline, pause, positive, Transport } from "./transport.js";
 import type {
-  AddedNote, ClientOptions, Health, IfDuplicate, ItemReport, JobStartOptions, MediaInput, NoteCheck, NoteInput, NotePatch, NoteUpsert, OpenAddInput,
+  AccessRequestInput, AddedNote, ClientOptions, Health, IfDuplicate, ItemReport, JobStartOptions, MediaInput, NoteCheck, NoteInput, NotePatch, NoteUpsert, OpenAddInput,
   Reference, RequestOptions, SyncResult, UpsertedNote, VerbReport, WaitOptions, WriteOptions,
 } from "./types.js";
 import { EventConnection } from "./events.js";
@@ -384,6 +384,16 @@ export class Tsunagi {
 
   async health(request: RequestOptions = {}): Promise<Health> {
     return this.protocol.health(request);
+  }
+
+  /**
+   * Ask for access: Anki shows you this app (its website, or the name it gives) and
+   * the role it suggests. If you allow it, the answer carries its new key, this once:
+   * keep it, and make a client with it. Waits for your answer, up to two minutes;
+   * denied is an answer, not an error. Asking again asks again, and replaces the key.
+   */
+  requestAccess(input: AccessRequestInput = {}, options: WriteOptions = {}): Promise<AccessAnswer> {
+    return this.protocol.requestAccess(input, { ...options, timeoutMs: options.timeoutMs ?? 135_000 });
   }
 
   capabilities(request: RequestOptions = {}) { return this.protocol.capabilities(request); }

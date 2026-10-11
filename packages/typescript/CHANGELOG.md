@@ -6,6 +6,12 @@ changes that need no add-on release.
 
 ## Unreleased
 
+- **Ask for access:** `anki.requestAccess({ name, role })` asks Tsunagi for a
+  key. Anki shows the user your app (its website, or the name you give) and
+  the role you suggest; if they allow it, the answer carries the key, once.
+  Keep it and make a client with it. It waits for the user, up to two minutes.
+  Needs a Tsunagi that issues keys this way (0.7.1).
+
 - **Typed `raw`:** `anki.raw.request("PATCH /v1/notes/{id}", { path: { id },
   body })` reaches every operation in Tsunagi's API description. The route
   autocompletes; path and query parameters, the body and the answer are typed

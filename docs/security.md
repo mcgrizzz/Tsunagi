@@ -45,7 +45,7 @@ reviewed 2026-10-03 against Tsunagi 0.5.1 and Anki 26.09.
 | Browser extension | Default role | The default allowed origin `http://localhost` also allows every extension, as in AnkiConnect, so Yomitan works with no setup. |
 | Web page served from `127.0.0.1`, any port | Default role | Same rule. Includes local dev servers and other apps' web pages. |
 | Anki's own pages (reviewer, previewer, add-on pages) | None, unless **Allow card templates and add-on pages** is on | Card templates run JavaScript there. See [check 4](#how-the-checks-work). |
-| Web page on another site | None, unless you allow it | Refused before anything runs. You allow a site by adding it under **Allowed website origins**, or by allowing it when it asks (`POST /v1/permissions:request` or `requestPermission`). After that, its requests come from your browser on this computer, so without a key it gets the Default role, like a local page. |
+| Web page on another site | None, unless you allow it | Refused before anything runs. You allow a site by adding it under **Allowed website origins**, or by allowing it when it asks. Through `POST /v1/permissions:request` it gets its own app, key and role, and is let in while that app is on. Through AnkiConnect's `requestPermission`, or the allowed list, its requests come from your browser on this computer, so without a key it gets the "No key, this computer" role (Default), like a local page. |
 | Another device on the network | Only with an app's key | The default host `127.0.0.1` isn't reachable from it. With another host, keyless requests get the role for other devices under **Requests without a key**: No access unless you change it. Tsunagi serves plain HTTP, so the connection doesn't encrypt the key or your data; someone able to intercept that traffic could read them. |
 | Another device through a proxy on this computer (Tailscale Serve) | Only with an app's key | The proxy's name must be under **Other host names**, and forwarded requests always count as other devices. Tailscale encrypts the traffic between devices, so this is the safer way to connect from elsewhere. |
 
@@ -126,7 +126,8 @@ response without CORS headers.
    - It doesn't identify the caller: a program on another device can send any
      `Host`, so keys protect network access, not this check.
 2. **Origin check.** `/v1/*` refuses unknown origins before any route runs,
-   except `POST /v1/permissions:request`, where a website asks for access.
+   except `POST /v1/permissions:request`, where a website or program asks for
+   access.
    The AnkiConnect endpoint `/` lets every origin reach it, so
    `requestPermission` works as in AnkiConnect, then refuses anything else
    from an unknown origin before running it.
@@ -165,10 +166,21 @@ response without CORS headers.
 - **Recent requests** shows which apps, websites and devices have called
   Tsunagi since Anki started, including refused requests. It's kept in memory
   only, records no keys or request contents, and isn't reachable over HTTP.
-- **A request for access** (`POST /v1/permissions:request`, or AnkiConnect's
-  `requestPermission`) from a site not yet allowed shows a dialog in Anki
-  naming the site, with **Don't allow** as the default; **Allow** adds it to
-  the allowed origins. Both go through the same dialog and settings.
+- **A request for access** shows a dialog in Anki with **Don't allow** as the
+  default.
+  - `POST /v1/permissions:request` names a website by its origin, or a
+    program by the name it gives, marked as unchecked, with its address when
+    it's another device. You choose its role; **Allow** makes it an app and
+    sends its key once. A website's app keeps its origin, and the site is
+    let through only while the app is on. Asking again always asks you, and
+    allowing replaces the key; a request with no Origin asks too, so no
+    program gets a key without you.
+  - A key, not an origin, carries the role: any program can send any Origin
+    header, only browsers can't. A program on this computer could read the
+    keys from `meta.json` anyway.
+  - AnkiConnect's `requestPermission` gives no key: **Allow** adds the site to
+    the allowed origins, and it calls with the "No key, this computer" role,
+    which the dialog names.
 
 ### Add-on actions
 
@@ -228,7 +240,10 @@ Most likely to matter first.
      headers would make remote requests look local. Configure such a proxy to
      send `X-Forwarded-For`.
 4. **A request for access is a social-engineering prompt.** Any site can open
-   the dialog. The protection is you reading the site's name before approving.
+   the dialog, and so can any program, or any device that can reach Tsunagi
+   when it's on a network. The protection is you reading who is asking (a
+   program's name is only what it says) and the role before allowing; **Don't
+   ask again** stops one that keeps asking.
 5. **Keys in plain sight.** Over plain HTTP between devices, keys travel
    unencrypted; use Tailscale Serve (or another encrypting proxy) rather than
    a network host. `?api_key=` on `/v1/events` can also end up in browser

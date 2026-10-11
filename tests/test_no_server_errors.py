@@ -5,8 +5,8 @@ each field, nested one level: null, 0, -1, numbers beyond 64 bits, NaN, empty
 and odd strings, empty and repeated lists. Path ids get 0, -1, huge and
 unknown values. Whatever the answer, it must not be a 500.
 
-Not probed here: actions on Anki's windows and check database need the real
-Qt main window (the stub has none; checked offscreen with real Anki), and
+Not probed here: actions on Anki's windows, the access prompt and check
+database need the real Qt main window (the stub has none; checked offscreen with real Anki), and
 sync, profile switch and exit reach outside the test collection.
 """
 import json
@@ -14,7 +14,8 @@ import re
 
 import pytest
 
-SKIPPED = re.compile(r"^/v1/(gui:|collection:check-database$|collection:sync$|profiles:load$)")
+SKIPPED = re.compile(r"^/v1/(gui:|collection:check-database$|collection:sync$|profiles:load$"
+                     r"|permissions:request$)")
 
 
 def resolve(spec, schema):

@@ -9,13 +9,13 @@ import { ProtocolError, WriteOutcomeUnknownError } from "./errors.js";
 import type { EventConnection } from "./events.js";
 import { operations, resources } from "./generated.js";
 import type {
-  Answers, Capabilities, CreatedNote, DuplicateScopeOptionsBody, Health, Job, MediaFailure, MediaUploadBody,
+  AccessAnswer, Answers, Capabilities, CreatedNote, DuplicateScopeOptionsBody, Health, Job, MediaFailure, MediaUploadBody,
   NoteAttachmentBody, NoteCheck, NoteCreateBody, NoteFailure, NotePatchBody, NoteUpsertBody, Requests, SyncResult,
   UpdatedNote, UploadedFile, UpsertFailure,
 } from "./generated.js";
 import type { Transport } from "./transport.js";
 import type {
-  Attachment, DuplicateCheck, FileSource, ItemReport, ItemResult, MediaInput, NoteInput, NotePatch,
+  AccessRequestInput, Attachment, DuplicateCheck, FileSource, ItemReport, ItemResult, MediaInput, NoteInput, NotePatch,
   NoteUpsert, OpenAddInput, Reference, RequestOptions, UpsertedNote, WriteOptions,
 } from "./types.js";
 
@@ -241,6 +241,13 @@ export class DraftProtocol {
   }
   health(options: RequestOptions): Promise<Health> {
     return this.call("health", { options }, (_, value) => value);
+  }
+  requestAccess(input: AccessRequestInput, options: WriteOptions): Promise<AccessAnswer> {
+    const body = {
+      ...(input.name === undefined ? {} : { name: string(input.name) }),
+      ...(input.role === undefined ? {} : { role: string(input.role) }),
+    };
+    return this.call("requestAccess", { body, options }, (_, value) => value);
   }
 
   async query(path: string, spec: QueryParams, limit: number, cursor: string | null, options: RequestOptions): Promise<WirePage> {

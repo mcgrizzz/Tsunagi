@@ -367,7 +367,9 @@ const PAGE = {
             : "Off: requests with this key are refused. Tick to turn it back on",
           onchange: (e) => { app.enabled = e.target.checked; changed(true); } })),
         h("td", {}, h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name,
-                                 oninput: (e) => { app.name = e.target.value; } })),
+                                 oninput: (e) => { app.name = e.target.value; } }),
+          app.origin && h("div", { class: "help", title: "This website asked for access and you allowed it. " +
+                                   "It can call Tsunagi while this app is on." }, app.origin)),
         h("td", {}, roleSelect(app.role, (v) => { app.role = v; }, null, "Role of " + app.name)),
         h("td", {}, h("span", { class: "key-preview", title: "Key (More shows it in full)" },
                       app.key ? "••••" + app.key.slice(-4) : "no key"),

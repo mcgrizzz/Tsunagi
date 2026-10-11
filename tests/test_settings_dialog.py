@@ -17,7 +17,7 @@ from tsunagi.adapters.settings_dialog import (
 )
 
 HIDDEN_KEYS = {"ankiconnect_import_offered", "ankiconnect_imported_at", "config_version",
-               "gates", "ankiconnect_ignore_origins",
+               "gates", "ankiconnect_ignore_origins", "ignored_programs",
                # edited by the settings page's own sections (settings_page.py)
                "apps", "no_key_local_role", "no_key_remote_role", "roles",
                # approved on the settings page's Add-ons section (backlog 2b-P)

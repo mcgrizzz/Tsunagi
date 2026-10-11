@@ -342,6 +342,14 @@ listener (below), it completes once the connection is up. A refused key
 collection's state (`ready`, `syncing`, `closed`, `busy`) and profile, and
 the caller.
 
+`requestAccess({ name, role })` sends `POST /v1/permissions:request`, keyed
+like any write, with only what was given (`{}` for nothing). Anki asks the
+user, so the request waits up to two minutes: its default timeout is 135
+seconds, not the client's usual one. The answer is `{ permission, key, app,
+role, keyRequired }`; `denied` is an answer, not an error. The key comes this
+once: the app keeps it and makes a client with it. A client can ask without a
+key of its own.
+
 ## The event connection
 
 One connection to `GET /v1/events` per client, shared by every feature

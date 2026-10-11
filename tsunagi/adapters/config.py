@@ -13,8 +13,9 @@ DEFAULTS = {
     "host": "127.0.0.1",
     "port": 0,
     "prefer_port": 7777,
-    # Who may do what (backlog 6.5a). Apps are {"name", "key", "role"};
-    # requests without a key use one of the two no_key roles. `roles` holds
+    # Who may do what (backlog 6.5a). Apps are {"name", "key", "role"}, with
+    # "origin" for a website that asked for access (6.124) and "enabled": false
+    # when off; requests without a key use one of the two no_key roles. `roles` holds
     # user-made roles and edited built-ins (shared/permissions.py).
     "apps": [],
     "no_key_local_role": "default",
@@ -41,6 +42,8 @@ DEFAULTS = {
     "ankiconnect_import_offered": False,
     "ankiconnect_imported_at": None,
     "ankiconnect_ignore_origins": [],
+    # Programs that asked for access by this name, refused without asking (6.124).
+    "ignored_programs": [],
     "config_version": 6,
 }
 CONFIG_VERSION = DEFAULTS["config_version"]

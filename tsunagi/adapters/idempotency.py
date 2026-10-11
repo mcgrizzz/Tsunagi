@@ -29,8 +29,6 @@ import time
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from aqt import mw
-
 from ..shared.errors import AnkiBusyError, ValidationError
 from . import ops
 
@@ -103,6 +101,7 @@ def collection() -> str:
     """The open collection. Keys belong to it too: after a profile switch, a
     retry is a new request there, not the other profile's answer (6.120).
     Cursors name it as well (shared/pagination.py)."""
+    from aqt import mw  # at call time: the main window Anki has now
     col = mw.col
     return col.path if col is not None else ""
 

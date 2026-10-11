@@ -20,5 +20,6 @@
     "ankiconnect_import_offered": false,
     "ankiconnect_imported_at": null,
     "ankiconnect_ignore_origins": [],
+    "ignored_programs": [],
     "config_version": 6
 }

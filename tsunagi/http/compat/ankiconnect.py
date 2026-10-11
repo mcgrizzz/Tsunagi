@@ -60,7 +60,9 @@ def _default_settings():
 
 def _default_ask(origin: Any) -> PermissionDecision:
     from ...adapters.dialogs import ask_permission_dialog
-    return ask_permission_dialog(origin)
+    from ...adapters.settings import settings
+    # An allowed site calls without a key: the prompt names the role that gets it.
+    return ask_permission_dialog(origin, settings.role(settings.get("no_key_local_role"))[0])
 
 
 def request_permission(

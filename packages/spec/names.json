@@ -76,7 +76,7 @@
     "VerbResult": "VerbReport",
     "MutationResult_Any_": "MutationResult",
     "JobInfo": "Job",
-    "CardAnswered": "Answer"
+    "CardAnswered": "Answer", "PermissionRequestResult": "AccessAnswer"
   },
   "operations": {
     "notesCreate": "POST /v1/notes",
@@ -99,6 +99,7 @@
     "job": "GET /v1/jobs/{job_id}",
     "health": "GET /v1/health",
     "capabilities": "GET /v1/capabilities",
+    "requestAccess": "POST /v1/permissions:request",
     "guiBrowse": "POST /v1/gui:browse",
     "guiEditNote": "POST /v1/gui:edit-note",
     "guiAddCards": "POST /v1/gui:add-cards",

@@ -56,6 +56,17 @@ def test_turning_an_app_off_is_saved_and_shown():
     assert [a["enabled"] for a in page.page_state(new_cfg, {})["apps"]] == [True, False]
 
 
+def test_a_website_apps_origin_survives_saving():
+    """6.124: the origin is what lets the site in; saving must not drop it."""
+    cfg = {**fresh(), "apps": [{"name": "site.test", "key": "s" * 32, "role": "read_only",
+                                "origin": "https://site.test"},
+                               {"name": "Yomitan", "key": "y" * 32, "role": "default"}]}
+    state = page.page_state(cfg, {})
+    assert [a["origin"] for a in state["apps"]] == ["https://site.test", ""]
+    new_cfg, _, errors = page.config_from_page(cfg, page.page_draft(state))
+    assert errors == [] and new_cfg["apps"] == cfg["apps"]
+
+
 def test_only_edited_built_ins_are_stored_and_reset_removes_them():
     cfg = fresh()
     draft = draft_of(cfg)
