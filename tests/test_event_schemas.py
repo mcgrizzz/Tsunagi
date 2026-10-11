@@ -52,6 +52,7 @@ def test_what_the_stream_sends_matches_its_schema(client):
                                                "review_count": 5, "total_in_deck": 9}])
         publish_review(card, 3)
         publish_sync("started")
+        broker.publish("day.changed")
         broker.publish_access()
     threading.Timer(0.1, fire).start()
     frames = parse_frames(client.get("/v1/events?timeout=1").text)
@@ -61,7 +62,8 @@ def test_what_the_stream_sends_matches_its_schema(client):
         catalog[name]["schema"].parse_obj(data)   # extra fields are refused too
         seen.add(name)
     assert {"ready", "notes.created", "notes.updated", "cards.deleted", "tags.stale", "decks.stale",
-            "reviews.stale", "decks.counts", "cards.answered", "sync", ACCESS_CHANGED, "close"} <= seen
+            "reviews.stale", "decks.counts", "cards.answered", "sync", "day.changed", ACCESS_CHANGED,
+            "close"} <= seen
 
 
 def test_x_from_names_resources(client):

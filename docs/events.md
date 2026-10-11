@@ -61,7 +61,8 @@ Two things to watch:
   `tag:verb`, a renamed deck changes `deck:Japanese` results, and answering
   cards changes `is:due`. Listen to each kind of thing your search names (for
   example `resources=notes,decks`), and when in doubt run `loadAll()` instead
-  of `loadNotes(ids)`.
+  of `loadNotes(ids)`. When Anki's day changes, `is:due` matches other cards
+  though no card changed: `day.changed` comes then, so run `loadAll()` on it.
 
 ### With the TypeScript client
 
@@ -77,7 +78,8 @@ await anki.notes.select("id", "firstField").watch({
 ```
 
 - It loads the list, then reads only the notes each message names.
-- It reads everything again after `.stale`, `gap` or a reconnect.
+- It reads everything again after `.stale`, `gap`, a reconnect, or Anki's
+  day changing.
 - With a search, it also listens to what the search depends on (decks for
   `deck:`, cards for card states), and moves notes in and out of your list.
 - `updated` comes only when a field you selected changed.
@@ -131,6 +133,7 @@ capabilities report.
 | `reviews.created` | Rows were added to the review history. Includes their IDs. |
 | `sync` | A sync started or finished. |
 | `decks.counts` | A deck's new, learning or review counts changed. |
+| `day.changed` | Anki's day changed: a new day started, or changing **Next day starts at** moved it. Searches relative to today (`is:due`, `is:buried`, `rated:1`, `prop:due=0`) can now match other cards, though no card changed: run them again. Every stream that receives changes gets it, whatever its `resources`. |
 | `decks.stale`, `note_types.stale`, `tags.stale`, … | That kind of thing changed. |
 
 One change can produce several messages. Deleting a note sends

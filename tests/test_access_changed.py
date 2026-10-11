@@ -76,12 +76,13 @@ def test_the_report_says_what_the_stream_would_send(client, reset_settings):
     events = client.get("/v1/capabilities").json()["operations"]["GET /v1/events"]
     assert events["status"] == "available"
     options = events["options"]
-    assert set(options) == {"access.changed", "sync", "cards.answered", "notes", "cards", "note_types",
-                            "decks", "tags", "reviews", "scheduler", "config"}
+    assert set(options) == {"access.changed", "sync", "cards.answered", "day.changed", "notes", "cards",
+                            "note_types", "decks", "tags", "reviews", "scheduler", "config"}
     assert {name for name, option in options.items() if option["status"] == "available"} == {
-        "access.changed", "sync", "notes", "cards", "note_types", "decks", "tags", "scheduler", "config"}
+        "access.changed", "sync", "day.changed", "notes", "cards", "note_types", "decks", "tags",
+        "scheduler", "config"}
     assert options["cards.answered"]["setting"] == options["reviews"]["setting"] == "permissions.events:reviews"
-    assert options["notes"]["setting"] == "permissions.events:changes"
+    assert options["notes"]["setting"] == options["day.changed"]["setting"] == "permissions.events:changes"
 
     reset_settings.update(**GUI_ONLY)
     options = client.get("/v1/capabilities").json()["operations"]["GET /v1/events"]["options"]

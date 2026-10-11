@@ -25,6 +25,7 @@ from ...adapters.events import (
     ACCESS_CHANGED,
     CHANGE_RESOURCES,
     DATA_EVENT_TYPES,
+    DAY_CHANGED,
     EVENT_TYPES,
     broker,
     event_permitted,
@@ -61,6 +62,8 @@ def event_catalog() -> Dict[str, Dict[str, Any]]:
             catalog[name] = {"schema": messages.CardAnswered, "option": name}
         elif name == "sync":
             catalog[name] = {"schema": messages.SyncEvent, "option": name}
+        elif name == DAY_CHANGED:
+            catalog[name] = {"schema": messages.DayChanged, "option": name}
         else:
             raise ValueError(f"No schema for event {name}")
     for name, model in (("ready", messages.Ready), ("gap", messages.Gap),
@@ -101,6 +104,11 @@ Cards use the same names with the cards prefix. Reviews report reviews.created
 with review log IDs. decks.counts lists the decks whose due counts changed
 (answers, suspends, deck changes, syncs, day rollover), each as {deck_id, new_count,
 learn_count, review_count, total_in_deck} like /v1/decks rows. Other resources currently report stale notifications.
+day.changed means Anki's day changed: searches relative to today (is:due, is:buried,
+rated:1, prop:due=0) can now match other rows, though no row was written, so run them
+again. It comes when a new day starts, and when changing "next day starts at" (in
+Anki's preferences or by sync) moves the day, even back. It comes with every change stream, whatever its resources (types=change, the
+default with resources, or types=day.changed), and needs events:changes like them.
 No full notes, card contents or media are sent. Fetch any contents your app needs through the normal API, with select to choose fields.
 A resource with complete ID details does not also emit stale for that operation.
 Related resources can produce separate events: deleting a note produces

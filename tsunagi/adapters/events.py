@@ -35,7 +35,10 @@ DATA_EVENT_TYPES = (frozenset(f"{resource}.stale" for resource in CHANGE_RESOURC
 # access.changed is a connection message, like ready and gap: every stream
 # gets it, and types=access.changed asks for nothing else (6.100).
 ACCESS_CHANGED = "access.changed"
-EVENT_TYPES = DATA_EVENT_TYPES | {"change", "cards.answered", "sync", ACCESS_CHANGED}
+# Anki's day changed (R22): searches like is:due now match other rows, with
+# no row written. Part of `change`, about no one resource.
+DAY_CHANGED = "day.changed"
+EVENT_TYPES = DATA_EVENT_TYPES | {"change", "cards.answered", "sync", ACCESS_CHANGED, DAY_CHANGED}
 
 
 def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
@@ -99,6 +102,8 @@ class _Subscriber:
     def accepts(self, type: str) -> bool:
         if self.grants is not None and not event_permitted(self.grants, type):
             return False
+        if type == DAY_CHANGED:
+            return self.types is None or bool({"change", DAY_CHANGED} & self.types)
         is_data = type in DATA_EVENT_TYPES
         if self.types is not None and type not in self.types:
             if not (is_data and "change" in self.types):
@@ -120,6 +125,8 @@ class EventBroker:
         self._collection: Any = None
         # ChangeScan for Anki-side changes; set by the app once a session starts.
         self.scanner: Any = None
+        # DayWatch for Anki's day changing; set alongside the scanner.
+        self.day_watch: Any = None
         # Whether FSRS was on at the last look; a change alters what apps can do.
         self._fsrs: Optional[bool] = None
 
@@ -128,6 +135,7 @@ class EventBroker:
         with self._lock:
             self._subscribers.clear()
             self.scanner = None
+            self.day_watch = None
             self._session_id = uuid4().hex
             self._collection = collection
             self._seq = 0
@@ -261,6 +269,7 @@ class EventBroker:
             self._subscribers.clear()
             self._collection = None
             self.scanner = None
+            self.day_watch = None
 
     def is_draining(self, token: Optional[int] = None) -> bool:
         with self._lock:
@@ -281,10 +290,11 @@ def _fsrs_enabled(collection: Any) -> Optional[bool]:
 
 
 def event_permitted(grants: FrozenSet[str], type: str) -> bool:
-    """Review events need events:reviews, data events events:changes."""
+    """Review events need events:reviews, data events and day.changed events:changes."""
     if type == "cards.answered" or type.startswith("reviews."):
         return allows(grants, "events:reviews")
-    return type not in DATA_EVENT_TYPES or allows(grants, "events:changes")
+    return (type not in DATA_EVENT_TYPES | {DAY_CHANGED}
+            or allows(grants, "events:changes"))
 
 
 # Module singleton, mirroring adapters.jobs.jobs.

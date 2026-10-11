@@ -59,6 +59,14 @@ results are in the [archived manual log](archive/manual_test_plan.md).
 - [ ] Open the import picker with `POST /v1/gui:import-file`, leave it, then
   cancel. The API answers as soon as Anki accepts the request; it doesn't wait
   for an import.
+- [ ] Anki's day changing sends `day.changed`, even with the reviewer open.
+  Turn off the computer's automatic time and Anki's auto sync. Set **Next
+  day starts at** to 13 and the clock to 12:57, then reopen the profile (the
+  server sets its timer then, and closes open streams). Then open
+  `curl -N '<address>/v1/events?types=day.changed'` and a deck's review
+  screen: `day.changed` arrives just after 13:00. Then, at 12:55 with the hour set to 4 and the profile reopened, set
+  it to 13: `day.changed` arrives at once (Anki's day steps back) and again
+  just after 13:00. Turn automatic time back on afterwards.
 - [ ] Close and reopen Anki: the server starts and the tool reconnects.
 
 Test sync, profile switching or closing Anki only when that's the point of the

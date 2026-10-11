@@ -2,7 +2,7 @@
 from fastapi.routing import APIRoute
 
 from ..adapters import addon_actions
-from ..adapters.events import ACCESS_CHANGED, CHANGE_RESOURCES
+from ..adapters.events import ACCESS_CHANGED, CHANGE_RESOURCES, DAY_CHANGED
 from ..shared.permissions import ADDON, PUBLIC, current_denial, permitted
 from ..shared.schemas.capabilities import CapabilityState, OperationCapability
 
@@ -55,7 +55,7 @@ def event_options():
         return (permission_state("read:collection") if not permitted("read:collection")
                 else permission_state(permission))
     options = {ACCESS_CHANGED: state(), "sync": needs("read:collection"),
-               "cards.answered": needs("events:reviews")}
+               "cards.answered": needs("events:reviews"), DAY_CHANGED: needs("events:changes")}
     for resource in sorted(CHANGE_RESOURCES):
         options[resource] = needs("events:reviews" if resource == "reviews" else "events:changes")
     return options

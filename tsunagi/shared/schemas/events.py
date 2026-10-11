@@ -75,6 +75,11 @@ class SyncEvent(_Live):
     phase: Literal["started", "finished"]
 
 
+class DayChanged(_Live):
+    """`day.changed`: Anki's day changed. Searches relative to today (`is:due`, `is:buried`,
+    `rated:1`, `prop:due=0`) can now match other rows, though none was written: run them again."""
+
+
 class Ready(_Message):
     """`ready`: connected; load the data you show now."""
     type: Literal["ready"]

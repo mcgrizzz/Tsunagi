@@ -396,8 +396,8 @@ def test_flags_name_only_the_resources_whose_rows_changed():
 
 
 @pytest.mark.parametrize("grants, sent", [
-    ({"read", "events:changes"}, ["notes.stale", "sync"]),
-    ({"events"}, ["notes.stale", "cards.answered", "sync"]),
+    ({"read", "events:changes"}, ["notes.stale", "sync", "day.changed"]),
+    ({"events"}, ["notes.stale", "cards.answered", "sync", "day.changed"]),
     ({"read"}, ["sync"]),
 ])
 def test_grants_decide_which_events_are_sent(grants, sent):
@@ -405,4 +405,20 @@ def test_grants_decide_which_events_are_sent(grants, sent):
     broker.publish("change", affected=["notes"])
     broker.publish("cards.answered", card_id=1, ease=3)
     broker.publish("sync", phase="started")
+    broker.publish("day.changed")
     assert [e["type"] for e in broker.drain(token)] == sent
+
+
+@pytest.mark.parametrize("types, resources, sent", [
+    ({"change"}, {"notes"}, True),      # any change stream, whatever its resources
+    ({"change"}, {"config"}, True),
+    ({"day.changed"}, None, True),
+    (None, None, True),
+    ({"sync"}, None, False),
+    ({"notes.deleted"}, None, False),
+])
+def test_day_changed_goes_to_every_change_stream(types, resources, sent):
+    token = broker.subscribe(types=types and frozenset(types),
+                             resources=resources and frozenset(resources))
+    broker.publish("day.changed")
+    assert [e["type"] for e in broker.drain(token)] == (["day.changed"] if sent else [])

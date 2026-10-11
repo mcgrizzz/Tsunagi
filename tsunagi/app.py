@@ -508,6 +508,11 @@ def start_server(mw) -> None:
         scan_timer.setSingleShot(True)
         broker.scanner = ChangeScan(mw.col, lambda s: scan_timer.start(int(s * 1000)))
         scan_timer.timeout.connect(broker.scanner.flush)
+        from .adapters.day_change import DayWatch
+        day_timer = QTimer(mw)
+        day_timer.setSingleShot(True)
+        broker.day_watch = DayWatch(mw.col, lambda s: day_timer.start(int(s * 1000)))
+        day_timer.timeout.connect(broker.day_watch.check)
 
         import uvicorn
         server = uvicorn.Server(uvicorn.Config(

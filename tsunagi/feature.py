@@ -82,7 +82,10 @@ class Feature:
     # ---------- event-stream feeders ----------
 
     def _op_executed(self, changes, handler=None) -> None:
+        from .adapters.day_change import check_after
         from .adapters.events import ApiOp, broker, dispatch_op
+        # Before the listener check: a client connecting later needs the timer right.
+        check_after(changes)
         if not broker.has_subscribers():
             return
         # OpChanges carries flags but no identity; for Tsunagi's own writes
@@ -113,6 +116,7 @@ class Feature:
         publish_sync("finished")
 
     def _day_change(self) -> None:
+        # One of three checks (adapters/day_change.py): Anki's hook misses some days.
         from .adapters.events import broker
-        if broker.scanner is not None:
-            broker.scanner.mark_counts()
+        if broker.day_watch is not None:
+            broker.day_watch.check()
