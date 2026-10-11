@@ -201,8 +201,11 @@ The [Release workflow](../.github/workflows/release.yml):
   reference page, read-only, over that release's API description. Run the
   workflow by hand with a tag to publish an earlier release's. To see it
   locally: `python tools/build_api_reference.py --version 0.6.0`, then
-  `python -m http.server -d site`. It needs **Settings → Pages → Source:
-  GitHub Actions** once.
+  `python -m http.server -d site`. It needs, once, **Settings → Pages →
+  Source: GitHub Actions**, and the `github-pages` environment to allow `v*`
+  tags beside `main` (**Settings → Environments → github-pages**): a release
+  runs the workflow on its tag, and an environment that allows only `main`
+  rejects the deploy.
 - Publishing a release also stages the TypeScript client on npm as
   `tsunagi-client`, through the
   [client publish workflow](../.github/workflows/client-publish.yml): the client
