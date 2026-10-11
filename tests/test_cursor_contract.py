@@ -3,7 +3,13 @@ import pytest
 
 from tsunagi.shared.pagination import encode_cursor
 
-BAD_CURSORS = ['', '!!!bad-base64!!!', encode_cursor({'last_key': '42'})]
+# A dict is a well-formed cursor's state, encoded in the test: a cursor names
+# the open collection (6.120), and there is none at import.
+BAD_CURSORS = ['', '!!!bad-base64!!!', {'last_key': '42'}]
+
+
+def made(cursor):
+    return encode_cursor(cursor) if isinstance(cursor, dict) else cursor
 
 
 def query_path(client, resource):
@@ -17,7 +23,7 @@ def query_path(client, resource):
 @pytest.mark.parametrize('cursor', BAD_CURSORS)
 @pytest.mark.parametrize('method', ['get', 'post'])
 def test_invalid_native_cursor_returns_400(client, resource, cursor, method):
-    params = {'cursor': cursor, 'limit': 1}
+    params = {'cursor': made(cursor), 'limit': 1}
     if method == 'get':
         response = client.get(f'/v1/{resource}', params=params)
     else:
@@ -26,9 +32,9 @@ def test_invalid_native_cursor_returns_400(client, resource, cursor, method):
     assert response.json()['detail'].startswith('Invalid pagination cursor.')
 
 
-@pytest.mark.parametrize('cursor', ['', 'garbage', encode_cursor({}), encode_cursor({'last_key': 1})])
+@pytest.mark.parametrize('cursor', ['', 'garbage', {}, {'last_key': 1}])
 def test_invalid_media_cursor_returns_400(client, cursor):
-    response = client.get('/v1/media', params={'cursor': cursor})
+    response = client.get('/v1/media', params={'cursor': made(cursor)})
     assert response.status_code == 400, response.text
     assert response.json()['detail'].startswith('Invalid pagination cursor.')
 

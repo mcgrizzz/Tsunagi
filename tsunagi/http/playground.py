@@ -129,7 +129,8 @@ A paginated response has three parts:
 To continue, copy `next_cursor` into the next request's `cursor` parameter or
 JSON property. Keep the search, filters, field selection and page size the same.
 Treat the cursor as an opaque token: copy it as returned. Clear it when starting
-a different query. A small `limit`, such as `10`, makes initial requests easier
+a different query. A cursor belongs to the profile it came from: after a switch
+to another profile it's refused (400), so start over. A small `limit`, such as `10`, makes initial requests easier
 to inspect.
 
 ### Check feature support and job status

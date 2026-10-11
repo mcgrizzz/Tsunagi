@@ -1,8 +1,18 @@
 import base64
+import hashlib
 import json
 from typing import Any, Callable, Iterable, List, Optional, Tuple, TypeVar
 
 T = TypeVar("T")
+
+# The open collection, set by the app (tsunagi/app.py). A cursor names it, so
+# one from another profile is refused instead of paging that collection (6.120).
+collection: Callable[[], str] = lambda: ""
+
+
+def _tag() -> str:
+    return hashlib.sha256(collection().encode("utf-8")).hexdigest()[:12]
+
 
 def _b64u_encode(d: dict) -> str:
     return base64.urlsafe_b64encode(json.dumps(d, separators=(",", ":")).encode("utf-8")).decode("ascii")
@@ -10,15 +20,28 @@ def _b64u_encode(d: dict) -> str:
 def _b64u_decode(s: str) -> dict:
     return json.loads(base64.b64decode(s.encode("ascii"), altchars=b"-_", validate=True).decode("utf-8"))
 
-def decode_cursor(cursor: Optional[str], *, key_type: type = int) -> dict:
-    """Decode an opaque continuation token, rejecting malformed state."""
-    if cursor is None:
-        return {}
+def _decode(cursor: Any) -> dict:
+    """The cursor's state, once it's known to be this collection's."""
     try:
         if not isinstance(cursor, str) or not cursor:
             raise ValueError
         state = _b64u_decode(cursor)
-        if not isinstance(state, dict) or set(state) != {"last_key"}:
+        if not isinstance(state, dict) or not isinstance(state.get("c"), str):
+            raise ValueError
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise ValueError("Invalid pagination cursor. Use next_cursor from the previous response, or omit cursor to start over.") from exc
+    if state.pop("c") != _tag():
+        raise ValueError("This cursor is from another profile's collection. Omit cursor to start over.")
+    return state
+
+
+def decode_cursor(cursor: Optional[str], *, key_type: type = int) -> dict:
+    """Decode an opaque continuation token, rejecting malformed state."""
+    if cursor is None:
+        return {}
+    state = _decode(cursor)
+    try:
+        if set(state) != {"last_key"}:
             raise ValueError
         key = state["last_key"]
         # bool is an int subclass, but never a valid resource ID.
@@ -34,18 +57,16 @@ def decode_cursor(cursor: Optional[str], *, key_type: type = int) -> dict:
 
 
 def encode_cursor(state: dict) -> str:
-    return _b64u_encode(state)
+    return _b64u_encode({**state, "c": _tag()})
 
 
 def decode_keyset_cursor(cursor: Optional[str]) -> Optional[Tuple[Any, int]]:
     """A column-ordered query's cursor (backlog 8.1b): the last row's value and id."""
     if cursor is None:
         return None
+    state = _decode(cursor)
     try:
-        if not isinstance(cursor, str) or not cursor:
-            raise ValueError
-        state = _b64u_decode(cursor)
-        if not isinstance(state, dict) or set(state) != {"after"}:
+        if set(state) != {"after"}:
             raise ValueError
         value, last = state["after"]
         if type(value) not in (int, str) or type(last) is not int:
@@ -59,11 +80,9 @@ def decode_order_cursor(cursor: Optional[str]) -> dict:
     """An ordered query's cursor: the position after the last row, and that row's id."""
     if cursor is None:
         return {}
+    state = _decode(cursor)
     try:
-        if not isinstance(cursor, str) or not cursor:
-            raise ValueError
-        state = _b64u_decode(cursor)
-        if (not isinstance(state, dict) or set(state) != {"pos", "last"}
+        if (set(state) != {"pos", "last"}
                 or type(state["pos"]) is not int or state["pos"] < 0
                 or type(state["last"]) not in (int, str)):
             raise ValueError

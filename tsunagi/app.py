@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, JSONResponse
 
+from .adapters import idempotency
 from .adapters.anki import collection as anki_collection
 from .adapters.config import choose_port, load_config
 from .adapters.settings import make_persist, settings
@@ -46,6 +47,7 @@ from .http.v1.notes import router as notes_router
 from .http.v1.reviews import router as reviews_router
 from .http.v1.tags import router as tags_router
 from .log import log
+from .shared import pagination
 from .shared.errors import register_exception_handlers
 from .shared.permissions import PUBLIC, requires
 from .shared.schemas.capabilities import CallerInfo, Versions, runtime_versions
@@ -55,6 +57,9 @@ from .shared.version import ADDON_VERSION
 
 
 def _log(msg: str) -> None: log.info(msg)
+
+# Cursors and idempotency keys belong to the open collection (6.120).
+pagination.collection = idempotency.collection
 
 # FastAPI app with comprehensive documentation
 app = FastAPI(

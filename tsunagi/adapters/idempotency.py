@@ -9,7 +9,7 @@ write completes (not when the HTTP wait ends), and a retry with the same key
 returns that result instead of writing again, or waits for it while the
 first attempt is still running.
 
-Keys are scoped to the caller and route and kept for TTL seconds. A reused
+Keys are scoped to the caller, collection and route and kept for TTL seconds. A reused
 key with a different request is refused. A first attempt that fails is
 forgotten, so its retry runs again.
 
@@ -28,6 +28,8 @@ import threading
 import time
 from collections import OrderedDict
 from typing import Any, Callable, Dict, Optional, Tuple
+
+from aqt import mw
 
 from ..shared.errors import AnkiBusyError, ValidationError
 from . import ops
@@ -97,11 +99,19 @@ class IdempotencyStore:
 store = IdempotencyStore()
 
 
+def collection() -> str:
+    """The open collection. Keys belong to it too: after a profile switch, a
+    retry is a new request there, not the other profile's answer (6.120).
+    Cursors name it as well (shared/pagination.py)."""
+    col = mw.col
+    return col.path if col is not None else ""
+
+
 def scope(route: str, key: str) -> Tuple[str, ...]:
     """Keys belong to the app that sent them (or its No key row)."""
     from ..shared.permissions import current_caller
     caller = current_caller.get()
-    return (caller.name if caller else "", route, key)
+    return (caller.name if caller else "", collection(), route, key)
 
 
 def fingerprint(*parts: Any) -> str:

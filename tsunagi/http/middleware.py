@@ -195,7 +195,8 @@ class IdempotencyMiddleware:
         fingerprint = hashlib.sha256(scope.get("query_string", b"") + b"\0" + body).hexdigest()
         try:
             journal = idempotency.open_journal(
-                (caller.name if caller else "", scope["method"], scope["path"], key), fingerprint)
+                (caller.name if caller else "", idempotency.collection(), scope["method"], scope["path"], key),
+                fingerprint)
         except ValidationError as exc:
             return await JSONResponse({"detail": str(exc)}, status_code=400)(scope, receive, send)
 

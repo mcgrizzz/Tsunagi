@@ -368,9 +368,10 @@ curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" \
 - For those other writes, a retry runs the request again, but each write in
   it returns its recorded result instead of writing; only the response's
   `stats` timing can differ.
-- Keys belong to the app and route that sent them and are kept for ten
-  minutes. A first attempt that failed with an error is forgotten, so its
-  retry runs again.
+- Keys belong to the app and route that sent them and to the open profile,
+  and are kept for ten minutes. After a switch to another profile, a retry is
+  a new request there. A first attempt that failed with an error is
+  forgotten, so its retry runs again.
 - A 200 response is recorded even when some items are in `failed`. To retry
   just those items with corrected input, send a new request with a new key.
 - Some writes are safe to repeat without a key: an upsert updates the same
