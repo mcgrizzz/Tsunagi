@@ -85,7 +85,7 @@ def test_asking_again_asks_and_gives_the_same_app_a_new_key(client, prompt, rese
     answers.extend([allow(), allow("read_only")])
     old = ask_access(client).json()["key"]
     new = ask_access(client).json()
-    assert shown[1].existing == ("site.test", "Default")
+    assert shown[1].existing == ("site.test", "Default", True)
     [app] = settings.get("apps")
     assert app["key"] == new["key"] != old and app["role"] == "read_only"
     reset_settings.update(no_key_local_role="none")
@@ -100,13 +100,24 @@ def test_turning_its_app_off_cuts_the_website_off(client, prompt):
     assert client.get("/v1/decks", headers={"Origin": SITE, "X-Api-Key": key}).status_code == 403
 
 
+def test_allowing_a_turned_off_app_again_turns_it_back_on(client, prompt):
+    shown, answers, settings = prompt
+    answers.extend([allow(), allow()])
+    ask_access(client)
+    settings.update(apps=[{**settings.get("apps")[0], "enabled": False}])
+    key = ask_access(client).json()["key"]
+    assert shown[1].existing == ("site.test", "Default", False)
+    assert "enabled" not in settings.get("apps")[0]
+    assert client.get("/v1/decks", headers={"Origin": SITE, "X-Api-Key": key}).status_code == 200
+
+
 def test_a_program_asks_by_name_and_is_matched_by_it(client, prompt):
     shown, answers, settings = prompt
     answers.extend([allow(), allow()])
     first = ask_access(client, origin=None, body={"name": "Yomine"}).json()
     assert (shown[0].origin, shown[0].name, shown[0].address) == (None, "Yomine", None)
     again = ask_access(client, origin=None, body={"name": "Yomine"}).json()
-    assert shown[1].existing == ("Yomine", "Default")
+    assert shown[1].existing == ("Yomine", "Default", True)
     [app] = settings.get("apps")
     assert "origin" not in app and app["key"] == again["key"] != first["key"]
 

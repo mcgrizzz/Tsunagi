@@ -134,21 +134,33 @@ def ask_access_dialog(request: Any, *, timeout: float = 120.0) -> Any:
     def build() -> Tuple[Any, Callable[[Any], Any]]:
         dialog = QDialog(None)
         dialog.setWindowTitle("Tsunagi")
+        dialog.setMinimumWidth(480)  # wrapped labels would let it shrink to a narrow column
+        font = dialog.font()
+        font.setPointSizeF(font.pointSizeF() * 1.15)  # a step above Qt's small default
+        dialog.setFont(font)
         layout = QVBoxLayout(dialog)
+        layout.setSpacing(10)
+        again = request.existing is not None
         if request.origin:
-            layout.addWidget(label(f'<b>The website "{escape(request.origin)}" wants to use Anki '
-                                   "through Tsunagi.</b>"))
+            who = f'The website "{escape(request.origin)}"'
         else:
-            where = f"on another device ({escape(request.address)})" if request.address else "on this computer"
-            layout.addWidget(label(f'<b>A program {where}, calling itself "{escape(request.name)}", '
-                                   "wants to use Anki through Tsunagi.</b>"))
+            where = f"a program on another device ({escape(request.address)})" if request.address \
+                else "a program on this computer"
+            who = f'"{escape(request.name)}", {where},'
+        asks = "is asking for access again." if again else "wants to use Anki through Tsunagi."
+        layout.addWidget(label(f'<span style="font-size: large; font-weight: 600">{who} {asks}</span>'))
+        if not request.origin:
             layout.addWidget(label("A program names itself; Tsunagi can't check it."))
-        if request.existing:
-            app, role = request.existing
-            layout.addWidget(label(f'It already has access as "{escape(app)}" ({escape(role)}). '
-                                   "Allowing gives it a new key; the old one stops working."))
+        if again:
+            app, role, on = request.existing
+            state = (f'It has access as "{escape(app)}", with the role {escape(role)}.' if on else
+                     f'It has an app, "{escape(app)}" ({escape(role)}), which you turned off.')
+            layout.addWidget(label(state))
         row = QHBoxLayout()
         row.addWidget(QLabel("Role:"))
+        if again:
+            # Before and after: the role it has, and the one it gets if you allow it.
+            row.addWidget(label(f"<b>{escape(request.existing[1])}</b> &nbsp;&rarr;"))
         roles = QComboBox()
         for rid, name in request.roles:
             roles.addItem(name, rid)
@@ -163,9 +175,13 @@ def ask_access_dialog(request: Any, *, timeout: float = 120.0) -> Any:
                                                  "A role you made: Roles in Tsunagi's settings shows what it allows.")))
         roles.currentIndexChanged.connect(lambda _i: describe())
         describe()
-        name = request.existing[0] if request.existing else request.name
-        layout.addWidget(label(f'It gets its own key, and appears in Apps &amp; keys as "{escape(name)}", '
-                               "where you can change or remove it. Allow only what you trust."))
+        if again:
+            back_on = "" if request.existing[2] else ", turns its app back on,"
+            layout.addWidget(label(f"Allowing gives it a new key{back_on} and its old key stops working. "
+                                   "Allow only what you trust."))
+        else:
+            layout.addWidget(label(f'It gets its own key, and appears in Apps &amp; keys as "{escape(request.name)}", '
+                                   "where you can change or remove it. Allow only what you trust."))
         ignore = QCheckBox("Don't ask again for this " + ("website" if request.origin else "program"))
         layout.addWidget(ignore)
         buttons = QDialogButtonBox()

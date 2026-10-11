@@ -57,6 +57,8 @@ def qt_host(monkeypatch):
             shown.set()
 
     host = SimpleNamespace(taskman=Taskman(), windowIcon=gui.QIcon)
+    # Imported before aqt.mw is swapped, or ops would keep the stand-in after the test.
+    import tsunagi.adapters.ops  # noqa: F401
     monkeypatch.setattr(aqt, "mw", host)
     monkeypatch.setattr("tsunagi.adapters.ops.mw", host)
     on_shown = []  # what a test does once the dialog is up, run inside its own loop
@@ -206,8 +208,10 @@ def test_a_program_is_shown_unchecked_and_its_text_escaped(qt_host):
         seen.extend(label.text() for label in dialog.findChildren(widgets.QLabel))
         dialog.reject()
     answer_access(qt_host, act, AccessAsk(origin=None, name="<i>Yomine</i>", address="192.168.1.5",
-                                          existing=("<i>Yomine</i>", "Default"),
+                                          existing=("<i>Yomine</i>", "Read-only", False),
                                           roles=[("default", "Default")], role="default"))
     text = " ".join(seen)
     assert "&lt;i&gt;Yomine&lt;/i&gt;" in text and "<i>" not in text
     assert "192.168.1.5" in text and "can't check" in text and "new key" in text
+    assert "asking for access again" in text and "turned off" in text and "back on" in text
+    assert "<b>Read-only</b>" in text  # the role it has, before the list of the one it gets

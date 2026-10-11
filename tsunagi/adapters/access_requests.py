@@ -28,7 +28,7 @@ class AccessAsk:
     origin: Optional[str]              # a website; None for a program
     name: str                          # the app's name if allowed
     address: Optional[str]             # another device's address; None on this computer
-    existing: Optional[Tuple[str, str]]  # (app name, role name) if it has access already
+    existing: Optional[Tuple[str, str, bool]]  # (app name, role name, on) if it has an app already
     roles: List[Tuple[str, str]]       # (id, name), every role but No access
     role: str                          # preselected role id
 
@@ -132,7 +132,8 @@ def _ask_and_apply(settings: Any, ask: Callable[[AccessAsk], AccessDecision], or
     found = _existing(apps, origin, app_name)
     existing = None
     if found is not None:
-        existing = (str(apps[found].get("name")), settings.role(apps[found].get("role"))[0])
+        existing = (str(apps[found].get("name")), settings.role(apps[found].get("role"))[0],
+                    apps[found].get("enabled") is not False)
     decision = ask(AccessAsk(origin=origin, name=app_name, address=None if local else address,
                              existing=existing, roles=roles, role=_suggested_role(roles, role)))
     if not decision:
