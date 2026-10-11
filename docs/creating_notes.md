@@ -307,6 +307,12 @@ const rejected = response.failed.map(failure => ({
 Correct the reported problem and retry only those inputs. A single object uses
 the same failure format. An empty array returns empty `created` and `failed` arrays.
 
+A note's files are stored only once the note passes its checks. If Anki then
+refuses the note itself (`anki_error`, or an error from PATCH), the files it
+stored stay in the media folder, unused. Anki does the same with a picture
+pasted into Add Cards that you close without adding: **Tools → Check Media**
+lists such files and can delete them.
+
 Some errors reject the whole request instead:
 
 - **422**: the request is malformed, such as a note without `fields` or with

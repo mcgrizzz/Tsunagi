@@ -170,3 +170,19 @@ def test_same_named_files_each_keep_their_own_reference(client, col):
     assert fields_of(col, created["id"])["Back"] == (
         f'mine:<img src="image.png"><img src="{first}"><img src="{second}">')
     assert col.media.have(first) and col.media.have(second)
+
+
+def test_a_note_anki_refuses_after_its_files_were_stored_leaves_them_unused(client, col, monkeypatch):
+    """6.121: as Anki leaves a pasted picture when Add Cards closes; Check Media finds them."""
+    from anki.collection import Collection
+
+    class InvalidInput(Exception):  # an Anki client error, by name
+        pass
+
+    def refuse(*args, **kwargs):
+        raise InvalidInput("refused")
+    monkeypatch.setattr(Collection, "add_note", refuse)
+    resp = client.post("/v1/notes", json=note("犬", picture={"data": b64(b"png"), "filename": "left.png",
+                                                             "fields": ["Back"]}))
+    assert resp.json()["failed"][0]["code"] == "anki_error" and resp.json()["created"] == []
+    assert col.media.have("left.png") and col.find_notes("") == []
