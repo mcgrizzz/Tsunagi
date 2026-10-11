@@ -59,14 +59,18 @@ results are in the [archived manual log](archive/manual_test_plan.md).
 - [ ] Open the import picker with `POST /v1/gui:import-file`, leave it, then
   cancel. The API answers as soon as Anki accepts the request; it doesn't wait
   for an import.
-- [ ] Anki's day changing sends `day.changed`, even with the reviewer open.
-  Turn off the computer's automatic time and Anki's auto sync. Set **Next
-  day starts at** to 13 and the clock to 12:57, then reopen the profile (the
-  server sets its timer then, and closes open streams). Then open
-  `curl -N '<address>/v1/events?types=day.changed'` and a deck's review
-  screen: `day.changed` arrives just after 13:00. Then, at 12:55 with the hour set to 4 and the profile reopened, set
-  it to 13: `day.changed` arrives at once (Anki's day steps back) and again
-  just after 13:00. Turn automatic time back on afterwards.
+- [ ] Anki's day changing sends `day.changed`. Open
+  `curl -N '<address>/v1/events?types=day.changed'`, then:
+  - **A new hour** (a minute, no clock change): in **Preferences**, set **Next
+    day starts at** to an hour later than the time now and close Preferences
+    (it saves on closing): `day.changed` arrives at once (Anki's day steps
+    back). Set it back and close again: it arrives again.
+  - **The day starting, on the review screen** (only for a release that
+    changes the day check): turn off the computer's automatic time and Anki's
+    auto sync, set the hour to 13 and the clock to 12:57, reopen the profile
+    (the server sets its timer then, and closes open streams), reopen the
+    stream and a deck's review screen: `day.changed` arrives just after
+    13:00. Turn automatic time back on afterwards.
 - [ ] A website asks for access: from a browser tab on a site not in Allowed
   websites, run `fetch('<address>/v1/permissions:request', {method: 'POST'})`
   in its console. Anki shows the prompt naming the site, with **Don't allow**
