@@ -12,7 +12,12 @@ from anki.collection import Collection
 from anki.consts import MODEL_CLOZE
 from anki.utils import ids2str
 
-from ...shared.errors import ConflictError, DuplicateNoteError, ResourceNotFoundError, ValidationError
+from ...shared.errors import (
+    ConflictError,
+    DuplicateNoteError,
+    ResourceNotFoundError,
+    ValidationError,
+)
 from ...shared.schemas.media import MediaStored
 from ...shared.schemas.notes import (
     NoteCreate,

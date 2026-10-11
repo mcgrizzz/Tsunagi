@@ -120,7 +120,16 @@ def ask_access_dialog(request: Any, *, timeout: float = 120.0) -> Any:
     POST /v1/permissions:request (6.124): who is asking, a role to give it,
     Allow / Don't allow (the default). `request` is an AccessAsk.
     """
-    from aqt.qt import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, Qt, QVBoxLayout
+    from aqt.qt import (
+        QCheckBox,
+        QComboBox,
+        QDialog,
+        QDialogButtonBox,
+        QHBoxLayout,
+        QLabel,
+        Qt,
+        QVBoxLayout,
+    )
 
     from .access_requests import AccessDecision
 
