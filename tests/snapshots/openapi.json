@@ -99,6 +99,16 @@
           "type": "integer"
         }
       },
+      "query.search": {
+        "description": "Anki search: only reviews of the cards it finds count, e.g. `deck:Japanese` or `tag:verbs`. Empty: the whole collection.",
+        "in": "query",
+        "name": "search",
+        "required": false,
+        "schema": {
+          "default": "",
+          "type": "string"
+        }
+      },
       "query.select": {
         "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
         "in": "query",
@@ -2235,6 +2245,23 @@
         ],
         "type": "object"
       },
+      "MatureToday": {
+        "properties": {
+          "correct": {
+            "description": "Of those, answered Hard, Good or Easy.",
+            "type": "integer"
+          },
+          "reviews": {
+            "description": "Reviews of mature cards (interval of 21 days or more).",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reviews",
+          "correct"
+        ],
+        "type": "object"
+      },
       "MediaCreateFailure": {
         "properties": {
           "code": {
@@ -3867,6 +3894,79 @@
         ],
         "type": "object"
       },
+      "ReviewDay": {
+        "properties": {
+          "date": {
+            "description": "The Anki day, as the date it started (days start at the \"Next day starts at\" hour).",
+            "type": "string"
+          },
+          "filtered": {
+            "description": "Answers in filtered decks, ahead of schedule.",
+            "type": "integer"
+          },
+          "learn": {
+            "description": "Answers to cards in learning.",
+            "type": "integer"
+          },
+          "mature": {
+            "description": "Answers to review cards with an interval of 21 days or more.",
+            "type": "integer"
+          },
+          "relearn": {
+            "description": "Answers to cards in relearning.",
+            "type": "integer"
+          },
+          "reviews": {
+            "type": "integer"
+          },
+          "seconds": {
+            "type": "integer"
+          },
+          "young": {
+            "description": "Answers to review cards with an interval under 21 days.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "reviews",
+          "seconds",
+          "learn",
+          "young",
+          "mature",
+          "relearn",
+          "filtered"
+        ],
+        "type": "object"
+      },
+      "ReviewDays": {
+        "properties": {
+          "days_studied": {
+            "description": "How many days in the range had reviews.",
+            "type": "integer"
+          },
+          "items": {
+            "description": "Days with reviews, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/ReviewDay"
+            },
+            "type": "array"
+          },
+          "stats": {
+            "type": "object"
+          },
+          "streak": {
+            "description": "Days in a row with reviews, up to today; while today has none yet, up to yesterday. Counted within the range.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "days_studied",
+          "streak"
+        ],
+        "type": "object"
+      },
       "ReviewInfo": {
         "additionalProperties": false,
         "description": "One revlog row, with human-readable names (Anki wire names as aliases).\nNot every row is an answer: manual reschedules (type 4) and FSRS\nreschedules (type 5) are rows too, with rating 0.\n\nThe revlog is append-only history: every row is a fact about a review that\nhappened, so it is normally the scheduler's to write. The one exception is\nPOST /v1/reviews (AnkiConnect's insertReviews), which inserts rows for\nhistory imports - and reuses this model, so rows round-trip read<->write.",
@@ -4482,6 +4582,56 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "TodayStatistics": {
+        "description": "Anki's day so far, as the Today section of its Statistics screen counts it.",
+        "properties": {
+          "correct": {
+            "description": "Answered Hard, Good or Easy.",
+            "type": "integer"
+          },
+          "filtered": {
+            "description": "Answers in filtered decks, ahead of schedule.",
+            "type": "integer"
+          },
+          "learn": {
+            "description": "Answers to cards in learning.",
+            "type": "integer"
+          },
+          "mature": {
+            "$ref": "#/components/schemas/MatureToday"
+          },
+          "relearn": {
+            "description": "Answers to cards in relearning.",
+            "type": "integer"
+          },
+          "review": {
+            "description": "Answers to cards in review.",
+            "type": "integer"
+          },
+          "reviews": {
+            "description": "Cards answered.",
+            "type": "integer"
+          },
+          "seconds": {
+            "description": "Time spent answering, rounded.",
+            "type": "integer"
+          },
+          "stats": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "reviews",
+          "seconds",
+          "correct",
+          "learn",
+          "review",
+          "relearn",
+          "filtered",
+          "mature"
+        ],
         "type": "object"
       },
       "UndoResult": {
@@ -10046,6 +10196,102 @@
         "summary": "Query reviews (POST)",
         "tags": [
           "Reviews"
+        ],
+        "x-permission": "read:reviews"
+      }
+    },
+    "/v1/statistics/review-days": {
+      "get": {
+        "description": "One row per Anki day with reviews, newest first, with how many days had reviews and the current streak: what a heatmap or a streak counter needs.",
+        "operationId": "getReviewDays",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/query.search"
+          },
+          {
+            "description": "How many days back from today, today included; 0 for all history.",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 365,
+              "maximum": 36500.0,
+              "minimum": 0.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDays"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Days studied",
+        "tags": [
+          "Statistics"
+        ],
+        "x-permission": "read:reviews"
+      }
+    },
+    "/v1/statistics/today": {
+      "get": {
+        "description": "Anki's day so far, as its Statistics screen's Today section counts it: cards answered, time, correct answers, by kind, and mature cards.",
+        "operationId": "getTodayStatistics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/query.search"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayStatistics"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Today's statistics",
+        "tags": [
+          "Statistics"
         ],
         "x-permission": "read:reviews"
       }

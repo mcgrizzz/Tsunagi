@@ -45,6 +45,7 @@ from .http.v1.media import router as media_router
 from .http.v1.note_types import router as note_types_router
 from .http.v1.notes import router as notes_router
 from .http.v1.reviews import router as reviews_router
+from .http.v1.statistics import router as statistics_router
 from .http.v1.tags import router as tags_router
 from .log import log
 from .shared import pagination
@@ -279,6 +280,7 @@ app.include_router(cards_router)
 app.include_router(tags_router)
 app.include_router(deck_presets_router)
 app.include_router(reviews_router)
+app.include_router(statistics_router)
 app.include_router(fsrs_router)
 app.include_router(collection_router)
 app.include_router(gui_router)

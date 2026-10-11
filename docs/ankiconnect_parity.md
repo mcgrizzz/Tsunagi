@@ -303,7 +303,7 @@ and its existing media side effects.
 | `cardReviews` | implemented | Arrays in revlog column order. The AnkiConnect Shim creates a missing deck and returns no rows. Both `deck` and `startID` are required. The cutoff is bound unchanged through Anki’s database API; strings are values, never SQL expressions. Tsunagi API reads create nothing. |
 | `getCollectionStatsHTML` | implemented | Anki's own stats report. |
 | `getLatestReviewID` | implemented | The AnkiConnect Shim creates a missing deck and returns 0; Tsunagi API reads create nothing. |
-| `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. |
-| `getNumCardsReviewedToday` | implemented | Counted from the scheduler's day cutoff. |
+| `getNumCardsReviewedByDay` | implemented | Grouped by local study day, using the scheduler's rollover hour. Tsunagi API: GET /v1/statistics/review-days (by kind, with time and the streak). |
+| `getNumCardsReviewedToday` | implemented | Counted from the scheduler's day cutoff. Tsunagi API: GET /v1/statistics/today (by kind, with time and correct answers). |
 | `getReviewsOfCards` | implemented | Map of card id to reviews; every requested card gets an entry. |
 | `insertReviews` | implemented | Ordinary integer rows use the Tsunagi API's writer; a scalar-only compatibility path preserves tested SQLite coercion/errors. Duplicate/malformed-row failures are atomic upstream too. SQL-expression values remain outside the scalar contract. Tsunagi API: POST /v1/reviews. |
