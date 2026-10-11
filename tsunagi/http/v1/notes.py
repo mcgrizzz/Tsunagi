@@ -202,7 +202,8 @@ def delete(body: NoteIds = Body(...)) -> VerbResult:
         "Cards no new template takes are deleted, and Anki adds the cards a new template "
         "makes. One undo step; like editing a note type's fields, it needs a full sync next. "
         "With `dry_run`, answers the maps, the fields whose content would be lost and the "
-        "cards that would be removed, and changes nothing. A missing note is skipped."
+        "cards that would be removed, and changes nothing. A missing note is skipped; "
+        "notes of two note types are a 409; a change that changes nothing writes nothing."
     ),
     tags=["Notes"],
     operation_id="notesChangeNoteType",

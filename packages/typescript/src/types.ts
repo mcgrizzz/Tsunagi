@@ -51,7 +51,11 @@ export interface NotePatch extends NoteFiles {
   tags?: readonly string[];
   addTags?: readonly string[];
   removeTags?: readonly string[];
-  /** Changes the note's type; needs `fields`, since the new type's fields start empty. */
+  /**
+   * Changes the note's type; needs `fields`, since the new type's fields start empty.
+   * @deprecated Removed with Tsunagi 0.8. Use `anki.raw.request("POST /v1/notes:change-note-type", ...)`,
+   * which maps fields and cards (with their reviews) for many notes at once and has a dry run.
+   */
   noteType?: Reference;
 }
 export type FieldRule = "keep" | "replace" | "replaceIfEmpty" | "append";

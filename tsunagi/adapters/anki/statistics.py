@@ -26,7 +26,7 @@ def today_statistics(col: Collection, search: str) -> Dict[str, Any]:
     today = _graphs(col, search, 1).today
     return {
         "reviews": today.answer_count,
-        "seconds": round(today.answer_millis / 1000),
+        "duration_ms": today.answer_millis,
         "correct": today.correct_count,
         "learn": today.learn_count,
         "review": today.review_count,
@@ -53,7 +53,7 @@ def review_days(col: Collection, search: str, days: int) -> Dict[str, Any]:
         items.append({
             "date": _date(col, offset),
             "reviews": _total(count),
-            "seconds": round(_total(reviews.time[offset]) / 1000),
+            "duration_ms": _total(reviews.time[offset]),
             "learn": count.learn, "young": count.young, "mature": count.mature,
             "relearn": count.relearn, "filtered": count.filtered,
         })

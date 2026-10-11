@@ -34,14 +34,14 @@ def test_a_dry_run_answers_what_would_go_and_deletes_nothing(client, col, emptie
         {"note_id": half, "card_ids": [half_cards[1]], "note_deleted": False},
         {"note_id": cloze, "card_ids": [cloze_cards[1]], "note_deleted": False},
     ]
-    assert (body["cards_deleted"], body["notes_deleted"], body["dry_run"]) == (2, 0, True)
+    assert (body["affected"], body["notes_deleted"], body["dry_run"]) == (2, 0, True)
     assert col.card_count() == count and col.undo_status().undo == undo
 
 
 def test_deleting_keeps_notes_and_their_first_card_by_default(client, col, empties):
     half, half_cards, cloze, cloze_cards, full = empties
     resp = client.post(ROUTE)
-    assert resp.status_code == 200 and resp.json()["cards_deleted"] == 2, resp.text
+    assert resp.status_code == 200 and resp.json()["affected"] == 2, resp.text
     assert col.card_ids_of_note(half) == [half_cards[0]]
     assert col.card_ids_of_note(cloze) == [cloze_cards[0]] and len(col.card_ids_of_note(full)) == 1
     col.undo()
@@ -62,7 +62,7 @@ def test_nothing_empty_writes_nothing(client, col):
     col.add_note(note, 1)
     undo = col.undo_status().undo
     body = client.post(ROUTE).json()
-    assert (body["notes"], body["cards_deleted"]) == ([], 0) and col.undo_status().undo == undo
+    assert (body["notes"], body["affected"]) == ([], 0) and col.undo_status().undo == undo
 
 
 def test_deleting_notes_needs_write_notes(client, col, empties, reset_settings):

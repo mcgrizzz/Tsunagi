@@ -1657,7 +1657,8 @@
       },
       "EmptyCardsResult": {
         "properties": {
-          "cards_deleted": {
+          "affected": {
+            "description": "Cards deleted (with dry_run, that would be).",
             "type": "integer"
           },
           "dry_run": {
@@ -1679,7 +1680,7 @@
         },
         "required": [
           "notes",
-          "cards_deleted",
+          "affected",
           "notes_deleted",
           "dry_run",
           "stats"
@@ -3994,6 +3995,10 @@
             "description": "The Anki day, as the date it started (days start at the \"Next day starts at\" hour).",
             "type": "string"
           },
+          "duration_ms": {
+            "description": "Time spent answering, in milliseconds.",
+            "type": "integer"
+          },
           "filtered": {
             "description": "Answers in filtered decks, ahead of schedule.",
             "type": "integer"
@@ -4013,9 +4018,6 @@
           "reviews": {
             "type": "integer"
           },
-          "seconds": {
-            "type": "integer"
-          },
           "young": {
             "description": "Answers to review cards with an interval under 21 days.",
             "type": "integer"
@@ -4024,7 +4026,7 @@
         "required": [
           "date",
           "reviews",
-          "seconds",
+          "duration_ms",
           "learn",
           "young",
           "mature",
@@ -4685,6 +4687,10 @@
             "description": "Answered Hard, Good or Easy.",
             "type": "integer"
           },
+          "duration_ms": {
+            "description": "Time spent answering, in milliseconds.",
+            "type": "integer"
+          },
           "filtered": {
             "description": "Answers in filtered decks, ahead of schedule.",
             "type": "integer"
@@ -4708,17 +4714,13 @@
             "description": "Cards answered.",
             "type": "integer"
           },
-          "seconds": {
-            "description": "Time spent answering, rounded.",
-            "type": "integer"
-          },
           "stats": {
             "type": "object"
           }
         },
         "required": [
           "reviews",
-          "seconds",
+          "duration_ms",
           "correct",
           "learn",
           "review",
@@ -9815,7 +9817,7 @@
     },
     "/v1/notes:change-note-type": {
       "post": {
-        "description": "Anki's Change Note Type, for notes all of one note type: each new field takes an old field's content, and each new card template an old template's cards with their reviews. `fields` and `templates` name the maps; Anki's defaults fill the rest. Cards no new template takes are deleted, and Anki adds the cards a new template makes. One undo step; like editing a note type's fields, it needs a full sync next. With `dry_run`, answers the maps, the fields whose content would be lost and the cards that would be removed, and changes nothing. A missing note is skipped.",
+        "description": "Anki's Change Note Type, for notes all of one note type: each new field takes an old field's content, and each new card template an old template's cards with their reviews. `fields` and `templates` name the maps; Anki's defaults fill the rest. Cards no new template takes are deleted, and Anki adds the cards a new template makes. One undo step; like editing a note type's fields, it needs a full sync next. With `dry_run`, answers the maps, the fields whose content would be lost and the cards that would be removed, and changes nothing. A missing note is skipped; notes of two note types are a 409; a change that changes nothing writes nothing.",
         "operationId": "notesChangeNoteType",
         "parameters": [
           {

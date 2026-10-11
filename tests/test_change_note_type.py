@@ -109,7 +109,7 @@ def test_templates_with_a_cloze_note_type_are_refused(client, col):
 def test_notes_of_two_note_types_are_refused(client, col):
     nids = [add(client), add(client, REVERSED)]
     resp = change(client, nids, "Cloze")
-    assert resp.status_code == 400 and "Basic" in resp.json()["detail"] \
+    assert resp.status_code == 409 and "Basic" in resp.json()["detail"] \
         and REVERSED in resp.json()["detail"]
     assert col.get_note(nids[0]).note_type()["name"] == "Basic"
 
@@ -146,3 +146,13 @@ def test_events_name_the_notes_and_cards(client, col, recorded_ops):
     assert set(events["cards.deleted"]["ids"]) == old - kept
     assert set(events["cards.updated"]["ids"]) == kept
     broker.begin_drain()
+
+
+def test_a_change_that_changes_nothing_writes_nothing(client, col):
+    nid = add(client, REVERSED)
+    undo = col.undo_status().undo
+    resp = change(client, [nid], REVERSED)
+    assert resp.status_code == 200 and resp.json()["affected"] == 1
+    assert col.undo_status().undo == undo
+    swapped = change(client, [nid], REVERSED, fields={"Front": "Back", "Back": "Front"})
+    assert swapped.status_code == 200 and col.undo_status().undo == "Change Note Type"

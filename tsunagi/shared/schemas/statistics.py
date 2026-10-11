@@ -14,7 +14,7 @@ class MatureToday(BaseModel):
 class TodayStatistics(BaseModel):
     """Anki's day so far, as the Today section of its Statistics screen counts it."""
     reviews: int = Field(description="Cards answered.")
-    seconds: int = Field(description="Time spent answering, rounded.")
+    duration_ms: int = Field(description="Time spent answering, in milliseconds.")
     correct: int = Field(description="Answered Hard, Good or Easy.")
     learn: int = Field(description="Answers to cards in learning.")
     review: int = Field(description="Answers to cards in review.")
@@ -28,7 +28,7 @@ class ReviewDay(BaseModel):
     date: str = Field(description=(
         "The Anki day, as the date it started (days start at the \"Next day starts at\" hour)."))
     reviews: int
-    seconds: int
+    duration_ms: int = Field(description="Time spent answering, in milliseconds.")
     learn: int = Field(description="Answers to cards in learning.")
     young: int = Field(description="Answers to review cards with an interval under 21 days.")
     mature: int = Field(description="Answers to review cards with an interval of 21 days or more.")

@@ -208,7 +208,9 @@ rating name, sent as its code.
 `check_all_note_types`). `audio`, `video`, `picture`: lists of files, each
 exactly one of `data` (bytes, sent as base64), `url` or `path`, with an
 optional `filename` and `fields`. A patch sends only what was given; `tags`
-replaces, `addTags`/`removeTags` add and remove, `noteType` retypes.
+replaces, `addTags`/`removeTags` add and remove, `noteType` retypes
+(deprecated with the server's PATCH retype, removed in 0.8; changing note type
+is `POST /v1/notes:change-note-type`, through typed raw).
 Upsert adds `match` (`matchField`) and `on_match` (`fieldRules` with
 `replaceIfEmpty` as `replace_if_empty`, `tagRule`, `separator`).
 `create` and `createMany` can ask for card ids (`include=cards`), `upsert`

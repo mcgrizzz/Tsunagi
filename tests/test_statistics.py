@@ -30,7 +30,7 @@ def test_today_counts_answers_by_kind(client, col, cards, answer_cards):
     body = client.get("/v1/statistics/today").json()
     assert (body["reviews"], body["correct"], body["learn"], body["review"]) == (4, 4, 3, 1)
     assert body["mature"] == {"reviews": 1, "correct": 1}
-    assert body["seconds"] >= 2
+    assert body["duration_ms"] >= 2000
 
 
 def test_search_keeps_the_reviews_of_the_cards_it_finds(client, col, cards, answer_cards):
@@ -49,7 +49,7 @@ def test_review_days_are_newest_first_with_the_streak(client, col, cards):
     assert [d["date"] for d in body["items"]] == [date_of(col, d) for d in (0, -1, -2, -4)]
     yesterday = body["items"][1]
     assert (yesterday["reviews"], yesterday["young"], yesterday["mature"]) == (2, 1, 1)
-    assert yesterday["seconds"] == 8
+    assert yesterday["duration_ms"] == 8000
     assert body["days_studied"] == 4 and body["streak"] == 3
 
 

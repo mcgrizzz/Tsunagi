@@ -250,7 +250,7 @@ class EmptyCardsNote(BaseModel):
 
 class EmptyCardsResult(BaseModel):
     notes: List[EmptyCardsNote] = Field(description="Each note with cards deleted.")
-    cards_deleted: int
+    affected: int = Field(description="Cards deleted (with dry_run, that would be).")
     notes_deleted: int
     dry_run: bool
     stats: dict

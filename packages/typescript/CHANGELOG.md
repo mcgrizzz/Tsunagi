@@ -13,6 +13,11 @@ changes that need no add-on release.
   compile; the answer's type follows its status (`202` for a job still
   running). Writes are keyed like the client's own methods. `PUT` routes
   (field and template order) are reachable now.
+- `notes.update(id, { noteType })` is deprecated, as the server's PATCH retype
+  is: both go with Tsunagi 0.8. To change notes' note type, use
+  `anki.raw.request("POST /v1/notes:change-note-type", { body })`: it maps
+  fields and cards (with their reviews) for many notes at once, and
+  `dry_run: true` answers what would change first.
 - `raw.request(method, path, options)` still works but is deprecated: it is
   untyped, and a write is keyed only when you pass an `idempotencyKey`.
 - **Watches stay right overnight:** when Anki's day changes, a watch reads

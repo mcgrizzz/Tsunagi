@@ -809,7 +809,7 @@ def _empty_cards_plan(col: Collection, keep_notes: bool) -> Dict[str, Any]:
             notes.append({"note_id": int(found.note_id), "card_ids": ids,
                           "note_deleted": bool(found.will_delete_note and not keep_notes)})
             card_ids.extend(ids)
-    return {"notes": notes, "card_ids": card_ids, "cards_deleted": len(card_ids),
+    return {"notes": notes, "card_ids": card_ids, "affected": len(card_ids),
             "notes_deleted": sum(n["note_deleted"] for n in notes)}
 
 

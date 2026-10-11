@@ -12,7 +12,7 @@ from anki.collection import Collection
 from anki.consts import MODEL_CLOZE
 from anki.utils import ids2str
 
-from ...shared.errors import DuplicateNoteError, ResourceNotFoundError, ValidationError
+from ...shared.errors import ConflictError, DuplicateNoteError, ResourceNotFoundError, ValidationError
 from ...shared.schemas.media import MediaStored
 from ...shared.schemas.notes import (
     NoteCreate,
@@ -552,7 +552,7 @@ def _note_type_plan(col: Collection, body: NoteTypeChange) -> Tuple[Any, Dict[st
     mids = col.db.list("select distinct mid from notes where id in " + ids2str(nids))
     if len(mids) > 1:
         names = _model_names(col)
-        raise ValidationError("The notes must all be of one note type; these are of "
+        raise ConflictError("The notes must all be of one note type; these are of "
                               + ", ".join(sorted(names.get(int(m), str(m)) for m in mids)))
     old = col.models.get(int(mids[0]))
     info = col.models.change_notetype_info(old_notetype_id=int(old["id"]),
@@ -591,6 +591,14 @@ def _note_type_plan(col: Collection, body: NoteTypeChange) -> Tuple[Any, Dict[st
     }
 
 
+def _unchanged(req: Any) -> bool:
+    """The notes' own note type, every field and template where it was: Anki would
+    still record a step and require a full sync."""
+    return (req.old_notetype_id == req.new_notetype_id
+            and list(req.new_fields) == list(range(len(req.new_fields)))
+            and list(req.new_templates) == list(range(len(req.new_templates))))
+
+
 @as_query_op
 def plan_note_type_change(col: Collection, body: NoteTypeChange) -> Dict[str, Any]:
     """What change_note_type would do, changing nothing (dry_run)."""
@@ -601,8 +609,8 @@ def plan_note_type_change(col: Collection, body: NoteTypeChange) -> Dict[str, An
 def change_note_type(col: Collection, body: NoteTypeChange) -> Any:
     """Anki's Change Note Type: fields and cards mapped, reviews kept, one undo step."""
     req, plan = _note_type_plan(col, body)
-    if req is None:
-        return plan  # no notes, no write: Anki would still record an empty undo step
+    if req is None or _unchanged(req):
+        return plan  # nothing to change, no write: Anki would still record a step
     nids = list(req.note_ids)
     before = set(col.db.list("select id from cards where nid in " + ids2str(nids)))
     changes = col.models.change_notetype_of_notes(req)
