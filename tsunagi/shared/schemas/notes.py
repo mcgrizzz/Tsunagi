@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, StrictBool, validator
+from pydantic import BaseModel, Field, StrictBool, root_validator, validator
 
 # ----------------- Response Schemas -----------------
 from .creation import CreationFailure, CreationResult
@@ -163,8 +163,12 @@ class NotePatch(NoteFiles):
     remove_tags: Optional[List[str]] = Field(alias="removeTags", default=None)
     _tags = validator("tags", "add_tags", "remove_tags", allow_reuse=True)(tags_without_spaces)
     # Retype the note. Requires `fields`: the new note type's fields start empty.
-    note_type_id: Optional[int] = Field(alias="noteTypeId", default=None)
-    note_type_name: Optional[str] = Field(alias="noteTypeName", default=None)
+    # Deprecated (owner, 2026-10-11): POST /v1/notes:change-note-type; removed in 0.8.
+    note_type_id: Optional[int] = Field(alias="noteTypeId", default=None, description=(
+        "Deprecated, removed in 0.8: use POST /v1/notes:change-note-type. Changes the "
+        "note's type; needs `fields`, as the new type's fields start empty."))
+    note_type_name: Optional[str] = Field(alias="noteTypeName", default=None, description=(
+        "Deprecated, removed in 0.8: use POST /v1/notes:change-note-type."))
 
 
 def unique_ids(ids: List[int]) -> List[int]:
@@ -182,6 +186,52 @@ class NoteIds(RequestBody):
         description="A note id sent twice counts once; a missing note is skipped.")
 
     _unique = validator("note_ids", allow_reuse=True)(unique_ids)
+
+
+class NoteTypeChange(RequestBody):
+    """Body for POST /v1/notes:change-note-type (6.118): the new note type by name or id
+    (the id when both are sent), and which old field and card template each new one takes."""
+    class Config:
+        allow_population_by_field_name = True
+
+    note_ids: List[int] = Field(
+        alias="noteIds",
+        description=("The notes to change, all of one note type. A note id sent twice counts "
+                     "once; a missing note is skipped."))
+    note_type_id: Optional[int] = Field(None, alias="noteTypeId")
+    note_type_name: Optional[str] = Field(None, alias="noteTypeName")
+    fields: Optional[Dict[str, Optional[str]]] = Field(None, description=(
+        "For a new field, the old field whose content it takes, or null for none. A field "
+        "not named takes Anki's default, as its Change Note Type window proposes: the old "
+        "field of the same name, else the one in the same position."))
+    templates: Optional[Dict[str, Optional[str]]] = Field(None, description=(
+        "For a new card template, the old template whose cards (and their reviews) it "
+        "takes, or null for none; Anki's default otherwise. Cards of an old template that "
+        "no new one takes are deleted. Not with a cloze note type on either side: cloze "
+        "cards follow their cloze numbers."))
+    dry_run: StrictBool = Field(False, alias="dryRun", description=(
+        "Answer what the change would do, and change nothing."))
+
+    _unique = validator("note_ids", allow_reuse=True)(unique_ids)
+
+    @root_validator(skip_on_failure=True, allow_reuse=True)
+    def _a_note_type(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        if values.get("note_type_id") is None and not values.get("note_type_name"):
+            raise ValueError("one of note_type_id or note_type_name is required")
+        return values
+
+
+class NoteTypeChangeResult(BaseModel):
+    affected: int = Field(description="The notes changed (with dry_run, that would be).")
+    fields: Dict[str, Optional[str]] = Field(description=(
+        "Each new field, and the old field whose content it takes (null: none)."))
+    templates: Optional[Dict[str, Optional[str]]] = Field(description=(
+        "Each new card template, and the old template whose cards it takes (null: none); "
+        "null when either note type is cloze."), **NULLABLE)
+    lost_fields: List[str] = Field(description="Old fields whose content no new field takes.")
+    cards_removed: int = Field(description="Cards deleted because no new template takes them.")
+    dry_run: bool
+    stats: dict
 
 
 # ----------------- Duplicate/empty check -----------------

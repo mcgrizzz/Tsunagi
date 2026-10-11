@@ -2828,9 +2828,11 @@
             ]
           },
           "note_type_id": {
+            "description": "Deprecated, removed in 0.8: use POST /v1/notes:change-note-type. Changes the note's type; needs `fields`, as the new type's fields start empty.",
             "type": "integer"
           },
           "note_type_name": {
+            "description": "Deprecated, removed in 0.8: use POST /v1/notes:change-note-type.",
             "type": "string"
           },
           "picture": {
@@ -2933,6 +2935,97 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "NoteTypeChange": {
+        "additionalProperties": false,
+        "description": "Body for POST /v1/notes:change-note-type (6.118): the new note type by name or id\n(the id when both are sent), and which old field and card template each new one takes.",
+        "properties": {
+          "dry_run": {
+            "default": false,
+            "description": "Answer what the change would do, and change nothing.",
+            "type": "boolean"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "For a new field, the old field whose content it takes, or null for none. A field not named takes Anki's default, as its Change Note Type window proposes: the old field of the same name, else the one in the same position.",
+            "type": "object"
+          },
+          "note_ids": {
+            "description": "The notes to change, all of one note type. A note id sent twice counts once; a missing note is skipped.",
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "note_type_id": {
+            "type": "integer"
+          },
+          "note_type_name": {
+            "type": "string"
+          },
+          "templates": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "For a new card template, the old template whose cards (and their reviews) it takes, or null for none; Anki's default otherwise. Cards of an old template that no new one takes are deleted. Not with a cloze note type on either side: cloze cards follow their cloze numbers.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "note_ids"
+        ],
+        "type": "object"
+      },
+      "NoteTypeChangeResult": {
+        "properties": {
+          "affected": {
+            "description": "The notes changed (with dry_run, that would be).",
+            "type": "integer"
+          },
+          "cards_removed": {
+            "description": "Cards deleted because no new template takes them.",
+            "type": "integer"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Each new field, and the old field whose content it takes (null: none).",
+            "type": "object"
+          },
+          "lost_fields": {
+            "description": "Old fields whose content no new field takes.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stats": {
+            "type": "object"
+          },
+          "templates": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Each new card template, and the old template whose cards it takes (null: none); null when either note type is cloze.",
+            "type": "object",
+            "x-nullable": true
+          }
+        },
+        "required": [
+          "affected",
+          "fields",
+          "lost_fields",
+          "cards_removed",
+          "dry_run",
+          "stats"
+        ],
         "type": "object"
       },
       "NoteTypeCreate": {
@@ -9419,6 +9512,58 @@
           }
         ],
         "summary": "Update note",
+        "tags": [
+          "Notes"
+        ],
+        "x-permission": "write:notes"
+      }
+    },
+    "/v1/notes:change-note-type": {
+      "post": {
+        "description": "Anki's Change Note Type, for notes all of one note type: each new field takes an old field's content, and each new card template an old template's cards with their reviews. `fields` and `templates` name the maps; Anki's defaults fill the rest. Cards no new template takes are deleted, and Anki adds the cards a new template makes. One undo step; like editing a note type's fields, it needs a full sync next. With `dry_run`, answers the maps, the fields whose content would be lost and the cards that would be removed, and changes nothing. A missing note is skipped.",
+        "operationId": "notesChangeNoteType",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteTypeChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteTypeChangeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          },
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Change notes' note type",
         "tags": [
           "Notes"
         ],

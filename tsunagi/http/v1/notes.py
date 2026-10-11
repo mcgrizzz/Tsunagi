@@ -8,6 +8,7 @@ from ...adapters import idempotency
 from ...adapters.anki.note_batches import create_notes, upsert_notes
 from ...adapters.anki.notes import (
     NOTE_SQL,
+    change_note_type,
     check_notes,
     delete_notes,
     find_note_ids,
@@ -15,6 +16,7 @@ from ...adapters.anki.notes import (
     get_notes_by_ids,
     page_note_ids,
     patch_note,
+    plan_note_type_change,
 )
 from ...adapters.anki.sorting import NOTE_SORTS, find_sorted, sort_names
 from ...adapters.ops import collection_op_run_async
@@ -40,6 +42,8 @@ from ...shared.schemas.notes import (
     NoteIds,
     NoteInfo,
     NotePatch,
+    NoteTypeChange,
+    NoteTypeChangeResult,
     NoteUpsert,
     NoteUpsertResponse,
 )
@@ -184,6 +188,31 @@ def delete(body: NoteIds = Body(...)) -> VerbResult:
     affected = delete_notes(body.note_ids) if body.note_ids else 0
     return VerbResult(affected=affected,
                             stats={"duration_ms": round((time.perf_counter() - start) * 1000, 3)})
+
+
+@router.post(
+    "/v1/notes:change-note-type",
+    openapi_extra=requires("write:notes"),
+    response_model=NoteTypeChangeResult,
+    summary="Change notes' note type",
+    description=(
+        "Anki's Change Note Type, for notes all of one note type: each new field takes an old "
+        "field's content, and each new card template an old template's cards with their "
+        "reviews. `fields` and `templates` name the maps; Anki's defaults fill the rest. "
+        "Cards no new template takes are deleted, and Anki adds the cards a new template "
+        "makes. One undo step; like editing a note type's fields, it needs a full sync next. "
+        "With `dry_run`, answers the maps, the fields whose content would be lost and the "
+        "cards that would be removed, and changes nothing. A missing note is skipped."
+    ),
+    tags=["Notes"],
+    operation_id="notesChangeNoteType",
+)
+@handle_mutation_errors("change note type")
+def change_type(body: NoteTypeChange = Body(...)) -> dict:
+    start = time.perf_counter()
+    plan = plan_note_type_change(body) if body.dry_run else change_note_type(body)
+    return {**plan, "dry_run": body.dry_run,
+            "stats": {"duration_ms": round((time.perf_counter() - start) * 1000, 3)}}
 
 
 @router.post(

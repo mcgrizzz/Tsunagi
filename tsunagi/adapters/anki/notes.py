@@ -9,6 +9,7 @@ AnkiConnect compat layer need exactly the same answer.
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from anki.collection import Collection
+from anki.consts import MODEL_CLOZE
 from anki.utils import ids2str
 
 from ...shared.errors import DuplicateNoteError, ResourceNotFoundError, ValidationError
@@ -17,6 +18,7 @@ from ...shared.schemas.notes import (
     NoteCreate,
     NoteInfo,
     NotePatch,
+    NoteTypeChange,
 )
 from ...shared.sql_query import Column, ColumnSource
 from ..event_results import note_result
@@ -519,6 +521,96 @@ def delete_notes(col: Collection, ids: Sequence[int]) -> int:
     return ValueWithChanges(int(getattr(res, "count", 0) or 0), res,
                             event_changes=lambda: {"notes": {"deleted": list(ids)},
                                                    "cards": {"deleted": cids}})
+
+
+def _mapped(names: Dict[str, Optional[str]], new: List[str], old: List[str], kind: str,
+            into: Any) -> None:
+    """Set `into[new index]` to the old index each named new item takes (-1: none)."""
+    for new_name, old_name in names.items():
+        if new_name not in new:
+            raise ValidationError(f"The new note type has no {kind} '{new_name}'")
+        if old_name is not None and old_name not in old:
+            raise ValidationError(f"The notes' note type has no {kind} '{old_name}'")
+        into[new.index(new_name)] = -1 if old_name is None else old.index(old_name)
+
+
+def _note_type_plan(col: Collection, body: NoteTypeChange) -> Tuple[Any, Dict[str, Any]]:
+    """Anki's change request for the body (None: no notes), and what it does (6.118).
+    Anki takes any note ids with any note type's maps, so the notes are checked here."""
+    if body.note_type_id is not None:
+        new = col.models.get(int(body.note_type_id))
+        missing: Any = body.note_type_id
+    else:
+        new = col.models.by_name(str(body.note_type_name))
+        missing = body.note_type_name
+    if not new:
+        raise ResourceNotFoundError("Note type", missing)
+    nids = col.db.list("select id from notes where id in " + ids2str(body.note_ids))
+    if not nids:
+        return None, {"affected": 0, "fields": {}, "templates": {}, "lost_fields": [],
+                      "cards_removed": 0}
+    mids = col.db.list("select distinct mid from notes where id in " + ids2str(nids))
+    if len(mids) > 1:
+        names = _model_names(col)
+        raise ValidationError("The notes must all be of one note type; these are of "
+                              + ", ".join(sorted(names.get(int(m), str(m)) for m in mids)))
+    old = col.models.get(int(mids[0]))
+    info = col.models.change_notetype_info(old_notetype_id=int(old["id"]),
+                                           new_notetype_id=int(new["id"]))
+    req = info.input
+    old_fields, new_fields = list(info.old_field_names), list(info.new_field_names)
+    old_cloze, new_cloze = old["type"] == MODEL_CLOZE, new["type"] == MODEL_CLOZE
+    if body.fields:
+        _mapped(body.fields, new_fields, old_fields, "field", req.new_fields)
+    if body.templates:
+        if old_cloze or new_cloze:
+            raise ValidationError("templates can't be mapped to or from a cloze note type: "
+                                  "cloze cards follow their cloze numbers")
+        _mapped(body.templates, list(info.new_template_names), list(info.old_template_names),
+                "card template", req.new_templates)
+    req.note_ids.extend(nids)
+
+    ords = col.db.list("select ord from cards where nid in " + ids2str(nids))
+    if new_cloze:
+        removed = 0  # cards keep their numbers
+    elif old_cloze:
+        removed = sum(1 for o in ords if o >= len(info.new_template_names))
+    else:
+        kept = {i for i in req.new_templates if i >= 0}
+        removed = sum(1 for o in ords if o not in kept)
+    taken = set(req.new_fields)
+    return req, {
+        "affected": len(nids),
+        "fields": {name: (old_fields[i] if i >= 0 else None)
+                   for name, i in zip(new_fields, req.new_fields)},
+        "templates": None if old_cloze or new_cloze else {
+            name: (info.old_template_names[i] if i >= 0 else None)
+            for name, i in zip(info.new_template_names, req.new_templates)},
+        "lost_fields": [name for i, name in enumerate(old_fields) if i not in taken],
+        "cards_removed": removed,
+    }
+
+
+@as_query_op
+def plan_note_type_change(col: Collection, body: NoteTypeChange) -> Dict[str, Any]:
+    """What change_note_type would do, changing nothing (dry_run)."""
+    return _note_type_plan(col, body)[1]
+
+
+@as_collection_op(event_details=lambda body: {"note_ids": list(body.note_ids)})
+def change_note_type(col: Collection, body: NoteTypeChange) -> Any:
+    """Anki's Change Note Type: fields and cards mapped, reviews kept, one undo step."""
+    req, plan = _note_type_plan(col, body)
+    if req is None:
+        return plan  # no notes, no write: Anki would still record an empty undo step
+    nids = list(req.note_ids)
+    before = set(col.db.list("select id from cards where nid in " + ids2str(nids)))
+    changes = col.models.change_notetype_of_notes(req)
+    after = set(col.db.list("select id from cards where nid in " + ids2str(nids)))
+    return ValueWithChanges(plan, changes, event_changes=lambda: {
+        "notes": {"updated": nids},
+        "cards": {"created": sorted(after - before), "deleted": sorted(before - after),
+                  "updated": sorted(after & before)}})
 
 
 # ====================
