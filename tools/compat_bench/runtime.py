@@ -59,7 +59,8 @@ def endpoint(implementation, checkout):
         from tsunagi.adapters.settings import settings
         from tsunagi.app import app
         settings.configure(dict(DEFAULTS), persist=None)
-        with TestClient(app, base_url="http://127.0.0.1") as client:
+        # From this computer (peer and Host loopback), so keyless access applies.
+        with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
             yield lambda method, path, body, params: client.request(
                 method, path, content=body, params=params, headers={"Content-Type": "application/json"})
 

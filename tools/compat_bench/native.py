@@ -9,7 +9,7 @@ CARD_FIELDS = {
     "deckName": "deck_name", "css": "css", "factor": "ease_factor",
     "interval": "interval", "note": "note_id", "type": "type", "queue": "queue",
     "due": "due", "reps": "reps", "lapses": "lapses", "left": "steps_left",
-    "mod": "modified", "nextReviews": "next_reviews", "flags": "flags",
+    "mod": "modified", "nextReviews": "next_reviews", "flags": "flag",
 }
 CARD_SELECT = ",".join(dict.fromkeys([*CARD_FIELDS.values(), "fields"]))
 

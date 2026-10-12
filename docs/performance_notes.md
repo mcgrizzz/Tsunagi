@@ -29,7 +29,8 @@ comparison**, and they cannot simply be added up to predict desktop latency.
 
 Measured 2026-09-21, before the 2026-09-23 changes to row building, encoding
 and search reads. The Tsunagi figures for reading cards and for note types are
-out of date; see [rows from Anki's database](#rows-from-ankis-database).
+out of date; see [rows from Anki's database](#rows-from-ankis-database) and,
+for 10,000 cards, [a 10,000-card read, stage by stage](#a-10000-card-read-stage-by-stage).
 
 Each API performs the same task on a fresh copy of a disposable collection, in
 the same process. Values are the **median of five runs** after a separate first
@@ -201,6 +202,57 @@ None of these optimizations keep collection results between requests or share
 mutable note objects between cards. Client input is still validated. Rows read
 from Anki's own database are not validated per row; contract tests cover them
 instead.
+
+## A 10,000-card read, stage by stage
+
+Measured 2026-10-11 at `3cc7ce6` with Anki 26.09.3 and Python 3.12.12 on
+Linux. The collection is the harness comparison's: 10,000 new Basic cards.
+
+The whole read, from `benchmark_compat.py` (median of three, all three APIs
+returning the same cards):
+
+| Full records for | AnkiConnect | AnkiConnect Shim | Tsunagi |
+| --- | ---: | ---: | ---: |
+| 10,000 cards | 779.9 | 1,181.5 | 763.4 |
+
+A full Tsunagi card row makes 11 backend calls per card; AnkiConnect's makes
+12. The read runs as 40 chunks of 250 cards, 81 operations in all.
+
+Where the time goes, from timers wrapped around each stage. Each stage counts
+only its own time, not the stages inside it. The timers add about 100 ms, so
+the shares are approximate.
+
+| Stage | Full rows | Share | `id,note_id,deck_name,due,fields` | Share |
+| --- | ---: | ---: | ---: | ---: |
+| Rendering question and answer | 341 ms | 43% | – | – |
+| `next_reviews` | 163 ms | 21% | – | – |
+| Loading notes | 67 ms | 8% | 53 ms | 26% |
+| Loading cards | 55 ms | 7% | 51 ms | 25% |
+| Building rows | 50 ms | 6% | 42 ms | 21% |
+| Encoding JSON | 51 ms | 6% | 11 ms | 5% |
+| Everything else | 59 ms | 8% | 45 ms | 22% |
+| **Total, with timers** | **785 ms** | | **201 ms** | |
+| Total, without timers | 682 ms | | 175 ms | |
+
+"Everything else" is query plumbing, id queries, deck names, the
+retrievability batch and the in-process HTTP client.
+
+- **Rendering** is `card.question()` and `card.answer()`, which share one
+  render. Anki's Rust render (`render_existing_card`) is 76 ms. The rest is
+  pylib's work around it for each side: `extract_av_tags`, `extract_latex`
+  and two `get_config_bool` calls (125 ms of backend calls in all), plus the
+  Python glue. AnkiConnect renders the same way, and add-ons' render hooks
+  run inside it.
+- **`next_reviews`** is two backend calls per card
+  (`get_scheduling_states`, `describe_next_states`). Anki has no batch form.
+- **Loading cards and notes** costs about 12 µs per card. It is 15% of a
+  full row but half of a read that skips rendering and `next_reviews`.
+- **Retrievability** is one query per chunk: 10 ms for 10,000 cards, or
+  12 ms when every card is an FSRS review card. FSRS cards change the other
+  shares by a point or two.
+- **The real Qt handoff**, which the harness leaves out, costs about 70 µs
+  per read operation ([Qt dispatch overhead](#qt-dispatch-overhead)): about
+  6 ms for these 81 operations.
 
 ## Filtered card projections
 
