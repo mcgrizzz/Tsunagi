@@ -418,22 +418,58 @@ class TestSetMemoryState:
 
 
 class TestRetrievability:
-    """The want-gated FSRS recall probability, via col.card_stats_data."""
+    """The want-gated FSRS recall probability, from Anki's own SQL function (Part B 8.2a)."""
 
     def _rows(self, client):
         return client.get("/v1/cards", params={
             "select": "id,retrievability", "shape": "object"}).json()["items"]
 
-    def test_no_backend_call_unless_selected(self, seeded, col):
+    def test_no_card_stats_call(self, seeded, col):
         calls = []
         original = col.card_stats_data
         col.card_stats_data = lambda cid: calls.append(cid) or original(cid)
-
-        seeded.get("/v1/cards", params={"select": "id,due,queue"})
-        assert calls == []                      # cheap select stays cheap
-
         self._rows(seeded)
-        assert len(calls) == 3                  # one per card, only when asked
+        seeded.get("/v1/cards")                 # the full row too
+        assert calls == []
+
+    def test_matches_card_stats_data(self, seeded, col):
+        import time
+
+        from anki.cards_pb2 import FsrsMemoryState
+
+        col.set_config("fsrs", True)
+        now = int(time.time())
+        # The inputs Anki's formula reads, set directly. FSRS 5's default
+        # decay, FSRS 6's, and none stored (Anki uses 0.5).
+        for cid, stability, decay, days_ago in zip(
+                col.find_cards(""), (2.5, 40.0, 900.0), (0.5, 0.1542, None), (1, 30, 2000)):
+            card = col.get_card(cid)
+            card.memory_state = FsrsMemoryState(stability=stability, difficulty=5.0)
+            card.decay = decay
+            card.last_review_time = now - days_ago * 86400
+            col.update_card(card, skip_undo_entry=True)
+
+        rows = self._rows(seeded)
+        assert len(rows) == 3
+        for row in rows:
+            expected = col.card_stats_data(row["id"]).fsrs_retrievability
+            # Anki computes both at its own "now": a second apart at most.
+            assert row["retrievability"] == pytest.approx(expected, abs=1e-5)
+            assert 0 < row["retrievability"] < 1
+
+    def test_missing_last_review_time_is_not_written(self, seeded, col, answer_cards):
+        # card_stats_data stores a missing last_review_time into the card; a read mustn't.
+        col.set_config("fsrs", True)
+        assert answer_cards(1) == 1
+        cid = col.db.scalar("select id from cards where data like '%\"lrt\"%'")
+        card = col.get_card(cid)
+        card.last_review_time = None
+        col.update_card(card, skip_undo_entry=True)
+        before = col.db.scalar("select data from cards where id = ?", cid)
+
+        row = next(r for r in self._rows(seeded) if r["id"] == cid)
+        assert row["retrievability"] is not None
+        assert col.db.scalar("select data from cards where id = ?", cid) == before
 
     def test_null_before_any_review(self, seeded):
         assert all(r["retrievability"] is None for r in self._rows(seeded))

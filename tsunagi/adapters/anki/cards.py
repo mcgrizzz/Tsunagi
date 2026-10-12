@@ -7,6 +7,7 @@ and nothing else. Every mutation is a single CollectionOp, which means one
 undo entry per call and - unlike raw SQL - writes that work while the browser
 has the card selected.
 """
+import time
 from typing import Any, Dict, List, Optional, Sequence, Set
 
 from anki.collection import Collection
@@ -72,16 +73,29 @@ def _next_reviews(col: Collection, card_id: int) -> Optional[List[str]]:
         return None
 
 
-def _retrievability(col: Collection, card_id: int) -> Optional[float]:
-    # The field is only populated once FSRS has scored the card - use the protobuf presence bit,
-    # since 0.0 is a legitimate value for a long-lapsed card.
+def _retrievabilities(col: Collection, card_ids: Sequence[int]) -> Dict[int, float]:
+    # Anki's own SQL function, with the arguments its `prop:r` search and
+    # retrievability sort pass: one query per page instead of a card_stats_data
+    # call per card, which also stores a missing last_review_time into the card.
+    # Cards FSRS hasn't scored get NULL and are left out. The function is
+    # internal; if a future Anki changes it, the field goes missing rather than
+    # the whole request failing (tests compare it with card_stats_data).
+    args = (col.sched.today, col.sched.day_cutoff, int(time.time()))
+    out: Dict[int, float] = {}
     try:
-        data = col.card_stats_data(card_id)
-        if data.HasField("fsrs_retrievability"):
-            return float(data.fsrs_retrievability)
-        return None
+        for offset in range(0, len(card_ids), 250):
+            chunk = [int(cid) for cid in card_ids[offset:offset + 250]]
+            placeholders = ",".join("?" for _ in chunk)
+            for cid, value in col.db.all(
+                "select id, extract_fsrs_retrievability(data, case when odue != 0 then odue"
+                f" else due end, ivl, ?, ?, ?) from cards where id in ({placeholders})",
+                *args, *chunk,
+            ):
+                if value is not None:
+                    out[int(cid)] = float(value)
     except Exception:
-        return None
+        return {}
+    return out
 
 
 def _memory_state(card: Any) -> Optional[Dict[str, float]]:
@@ -98,8 +112,8 @@ def _memory_state(card: Any) -> Optional[Dict[str, float]]:
 
 
 def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
-               wants: Optional[Set[str]] = None) -> CardInfo:
-    return CardInfo(**_card_row(col, card, deck_names, wants))
+               retrievability: Dict[int, float], wants: Optional[Set[str]] = None) -> CardInfo:
+    return CardInfo(**_card_row(col, card, deck_names, retrievability, wants))
 
 
 def _optional(convert: Any, value: Any) -> Any:
@@ -107,6 +121,7 @@ def _optional(convert: Any, value: Any) -> Any:
 
 
 def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
+              retrievability: Dict[int, float],
               wants: Optional[Set[str]] = None) -> Dict[str, Any]:
     """
     A card as CardInfo's field names and types, without per-row validation:
@@ -132,10 +147,6 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
     next_reviews = None
     if wants is None or "next_reviews" in wants:
         next_reviews = _next_reviews(col, int(card.id))
-
-    retrievability = None
-    if wants is None or "retrievability" in wants:
-        retrievability = _retrievability(col, int(card.id))
 
     flags = int(getattr(card, "flags", 0) or 0)
     return {
@@ -173,7 +184,7 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
         "question": question,
         "answer": answer,
         "next_reviews": next_reviews,
-        "retrievability": retrievability,
+        "retrievability": retrievability.get(int(card.id)),
     }
 
 
@@ -223,6 +234,8 @@ def get_cards_by_ids(col: Collection, ids: Sequence[int],
 def _get_cards_by_ids(col: Collection, ids: Sequence[int],
                       wants: Optional[Set[str]] = None, build: Any = _card_info) -> List[Any]:
     deck_names = _deck_names(col)
+    retrievability = (_retrievabilities(col, ids)
+                      if wants is None or "retrievability" in wants else {})
     out: List[Any] = []
     for cid in ids:
         try:
@@ -231,7 +244,7 @@ def _get_cards_by_ids(col: Collection, ids: Sequence[int],
             if type(e).__name__ == "NotFoundError":
                 continue  # missing ids are skipped, like get_notes_by_ids
             raise
-        out.append(build(col, card, deck_names, wants))
+        out.append(build(col, card, deck_names, retrievability, wants))
     return out
 
 
@@ -269,12 +282,8 @@ def get_card_rows_by_ids(col: Collection, ids: Sequence[int],
 @as_query_op
 def get_cards_of_notes(col: Collection, note_ids: Sequence[int],
                        wants: Optional[Set[str]] = None) -> List[CardInfo]:
-    deck_names = _deck_names(col)
-    out: List[CardInfo] = []
-    for nid in note_ids:
-        for cid in col.card_ids_of_note(int(nid)):
-            out.append(_card_info(col, col.get_card(int(cid)), deck_names, wants))
-    return out
+    card_ids = [int(cid) for nid in note_ids for cid in col.card_ids_of_note(int(nid))]
+    return _get_cards_by_ids(col, card_ids, wants)
 
 
 @as_query_op

@@ -149,7 +149,7 @@ def stop_routing_profile():
 _profile_execute._routing_profile = True
 _patch(_ops, "query_op_call", _profile_op)
 _patch(_routes, "build_predicate", _profile_predicate)
-for _name in ("_card_info", "_deck_names", "_next_reviews", "_retrievability"):
+for _name in ("_card_info", "_deck_names", "_next_reviews", "_retrievabilities"):
     _timed(_cards, _name)
 for _name in ("make_plan", "_as_dict", "_finish"):
     _timed(_routes, _name)

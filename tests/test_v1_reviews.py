@@ -301,6 +301,7 @@ class TestNativePageMeasurements:
         reads = []
         original = col.db.list
         hydrated = []
+        retrievability = []
         backend_reads = []
         getter_name = {"cards": "get_card", "notes": "get_note"}.get(resource)
         if getter_name:
@@ -315,7 +316,9 @@ class TestNativePageMeasurements:
 
         def measured_all(sql, *args, **kwargs):
             rows = original_all(sql, *args, **kwargs)
-            if f"from {table}" in sql.lower():
+            if "extract_fsrs_retrievability" in sql:
+                retrievability.append(len(rows))   # the full card row's one batch (8.2a)
+            elif f"from {table}" in sql.lower():
                 hydrated.append((sql, len(rows)))
             return rows
 
@@ -337,6 +340,7 @@ class TestNativePageMeasurements:
         for page in range(2):
             reads.clear()
             hydrated.clear()
+            retrievability.clear()
             backend_reads.clear()
             query = {"limit": 7}
             if projection:
@@ -355,6 +359,7 @@ class TestNativePageMeasurements:
             assert reads, "Expected instrumentation to observe ID enumeration"
             assert sum(count for _, _, count in reads) <= 8, reads
             assert all("limit" in sql.lower() for sql, _, _ in reads), reads
+            assert sum(retrievability) <= 7, retrievability
             hydration_count = sum(count for _, count in hydrated) + len(backend_reads)
             if resource == "notes" and projection == "id":
                 assert hydration_count == 0, (hydrated, backend_reads)
