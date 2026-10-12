@@ -6,11 +6,12 @@ section into the form when uploading a release.
 
 ## Title
 
-A one-line description, under 80 characters. The same name as `manifest.json`,
-which Anki shows in its add-on list.
+A one-line description, under 80 characters. Anki's add-on list shows
+`manifest.json`'s name instead (the packaged name wins over AnkiWeb's title),
+and that one stays "Tsunagi - Modern API access to Anki", with no emoji.
 
 ```text
-🔗 Tsunagi - Modern API access to Anki
+🔗 Tsunagi - Modern AnkiConnect alternative
 ```
 
 ## Tags
@@ -19,7 +20,7 @@ Optional, space-separated. AnkiWeb keeps only the first 80 characters,
 spaces included.
 
 ```text
-ankiconnect api automation developer-tools mining yomitan language-learning
+ankiconnect api automation mining yomitan asbplayer language-learning
 ```
 
 ## Support page
@@ -58,7 +59,7 @@ Tsunagi (繋ぎ, “connection”) connects Anki Desktop to dictionary tools, mi
 * Undo changes made through the API with **Edit → Undo**
 * Try every request in the interactive API reference
 
-After installing, restart Anki and open **Tools → Tsunagi Settings**. Coming from AnkiConnect? Tsunagi can take over its port, key and allowed websites, and your existing tools generally keep working as they are.
+After installing, restart Anki and open **Tools → 🔗 Tsunagi**. Coming from AnkiConnect? Tsunagi can take over its port, key and allowed websites, and your existing tools generally keep working as they are.
 
 > **Experimental.** Supports Anki 26.08 and 26.09. The Tsunagi API still changes quickly; the AnkiConnect side stays stable.
 

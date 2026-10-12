@@ -51,12 +51,12 @@ Or download the `.ankiaddon` file from
 2. Review the AnkiConnect settings it offers to take over, and click **Take over**.
 3. Use your tools as before. Tools that were already open may need to reconnect.
 
-Missed the offer? Open **Tools → Tsunagi Settings → Server → Take over from
+Missed the offer? Open **Tools → 🔗 Tsunagi → Server → Take over from
 AnkiConnect…**
 
 ### Connect a tool without AnkiConnect
 
-1. Check that the server is on in **Tools → Tsunagi Settings → Server**.
+1. Check that the server is on in **Tools → 🔗 Tsunagi → Server**.
 2. Set the tool's AnkiConnect address to **`http://127.0.0.1:7777`**.
 3. Use the tool; **Recent requests** shows its requests.
 
@@ -153,7 +153,7 @@ await anki.notes.search("deck:Mining").select("id", "firstField").watch({
 
 ## Help
 
-Everything is in **Tools → Tsunagi Settings**; the
+Everything is in **Tools → 🔗 Tsunagi**; the
 [settings reference](config.md) describes each page. If a tool can't connect,
 check that Anki is open and the tool uses the same port and key: **Recent
 requests** shows whether its requests arrive and why any were refused.

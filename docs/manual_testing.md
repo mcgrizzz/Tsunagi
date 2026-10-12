@@ -12,7 +12,7 @@ results are in the [archived manual log](archive/manual_test_plan.md).
 ## Install and settings
 
 - [ ] Install the candidate `.ankiaddon` (from `kiso build` or the draft
-  release), restart Anki and open **Tools → Tsunagi Settings...**.
+  release), restart Anki and open **Tools → 🔗 Tsunagi**.
 - [ ] The bottom of the window shows the candidate version and that the server
   is running.
 - [ ] Change a setting: the bottom of the window says there are unsaved

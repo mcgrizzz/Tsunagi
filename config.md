@@ -1,6 +1,6 @@
 # Tsunagi settings
 
-Open **Tools → Tsunagi Settings** (or the add-on's **Config** button). The
+Open **Tools → 🔗 Tsunagi** (or the add-on's **Config** button). The
 settings page runs inside Anki and talks to Tsunagi directly, never through
 the API, so no app, website or card template can read or change it.
 

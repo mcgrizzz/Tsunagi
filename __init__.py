@@ -117,7 +117,7 @@ if mw is not None:
     # Registered at import time, so the settings work even when the server is
     # disabled or failed to start; the server itself starts at profile open.
     addon = Addon(__name__, inner="tsunagi", start=_start, stop=lambda feature: feature.teardown(),
-                  settings=_settings, menu="Tsunagi Settings...", on_config=_config,
+                  settings=_settings, menu="🔗 Tsunagi", on_config=_config,
                   on_toggle=_toggled, log_also=("uvicorn",))
     addon.install()
 

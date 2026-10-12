@@ -99,7 +99,7 @@ what your app may do, and turn it off.
 
 ![The Apps & keys page in Tsunagi's settings](images/settings-apps.png)
 
-1. In **Tools → Tsunagi Settings → Apps & keys**, click **Add app**, name it
+1. In **Tools → 🔗 Tsunagi → Apps & keys**, click **Add app**, name it
    and pick a role, such as Read-only. Copy its key.
 2. Send it with every request: `curl -H 'X-Api-Key: <key>' …`.
 3. `GET /v1/health` now names your app and its role in `caller`. A request
