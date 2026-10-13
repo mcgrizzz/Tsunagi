@@ -48,13 +48,13 @@ from ...shared.schemas.notes import (
     NoteUpsertResponse,
 )
 from ...shared.schemas.wrappers import VerbResult
-from .media import require_local_files, resolve_upload
+from .media import require_local_files, resolve_upload, upload_name
 
 
 class _AttachmentFailed(Exception):
-    def __init__(self, message: str, ref: AttachmentRef):
+    def __init__(self, message: str, ref: AttachmentRef, name: Optional[str] = None):
         super().__init__(message)
-        self.message, self.ref = message, ref
+        self.message, self.ref, self.name = message, ref, name
 
 
 def _fetch_files(req: NoteFiles) -> list:
@@ -68,7 +68,8 @@ def _fetch_files(req: NoteFiles) -> list:
             sanitize_media_filename(name)   # a bad name fails before anything is stored
         except ValidationError as exc:
             raise _AttachmentFailed(str(exc), AttachmentRef(kind=kind, position=position,
-                                                            filename=attachment.filename)) from exc
+                                                            filename=attachment.filename),
+                                    upload_name(attachment)) from exc
         files.append((kind, name, data, list(attachment.fields)))
     return files
 
@@ -81,7 +82,8 @@ def fetch_note_files(req: NoteFiles) -> list:
         return _fetch_files(req)
     except _AttachmentFailed as failure:
         ref = failure.ref
-        raise ValidationError(f"{ref.kind} {ref.position} ({ref.filename}): {failure.message}") from failure
+        named = f" ({failure.name})" if failure.name else ""
+        raise ValidationError(f"{ref.kind} {ref.position}{named}: {failure.message}") from failure
 
 
 def _patch_note(note_id: int, updates: dict):

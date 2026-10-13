@@ -13,6 +13,7 @@ from typing import (
     Dict,
     FrozenSet,
     Iterator,
+    List,
     TypeVar,
     Union,
     get_args,
@@ -144,7 +145,7 @@ def register_exception_handlers(app: Any, syncing: Callable[[], bool] = lambda: 
     def _invalid(request: Any, exc: RequestValidationError) -> JSONResponse:
         # `detail` is a string in every error response; FastAPI's own 422
         # puts its list there, so the list moves to `errors`.
-        errors = exc.errors()
+        errors = sent_shape_errors(exc.errors(), getattr(exc, "body", None))
         body = getattr(getattr(request.scope.get("route"), "body_field", None), "outer_type_", None)
         if body is not None:
             errors = [{**e, "loc": ("body",) + field_loc(body, e["loc"][1:])}
@@ -156,6 +157,29 @@ def register_exception_handlers(app: Any, syncing: Callable[[], bool] = lambda: 
             "errors": jsonable_errors(errors)})
 
     app.add_exception_handler(RequestValidationError, _invalid)
+
+
+def sent_shape_errors(errors: List[Dict[str, Any]], sent: Any) -> List[Dict[str, Any]]:
+    """
+    A body that takes one item or an array of them gets errors for both
+    shapes from pydantic; keep the ones for the shape that was sent (6.89).
+    An array's errors are at body.<position>; an object's are not, apart
+    from "value is not a valid list" for the array shape.
+    """
+    def array_error(e: Dict[str, Any]) -> bool:
+        loc = tuple(e.get("loc", ()))
+        return (len(loc) > 1 and isinstance(loc[1], int)) or (loc == ("body",) and e.get("type") == "type_error.list")
+
+    body_errors = [e for e in errors if tuple(e.get("loc", ()))[:1] == ("body",)]
+    if isinstance(sent, list):
+        other = [e for e in body_errors if not array_error(e)]
+    elif isinstance(sent, dict):
+        other = [e for e in body_errors if array_error(e)]
+    else:
+        return errors
+    if len(other) == len(body_errors):  # not a one-or-array body, or nothing else is wrong
+        return errors
+    return [e for e in errors if not any(e is o for o in other)]
 
 
 def field_loc(annotation: Any, loc: Any) -> tuple:

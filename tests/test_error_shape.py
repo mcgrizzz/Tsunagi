@@ -14,6 +14,17 @@ def test_validation_errors_have_a_string_detail_and_a_list(client):
     assert "query.limit" in response.json()["detail"]
 
 
+def test_a_one_or_array_body_gets_the_errors_for_the_shape_it_sent(client):
+    # 6.89: not "body: value is not a valid list" next to an object's errors.
+    one = client.post("/v1/notes", json={"noteTypeName": "Basic", "deckName": "Default"}).json()
+    assert [e["loc"] for e in one["errors"]] == [["body", "fields"]]
+    assert one["detail"] == "Invalid request: body.fields: field required"
+    many = client.post("/v1/notes", json=[{"noteTypeName": "Basic", "deckName": "Default"}]).json()
+    assert [e["loc"] for e in many["errors"]] == [["body", 0, "fields"]]
+    wrong = client.post("/v1/notes", json="text").json()
+    assert len(wrong["errors"]) > 1  # neither shape: both say why
+
+
 def test_other_errors_keep_a_string_detail(client):
     response = client.get("/v1/notes", params={"where": "id>>1"})
     assert response.status_code == 400

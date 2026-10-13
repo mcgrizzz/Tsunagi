@@ -135,6 +135,9 @@ def test_patch_follows_a_renamed_file(client, col):
 @pytest.mark.parametrize("files,message", [
     ({"picture": [{"data": b64(b"ok"), "filename": "ok.png"}, {"data": "not base64!", "filename": "bad.png"}]},
      "picture 1 (bad.png): 'data' is not valid base64"),
+    # Named as they would be stored, not "(None)" (6.89)
+    ({"audio": {"path": "/nonexistent/missing.mp3"}}, "audio 0 (missing.mp3): no such file"),
+    ({"audio": {"url": "http://127.0.0.1:1/inu.mp3?v=1"}}, "audio 0 (inu.mp3): download failed"),
     ({"audio": {"data": b64(b"ok"), "filename": "ok.mp3", "fields": ["Missing"]}}, "Unknown field 'Missing'"),
 ])
 def test_a_bad_file_on_patch_changes_nothing(client, col, files, message):

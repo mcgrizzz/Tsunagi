@@ -120,6 +120,18 @@ def require_local_files(uploads: Iterable[Optional[MediaUpload]]) -> None:
         raise HTTPException(status_code=403, detail=current_denial("local_files"))
 
 
+def upload_name(body: MediaUpload) -> Optional[str]:
+    """The name a file is stored under (before Anki renames a clash): its
+    filename, else the last part of its path or URL."""
+    if body.filename:
+        return body.filename
+    if body.path is not None:
+        return os.path.basename(body.path)
+    if body.url is not None:
+        return os.path.basename(body.url.split("?", 1)[0])
+    return None
+
+
 def resolve_upload(body: MediaUpload) -> tuple:
     """(filename, data) from exactly one of data/path/url."""
     sources = [s for s in (body.data, body.path, body.url) if s is not None]
@@ -145,10 +157,10 @@ def resolve_upload(body: MediaUpload) -> tuple:
             raise ValidationError(f"file exceeds media_max_bytes ({limit})")
         with open(body.path, "rb") as fh:
             data = fh.read()
-        name = body.filename or os.path.basename(body.path)
+        name = upload_name(body)
     else:
         data = _fetch_url(body.url)
-        name = body.filename or os.path.basename(body.url.split("?", 1)[0])
+        name = upload_name(body)
 
     if len(data) > limit:
         raise ValidationError(f"file exceeds media_max_bytes ({limit})")
