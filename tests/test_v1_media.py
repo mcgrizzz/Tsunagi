@@ -118,10 +118,23 @@ class TestUpload:
     def test_local_path_disabled_by_default(self, client, tmp_path):
         f = tmp_path / "local.png"
         f.write_bytes(PNG)
-        resp = client.post("/v1/media", json=[{"filename": "a.txt", "data": "eA=="}, {"path": str(f)}])
+        # From a web page: programs on this computer have local_files (6.131).
+        resp = client.post("/v1/media", json=[{"filename": "a.txt", "data": "eA=="}, {"path": str(f)}],
+                           headers={"Origin": "http://localhost"})
         # The whole request is refused: nothing is stored, not even the other file.
         assert resp.status_code == 403 and "does not allow local_files" in resp.json()["detail"]
         assert client.get("/v1/media").json()["items"] == []
+
+    @pytest.mark.parametrize("origin", [None, "app://obsidian.md"])
+    def test_a_program_on_this_computer_may_send_a_local_path(self, client, reset_settings, tmp_path, origin):
+        # 6.131: Obsidian_to_Anki and JL send media by path; a desktop app's
+        # own pages send its Origin, which no website can.
+        reset_settings.update(cors_allowlist=["http://localhost", "app://obsidian.md"])
+        f = tmp_path / "local.png"
+        f.write_bytes(PNG)
+        body = client.post("/v1/media", json={"path": str(f)},
+                           headers={"Origin": origin} if origin else {}).json()
+        assert body["created"][0]["filename"] == "local.png"
 
     def test_local_path_when_enabled(self, client, reset_settings, tmp_path):
         reset_settings.update(no_key_local_role="everything")

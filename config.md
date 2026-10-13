@@ -215,7 +215,7 @@ API reference shows the one it needs (`x-permission`).
 | `sync` | | Syncing with AnkiWeb. 400: no sync account; 409: Anki needs a full sync (click Sync in Anki once) or another job is running; 502: AnkiWeb unreachable |
 | `manage` | | Import, export, check database, switch profile, close Anki |
 | `events` | `events:changes`, `events:reviews` | Change messages, and card-answer messages |
-| `local_files` | | Media uploads that name a file on this computer. Lets an app read any file you can. Without it, a request that names one is refused (403) |
+| `local_files` | | Media uploads that name a file on this computer. Lets an app read any file you can. Programs on this computer have it with any role but No access; websites, browser extensions and other devices need it. Without it, a request that names one is refused (403) |
 | `memory_state` | | Overwriting cards' FSRS memory state |
 | `addon` | `addon:<provider>/<action>` | Running enabled add-on actions |
 

@@ -220,8 +220,9 @@ duplicate, say) leaves no files behind. A file that can't be read or
 downloaded fails its note with `invalid_attachment`, and the failure's
 `attachment` says which one: `{"kind": "picture", "position": 1, "filename":
 "bad.png"}` is the second picture. Batches work the same way: each note in the
-array carries its own files. A file sent by its `path` on this computer needs
-the `local_files` permission; without it the whole request is refused with 403.
+array carries its own files. Programs on this computer can send a file by its
+`path`. A website, browser extension or other device needs the `local_files`
+permission for that; without it the whole request is refused with 403.
 
 Each created note lists its files in `files`, audio first, then video, then
 pictures, in the same form `POST /v1/media` returns:

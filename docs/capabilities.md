@@ -33,8 +33,8 @@ what's left out here:
       "operation_id": "storeMedia",
       "options": {
         "path": {
-          "status": "disabled",
-          "reason": "No key, this computer has the role 'Default', which does not allow local_files; change it in Tsunagi's settings",
+          "status": "available",
+          "reason": null,
           "setting": "permissions.local_files"
         }
       }
@@ -49,8 +49,8 @@ what's left out here:
 }
 ```
 
-This app may list notes and upload media, but not upload a file by its path
-on this computer, and FSRS is off in the collection. AnkiConnect's actions are
+This app may list notes and upload media, including a file by its path on
+this computer, and FSRS is off in the collection. AnkiConnect's actions are
 listed separately at `GET /actions`.
 
 ## Read a capability
@@ -101,7 +101,9 @@ For example:
   permission and also reports whether this Anki supports that field.
 - `options.path` on `POST /v1/media`, `POST /v1/notes` and
   `PATCH /v1/notes/{id}` reports whether your app may send a file by its path
-  on this computer. Files sent as `data` or by `url` work either way.
+  on this computer: programs on this computer may, websites, extensions and
+  other devices need `local_files`. Files sent as `data` or by `url` work
+  either way.
 - `operations["GET /v1/events"]` is available to every app, because any app
   may watch for `access.changed`. Its options say what the stream would send
   yours, by the names you ask with (`resources=`, `types=`): `access.changed`,

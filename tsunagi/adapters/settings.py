@@ -44,6 +44,20 @@ def is_loopback_host(host: Any) -> bool:
 EXTENSION_ORIGINS = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
 
 
+def from_program(origin: Any) -> bool:
+    """
+    Sent by a program, not a browser: no Origin header, or one no web page or
+    browser extension can send. Browsers send Origin with every POST, PATCH
+    and DELETE: a page's is http(s), or "null" for sandboxed and file pages,
+    and an extension's has its own scheme. A desktop app's built-in pages send
+    the app's own (Obsidian: app://obsidian.md).
+    """
+    if origin is None:
+        return True
+    scheme, sep, _ = str(origin).lower().partition("://")
+    return bool(sep) and scheme not in ("http", "https") and not scheme.endswith("extension")
+
+
 class Settings:
     def __init__(self, config: Dict[str, Any], persist: Optional[PersistFn] = None):
         self._lock = threading.Lock()
@@ -108,14 +122,17 @@ class Settings:
         approvals = self.get("addon_enabled")
         return {k: v for k, v in approvals.items() if isinstance(v, str)} if isinstance(approvals, dict) else {}
 
-    def resolve_caller(self, key: Any, local: bool) -> Caller:
+    def resolve_caller(self, key: Any, local: bool, program: bool = False) -> Caller:
         """
         The app a key belongs to, else the "No key" row for where the request
         came from (`local`: this computer, see middleware.is_local_request).
         A key that matches no app counts as no key, as in AnkiConnect: it
         gains nothing a keyless request would not get. An app turned off
         (`"enabled": false`) keeps its name but is granted nothing; it does
-        not fall back to a No key row.
+        not fall back to a No key row. A program on this computer (`program`,
+        see from_program) that is granted anything also gets local_files: it
+        could read the files itself, and the permission is for websites and
+        other devices (6.131).
         """
         match = None
         if isinstance(key, str) and key:
@@ -135,9 +152,12 @@ class Settings:
             row = "no_key_local_role" if local else "no_key_remote_role"
             role_id = self.get(row, DEFAULTS[row])
         role_name, grants = self.role(role_id)
+        grants = grants if enabled else frozenset()
+        program = local and program
+        if program and grants:
+            grants |= {"local_files"}
         return Caller(name=name, role=str(role_id), role_name=role_name,
-                      grants=grants if enabled else frozenset(), key=key, local=local,
-                      enabled=enabled)
+                      grants=grants, key=key, local=local, enabled=enabled, program=program)
 
     def site_app(self, origin: Any) -> Optional[Dict[str, Any]]:
         """The app of a website that asked for access (6.124), on or off."""

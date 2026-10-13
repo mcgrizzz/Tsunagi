@@ -81,6 +81,7 @@ class Caller:
     key: Optional[str]  # to resolve the same caller again (event streams)
     local: bool
     enabled: bool = True  # False: an app turned off in settings, granted nothing
+    program: bool = False  # a program on this computer, not a browser (local_files)
 
 
 # Set for each request by the auth middleware, and per action by the

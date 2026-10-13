@@ -313,7 +313,7 @@ def stream_events(
                 return broker.close_reason
             # Key removed or role changed since connecting: reconnect to
             # pick up the new permissions.
-            if settings.resolve_caller(caller.key, caller.local) != caller:
+            if settings.resolve_caller(caller.key, caller.local, caller.program) != caller:
                 return "auth"
             return None
 

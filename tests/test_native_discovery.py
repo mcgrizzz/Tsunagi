@@ -3,8 +3,8 @@ import pytest
 from access import key_required
 
 
-def report(client):
-    response = client.get("/v1/capabilities")
+def report(client, headers=None):
+    response = client.get("/v1/capabilities", headers=headers)
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -27,7 +27,8 @@ def test_catalog_matches_native_openapi_and_excludes_compat(client):
 @pytest.mark.parametrize("enabled", [False, True])
 def test_permissions_apply_to_the_operation_or_its_option(client, reset_settings, enabled):
     reset_settings.update(no_key_local_role="everything" if enabled else "default")
-    operations = report(client)["operations"]
+    page = {"Origin": "http://localhost"}  # programs on this computer have local_files (6.131)
+    operations = report(client, page)["operations"]
     memory = operations["POST /v1/cards:set-memory-state"]
     assert memory["status"] == ("available" if enabled else "disabled")
     assert memory["setting"] == "permissions.memory_state"
@@ -39,8 +40,10 @@ def test_permissions_apply_to_the_operation_or_its_option(client, reset_settings
         assert memory["options"]["cards[].decay"]["status"] == memory["status"]
     if not enabled:
         assert "does not allow memory_state" in memory["reason"]
-        response = client.post("/v1/media", json={"filename": "probe", "path": "/missing"})
+        response = client.post("/v1/media", json={"filename": "probe", "path": "/missing"}, headers=page)
         assert response.status_code == 403 and "does not allow local_files" in response.json()["detail"]
+        program = report(client)["operations"]["POST /v1/media"]["options"]["path"]
+        assert program["status"] == "available"
 
 
 def test_role_change_is_visible_without_restarting(client, reset_settings):

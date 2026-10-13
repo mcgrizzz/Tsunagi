@@ -46,7 +46,8 @@ AREAS: List[Tuple[str, str, str, str]] = [
     ("events", "Live updates", "Live updates", "What the event stream sends as it happens."),
     ("local_files", "Read files on this computer", "Local files",
      "Media uploads that name a file on this computer. Anything with this can make "
-     "Anki read any file your account can read."),
+     "Anki read any file your account can read. Programs on this computer have it "
+     "with any role; this is for websites and other devices."),
     ("memory_state", "Rewrite FSRS memory state", "FSRS state",
      "Overwrite what FSRS knows about cards. A faulty tool could quietly damage your scheduling."),
     ("addon", "Run add-on actions", "Add-ons",

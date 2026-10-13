@@ -20,7 +20,7 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from ..adapters import idempotency, ops, request_log
-from ..adapters.settings import is_loopback_host
+from ..adapters.settings import from_program, is_loopback_host
 from ..shared.errors import ValidationError
 from ..shared.permissions import ADDON, PUBLIC, allows, current_caller, denied_message
 
@@ -150,7 +150,8 @@ class ApiKeyAuthMiddleware:
         if scope["method"] == "OPTIONS" or scope["path"] in AUTH_EXEMPT_PATHS:
             return await self.app(scope, receive, send)
 
-        caller = self.settings.resolve_caller(provided_key(scope), is_local_request(scope))
+        caller = self.settings.resolve_caller(provided_key(scope), is_local_request(scope),
+                                              from_program(Headers(scope=scope).get("origin")))
         if LOG_ENTRY in scope:
             scope[LOG_ENTRY]["app"] = caller.name
         if caller.key is None and not caller.grants:

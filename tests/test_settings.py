@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 
+import pytest
+
 from tsunagi.adapters.config import DEFAULTS
-from tsunagi.adapters.settings import Settings, apply_config, settings
+from tsunagi.adapters.settings import Settings, apply_config, from_program, settings
 
 
 class TestSettings:
@@ -102,6 +104,27 @@ class TestResolveCaller:
         assert (caller.name, caller.role, caller.key, caller.enabled) == ("Yomitan", "default", "yk", False)
         assert caller.grants == frozenset()
         assert s.resolve_caller("yk", True) != Settings(self.APPS).resolve_caller("yk", True)
+
+    @pytest.mark.parametrize("origin, program", [
+        (None, True), ("app://obsidian.md", True),
+        ("http://localhost", False), ("https://example.com", False), ("null", False),
+        ("chrome-extension://abc", False), ("moz-extension://abc", False),
+        ("safari-web-extension://abc", False), ("HTTPS://EXAMPLE.COM", False), ("garbage", False),
+    ])
+    def test_a_program_is_anything_a_browser_cannot_send(self, origin, program):
+        assert from_program(origin) is program
+
+    def test_a_program_on_this_computer_may_read_local_files(self):
+        # 6.131: local_files keeps websites and other devices out.
+        s = Settings({**self.APPS, "apps": [*self.APPS["apps"],
+                                            {"name": "Off", "key": "ok", "role": "default", "enabled": False}]})
+        assert "local_files" in s.resolve_caller(None, True, program=True).grants
+        assert "local_files" in s.resolve_caller("yk", True, program=True).grants
+        assert "local_files" not in s.resolve_caller(None, True).grants
+        assert "local_files" not in s.resolve_caller("yk", False, program=True).grants
+        assert s.resolve_caller("ok", True, program=True).grants == frozenset()
+        s.update(no_key_local_role="none")
+        assert s.resolve_caller(None, True, program=True).grants == frozenset()
 
     def test_unknown_role_grants_nothing(self):
         caller = Settings({"apps": [{"name": "X", "key": "k", "role": "gone"}]}).resolve_caller("k", True)

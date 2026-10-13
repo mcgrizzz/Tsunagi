@@ -400,6 +400,20 @@ class TestMediaActions:
         resp = rpc(client, "storeMediaFile", {"filename": "a.png"})
         assert "data" in resp["error"] and "url" in resp["error"]
 
+    def test_a_path_is_read_for_programs_but_not_web_pages(self, client, col, tmp_path):
+        # 6.131: Obsidian_to_Anki stores media by path, JL adds pictures by
+        # path; a web page (its Origin is http) still needs local_files.
+        source = tmp_path / "local.png"
+        source.write_bytes(PNG)
+        note = {**note_spec(front="jl"), "picture": [{"filename": "p.png", "path": str(source), "fields": ["Back"]}]}
+        assert rpc(client, "storeMediaFile", {"filename": "o2a.png", "path": str(source)})["result"] == "o2a.png"
+        assert rpc(client, "addNote", {"note": note})["error"] is None
+        assert col.media.have("o2a.png") and col.media.have("p.png")
+        page = client.post("/", json={"action": "storeMediaFile", "version": 6, "params": {
+            "filename": "page.png", "path": str(source)}}, headers={"Origin": "http://localhost"}).json()
+        assert page["result"] is None and "does not allow local_files" in page["error"]
+        assert not col.media.have("page.png")
+
     def test_skip_hash_match_returns_null_and_writes_nothing(self, client, col):
         import hashlib
         digest = hashlib.md5(PNG).hexdigest()

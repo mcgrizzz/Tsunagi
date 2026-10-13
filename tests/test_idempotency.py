@@ -100,14 +100,15 @@ def test_media_repeats_store_once(client, col):
 
 
 def test_keyed_media_keeps_the_callers_permissions(client, col, reset_settings, tmp_path):
-    # The upload runs on its own thread; a local file still needs local_files.
+    # The upload runs on its own thread; a web page's local file still needs local_files.
     source = tmp_path / "pic.txt"
     source.write_text("x")
     body = {"filename": "pic.txt", "path": str(source)}
-    denied = client.post("/v1/media", json=body, headers={"Idempotency-Key": "m2"})
+    page = {"Origin": "http://localhost"}
+    denied = client.post("/v1/media", json=body, headers={"Idempotency-Key": "m2", **page})
     assert denied.status_code == 403
     reset_settings.update(no_key_local_role="everything")
-    allowed = client.post("/v1/media", json=body, headers={"Idempotency-Key": "m3"}).json()
+    allowed = client.post("/v1/media", json=body, headers={"Idempotency-Key": "m3", **page}).json()
     assert [c["filename"] for c in allowed["created"]] == ["pic.txt"]
 
 

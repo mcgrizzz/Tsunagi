@@ -27,6 +27,7 @@ import logging
 from typing import Any, Callable, Dict, Optional
 
 from ...adapters.dialogs import PermissionDecision
+from ...adapters.settings import from_program
 from ...shared.errors import ValidationError as TsunagiValidationError
 from ...shared.permissions import allows, current_caller, denied_message
 from .errors import (  # noqa: F401  (API_KEY_ERROR re-exported)
@@ -168,7 +169,7 @@ def handle_ankiconnect_rpc(
 
     # Key gate. Runs per invocation, so multi sub-actions are each gated with
     # their own key (matches AnkiConnect).
-    caller = settings.resolve_caller(key, local)
+    caller = settings.resolve_caller(key, local, from_program(origin))
     if caller.key is None and not caller.grants:
         return _error(API_KEY_ERROR)
 

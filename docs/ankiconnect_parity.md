@@ -22,9 +22,11 @@ Tsunagi handles it.
 - **Permissions.** Each action needs a permission from the caller's role
   ([configuration](../config.md#roles)). Keyless requests from this computer
   get the Default role, which allows everything AnkiConnect does except one
-  thing: **reading local files**. A media `path` (in `storeMediaFile`, or in
-  the media of `addNote`/`addNotes`) needs the `local_files` permission, which
-  only the Everything role has by default. AnkiConnect always allows it.
+  thing: **websites reading local files**. A media `path` (in
+  `storeMediaFile`, or in the media of `addNote`/`addNotes`) works for
+  programs on this computer, as in AnkiConnect. A website or browser extension
+  (a request with a browser's `Origin`) and other devices need the
+  `local_files` permission, which only the Everything role has by default.
 - A key is checked for each action, including inside `multi`. A refused action
   returns the usual `{"result": null, "error": "..."}` naming the app, its role
   and what's missing.
@@ -215,7 +217,7 @@ supported behaviour. Actions checked by hand only are marked.
 
 | Action | Status | Notes |
 | --- | --- | --- |
-| `addNote` | implemented | Deviation: media entries with `path` need the `local_files` permission (see `storeMediaFile`). |
+| `addNote` | implemented | Deviation: media entries with `path` from a website, browser extension or other device need the `local_files` permission (see `storeMediaFile`). |
 | `addNotes` | implemented |  |
 | `addTags` | implemented | Supports upstream's undocumented `add=false` argument to remove tags. |
 | `canAddNote` | implemented | Not in the upstream README. |
@@ -252,7 +254,7 @@ and its existing media side effects.
 | `getMediaDirPath` | implemented |  |
 | `getMediaFilesNames` | implemented |  |
 | `retrieveMediaFile` | implemented |  |
-| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) needs the `local_files` permission, which only the Everything role has by default. |
+| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) from a website, browser extension or other device needs the `local_files` permission, which only the Everything role has by default. Programs on this computer don't need it. |
 
 ### Miscellaneous Actions
 

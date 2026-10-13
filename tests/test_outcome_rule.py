@@ -70,8 +70,10 @@ def test_reviews_for_missing_cards_are_404_and_nothing_is_inserted(client, col):
 def test_a_note_file_by_path_without_local_files_is_403(client, col, tmp_path):
     source = tmp_path / "a.mp3"
     source.write_bytes(b"x")
+    # From a web page: programs on this computer have local_files (6.131).
     response = client.post("/v1/notes", json={"note_type_name": "Basic", "deck_name": "Default",
-                                              "fields": {"Front": "a"}, "audio": {"path": str(source), "fields": []}})
+                                              "fields": {"Front": "a"}, "audio": {"path": str(source), "fields": []}},
+                           headers={"Origin": "http://localhost"})
     assert response.status_code == 403 and col.note_count() == 0
 
 
@@ -131,5 +133,5 @@ def test_add_cards_with_a_file_by_path_needs_local_files(client, col, add_dialog
     source.write_bytes(b"x")
     response = client.post("/v1/gui:add-cards", json={
         "deck_name": "Default", "note_type_name": "Basic", "fields": {"Front": "a"},
-        "audio": {"path": str(source), "fields": ["Back"]}})
+        "audio": {"path": str(source), "fields": ["Back"]}}, headers={"Origin": "http://localhost"})
     assert response.status_code == 403 and not col.media.have("a.mp3")

@@ -16,8 +16,8 @@ reviewed 2026-10-03 against Tsunagi 0.5.1 and Anki 26.09.
 - Each app's key and role decide what it may do. Untick an app's **On** box or
   give it a **New key** to stop it.
 - A tool you haven't given a role of its own gets the Default role. It allows
-  what AnkiConnect allows, except reading files on this computer, and leaves
-  out a few other risky things ([what's off by default](#whats-off-by-default)).
+  what AnkiConnect allows, except letting websites and browser extensions read
+  files on this computer, and leaves out a few other risky things ([what's off by default](#whats-off-by-default)).
 - Card templates and other add-ons' pages inside Anki can't use it unless you
   turn that on.
 
@@ -28,6 +28,8 @@ reviewed 2026-10-03 against Tsunagi 0.5.1 and Anki 26.09.
   add-on actions aren't undone that way.
 - **Files on the computer:** an app allowed to read files on this computer can
   have Anki read any file you can, store it as media and fetch it back.
+  Programs on this computer are allowed; websites, extensions and other
+  devices only with a role that has **Read files on this computer**.
 - **The local network:** a media `url` upload makes Anki fetch that address
   and store the answer, which the caller can read back.
 - **Anki's windows:** GUI actions open dialogs, switch profiles and answer
@@ -41,9 +43,9 @@ reviewed 2026-10-03 against Tsunagi 0.5.1 and Anki 26.09.
 
 | Caller | Default access | Why |
 | --- | --- | --- |
-| Program on this computer (script, desktop tool) | Default role | It already runs as you and could open the collection directly. **Requests without a key → Programs on this computer** can be set to another role. |
-| Browser extension | Default role | The default allowed origin `http://localhost` also allows every extension, as in AnkiConnect, so Yomitan works with no setup. |
-| Web page served from `127.0.0.1`, any port | Default role | Same rule. Includes local dev servers and other apps' web pages. |
+| Program on this computer (script, desktop tool) | Default role, and reading files by their path | It already runs as you and could open the collection, or the file, directly. A request counts as a program's when it has no `Origin` header, or one no browser sends (Obsidian's `app://obsidian.md`). **Requests without a key → Programs on this computer** can be set to another role; with No access it gets nothing. |
+| Browser extension | Default role, without reading files by their path | The default allowed origin `http://localhost` also allows every extension, as in AnkiConnect, so Yomitan works with no setup. |
+| Web page served from `127.0.0.1`, any port | Default role, without reading files by their path | Same rule. Includes local dev servers and other apps' web pages. |
 | Anki's own pages (reviewer, previewer, add-on pages) | None, unless **Allow card templates and add-on pages** is on | Card templates run JavaScript there. See [check 4](#how-the-checks-work). |
 | Web page on another site | None, unless you allow it | Refused before anything runs. You allow a site by adding it under **Allowed website origins**, or by allowing it when it asks. Through `POST /v1/permissions:request` it gets its own app, key and role, and is let in with that key while that app is on. Through AnkiConnect's `requestPermission`, or the allowed list, its requests come from your browser on this computer, so without a key it gets the "No key, this computer" role (Default), like a local page. |
 | Another device on the network | Only with an app's key | The default host `127.0.0.1` isn't reachable from it. With another host, keyless requests get the role for other devices under **Requests without a key**: No access unless you change it. Tsunagi serves plain HTTP, so the connection doesn't encrypt the key or your data; someone able to intercept that traffic could read them. |
@@ -64,10 +66,14 @@ with. Give each one only to a tool that needs it, through its role on the
   a website you allowed, could read any file your account can (SSH keys,
   browser password databases, documents), and media sync could upload it to
   AnkiWeb. Browsers stop websites reading your files; this would get around
-  that.
-  - Cost: a client that names a path is refused. A screenshot or recording
-    tool that has just written a file is the usual one. It can send the
-    file's contents (`data`) or a `url` instead.
+  that. So only programs on this computer may name a path, as they could
+  read the file themselves: a request with an `Origin` a browser sends (a web
+  page or an extension) or from another device needs a role with **Read files
+  on this computer**.
+  - Cost: a website or extension that names a path is refused. It can send
+    the file's contents (`data`) or a `url` instead. Other people's programs
+    on a shared computer count as this computer too
+    ([gap 5](#known-gaps)).
 - **Card templates and add-on pages.** Scripts in Anki's own pages, including
   the card templates of shared decks you downloaded, could read, change or
   delete your collection while you study.
@@ -246,15 +252,22 @@ Most likely to matter first.
    when it's on a network. The protection is you reading who is asking (a
    program's name is only what it says) and the role before allowing; **Don't
    ask again** stops one that keeps asking.
-5. **Keys in plain sight.** Over plain HTTP between devices, keys travel
+5. **Other accounts on a shared computer.** Programs that another person
+   logged in to this computer runs reach Tsunagi on `127.0.0.1` too, and count
+   as this computer: with the Default role they can change your collection
+   and read your files by their path, as with AnkiConnect. On such a
+   computer, set **Requests without a key → Programs on this computer** to No
+   access and give your own programs keys.
+6. **Keys in plain sight.** Over plain HTTP between devices, keys travel
    unencrypted; use Tailscale Serve (or another encrypting proxy) rather than
    a network host. `?api_key=` on `/v1/events` can also end up in browser
    history or proxy logs; use the header wherever the client can.
 
 Accepted by design:
 
-- Programs running as you have full access: a key wouldn't stop them opening
-  the collection directly.
+- Programs running as you have full access, including reading files by their
+  path: a key wouldn't stop them opening the collection, or the file,
+  directly.
 - The bundled Starlette library carries known advisories, each listed with
   its reason under `audit_ignore` in [`pyproject.toml`](../pyproject.toml),
   which CI's audit skips: form parsing (Tsunagi parses no forms), URLs
@@ -292,7 +305,7 @@ Where Tsunagi differs:
 
 - It checks `Host`, which defeats DNS rebinding.
 - It answers disallowed preflights with 403 rather than 200.
-- Reading a file by its path is off by default.
+- Reading a file by its path is off for websites, extensions and other devices.
 - It refuses Anki's own pages. Otherwise it keeps AnkiConnect's origin rule,
   so gap 2 applies to both.
 
