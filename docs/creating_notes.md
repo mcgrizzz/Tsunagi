@@ -179,6 +179,10 @@ If 犬 already exists and there is no deck called Nope:
   ask (below).
 - `empty`: the first field is empty.
 - `missing_cloze`: a cloze note without a cloze.
+- `unknown`: another reason Anki refuses it, which `reason` names:
+  `cloze_outside_cloze_note_type` (a cloze, `{{c1::...}}`, in a note type
+  that isn't a cloze type) or `cloze_outside_cloze_field` (a cloze in a field
+  the card template doesn't use as one).
 - `invalid`: something else is wrong, such as an unknown note type or deck;
   `reason` says what.
 

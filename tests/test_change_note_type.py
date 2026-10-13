@@ -22,6 +22,16 @@ def add(client, note_type="Basic", **fields):
                                           "fields": fields}).json()["created"][0]["id"]
 
 
+def add_in_anki(col, note_type, **fields):
+    """A note the API would refuse to create, such as a cloze in Basic (6.85),
+    added as an import or another add-on could."""
+    note = col.new_note(col.models.by_name(note_type))
+    for name, value in fields.items():
+        note[name] = value
+    col.add_note(note, 1)
+    return note.id
+
+
 def change(client, note_ids, note_type, **body):
     return client.post(ROUTE, json={"note_ids": note_ids, "note_type_name": note_type, **body})
 
@@ -67,7 +77,7 @@ def test_the_change_keeps_reviews_adds_cards_and_is_one_undo_step(client, col):
     (REVERSED, "Cloze", {"Front": "{{c1::a}}", "Back": "b"}, 0),
 ])
 def test_the_dry_run_counts_the_cards_the_change_removes(client, col, old, new, fields, removed):
-    nids = [add(client, old, **fields), add(client, old, **fields)]
+    nids = [add_in_anki(col, old, **fields), add_in_anki(col, old, **fields)]
     plan = change(client, nids, new, dry_run=True).json()
     before = cards_of(col, nids)
     done = change(client, nids, new).json()

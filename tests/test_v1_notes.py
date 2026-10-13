@@ -150,6 +150,21 @@ class TestCreate:
         assert len(result["created"]) == 1
         assert result["failed"] == []
 
+    @pytest.mark.parametrize("fields, state", [
+        ({"noteTypeName": "Basic", "fields": {"Front": "{{c1::犬}}", "Back": "dog"}},
+         "cloze_outside_cloze_note_type"),
+        ({"noteTypeName": "Cloze", "fields": {"Text": "{{c1::犬}}", "Back Extra": "{{c2::dog}}"}},
+         "cloze_outside_cloze_field"),
+    ])
+    def test_a_cloze_where_anki_refuses_one_is_refused_as_checked(self, client, fields, state):
+        # Anki's Add window refuses both (6.85); the check and create agree.
+        body = {"deckName": "Default", **fields}
+        check = client.post("/v1/notes:check", json=body).json()["results"][0]
+        assert (check["state"], check["can_add"], check["reason"]) == ("unknown", False, state)
+        response = client.post("/v1/notes", json=body)
+        assert_rejected(response)
+        assert "cloze numbers can only be used" in response.json()["failed"][0]["message"]
+
     def test_duplicate_is_rejected(self, client):
         add(client)
         assert_rejected(add(client), code="duplicate")

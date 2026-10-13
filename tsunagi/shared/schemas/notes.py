@@ -244,9 +244,12 @@ class NoteCheckResult(BaseModel):
         "normal: it can be added. empty: its first field is empty. duplicate: it duplicates a note "
         "(it can still be added with allow_duplicate). missing_cloze: a cloze note without a cloze. "
         "invalid: the request names a deck, note type or field that doesn't exist (see reason). "
-        "unknown: Anki gave a reason Tsunagi doesn't name."))
+        "unknown: another reason Anki refuses it (see reason)."))
     reason: Optional[str] = Field(None, description=(
-        "Why it can't be added: the state, or what is wrong for invalid; null when it can."), **NULLABLE)
+        "Why it can't be added: the state, or what is wrong for invalid; null when it can. "
+        "For unknown: cloze_outside_cloze_note_type (a cloze in a note type that isn't a cloze "
+        "type), cloze_outside_cloze_field (a cloze in a field the card template doesn't use as "
+        "one), or unknown."), **NULLABLE)
     duplicate_note_ids: Optional[List[int]] = Field(
         default_factory=list,
         description="Matching note IDs, with include=duplicate_ids; null without it.", **NULLABLE,

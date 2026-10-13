@@ -32,13 +32,19 @@ from .id_queries import select_ids, select_rows
 from .media import write_media
 
 # note.fields_check() states (anki.notes.NoteFieldsCheckResult)
-NORMAL, EMPTY, DUPLICATE, MISSING_CLOZE = 0, 1, 2, 3
+NORMAL, EMPTY, DUPLICATE, MISSING_CLOZE, NOTETYPE_NOT_CLOZE, FIELD_NOT_CLOZE = 0, 1, 2, 3, 4, 5
 
 _STATE_NAMES = {
     NORMAL: "normal",
     EMPTY: "empty",
     DUPLICATE: "duplicate",
     MISSING_CLOZE: "missing_cloze",
+}
+# Named in `reason` only, under state "unknown": a new state would break
+# clients of this minor that check the value (6.85; states in 0.8, 6.133).
+_UNKNOWN_REASONS = {
+    NOTETYPE_NOT_CLOZE: "cloze_outside_cloze_note_type",
+    FIELD_NOT_CLOZE: "cloze_outside_cloze_field",
 }
 
 
@@ -385,7 +391,7 @@ def check_notes(col: Collection, candidates: List[NoteCreate], *,
                 index=index,
                 can_add=can_add,
                 state=_STATE_NAMES.get(state, "unknown"),
-                reason=None if can_add else _STATE_NAMES.get(state, "unknown"),
+                reason=None if can_add else _STATE_NAMES.get(state) or _UNKNOWN_REASONS.get(state, "unknown"),
                 duplicate_note_ids=dupes,
             ))
         except ValidationError as ve:
@@ -414,6 +420,13 @@ def _prepare_note(col: Collection, req: NoteCreate, nt: Dict[str, Any], deck_id:
         raise ValidationError("first field is empty")
     if state == MISSING_CLOZE:
         raise ValidationError("cloze model requires at least one {{c1::...}} in a field")
+    # Anki's Add window refuses these too.
+    if state == NOTETYPE_NOT_CLOZE:
+        raise ValidationError("cloze numbers can only be used on a cloze note type")
+    if state == FIELD_NOT_CLOZE:
+        raise ValidationError("cloze numbers can only be used in fields that use the 'cloze:' filter")
+    if state not in (NORMAL, DUPLICATE):
+        raise ValidationError(f"Anki refused the note (check state {state})")
     if state == DUPLICATE and not req.allow_duplicate:
         ids = [] if not include_duplicate_ids else scoped if scoped is not None else _duplicate_ids(col, note)
         raise DuplicateNoteError(ids)
