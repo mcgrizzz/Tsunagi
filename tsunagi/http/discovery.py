@@ -30,7 +30,8 @@ def native_features(support):
     permission, naming it (backlog 6.62)."""
     fsrs = support["fsrs"]
     if permitted("read:collection"):
-        fsrs_state = state(supported=fsrs["supported"], enabled=fsrs["enabled"], setting="anki.fsrs")
+        fsrs_state = state(supported=fsrs["supported"], enabled=fsrs["enabled"], setting="anki.fsrs",
+                           reason="FSRS is turned off in Anki's deck options")
     else:
         fsrs_state = permission_state("read:collection")
     features = {"fsrs_scheduling": fsrs_state}

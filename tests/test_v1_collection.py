@@ -169,6 +169,7 @@ class TestCapabilities:
         disabled = client.get("/v1/capabilities").json()
         assert disabled["features"]["fsrs_scheduling"]["status"] == "disabled"
         assert disabled["features"]["fsrs_scheduling"]["setting"] == "anki.fsrs"
+        assert disabled["features"]["fsrs_scheduling"]["reason"] == "FSRS is turned off in Anki's deck options"
         col.set_config("fsrs", True)
         enabled = client.get("/v1/capabilities").json()
         assert enabled["features"]["fsrs_scheduling"]["status"] == "available"

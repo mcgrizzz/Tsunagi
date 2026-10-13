@@ -42,7 +42,7 @@ what's left out here:
     …
   },
   "features": {
-    "fsrs_scheduling": {"status": "disabled", "reason": "Available but disabled in settings", "setting": "anki.fsrs"},
+    "fsrs_scheduling": {"status": "disabled", "reason": "FSRS is turned off in Anki's deck options", "setting": "anki.fsrs"},
     …
   },
   "stats": {"duration_ms": 2.56}
