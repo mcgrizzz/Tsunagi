@@ -187,6 +187,22 @@ def check(app, screenshot):
         assert restarts == []
         print("PASS: apps (turned off) and no-key roles save", flush=True)
 
+        # A key error names both apps and opens the second's row at its key (6.91).
+        dlg = open_page(app)
+        js(app, dlg, "go('apps'); $('#addApp').click()")
+        until(app, lambda: js(app, dlg, "document.querySelectorAll('.app').length === 2"))
+        js(app, dlg, f"setv('[data-field=app-key-1]', {app_row['key']!r});"
+                     "document.querySelectorAll('.app button.disclosure')[1].click()")
+        assert js(app, dlg, "$('.app-detail') === null")
+        js(app, dlg, "go('server'); $('#save').click()")
+        until(app, lambda: js(app, dlg, "$('#errors').textContent !== ''"))
+        assert "'Phone' and 'New app 2' have the same key" in js(app, dlg, "$('#errors').textContent")
+        assert js(app, dlg, "$('[data-page=apps]').getAttribute('aria-current') === 'true'")
+        assert js(app, dlg, "document.activeElement.dataset.field") == "app-key-1"
+        close(app, dlg)
+        assert len(store["cfg"]["apps"]) == 1
+        print("PASS: an app error opens the app at its field", flush=True)
+
         # Other devices without a key need the confirmation box; the page's
         # own restore puts both sources back.
         dlg = open_page(app)

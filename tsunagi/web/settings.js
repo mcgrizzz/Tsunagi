@@ -366,7 +366,7 @@ const PAGE = {
             ? "On. Untick to turn this app off: requests with its key are refused until you turn it back on"
             : "Off: requests with this key are refused. Tick to turn it back on",
           onchange: (e) => { app.enabled = e.target.checked; changed(true); } })),
-        h("td", {}, h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name,
+        h("td", {}, h("input", { type: "text", class: "app-name", "aria-label": "App name", value: app.name, "data-field": "app-name-" + i,
                                  oninput: (e) => { app.name = e.target.value; } }),
           app.origin && h("div", { class: "help", title: "This website asked for access and you allowed it. " +
                                    "It can call Tsunagi while this app is on." }, app.origin)),
@@ -381,7 +381,7 @@ const PAGE = {
         out.push(h("tr", { class: "app-detail" }, h("td", { colspan: 5 },
           h("div", { class: "detail" },
             h("label", { class: "detail-label" }, "Key"),
-            h("input", { type: "text", class: "key", "aria-label": "Key of " + app.name, spellcheck: "false",
+            h("input", { type: "text", class: "key", "aria-label": "Key of " + app.name, spellcheck: "false", "data-field": "app-key-" + i,
                          value: app.key, oninput: (e) => { app.key = e.target.value; } }),
             h("button", { type: "button", title: "Replace with a new random key and copy it. The old key stops working after Save.",
                           onclick: async () => { app.key = await call("new_key"); copyKey(app.key); notify("New key copied. It works once you save; until then the old key stays active."); } }, "New key"),
@@ -894,6 +894,11 @@ Kiso.setup({
     shownPage = page;
   },
   afterRender: renderTakeover,
+  // A key error opens its app's row, so Save can focus the key.
+  onSaveError: (err) => {
+    const row = /^app-key-(\d+)$/.exec(err.field || "");
+    if (row) openApps.add(Number(row[1]));
+  },
   // Cancel drops unsaved edits on every page; what was open for them goes too.
   onCancel: () => {
     openApps.clear();

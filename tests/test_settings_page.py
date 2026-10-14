@@ -157,6 +157,22 @@ def test_invalid_drafts_are_refused(change, message):
     assert any(message in e for e in errors), errors
 
 
+def test_app_errors_name_the_app_and_point_at_its_field():
+    cfg = fresh()
+    draft = draft_of(cfg)
+    draft["apps"] = [{"name": "A", "key": "x" * 20, "role": "default"},
+                     {"name": " ", "key": "y" * 20, "role": "default"},
+                     {"name": "A", "key": "", "role": "default"},
+                     {"name": "B", "key": "x" * 20, "role": "default"}]
+    _, _, errors = page.config_from_page(cfg, draft)
+    assert [(str(e), e.page, e.field) for e in errors] == [
+        ("An app needs a name.", "apps", "app-name-1"),
+        ("Two apps have the same name, 'A'; rename one.", "apps", "app-name-2"),
+        ("'A' needs a key; use New key.", "apps", "app-key-2"),
+        ("'A' and 'B' have the same key; use New key on one.", "apps", "app-key-3"),
+    ]
+
+
 def test_opening_other_devices_needs_confirmation_once():
     cfg = fresh()
     draft = {**draft_of(cfg), "no_key_remote_role": "read_only", "confirm_remote": True}

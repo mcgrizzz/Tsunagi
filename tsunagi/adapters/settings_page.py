@@ -196,16 +196,21 @@ def validate_access(cfg: Dict[str, Any], draft: Dict[str, Any]) -> List[str]:
     for rid in BUILTIN_ROLES:
         if rid not in ids:
             add(f"The built-in role {BUILTIN_ROLES[rid]['name']!r} cannot be deleted.", "roles")
+    # Each names its app and points at its field (app-name-<row>, app-key-<row>), 6.91.
     names = [a["name"].strip() for a in draft["apps"]]
     keys = [a["key"] for a in draft["apps"]]
-    if any(not n for n in names):
-        add("Every app needs a name.", "apps")
-    if len(set(names)) != len(names):
-        add("Two apps have the same name.", "apps")
-    if any(not k for k in keys):
-        add("Every app needs a key; use New key.", "apps")
-    if len(set(keys)) != len(keys):
-        add("Two apps have the same key.", "apps")
+    for i, name in enumerate(names):
+        if not name:
+            add("An app needs a name.", "apps", f"app-name-{i}")
+        elif name in names[:i]:
+            add(f"Two apps have the same name, {name!r}; rename one.", "apps", f"app-name-{i}")
+    for i, key in enumerate(keys):
+        app = repr(names[i]) if names[i] else "An app"
+        if not key:
+            add(f"{app} needs a key; use New key.", "apps", f"app-key-{i}")
+        elif key in keys[:i]:
+            add(f"{names[keys.index(key)]!r} and {app} have the same key; use New key on one.",
+                "apps", f"app-key-{i}")
     used = [a["role"] for a in draft["apps"]] + [draft[k] for k, *_ in NO_KEY_ROWS]
     for rid in sorted(set(used) - set(ids)):
         add(f"Role {rid!r} is in use but does not exist.", "apps")
