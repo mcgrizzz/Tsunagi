@@ -628,21 +628,6 @@ def set_memory_states(col: Collection, entries: Sequence[Dict[str, Any]]) -> Lis
     return ValueWithChanges(out, changes) if changes is not None else out
 
 
-@as_collection_op
-def relearn_cards(col: Collection, card_ids: Sequence[int]) -> int:
-    """
-    AnkiConnect's relearnCards. Anki exposes no scheduler API for this, so it
-    is the one action with no native counterpart - the raw UPDATE is kept
-    verbatim, just wrapped in a CollectionOp so it stays undoable.
-    """
-    ids = ",".join(str(int(c)) for c in card_ids)
-    if not ids:
-        return 0
-    affected = _matching(col, card_ids)
-    col.db.execute(f"update cards set type=3, queue=1 where id in ({ids})")
-    return affected
-
-
 @as_collection_op(event_details=lambda answers: {
     "card_ids": [int(a["card_id"]) for a in answers]})
 def answer_cards(col: Collection, answers: Sequence[Dict[str, Any]]) -> Any:

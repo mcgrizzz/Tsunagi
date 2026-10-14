@@ -3,8 +3,8 @@ Operations that exist only to serve the AnkiConnect shim.
 
 Each one is here because Anki's own API has no equivalent with matching
 semantics, and reshaping the native API around the difference would make the
-native API worse. They are deliberate, like `_ac_duplicate_state` and
-`relearn_cards`, not an accident of layering.
+native API worse. They are deliberate, like `_ac_duplicate_state`, not an
+accident of layering.
 """
 
 from anki.collection import Collection
