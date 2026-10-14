@@ -415,6 +415,9 @@ def mutate_model_field_raw(col, model_name, action, name, value=None, index=None
 @as_collection_op
 def mutate_model_template_raw(col, model_name, action, name=None, value=None, index=None, spec=None):
     """Preserve raw template values and upstream's unsaved existing-template path."""
+    from .models import template_cards
+
+    cards = None
     try:
         models = col.models
         model = models.by_name(model_name)
@@ -438,10 +441,11 @@ def mutate_model_template_raw(col, model_name, action, name=None, value=None, in
             elif action == "reposition":
                 models.reposition_template(model, template, index)
             elif action == "remove":
+                cards = template_cards(col, model["id"])
                 models.remove_template(model, template)
             else:
                 raise ValueError(f"unknown template operation: {action}")
-        return ValueWithChanges((None, None), models.update_dict(model))
+        return ValueWithChanges((None, None), models.update_dict(model), event_changes=cards)
     except Exception as exc:
         return (None, str(exc))
 

@@ -244,6 +244,87 @@ def test_tag_writes_report_note_ids(col, subscription, recorded_ops, write, tagg
     assert "notes.stale" not in event
 
 
+def note_in(col, deck_id, note_type="Basic (and reversed card)", front="word"):
+    note = col.new_note(col.models.by_name(note_type))
+    note["Front"], note["Back"] = front, "meaning"
+    col.add_note(note, deck_id)
+    return note
+
+
+def filtered_deck(col, name, search):
+    deck = col.sched.get_or_create_filtered_deck(deck_id=0)
+    deck.name = name
+    deck.config.search_terms[0].search = search
+    return col.sched.add_or_update_filtered_deck(deck).id
+
+
+def test_deleting_a_deck_names_its_cards_and_the_notes_left_without_cards(col, subscription, recorded_ops):
+    from tsunagi.adapters.anki import decks
+
+    gone = col.decks.id("Gone")
+    child = col.decks.id("Gone::Child")
+    whole = note_in(col, gone, front="whole")  # both cards in the deck: the note goes too
+    split = note_in(col, child, front="split")
+    kept_card, moved_card = col.card_ids_of_note(split.id)
+    card = col.get_card(kept_card)
+    card.did = 1  # one card elsewhere: the note stays
+    col.update_card(card)
+    away = note_in(col, gone, "Basic", "away")  # home is Gone, now in a filtered deck
+    filtered_deck(col, "Elsewhere", f"nid:{away.id}")
+    deleted = sorted([*col.card_ids_of_note(whole.id), moved_card, *col.card_ids_of_note(away.id)])
+    decks.delete_deck(gone)
+    event = emit_last(recorded_ops, subscription)
+    assert event["cards.deleted"]["ids"] == deleted
+    assert event["notes.deleted"]["ids"] == sorted([whole.id, away.id])
+    assert col.card_ids_of_note(split.id) == [kept_card]
+    assert not any(name.endswith(".stale") for name in event)
+
+
+def test_deleting_a_filtered_deck_names_the_cards_sent_home(col, subscription, recorded_ops):
+    from tsunagi.adapters.anki import decks
+
+    saved = note_in(col, 1)
+    did = filtered_deck(col, "Cram", f"nid:{saved.id}")
+    decks.delete_deck(did)
+    event = emit_last(recorded_ops, subscription)
+    assert sorted(event["cards.updated"]["ids"]) == sorted(col.card_ids_of_note(saved.id))
+    assert {c.did for c in map(col.get_card, col.card_ids_of_note(saved.id))} == {1}
+    assert not any(name.endswith(".stale") for name in event)
+
+
+@pytest.mark.parametrize("remove", ["native", "compat"])
+def test_removing_a_template_names_its_cards_and_the_renumbered_ones(client, col, subscription,
+                                                                      recorded_ops, remove):
+    from tsunagi.adapters.anki import models
+
+    model = col.models.copy(col.models.by_name("Basic (and reversed card)"))
+    model["name"] = "Two"
+    col.models.update_dict(model)
+    model = col.models.by_name("Two")
+    saved = note_in(col, 1, "Two")
+    first, second = sorted(col.card_ids_of_note(saved.id), key=lambda c: col.get_card(c).ord)
+    if remove == "native":
+        models.delete_template(model["id"], model["tmpls"][0]["name"])
+    else:
+        assert client.post("/", json={"action": "modelTemplateRemove", "version": 6, "params": {
+            "modelName": "Two", "templateName": model["tmpls"][0]["name"]}}).json()["error"] is None
+    event = emit_last(recorded_ops, subscription)
+    assert event["cards.deleted"]["ids"] == [first]
+    assert event["cards.updated"]["ids"] == [second]  # now template 0
+    assert col.get_card(second).ord == 0
+    assert not any(name.endswith(".stale") for name in event)
+
+
+def test_a_patch_that_changes_the_note_type_names_the_new_cards(col, subscription, recorded_ops):
+    saved = new_note()
+    notes.patch_note(saved.id, {"note_type_name": "Basic (and reversed card)",
+                                "fields": {"Front": "word", "Back": "meaning"}})
+    event = emit_last(recorded_ops, subscription)
+    assert event["notes.updated"]["ids"] == [saved.id]
+    assert event["cards.created"]["ids"] == sorted(set(col.card_ids_of_note(saved.id)) - set(saved.cards))
+    assert "cards.stale" not in event
+
+
 def test_failed_write_has_no_event(col, subscription, recorded_ops):
     with pytest.raises(ResourceNotFoundError):
         notes.patch_note(123, {"fields": {"Front": "missing"}})

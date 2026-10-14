@@ -26,7 +26,7 @@ from ...shared.schemas.notes import (
     NoteTypeChange,
 )
 from ...shared.sql_query import Column, ColumnSource
-from ..event_results import note_result
+from ..event_results import card_changes, note_result
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 from .id_queries import select_ids, select_rows
 from .media import write_media
@@ -494,7 +494,9 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any],
             raise ResourceNotFoundError("Note", note_id) from e
         raise
 
+    cards = None
     if req.note_type_id is not None or req.note_type_name is not None:
+        cards = card_changes(col, "nid = ?", note.id)  # the new type's cards are added
         _change_notetype(col, note, req)
 
     model_names = _model_names(col)
@@ -524,8 +526,8 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any],
 
     changes = col.update_note(note)
     info = _note_info(col, col.get_note(note.id), model_names)
-    return ValueWithChanges(info, changes,
-                            event_changes=lambda: note_result(info))
+    return ValueWithChanges(info, changes, event_changes=lambda: {
+        **(cards() if cards else {}), **note_result(info)})
 
 
 @as_collection_op(event_details=lambda ids: {"note_ids": [int(i) for i in ids]})

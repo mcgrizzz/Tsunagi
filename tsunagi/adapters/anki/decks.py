@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set
 
 from anki.collection import Collection
+from anki.utils import ids2str
 
 from ...shared.errors import (
     ConflictError,
@@ -13,6 +14,7 @@ from ...shared.helpers import (
     validate_required_keys,
 )
 from ...shared.schemas.decks import DeckCreate, DeckInfo, DeckPatch
+from ..event_results import card_changes
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 # NOTE: DeckManager.get() defaults to default=True, which silently returns the
@@ -251,5 +253,8 @@ def delete_deck(col: Collection, deck_id: int) -> bool:
         raise ResourceNotFoundError("Deck", deck_id)
     if deck_id == 1:
         raise ValidationError("Cannot delete the default deck")
+    # Its cards go (a filtered deck's go home), with notes left without cards.
+    dids = ids2str(col.decks.deck_and_child_ids(deck_id))
+    cards = card_changes(col, f"did in {dids} or (odid != 0 and odid in {dids})")
     changes = col.decks.remove([deck_id])
-    return ValueWithChanges(True, changes)
+    return ValueWithChanges(True, changes, event_changes=cards)

@@ -21,6 +21,7 @@ from ...shared.schemas.models import (
     TemplateCreate,
     TemplatePatch,
 )
+from ..event_results import card_changes
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 
 
@@ -116,7 +117,7 @@ def get_model_names_and_ids(col: Collection, wants=None) -> List[Mapping[str, An
     return res
 
 
-def _saved(mm, model_id: int, changes=None) -> Any:
+def _saved(mm, model_id: int, changes=None, event_changes=None) -> Any:
     """
     Re-read a notetype after saving it, carrying the save's OpChanges when
     the caller has one (so the op reports real changes, not a blank).
@@ -127,7 +128,8 @@ def _saved(mm, model_id: int, changes=None) -> Any:
     after a removal or reposition, stale ones). One extra read buys the truth.
     """
     info = NoteTypeInfo.parse_obj(mm.get(int(model_id)))
-    return ValueWithChanges(info, changes) if changes is not None else info
+    return (ValueWithChanges(info, changes, event_changes=event_changes)
+            if changes is not None else info)
 
 
 # requires: name, flds (need a name), tmpls
@@ -396,6 +398,12 @@ def reorder_fields(col: Collection, model_id: int, order: List[str]) -> NoteType
 # Template Subresource Mutations
 # ====================
 
+def template_cards(col: Collection, model_id: int) -> Any:
+    """A note type's cards, for a template removal's event: Anki deletes the
+    template's cards, renumbers later templates' and may generate others."""
+    return card_changes(col, "nid in (select id from notes where mid = ?)", int(model_id))
+
+
 @as_collection_op
 def create_template(col: Collection, model_id: int, template_data: Dict[str, Any]) -> NoteTypeInfo:
     """
@@ -466,9 +474,10 @@ def delete_template(col: Collection, model_id: int, template_name: str) -> NoteT
         raise ValidationError("Cannot delete last template. A note type must have at least one template.")
 
     template = find_in_subresource(m, "tmpls", template_name, "name")
+    cards = template_cards(col, model_id)
     mm.remove_template(m, template)
     changes = mm.update_dict(m)
-    return _saved(mm, model_id, changes)
+    return _saved(mm, model_id, changes, cards)
 
 
 @as_collection_op
