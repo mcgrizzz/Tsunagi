@@ -276,6 +276,7 @@ def test_deleting_a_deck_names_its_cards_and_the_notes_left_without_cards(col, s
     event = emit_last(recorded_ops, subscription)
     assert event["cards.deleted"]["ids"] == deleted
     assert event["notes.deleted"]["ids"] == sorted([whole.id, away.id])
+    assert event["notes.updated"]["ids"] == [split.id]  # a note row lists its cards
     assert col.card_ids_of_note(split.id) == [kept_card]
     assert not any(name.endswith(".stale") for name in event)
 
@@ -289,6 +290,7 @@ def test_deleting_a_filtered_deck_names_the_cards_sent_home(col, subscription, r
     event = emit_last(recorded_ops, subscription)
     assert sorted(event["cards.updated"]["ids"]) == sorted(col.card_ids_of_note(saved.id))
     assert {c.did for c in map(col.get_card, col.card_ids_of_note(saved.id))} == {1}
+    assert "notes.updated" not in event  # the same cards, in another deck
     assert not any(name.endswith(".stale") for name in event)
 
 
@@ -311,6 +313,7 @@ def test_removing_a_template_names_its_cards_and_the_renumbered_ones(client, col
     event = emit_last(recorded_ops, subscription)
     assert event["cards.deleted"]["ids"] == [first]
     assert event["cards.updated"]["ids"] == [second]  # now template 0
+    assert event["notes.updated"]["ids"] == [saved.id]
     assert col.get_card(second).ord == 0
     assert not any(name.endswith(".stale") for name in event)
 

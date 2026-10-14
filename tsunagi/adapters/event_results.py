@@ -23,7 +23,8 @@ def card_changes(col: Any, where: str, *args: Any) -> Callable[[], dict]:
     For a write that adds or removes cards as a side effect (6.96): read the
     cards `where` matches before it; the returned factory, called after it,
     names the cards since deleted, created, or moved to another deck or
-    template, and the notes deleted with their last card.
+    template; the notes deleted with their last card; and as updated, the
+    notes that kept some of their cards or gained one (a note row lists them).
     """
     def rows(sql: str, *values: Any) -> Dict[int, tuple]:
         return {cid: (nid, did, ord) for cid, nid, did, ord in
@@ -33,13 +34,14 @@ def card_changes(col: Any, where: str, *args: Any) -> Callable[[], dict]:
 
     def changes() -> dict:
         after = {**rows(where, *args), **rows("id in " + _ids(before))}
-        nids = {nid for nid, *_ in before.values()}
+        created, deleted = after.keys() - before.keys(), before.keys() - after.keys()
+        touched = {before[c][0] for c in deleted} | {after[c][0] for c in created}
+        nids = {nid for nid, *_ in before.values()} | touched
         kept = set(col.db.list("select id from notes where id in " + _ids(nids)))
-        return {"cards": {"created": sorted(after.keys() - before.keys()),
-                          "deleted": sorted(before.keys() - after.keys()),
+        return {"cards": {"created": sorted(created), "deleted": sorted(deleted),
                           "updated": sorted(c for c in before.keys() & after.keys()
                                             if before[c][1:] != after[c][1:])},
-                "notes": {"deleted": sorted(nids - kept)}}
+                "notes": {"deleted": sorted(nids - kept), "updated": sorted(touched & kept)}}
     return changes
 
 
