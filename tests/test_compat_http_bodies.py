@@ -40,6 +40,24 @@ def test_rpc_decoding_ignores_content_type_charset(client, content_type):
     assert response.json() == {"result": 6, "error": None}
 
 
+def test_get_with_a_json_body_is_an_rpc(client):
+    # LunaTranslator sends every call as requests.get(url, json=...) and
+    # requires exactly {result, error}; AnkiConnect takes any method.
+    response = client.request("GET", "/", json={"action": "deckNames", "params": {}, "version": 6})
+    assert response.status_code == 200
+    assert response.json() == {"result": ["Default"], "error": None}
+    bare = client.request("GET", "/", json={"action": "version"})
+    assert bare.json() == 6
+    bad = client.request("GET", "/", content=b"{not json")
+    assert bad.json() == {"result": None, "error": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"}
+
+
+def test_get_with_a_body_keeps_the_origin_gate(client):
+    response = client.request("GET", "/", json={"action": "version", "version": 6},
+                              headers={"Origin": "https://denied.test"})
+    assert response.status_code == 403
+
+
 def test_native_root_get_serves_documentation(client):
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 200

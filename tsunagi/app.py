@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal, Optional
 from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from .adapters import idempotency
 from .adapters.anki import collection as anki_collection
@@ -323,8 +323,14 @@ def redoc_page():
     operation_id="rootLandingPage",
     openapi_extra=requires(PUBLIC),
 )
-def root_landing_page():
+async def root_landing_page(request: Request) -> Any:
     """Serve Scalar against the same OpenAPI document used by Swagger and ReDoc."""
+    # AnkiConnect takes any method: a GET with a body is an RPC
+    # (LunaTranslator sends every call as one).
+    if await request.body():
+        from fastapi.encoders import jsonable_encoder
+        reply = await ankiconnect_rpc_endpoint(request)
+        return reply if isinstance(reply, Response) else JSONResponse(jsonable_encoder(reply))
     from .http.playground import PLAYGROUND_HTML
     return HTMLResponse(PLAYGROUND_HTML, headers={"Cache-Control": "no-store"})
 
