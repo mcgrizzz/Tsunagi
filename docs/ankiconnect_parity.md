@@ -254,7 +254,7 @@ and its existing media side effects.
 | `getMediaDirPath` | implemented |  |
 | `getMediaFilesNames` | implemented |  |
 | `retrieveMediaFile` | implemented |  |
-| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) from a website, browser extension or other device needs the `local_files` permission, which only the Everything role has by default. Programs on this computer don't need it. |
+| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) from a website, browser extension or other device needs the `local_files` permission, which only the Everything role has by default. Programs on this computer don't need it. A name with folders is stored under its last part, without characters Anki can't store (`sub/x.png` is stored as `x.png`), as in AnkiConnect; the Tsunagi API refuses such names. |
 
 ### Miscellaneous Actions
 

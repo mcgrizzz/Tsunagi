@@ -823,6 +823,7 @@ def _ac_finish_check(col: Collection, note: Any, deck: Dict[str, Any],
 def _ac_store_media(col: Collection, item: Mapping[str, Any]):
     """Return a plain storage outcome; field error handling remains below."""
     from os import fspath
+    from os.path import basename
 
     try:
         if item.get("error") is not None:
@@ -837,7 +838,8 @@ def _ac_store_media(col: Collection, item: Mapping[str, Any]):
         filename = fspath(item["filename"])
         if item.get("delete_existing"):
             col.media.trash_files([filename])
-        stored = col.media.write_data(filename, data)
+        # As AnkiConnect's storeMediaFile, through Anki's legacy writeData.
+        stored = col.media.write_data(basename(filename), data)
         return {"filename": stored}
     except Exception as exc:
         return {"error": str(exc)}

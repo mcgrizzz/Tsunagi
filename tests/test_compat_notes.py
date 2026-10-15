@@ -3,6 +3,7 @@ Wire-shape tests for the AnkiConnect note and media actions, and the
 duplicate-detection matrix that Yomitan's "already added" badge depends on.
 """
 import base64
+import os
 
 import pytest
 
@@ -433,6 +434,39 @@ class TestMediaActions:
         resp = rpc(client, "storeMediaFile",
                    {"filename": "a.png", "data": other, "deleteExisting": False})
         assert resp["result"] != "a.png"
+
+    @pytest.mark.parametrize("name,stored", [
+        # AnkiConnect stores through Anki's legacy writeData: the name's last
+        # path part (os.path.basename), then write_data strips what it can't
+        # store (rslib media/files.rs normalize_filename) and lowercases a
+        # new name. Game Sentence Miner sends full paths.
+        ("sub/dir/gsm.png", "gsm.png"),
+        ("C:\\Users\\me\\shot.png", "shot.png" if os.name == "nt" else "cusersmeshot.png"),
+        ("a:b.png", "ab.png"),
+        ("CON.png", "con_.png"),
+        ("a..b.png", "a..b.png"),
+        ("trail.png ", "trail.png _"),
+    ])
+    def test_store_normalizes_names_as_anki_does(self, client, col, name, stored):
+        assert rpc(client, "storeMediaFile", {"filename": name, "data": B64}) == {"result": stored, "error": None}
+        assert col.media.have(stored)
+
+    def test_note_media_names_are_basenames_too(self, client, col):
+        note = {**note_spec(front="gsm"), "picture": [{"data": B64, "filename": "GSM/shot.png", "fields": ["Back"]}]}
+        nid = rpc(client, "addNote", {"note": note})["result"]
+        assert col.get_note(nid)["Back"] == 'dog<img src="shot.png">'
+
+    def test_store_never_deletes_outside_the_media_folder(self, client, col):
+        # deleteExisting (the default) deletes by the name as given; a name
+        # with folders in it names nothing in Anki's flat media folder.
+        outside = os.path.join(os.path.dirname(col.media.dir()), "outside.png")
+        with open(outside, "wb") as fh:
+            fh.write(b"keep")
+        resp = rpc(client, "storeMediaFile", {"filename": "../outside.png", "data": B64})
+        assert resp == {"result": "outside.png", "error": None}
+        assert col.media.have("outside.png")
+        with open(outside, "rb") as fh:
+            assert fh.read() == b"keep"
 
     def test_retrieve_missing_is_false(self, client):
         assert rpc(client, "retrieveMediaFile", {"filename": "nope.png"})["result"] is False

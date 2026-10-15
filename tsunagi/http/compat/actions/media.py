@@ -18,7 +18,7 @@ from ....adapters.anki.media import (
     list_media,
     media_dir_path,
     resolve_media_path,
-    store_media_bytes,
+    store_media_as_named,
 )
 from ....shared.permissions import current_denial, permitted
 from ..errors import MEDIA_NO_SOURCE
@@ -72,11 +72,7 @@ def ac_storeMediaFile(p: StoreMediaFileParams) -> Optional[str]:
         if p.deleteExisting and not isinstance(p.filename, str):
             # Upstream's deletion protobuf rejects the type before writeData.
             raise TypeError("bad argument type for built-in operation")
-        filename = os.fspath(p.filename)
-        if p.deleteExisting:
-            delete_media_file(filename)
-        stored, _renamed = store_media_bytes(filename, data)
-        return stored
+        return store_media_as_named(os.fspath(p.filename), data, bool(p.deleteExisting))
     except TypeError as exc:
         raise ValueError(str(exc)) from exc
 
