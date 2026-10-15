@@ -326,7 +326,10 @@ def update_model_raw(col, spec, *, templates=False):
         model = col.models.by_name(name)
         if model is None:
             raise ValueError(f"model was not found: {name}")
+        cards = None
         if templates:
+            from .models import template_cards
+
             incoming = spec["templates"]
             for template in model["tmpls"]:
                 supplied = incoming.get(template["name"])
@@ -334,12 +337,13 @@ def update_model_raw(col, spec, *, templates=False):
                     front = supplied.get("Front")
                     if front:
                         template["qfmt"] = front
+                        cards = cards or template_cards(col, model["id"])
                     back = supplied.get("Back")
                     if back:
                         template["afmt"] = back
         else:
             model["css"] = spec["css"]
-        return ValueWithChanges(None, col.models.update_dict(model))
+        return ValueWithChanges(None, col.models.update_dict(model), event_changes=cards)
     except Exception as exc:
         raise ValueError(str(exc)) from exc
 
@@ -432,6 +436,7 @@ def mutate_model_template_raw(col, model_name, action, name=None, value=None, in
             template = models.new_template(name)
             template["qfmt"], template["afmt"] = front, back
             models.add_template(model, template)
+            cards = template_cards(col, model["id"])
         else:
             template = next((t for t in model["tmpls"] if t["name"] == name), None)
             if template is None:
@@ -440,6 +445,7 @@ def mutate_model_template_raw(col, model_name, action, name=None, value=None, in
                 template["name"] = value
             elif action == "reposition":
                 models.reposition_template(model, template, index)
+                cards = template_cards(col, model["id"])
             elif action == "remove":
                 cards = template_cards(col, model["id"])
                 models.remove_template(model, template)
@@ -473,8 +479,12 @@ def replace_in_models_raw(col, name, find, replacement, front=True, back=True, c
     """Keep raw truthiness, per-model saves, and successful prefixes on failure."""
     from anki.collection import OpChanges
 
+    from ..event_results import combined
+    from .models import template_cards
+
     changes = OpChanges()
     saved = False
+    cards = {}
     try:
         models = col.models
         if not name:
@@ -494,16 +504,20 @@ def replace_in_models_raw(col, name, find, replacement, front=True, back=True, c
                 if front and find in template["qfmt"]:
                     found = True
                     template["qfmt"] = template["qfmt"].replace(find, replacement)
+                    if model["id"] not in cards:
+                        cards[model["id"]] = template_cards(col, model["id"])
                 if back and find in template["afmt"]:
                     found = True
                     template["afmt"] = template["afmt"].replace(find, replacement)
             changes.MergeFrom(models.update_dict(model))
             saved = True
             updated += found
-        return ValueWithChanges((updated, None), changes)
+        result = (updated, None)
     except Exception as exc:
         result = (None, str(exc))
-        return ValueWithChanges(result, changes) if saved else result
+        if not saved:
+            return result
+    return ValueWithChanges(result, changes, event_changes=combined(cards.values()))
 
 
 @as_collection_op

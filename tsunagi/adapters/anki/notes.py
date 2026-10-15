@@ -494,9 +494,10 @@ def patch_note(col: Collection, note_id: int, updates: Dict[str, Any],
             raise ResourceNotFoundError("Note", note_id) from e
         raise
 
-    cards = None
-    if req.note_type_id is not None or req.note_type_name is not None:
-        cards = card_changes(col, "nid = ?", note.id)  # the new type's cards are added
+    retype = req.note_type_id is not None or req.note_type_name is not None
+    # A new type's cards are added, and a field edit can make a card.
+    cards = card_changes(col, "nid = ?", note.id) if retype or req.fields is not None or files else None
+    if retype:
         _change_notetype(col, note, req)
 
     model_names = _model_names(col)
@@ -984,9 +985,10 @@ def ac_update_note_fields(col: Collection, note_id: Any, fields: Any,
     try:
         note = _ac_prepare_update(col, note_id, fields, fields_missing=fields_missing)
         _ac_write_media(col, note, media)
+        cards = card_changes(col, "nid = ?", note.id)  # a field edit can make a card
         # An undo entry, unlike upstream: a write without one wipes Anki's undo history.
-        return ValueWithChanges(None, col.update_note(note),
-                                event_changes=lambda: {"notes": {"updated": [int(note.id)]}})
+        return ValueWithChanges(None, col.update_note(note), event_changes=lambda: {
+            **cards(), "notes": {"updated": [int(note.id)]}})
     except Exception as exc:
         if type(exc).__name__ == "NotFoundError":
             raise ValueError(NOTE_NOT_FOUND.format(note_id)) from exc

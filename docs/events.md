@@ -193,10 +193,12 @@ seconds.
 | --- | --- |
 | Create notes through either API | `notes.created`, and `cards.created` for their cards |
 | `POST /v1/notes:upsert` | `notes.created` and `notes.updated`; new cards as `cards.stale` |
-| Update notes, or add or remove their tags, through either API | `notes.updated` |
+| Update notes, or add or remove their tags, through either API | `notes.updated`, and `cards.created` for any cards a field edit makes |
 | Delete notes through either API | `notes.deleted`, and `cards.deleted` for their cards |
 | Delete a deck through either API | `cards.deleted` for its cards and its subdecks' cards (a filtered deck's go home: `cards.updated`), `notes.deleted` for notes left without cards, `notes.updated` for notes that kept some |
 | Remove a card template through either API | `cards.deleted` for its cards, `cards.updated` for later templates' cards (renumbered), `notes.updated` for their notes |
+| Add a card template, or change a template's front (also by find and replace), through either API | `cards.created` for the cards it makes, `notes.updated` for their notes |
+| Reorder card templates through either API | `cards.updated` for the renumbered cards |
 | Change notes' note type through the API | `notes.updated`, and `cards.created`, `cards.updated` and `cards.deleted` for their cards |
 | Answer cards through either API | `cards.updated`, and `reviews.created` for the rows it added |
 | Forget cards or set their due date through either API | `cards.updated`, and `reviews.created` for the rows it added |
