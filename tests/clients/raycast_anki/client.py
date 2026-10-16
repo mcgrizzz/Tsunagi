@@ -102,7 +102,7 @@ SENDS = {
          "result.*.review_count", "result.*.total_in_deck", "error"),
     ),
     # The media folder, to show a card's files: a path on this machine.
-    "getMediaDirPath": ([{}], ("result~type", "error")),
+    "getMediaDirPath": ([{}], ("result", "error")),
     "getTags": ([{}], ("result", "error")),
     "modelNames": ([{}], ("result", "error")),
     "notesInfo": (

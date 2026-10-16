@@ -29,7 +29,9 @@ CLIENT = {
               "sends base64 data. New notes without a FILE TAGS line get the tag ''."),
 }
 
-ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST"}
+# The plugin: XMLHttpRequest.send of a string, so text/plain;charset=UTF-8. The script
+# (urllib.request with data) sends the form type, which the envelope matrix covers.
+ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST", "content_type": "text"}
 
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).

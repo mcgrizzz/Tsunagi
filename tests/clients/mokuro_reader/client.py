@@ -23,7 +23,8 @@ CLIENT = {
              "Update accepts only a note younger than 5 minutes by its id (index.ts L608-610, L940; TextBoxPicker.svelte L125).",
 }
 
-ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST"}
+# fetch with a string body and no Content-Type: text/plain;charset=UTF-8.
+ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST", "content_type": "text"}
 
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).

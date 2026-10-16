@@ -19,7 +19,7 @@ ENTRIES = named("mpvacious", [
     case("findModelsByName missing note type", "findModelsByName",
          {"modelNames": ["Japanese sentences"]}, reads=WHOLE),
     # The path differs between collections: only its type is compared.
-    case("getMediaDirPath", "getMediaDirPath", reads=("result~type", "error")),
+    case("getMediaDirPath", "getMediaDirPath"),
     # create_deck: changeDeck of no cards to make the deck.
     case("changeDeck no cards, new deck", "changeDeck", {"cards": [], "deck": "Learning"},
          reads=WHOLE, effects=True),

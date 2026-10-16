@@ -25,7 +25,8 @@ CLIENT = {
              "The extension proxies only 19 actions (http-post-handler.ts L5-25).",
 }
 
-ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST"}
+# common/src/fetcher.ts: fetch with a string body and no Content-Type, so text/plain;charset=UTF-8.
+ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST", "content_type": "text"}
 
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).

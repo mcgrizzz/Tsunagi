@@ -21,7 +21,8 @@ CLIENT = {
               "(each step-2 load), cardsInfo once per 500 or 2000 cards, multi retrieveMediaFile in batches."),
 }
 
-ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST"}
+# AnkiConnectImport.vue: fetch with a string body and no Content-Type, so text/plain;charset=UTF-8.
+ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST", "content_type": "text"}
 
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).
@@ -42,7 +43,9 @@ SENDS = {
 }
 
 # Deliberate differences from AnkiConnect this client sees, accepted (support.py).
+_FIELDS = ("The Shim takes cardsInfo's fields, which AnkiConnect added after the pin (0a5be02, 6.140): "
+           "the probe passes, and Jiten reads in 2000-card chunks")
 ACCEPTS = {
-    "cardsInfo fields filter probe (Jiten)":
-        "The Shim takes cardsInfo's fields, which AnkiConnect added after the pin (0a5be02, 6.140): the probe passes, and Jiten reads in 2000-card chunks",
+    "cardsInfo fields filter probe (Jiten)": _FIELDS,
+    "cardsInfo fields filter probe (Jiten) [Jiten's envelope]": _FIELDS,
 }

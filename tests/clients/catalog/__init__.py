@@ -36,7 +36,8 @@ _OWN = [
 
 
 def _in_envelope(c, envelope):
-    """The entry as a client with this envelope sends it, its whole answer compared."""
+    """The entry as a client with this envelope sends it, its whole answer compared
+    (only what it reads, for an entry that differs deliberately)."""
     def wrap(body_of):
         def body(ctx):
             out = dict(body_of(ctx))
@@ -53,7 +54,8 @@ def _in_envelope(c, envelope):
 
     kind = envelope.get("content_type", "json")
     headers = (("Content-Type", CONTENT_TYPES[kind]),) if kind != "json" else ()
-    return replace(c, body=wrap(c.body), method=envelope["method"], reads=("",), headers=headers,
+    reads = c.reads if c.differs is not None else ("",)
+    return replace(c, body=wrap(c.body), method=envelope["method"], reads=reads, headers=headers,
                    then=tuple(replace(s, body=wrap(s.body), method=envelope["method"], reads=("",),
                                       headers=headers)
                               for s in c.then))
