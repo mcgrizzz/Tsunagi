@@ -48,10 +48,14 @@ def collection(path):
 
 @contextmanager
 def endpoint(implementation, checkout):
+    # Both sides get the same headers: application/json unless a case says otherwise.
+    from clients.support import request_headers
+
     if implementation == "upstream":
         from tools.upstream_reference import load_reference
         reference = load_reference(checkout)
-        yield lambda method, path, body, params: reference.http_raw_request(body, method=method)
+        yield lambda method, path, body, params, headers=None: reference.http_raw_request(
+            body, method=method, headers=request_headers(headers))
     else:
         from fastapi.testclient import TestClient
 
@@ -61,8 +65,8 @@ def endpoint(implementation, checkout):
         settings.configure(dict(DEFAULTS), persist=None)
         # From this computer (peer and Host loopback), so keyless access applies.
         with TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 50000)) as client:
-            yield lambda method, path, body, params: client.request(
-                method, path, content=body, params=params, headers={"Content-Type": "application/json"})
+            yield lambda method, path, body, params, headers=None: client.request(
+                method, path, content=body, params=params, headers=request_headers(headers))
 
 
 class Requests:

@@ -8,13 +8,20 @@ standard.py holds what most clients send, the card-state matrix and the
 envelope matrix; <client>.py the entries first sent by that client, named
 "... (Client)". Entries hold all the data; a client's client.py only names
 what it sends. A client whose envelope isn't version 6 POST without a key
-also gets each entry it sends in its own envelope ("... [Yomitan's envelope]").
+(or with a Content-Type other than application/json) also gets each entry it
+sends in its own envelope ("... [Yomitan's envelope]").
 """
 import importlib
 from dataclasses import replace
 from pathlib import Path
 
-from clients.catalog.standard import ENVELOPE_KINDS, ENVELOPES, STANDARD, STATES
+from clients.catalog.standard import (
+    CONTENT_TYPES,
+    ENVELOPE_KINDS,
+    ENVELOPES,
+    STANDARD,
+    STATES,
+)
 from clients.support import clients, request_key, requests, shape_key
 
 HERE = Path(__file__).parent
@@ -44,8 +51,11 @@ def _in_envelope(c, envelope):
             return out
         return body
 
-    return replace(c, body=wrap(c.body), method=envelope["method"], reads=("",),
-                   then=tuple(replace(s, body=wrap(s.body), method=envelope["method"], reads=("",))
+    kind = envelope.get("content_type", "json")
+    headers = (("Content-Type", CONTENT_TYPES[kind]),) if kind != "json" else ()
+    return replace(c, body=wrap(c.body), method=envelope["method"], reads=("",), headers=headers,
+                   then=tuple(replace(s, body=wrap(s.body), method=envelope["method"], reads=("",),
+                                      headers=headers)
                               for s in c.then))
 
 
@@ -53,13 +63,16 @@ def _envelope_entries():
     out, seen = [], {request_key(c) for c in _OWN}
     for module in clients().values():
         envelope = module.ENVELOPE
-        if (envelope["version"], envelope["method"], envelope["key"]) == (6, "POST", "absent"):
+        if (envelope["version"], envelope["method"], envelope["key"],
+                envelope.get("content_type", "json")) == (6, "POST", "absent", "json"):
             continue
         for action, (shapes, _reads) in module.SENDS.items():
             for shape in shapes:
                 wanted = shape_key(action, shape)
-                entry = next(c for c in _OWN if any(a == action and shape_key(a, p) == wanted
-                                                   for a, p in [next(requests(c))]))
+                entry = next((c for c in _OWN if any(a == action and shape_key(a, p) == wanted
+                                                    for a, p in [next(requests(c))])), None)
+                if entry is None:  # sent only inside a multi, whose variant carries it
+                    continue
                 variant = replace(_in_envelope(entry, envelope),
                                   name=f"{entry.name} [{module.CLIENT['name']}'s envelope]")
                 if request_key(variant) not in seen:

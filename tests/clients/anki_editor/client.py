@@ -31,7 +31,8 @@ CLIENT = {
               "Not tested: guiBrowse, guiAddCards, sync."),
 }
 
-ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST"}
+# curl --data-binary: the form Content-Type.
+ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST", "content_type": "form"}
 
 # anki-editor-api--note: an Org heading's note. Empty headings make empty fields.
 ORG_NOTE = {**NOTE, "id": int, "options": {"allowDuplicate": False}}

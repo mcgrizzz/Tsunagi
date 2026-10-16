@@ -74,9 +74,8 @@ ENTRIES = named("Raycast Anki", [
          reads=EVERYTHING, effects=True),
     # Browse Cards: Delete Note (noteActions.deleteNote).
     case("cardsToNotes", "cardsToNotes", lambda c: {"cards": [c["cid"]]}, reads=EVERYTHING),
-    # View Stats. The report ends "Generated on <the time>": only its type is compared.
-    case("getCollectionStatsHTML", "getCollectionStatsHTML", {"wholeCollection": True},
-         reads=("result~type", "error")),
+    # View Stats (its "Generated on" time is masked).
+    case("getCollectionStatsHTML", "getCollectionStatsHTML", {"wholeCollection": True}),
     # Edit Note and the update-note tool (noteActions.updateNote): changed fields, tags when changed.
     case("updateNote field", "updateNote", lambda c: {"note": {"id": c["nid"], "fields": {"Back": "dog!"}}},
          reads=EVERYTHING, effects=True),

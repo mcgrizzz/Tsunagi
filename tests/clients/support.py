@@ -80,17 +80,20 @@ class Case:
     # A deliberate difference from AnkiConnect at the pin: (why, {read: the
     # Shim's value}). Those reads are expected to answer that instead.
     differs: Optional[Tuple[str, Dict[str, Any]]] = None
+    # Request headers other than Content-Type: application/json, as
+    # ((name, value), ...); a value of None leaves that header out.
+    headers: Tuple[Tuple[str, Optional[str]], ...] = ()
 
 
 def case(name, action, params=None, *, version=6, reads=("result", "error"),
-         effects=False, method="POST", setup=None, then=(), differs=None, **extra):
+         effects=False, method="POST", setup=None, then=(), differs=None, headers=(), **extra):
     """A request built from the seeded collection's ids (ctx), when params is a function."""
     def body(ctx):
         out = {"action": action, "version": version, **extra}
         if params is not None:
             out["params"] = params(ctx) if callable(params) else params
         return out
-    return Case(name, body, tuple(reads), effects, method, setup, tuple(then), differs)
+    return Case(name, body, tuple(reads), effects, method, setup, tuple(then), differs, tuple(headers))
 
 
 def named(origin, cases):
@@ -98,9 +101,10 @@ def named(origin, cases):
     return [replace(c, name=f"{c.name} ({origin})") for c in cases]
 
 
-def raw(name, body, *, reads=("",), effects=False, method="POST", setup=None, then=(), differs=None):
-    """A request body sent as it is (a function of ctx), for envelopes case() can't build."""
-    return Case(name, body, tuple(reads), effects, method, setup, tuple(then), differs)
+def raw(name, body, *, reads=("",), effects=False, method="POST", setup=None, then=(), differs=None, headers=()):
+    """A request body sent as it is (a function of ctx), for envelopes case() can't build.
+    A body of bytes is sent unencoded (a body that isn't JSON)."""
+    return Case(name, body, tuple(reads), effects, method, setup, tuple(then), differs, tuple(headers))
 
 
 def note(**over):
@@ -161,10 +165,16 @@ class _Placeholders(dict):
         return _Token(f"<{key}>")
 
 
+def _readable(body):
+    return body.decode("utf-8", errors="replace") if isinstance(body, bytes) else body
+
+
 def request_key(c: Case) -> str:
     """The request with placeholder ids: a reference recorded for another request is stale."""
     ctx = _Placeholders(cleanup=[])
-    requests = [{"method": step.method, "body": step.body(ctx)} for step in (c, *c.then)]
+    requests = [{"method": step.method, "body": _readable(step.body(ctx)),
+                 **({"headers": [list(h) for h in step.headers]} if step.headers else {})}
+                for step in (c, *c.then)]
     return json.dumps(requests if c.then else requests[0], ensure_ascii=False, sort_keys=True)
 
 
@@ -205,7 +215,9 @@ def _changes(before: Dict[str, Any], after: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _send_one(send, c: Case, ctx) -> Dict[str, Any]:
-    status, text = send(c.method, json.dumps(c.body(ctx), ensure_ascii=False).encode())
+    body = c.body(ctx)
+    content = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
+    status, text = send(c.method, content, dict(c.headers))
     try:
         body = json.loads(text)
     except ValueError:
@@ -213,8 +225,18 @@ def _send_one(send, c: Case, ctx) -> Dict[str, Any]:
     return {"status": status, "body": body}
 
 
+def request_headers(extra) -> Dict[str, str]:
+    """Content-Type: application/json unless a case's headers say otherwise; None leaves a header out."""
+    out = {"Content-Type": "application/json"}
+    for name, value in (extra or {}).items():
+        out = {k: v for k, v in out.items() if k.lower() != name.lower()}
+        if value is not None:
+            out[name] = value
+    return out
+
+
 def send_case(send, col, c: Case, ctx) -> Dict[str, Any]:
-    """Send the case with send(method, body_bytes) -> (status, text); the answers and the effects."""
+    """Send the case with send(method, body_bytes, headers) -> (status, text); the answers and the effects."""
     try:
         if c.setup is not None:
             more = c.setup(col, ctx)
@@ -282,6 +304,9 @@ def _canon(value, key=None):
         placeholder = _PLACEHOLDER.fullmatch(value)
         if placeholder and ("id" in placeholder[1] or placeholder[1] == "answer"):
             return "<number>"  # an entry's placeholder for an id (request_key)
+        if placeholder and placeholder[1] == "cards":
+            # A setup's list of card ids (the card-state matrix), or one of them.
+            return "<number>" if placeholder[2] else _distinct(["<number>"])
         if key == "filename" and ("/" in value or "\\" in value):
             return PATH
         return "<text>"
@@ -299,6 +324,9 @@ def shape_key(action, params) -> str:
 def requests(c: Case):
     """(action, params) of each request a case sends: its steps, and the actions a multi batches."""
     def walk(body):
+        if not isinstance(body, dict):  # a body that isn't JSON (raw bytes)
+            yield None, {}
+            return
         yield body.get("action"), body.get("params", {})
         params = body.get("params")
         actions = params.get("actions") if isinstance(params, dict) else None
@@ -369,6 +397,10 @@ _MASKS = [
     (re.compile(r"\b(127\.0\.0\.1|localhost):[0-9]+"), r"\1:<port>"),  # serve()'s port
     # Anki fuzzes the intervals cardsInfo previews, seeded by the card's id.
     (re.compile(r'"nextReviews": \[[^\]]*\]'), '"nextReviews": <fuzzed>'),
+    # getMediaDirPath: each run's collection is in its own scratch folder.
+    (re.compile(r'"[^"]*collection\.media"'), '"<media folder>"'),
+    # getCollectionStatsHTML's footer: "Generated on Fri Oct 16 13:04:03 2026".
+    (re.compile(r"Generated on [A-Z][a-z]{2} [A-Z][a-z]{2} +[0-9]+ [0-9:]{8} [0-9]{4}"), "Generated on <time>"),
 ]
 
 

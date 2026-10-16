@@ -38,7 +38,8 @@ CLIENT = {
               "updateNoteFields and addTags. Not tested: guiAddCards, guiBrowse, guiSelectedNotes."),
 }
 
-ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST"}
+# curl -d on Linux and macOS: the form Content-Type (Windows sends application/json).
+ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST", "content_type": "form"}
 
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).

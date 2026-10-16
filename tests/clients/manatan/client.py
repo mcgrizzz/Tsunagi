@@ -36,7 +36,8 @@ CLIENT = {
               "requestPermission. Not tested: guiBrowse."),
 }
 
-ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST"}
+# fetch with a string body and no Content-Type: text/plain;charset=UTF-8.
+ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST", "content_type": "text"}
 
 BY_DATA = {"data": str, "fields": [str], "filename": str}
 
