@@ -159,6 +159,16 @@ STANDARD = [
     _std("deleteNotes []", "deleteNotes", {"notes": []}, effects=True),
     _std("suspend", "suspend", lambda c: {"cards": [c["cid"]]}, effects=True),
     _std("unsuspend", "unsuspend", lambda c: {"cards": [c["cid"]]}, setup=suspended, effects=True),
+    # A new card's position, through due (scripts that reorder new cards, as AnkiConnect's reviews say);
+    # a guarded column needs warning_check.
+    _std("setSpecificValueOfCard due of a new card", "setSpecificValueOfCard",
+         lambda c: {"card": c["cid"], "keys": ["due"], "newValues": [5]},
+         then=(case("cardsInfo after", "cardsInfo", lambda c: {"cards": [c["cid"]]}, reads=WHOLE),)),
+    _std("setSpecificValueOfCard guarded column", "setSpecificValueOfCard",
+         lambda c: {"card": c["cid"], "keys": ["queue"], "newValues": [-1]}),
+    _std("setSpecificValueOfCard guarded column, warning_check", "setSpecificValueOfCard",
+         lambda c: {"card": c["cid"], "keys": ["queue"], "newValues": [-1], "warning_check": True},
+         then=(case("cardsInfo after", "cardsInfo", lambda c: {"cards": [c["cid"]]}, reads=WHOLE),)),
     # Decks.
     _std("createDeck", "createDeck", {"deck": "New::Deck"}, effects=True),
     _std("createDeck existing", "createDeck", {"deck": "Default"}, effects=True),
