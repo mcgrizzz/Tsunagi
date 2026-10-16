@@ -192,6 +192,101 @@ STANDARD = [
 ]
 
 
+# ----- Card states -----
+# The actions whose answer the Shim builds from a card's scheduling, each run
+# with a card in every state a collection has. A state's setup returns
+# ctx["cards"], the cards to ask about.
+
+
+def _as(state):
+    def setup(col, ctx):
+        state(col, ctx)
+        return {"cards": [ctx["cid"]]}
+    return setup
+
+
+def _day_learning(col, ctx):
+    """In learning with a step of a day: queue 3, due on a day, not a time."""
+    card = col.get_card(ctx["cid"])
+    card.type, card.queue = 1, 3
+    card.due, card.left, card.reps = col.sched.today, 1001, 1
+    col.update_card(card)
+    revlog(col, ctx["cid"], 1, 0, 0, kind=0)
+
+
+def _relearning(col, ctx):
+    """A review card forgotten: type 3, back in learning, one lapse."""
+    card = col.get_card(ctx["cid"])
+    card.type, card.queue = 3, 1
+    card.due, card.left, card.ivl, card.factor = 1_700_000_600, 1001, 1, 2300
+    card.reps, card.lapses = 4, 1
+    col.update_card(card)
+    revlog(col, ctx["cid"], 12, 4, 2500)
+    revlog(col, ctx["cid"], -600, 12, 2300, ease=1, kind=2, at_ms=1_700_000_100_000)
+
+
+def _buried(manual):
+    return lambda col, ctx: col.sched.bury_cards([ctx["cid"]], manual=manual)
+
+
+def _in_filtered_deck(col, ctx):
+    """A review card due today, pulled into a filtered deck."""
+    review_card()(col, ctx)
+    deck = col.sched.get_or_create_filtered_deck(deck_id=0)
+    deck.name = "Filtered"
+    deck.config.search_terms[0].search = "deck:Default"
+    col.sched.add_or_update_filtered_deck(deck)
+
+
+def _fsrs(col, ctx):
+    """A review card with FSRS on, and its memory state."""
+    from anki.cards import FSRSMemoryState
+
+    review_card()(col, ctx)
+    col.set_config("fsrs", True)
+    card = col.get_card(ctx["cid"])
+    card.memory_state = FSRSMemoryState(stability=12.0, difficulty=5.0)
+    col.update_card(card)
+
+
+def _cloze(col, ctx):
+    """A cloze note's two cards."""
+    n = col.new_note(col.models.by_name("Cloze"))
+    n["Text"] = "{{c1::犬}} is {{c2::dog}}"
+    col.add_note(n, 1)
+    return {"cards": col.card_ids_of_note(n.id)}
+
+
+CARD_STATES = {
+    "new": _as(lambda col, ctx: None),
+    "learning": _as(learning_card),
+    "day learning": _as(_day_learning),
+    "review": _as(review_card()),
+    "relearning": _as(_relearning),
+    "suspended": _as(suspended),
+    "buried": _as(_buried(True)),
+    "sibling buried": _as(_buried(False)),
+    "in a filtered deck": _as(_in_filtered_deck),
+    "FSRS": _as(_fsrs),
+    "cloze": _cloze,
+}
+CARD_ACTIONS = {
+    "cardsInfo": lambda c: {"cards": c["cards"]},
+    "getIntervals": lambda c: {"cards": c["cards"]},
+    "areDue": lambda c: {"cards": c["cards"]},
+    "getEaseFactors": lambda c: {"cards": c["cards"]},
+    "areSuspended": lambda c: {"cards": c["cards"]},
+    "getReviewsOfCards": lambda c: {"cards": c["cards"]},
+    "getDeckStats": {"decks": ["Default"]},
+}
+
+STATES = [
+    _std(f"{action}, {state} card", action, params, setup=setup)
+    for state, setup in CARD_STATES.items()
+    for action, params in CARD_ACTIONS.items()
+]
+
+
 # ----- Envelopes -----
 # Every envelope clients use, on three requests: one that answers, one whose
 # answer is an error, one with required params.
@@ -228,6 +323,5 @@ ENVELOPES = [
     for action in ACTIONS for version in (2, 6)
 ]
 
-STANDARD_NAMES = {c.name for c in STANDARD}
 ENVELOPE_KINDS = {"version": (2, 4, 6, "absent"), "params": ("always", "omit-when-empty", "null"),
                   "key": ("absent", "null", "configured"), "method": ("POST", "GET")}
