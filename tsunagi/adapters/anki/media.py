@@ -78,6 +78,28 @@ def store_media_bytes(col: Collection, filename: str, data: bytes) -> Tuple[str,
 
 
 @as_query_op
+def store_media_as_named(col: Collection, filename: str, data: bytes, delete_existing: bool) -> str:
+    """
+    AnkiConnect's storeMediaFile, which stores through Anki's legacy
+    writeData: the name's last path part (os.path.basename), then write_data
+    strips what it can't store (':' ...), instead of the name being refused.
+    delete_existing removes a file of that name first, only for a name that
+    is already a plain filename: trash_files joins the name onto the media
+    folder as given, and the folder is flat, so another name has nothing
+    there to delete.
+    """
+    if delete_existing:
+        try:
+            name = sanitize_media_filename(filename)
+        except ValidationError:
+            pass
+        else:
+            if os.path.isfile(_contained_path(col, name)):
+                col.media.trash_files([name])
+    return col.media.write_data(os.path.basename(filename), data)
+
+
+@as_query_op
 def delete_media_file(col: Collection, filename: str) -> bool:
     name = sanitize_media_filename(filename)
     path = _contained_path(col, name)

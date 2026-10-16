@@ -122,8 +122,11 @@ def ac_deleteDecks(p: DeleteDecksParams) -> None:
         # since 2.1.28, and passing cardsToo=False to the deprecated API is
         # silently ignored - so canonical refuses rather than destroying data.
         raise ValueError(DECKS_NEED_CARDS_TOO)
-    for deck in get_decks_by_names(p.decks):
-        delete_deck(deck.id)
+    # Each name is looked up after the deletions before it, as AnkiConnect
+    # does: a child listed after its parent is already gone.
+    for name in p.decks:
+        for deck in get_decks_by_names([name], {"id"}):
+            delete_deck(deck.id)
 
 
 @registry.register("getDeckConfig", params=DeckParams, permission="read:deck_presets")

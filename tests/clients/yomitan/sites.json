@@ -1,0 +1,320 @@
+{
+ "commit": "e7334a9",
+ "hints": {
+  "multi": [
+   "ext/js/comm/anki-connect.js:541"
+  ],
+  "port_8765": [
+   "ext/data/schemas/options-schema.json:1020",
+   "ext/js/data/options-util.js:379",
+   "ext/js/pages/settings/backup-controller.js:350",
+   "ext/settings.html:1875",
+   "ext/settings.html:1880"
+  ],
+  "version": [
+   0
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "ext/data/schemas/options-schema.json:1338",
+    "hash": "041d165e0f351c37"
+   },
+   {
+    "at": "ext/data/schemas/options-schema.json:1339",
+    "hash": "45d51c93439ed503"
+   },
+   {
+    "at": "ext/data/schemas/options-schema.json:1340",
+    "hash": "a53e53dcae358079"
+   },
+   {
+    "at": "ext/js/background/backend.js:622",
+    "hash": "e95b601a9b98bc22"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:125",
+    "hash": "300153929c342822"
+   },
+   {
+    "at": "ext/js/data/options-util.js:1727",
+    "hash": "1547f7d01ff1b52e"
+   },
+   {
+    "at": "ext/js/data/options-util.js:1731",
+    "hash": "4599ce6a3a6513b9"
+   },
+   {
+    "at": "ext/js/data/options-util.js:1735",
+    "hash": "ef79d431674d8a8b"
+   },
+   {
+    "at": "ext/js/display/display-anki.js:126",
+    "hash": "0ab8743673ebf1db"
+   },
+   {
+    "at": "ext/js/pages/settings/keyboard-shortcuts-controller.js:64",
+    "hash": "5997e3f7ca243c6d"
+   },
+   {
+    "at": "ext/templates-settings.html:438",
+    "hash": "3c521159a797e5ae"
+   }
+  ],
+  "addNotes": [
+   {
+    "at": "ext/js/comm/anki-connect.js:139",
+    "hash": "2aa7c9cd80416c95"
+   },
+   {
+    "at": "ext/js/pages/settings/anki-controller.js:617",
+    "hash": "7fa31db2fa08548e"
+   },
+   {
+    "at": "ext/js/pages/settings/anki-deck-generator-controller.js:368",
+    "hash": "f6e594f0c817953b"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "ext/js/language/translator.js:174",
+    "hash": "0c51123a06d779bf"
+   },
+   {
+    "at": "ext/js/language/translator.js:1304",
+    "hash": "7eccc4b5671d504f"
+   },
+   {
+    "at": "ext/js/language/translator.js:1337",
+    "hash": "fb9c9a6ecf6250cf"
+   },
+   {
+    "at": "ext/js/language/translator.js:1826",
+    "hash": "8a67c1d3738c3868"
+   },
+   {
+    "at": "ext/js/language/translator.js:1827",
+    "hash": "65e52e702b134077"
+   }
+  ],
+  "apiReflect": [
+   {
+    "at": "ext/js/comm/anki-connect.js:403",
+    "hash": "c8eca81966fd33d7"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:422",
+    "hash": "8dd31249ae0ae906"
+   }
+  ],
+  "canAddNotes": [
+   {
+    "at": "ext/js/background/backend.js:669",
+    "hash": "fe32aa14e72b4f19"
+   },
+   {
+    "at": "ext/js/background/backend.js:670",
+    "hash": "5e5d147a32d86d75"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:168",
+    "hash": "bbbcbae4fa889812"
+   },
+   {
+    "at": "ext/js/pages/settings/anki-controller.js:625",
+    "hash": "46bd1edf28cd271f"
+   },
+   {
+    "at": "ext/js/pages/settings/anki-deck-generator-controller.js:365",
+    "hash": "8735bde28b100e3a"
+   }
+  ],
+  "canAddNotesWithErrorDetail": [
+   {
+    "at": "ext/js/background/backend.js:652",
+    "hash": "21302a11d749faca"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:179",
+    "hash": "95395b29f590c95b"
+   }
+  ],
+  "cardsInfo": [
+   {
+    "at": "ext/js/background/backend.js:764",
+    "hash": "4a44724d80b6f9ff"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:201",
+    "hash": "fe104bd0c0e9c863"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "ext/js/comm/anki-connect.js:211",
+    "hash": "540d076115ce0ce6"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "ext/js/comm/anki-connect.js:384",
+    "hash": "2c2b7dc623e0b91a"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:393",
+    "hash": "0de74c2d7c64b00a"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "ext/js/background/backend.js:1095",
+    "hash": "465bca7fe5271ae6"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:300",
+    "hash": "d15d350f42fbfda6"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:339",
+    "hash": "98edd3aff08f40d4"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:343",
+    "hash": "53e8152d75a812ef"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:349",
+    "hash": "66b17944223aecb9"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "ext/js/comm/anki-connect.js:243",
+    "hash": "86dc07a8aff80ca4"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:252",
+    "hash": "afc0d0a647996ca6"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:260",
+    "hash": "1f67328f28e72051"
+   }
+  ],
+  "guiEditNote": [
+   {
+    "at": "ext/js/background/backend.js:793",
+    "hash": "05c5118c1492f541"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:269",
+    "hash": "276ae94ee36102cc"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "ext/js/comm/anki-connect.js:232",
+    "hash": "33f1aef8ce6f5d40"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "ext/js/comm/anki-connect.js:221",
+    "hash": "4a0d0425d58aad98"
+   }
+  ],
+  "multi": [
+   {
+    "at": "ext/js/comm/anki-connect.js:541",
+    "hash": "41da905f48a45cf2"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "ext/js/background/backend.js:760",
+    "hash": "79b4256a7d6903b9"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:190",
+    "hash": "e0010f76d7041bfe"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "ext/js/background/backend.js:2530",
+    "hash": "2ada992cb248edfc"
+   },
+   {
+    "at": "ext/js/background/backend.js:2550",
+    "hash": "f21125ce9ba2d9f8"
+   },
+   {
+    "at": "ext/js/background/backend.js:2574",
+    "hash": "09cef9d910377107"
+   },
+   {
+    "at": "ext/js/background/backend.js:2624",
+    "hash": "9aa23f5aad897884"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:284",
+    "hash": "d98775ff2df7ee12"
+   }
+  ],
+  "suspend": [
+   {
+    "at": "ext/js/comm/anki-connect.js:373",
+    "hash": "7cce7df9fb3ef8a4"
+   }
+  ],
+  "suspended": [
+   {
+    "at": "ext/js/display/display-anki.js:1575",
+    "hash": "ce577b8b6cbce55b"
+   },
+   {
+    "at": "ext/js/display/display-anki.js:1580",
+    "hash": "3c7bf4f1b4471efe"
+   },
+   {
+    "at": "ext/js/display/display-anki.js:1587",
+    "hash": "bca6d2c90de1161f"
+   },
+   {
+    "at": "ext/js/media/web-audio-local-audio.js:89",
+    "hash": "b7b4273ec8312ae0"
+   }
+  ],
+  "sync": [
+   {
+    "at": "ext/js/comm/anki-connect.js:448",
+    "hash": "47fe82b37d5da39b"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "ext/js/background/backend.js:627",
+    "hash": "5b5ae95b78c6c616"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:153",
+    "hash": "939614c8c05b5502"
+   }
+  ],
+  "version": [
+   {
+    "at": "ext/data/schemas/options-schema.json:6",
+    "hash": "b16645515b9325e9"
+   },
+   {
+    "at": "ext/data/schemas/options-schema.json:12",
+    "hash": "32c786e98fc53e11"
+   },
+   {
+    "at": "ext/js/comm/anki-connect.js:607",
+    "hash": "9fb70d8ae26e9878"
+   }
+  ]
+ }
+}

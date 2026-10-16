@@ -149,7 +149,7 @@ supported behaviour. Actions checked by hand only are marked.
 | `answerCards` | implemented | Uses the Tsunagi API's scheduler answer method. Missing keys and invalid ease preserve preceding answers; earlier invalid ease takes precedence over later missing keys. Responses, review rows and backend undo/redo are compared. |
 | `areDue` | implemented | Batched Tsunagi API reader, with strict history enabled by the AnkiConnect Shim. Matches upstream's error for non-new/missing cards without review history. |
 | `areSuspended` | implemented |  |
-| `cardsInfo` | implemented |  |
+| `cardsInfo` | implemented | Includes `fields`, which AnkiConnect added after `de6e6e1b` (2026-10-12): it picks the record's names to return, and what isn't asked for isn't read (no rendering unless `question` or `answer` is asked for). |
 | `cardsModTime` | implemented |  |
 | `cardsToNotes` | implemented |  |
 | `findCards` | implemented |  |
@@ -254,7 +254,7 @@ and its existing media side effects.
 | `getMediaDirPath` | implemented |  |
 | `getMediaFilesNames` | implemented |  |
 | `retrieveMediaFile` | implemented |  |
-| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) from a website, browser extension or other device needs the `local_files` permission, which only the Everything role has by default. Programs on this computer don't need it. |
+| `storeMediaFile` | implemented | Deviation: `path` (a file on this computer) from a website, browser extension or other device needs the `local_files` permission, which only the Everything role has by default. Programs on this computer don't need it. A name with folders is stored under its last part, without characters Anki can't store (`sub/x.png` is stored as `x.png`), as in AnkiConnect; the Tsunagi API refuses such names. |
 
 ### Miscellaneous Actions
 

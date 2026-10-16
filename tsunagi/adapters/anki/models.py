@@ -216,8 +216,7 @@ def find_and_replace_in_models(col: Collection, find_text: str, replace_text: st
     else:
         models = mm.all()
 
-    updated = 0
-    changes = None
+    hits, fronts = [], []
     for m in models:
         hit = False
         if css and find_text in m.get("css", ""):
@@ -226,14 +225,18 @@ def find_and_replace_in_models(col: Collection, find_text: str, replace_text: st
         for tmpl in m.get("tmpls", []):
             if front and find_text in tmpl.get("qfmt", ""):
                 hit = True
+                fronts += [m["id"]] if m["id"] not in fronts else []
                 tmpl["qfmt"] = tmpl["qfmt"].replace(find_text, replace_text)
             if back and find_text in tmpl.get("afmt", ""):
                 hit = True
                 tmpl["afmt"] = tmpl["afmt"].replace(find_text, replace_text)
         if hit:
-            changes = mm.update_dict(m)
-            updated += 1
-    return ValueWithChanges(updated, changes) if changes is not None else updated
+            hits.append(m)
+    cards = template_cards(col, *fronts) if fronts else None
+    changes = None
+    for m in hits:
+        changes = mm.update_dict(m)
+    return ValueWithChanges(len(hits), changes, event_changes=cards) if changes is not None else len(hits)
 
 
 # ====================
@@ -398,10 +401,12 @@ def reorder_fields(col: Collection, model_id: int, order: List[str]) -> NoteType
 # Template Subresource Mutations
 # ====================
 
-def template_cards(col: Collection, model_id: int) -> Any:
-    """A note type's cards, for a template removal's event: Anki deletes the
-    template's cards, renumbers later templates' and may generate others."""
-    return card_changes(col, "nid in (select id from notes where mid = ?)", int(model_id))
+def template_cards(col: Collection, *model_ids: int) -> Any:
+    """Note types' cards, for the event of a save that adds, removes, reorders
+    templates or changes a front: Anki deletes the removed templates' cards,
+    renumbers moved ones' and generates any a front now makes (6.96, 6.134)."""
+    mids = ",".join(str(int(mid)) for mid in model_ids)
+    return card_changes(col, f"nid in (select id from notes where mid in ({mids}))")
 
 
 @as_collection_op
@@ -428,8 +433,9 @@ def create_template(col: Collection, model_id: int, template_data: Dict[str, Any
     copy_if_present(template_data, template, ["qfmt", "afmt", "bqfmt", "bafmt"])
 
     mm.add_template(m, template)
+    cards = template_cards(col, model_id)
     changes = mm.update_dict(m)
-    return _saved(mm, model_id, changes)
+    return _saved(mm, model_id, changes, cards)
 
 
 @as_collection_op
@@ -454,8 +460,9 @@ def patch_template(col: Collection, model_id: int, template_name: str, updates: 
     # Apply property updates
     copy_if_present(updates, template, ["name", "qfmt", "afmt", "bqfmt", "bafmt"])
 
+    cards = template_cards(col, model_id) if "qfmt" in updates else None
     changes = mm.update_dict(m)
-    return _saved(mm, model_id, changes)
+    return _saved(mm, model_id, changes, cards)
 
 
 @as_collection_op
@@ -500,5 +507,6 @@ def reorder_templates(col: Collection, model_id: int, order: List[str]) -> NoteT
         template = find_in_subresource(m, "tmpls", template_name, "name")
         mm.reposition_template(m, template, new_idx)
 
+    cards = template_cards(col, model_id)
     changes = mm.update_dict(m)
-    return _saved(mm, model_id, changes)
+    return _saved(mm, model_id, changes, cards)

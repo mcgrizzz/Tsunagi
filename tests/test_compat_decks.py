@@ -70,6 +70,14 @@ class TestDeleteDecks:
         assert resp == {"result": None, "error": None}
         assert "JP" not in rpc(seeded, "deckNames")["result"]
 
+    def test_a_child_listed_after_its_parent_is_skipped(self, seeded):
+        # AnkiConnect checks each name against the decks left: deleting the
+        # parent took the child with it (Yanki deletes both in one call).
+        rpc(seeded, "createDeck", {"deck": "Gone::Child"})
+        resp = rpc(seeded, "deleteDecks", {"decks": ["Gone", "Gone::Child", "Gone"], "cardsToo": True})
+        assert resp == {"result": None, "error": None}
+        assert not any(name.startswith("Gone") for name in rpc(seeded, "deckNames")["result"])
+
     def test_unknown_names_are_skipped(self, seeded):
         resp = rpc(seeded, "deleteDecks", {"decks": ["Nope"], "cardsToo": True})
         assert resp["error"] is None

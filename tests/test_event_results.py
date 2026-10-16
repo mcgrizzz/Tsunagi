@@ -328,6 +328,110 @@ def test_a_patch_that_changes_the_note_type_names_the_new_cards(col, subscriptio
     assert "cards.stale" not in event
 
 
+def copied_type(col, source, name):
+    model = col.models.copy(col.models.by_name(source))
+    model["name"] = name
+    col.models.update_dict(model)
+    return col.models.by_name(name)
+
+
+def one_card_note(col, note_type="Basic (and reversed card)"):
+    """A note whose second template's front ({{Back}}) is empty: one card."""
+    note = col.new_note(col.models.by_name(note_type))
+    note["Front"] = "word"
+    col.add_note(note, 1)
+    assert len(col.card_ids_of_note(note.id)) == 1
+    return note
+
+
+def rpc_ok(client, action, **params):
+    reply = client.post("/", json={"action": action, "version": 6, "params": params}).json()
+    assert reply["error"] is None, reply
+    return reply["result"]
+
+
+def made_since(col, note, before):
+    made = sorted(set(col.card_ids_of_note(note.id)) - set(before))
+    assert made
+    return made
+
+
+@pytest.mark.parametrize("add", ["native", "compat"])
+def test_adding_a_template_names_the_cards_it_makes(client, col, subscription, recorded_ops, add):
+    from tsunagi.adapters.anki import models
+
+    model = copied_type(col, "Basic", "One")
+    saved = note_in(col, 1, "One")
+    before = col.card_ids_of_note(saved.id)
+    if add == "native":
+        models.create_template(model["id"], {"name": "Reverse", "qfmt": "{{Back}}", "afmt": "{{Front}}"})
+    else:
+        rpc_ok(client, "modelTemplateAdd", modelName="One",
+               template={"Name": "Reverse", "Front": "{{Back}}", "Back": "{{Front}}"})
+    event = emit_last(recorded_ops, subscription)
+    assert event["cards.created"]["ids"] == made_since(col, saved, before)
+    assert event["notes.updated"]["ids"] == [saved.id]
+    assert not any(name.endswith(".stale") for name in event)
+
+
+@pytest.mark.parametrize("reorder", ["native", "compat"])
+def test_reordering_templates_names_the_renumbered_cards(client, col, subscription, recorded_ops, reorder):
+    from tsunagi.adapters.anki import models
+
+    model = copied_type(col, "Basic (and reversed card)", "Two")
+    saved = note_in(col, 1, "Two")
+    first, second = sorted(col.card_ids_of_note(saved.id), key=lambda c: col.get_card(c).ord)
+    names = [t["name"] for t in model["tmpls"]]
+    if reorder == "native":
+        models.reorder_templates(model["id"], names[::-1])
+    else:
+        rpc_ok(client, "modelTemplateReposition", modelName="Two", templateName=names[1], index=0)
+    event = emit_last(recorded_ops, subscription)
+    assert event["cards.updated"]["ids"] == sorted([first, second])
+    assert "notes.updated" not in event  # the same cards, renumbered
+    assert col.get_card(second).ord == 0
+    assert not any(name.endswith(".stale") for name in event)
+
+
+@pytest.mark.parametrize("edit", ["native", "compat", "native replace", "compat replace"])
+def test_a_template_front_edit_names_the_cards_it_makes(client, col, subscription, recorded_ops, edit):
+    from tsunagi.adapters.anki import models
+
+    model = copied_type(col, "Basic (and reversed card)", "Two")
+    saved = one_card_note(col, "Two")
+    before = col.card_ids_of_note(saved.id)
+    second = model["tmpls"][1]["name"]
+    if edit == "native":
+        models.patch_template(model["id"], second, {"qfmt": "{{Front}} again"})
+    elif edit == "compat":
+        rpc_ok(client, "updateModelTemplates",
+               model={"name": "Two", "templates": {second: {"Front": "{{Front}} again"}}})
+    elif edit == "native replace":
+        models.find_and_replace_in_models("{{Back}}", "{{Front}} again", model_name="Two",
+                                          back=False, css=False)
+    else:
+        rpc_ok(client, "findAndReplaceInModels", modelName="Two", findText="{{Back}}",
+               replaceText="{{Front}} again", front=True, back=False, css=False)
+    event = emit_last(recorded_ops, subscription)
+    assert event["cards.created"]["ids"] == made_since(col, saved, before)
+    assert event["notes.updated"]["ids"] == [saved.id]
+    assert not any(name.endswith(".stale") for name in event)
+
+
+@pytest.mark.parametrize("edit", ["native", "compat"])
+def test_a_field_edit_that_makes_a_card_names_it(client, col, subscription, recorded_ops, edit):
+    saved = one_card_note(col)
+    before = col.card_ids_of_note(saved.id)
+    if edit == "native":
+        notes.patch_note(saved.id, {"fields": {"Back": "meaning"}})
+    else:
+        rpc_ok(client, "updateNoteFields", note={"id": saved.id, "fields": {"Back": "meaning"}})
+    event = emit_last(recorded_ops, subscription)
+    assert event["cards.created"]["ids"] == made_since(col, saved, before)
+    assert event["notes.updated"]["ids"] == [saved.id]
+    assert not any(name.endswith(".stale") for name in event)
+
+
 def test_failed_write_has_no_event(col, subscription, recorded_ops):
     with pytest.raises(ResourceNotFoundError):
         notes.patch_note(123, {"fields": {"Front": "missing"}})

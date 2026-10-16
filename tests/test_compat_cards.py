@@ -151,6 +151,43 @@ class TestCardsInfo:
         assert result[1] == {}
         assert len(result) == 2
 
+    # `fields` (AnkiConnect 0a5be02, API_LEGACY.md cardsInfo; backlog 6.140).
+    def test_fields_keeps_only_the_names_asked_for(self, cards):
+        client, cids = cards
+        result = rpc(client, "cardsInfo", {"cards": [cids[1], MISSING, cids[1]],
+                                           "fields": ["queue", "cardId", "unknown"]})
+        # Unknown names are ignored; missing cards stay {}; order and duplicates kept.
+        assert result == {"result": [{"cardId": cids[1], "queue": 0}, {},
+                                     {"cardId": cids[1], "queue": 0}], "error": None}
+
+    def test_fields_empty_or_null(self, cards):
+        client, cids = cards
+        assert rpc(client, "cardsInfo", {"cards": cids, "fields": []})["result"] == [{}, {}]
+        (info,) = rpc(client, "cardsInfo", {"cards": [cids[0]], "fields": None})["result"]
+        assert len(info) == 21  # the whole record, as without `fields`
+
+    def test_fields_reads_only_what_it_returns(self, cards, monkeypatch):
+        from anki.cards import Card
+
+        from tsunagi.adapters.anki import cards as card_adapter
+
+        client, cids = cards
+
+        def unread(*args, **kwargs):
+            raise AssertionError("read without being asked for")
+        for name in ("note", "question", "answer"):
+            monkeypatch.setattr(Card, name, unread)
+        monkeypatch.setattr(card_adapter, "_next_reviews", unread)
+        (info,) = rpc(client, "cardsInfo", {"cards": [cids[0]],
+                                            "fields": ["cardId", "due", "deckName", "flags"]})["result"]
+        assert info == {"cardId": cids[0], "due": info["due"], "deckName": "Default", "flags": 0}
+
+    @pytest.mark.parametrize("fields", ["cardId", ["cardId", 1], {"cardId": True}])
+    def test_fields_must_be_a_list_of_names(self, cards, fields):
+        client, cids = cards
+        assert rpc(client, "cardsInfo", {"cards": cids, "fields": fields}) == {
+            "result": None, "error": "fields must be a list of card record field names."}
+
     def test_cards_mod_time(self, cards):
         client, cids = cards
         result = rpc(client, "cardsModTime", {"cards": [cids[0], MISSING]})["result"]

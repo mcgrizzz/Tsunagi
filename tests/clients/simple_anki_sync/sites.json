@@ -1,0 +1,116 @@
+{
+ "commit": "36ddadd",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "src/anki-service.ts:3"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/anki-service.ts:68",
+    "hash": "e307f9333b7fcd5e"
+   },
+   {
+    "at": "src/main.ts:544",
+    "hash": "39531ee15a76fcb3"
+   }
+  ],
+  "cardsInfo": [
+   {
+    "at": "src/anki-service.ts:152",
+    "hash": "2c1247ff9d5c2095"
+   }
+  ],
+  "changeDeck": [
+   {
+    "at": "src/anki-service.ts:136",
+    "hash": "aae88c0bb6a70d42"
+   },
+   {
+    "at": "src/main.ts:537",
+    "hash": "50b698218d47464e"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "src/anki-service.ts:52",
+    "hash": "167f36382653978e"
+   },
+   {
+    "at": "src/main.ts:490",
+    "hash": "20d51b4f44496284"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "src/anki-service.ts:41",
+    "hash": "3ae6017a4bad69ee"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "src/anki-service.ts:109",
+    "hash": "1f769f118e00705a"
+   },
+   {
+    "at": "src/main.ts:566",
+    "hash": "edbf83ae8a9531c7"
+   },
+   {
+    "at": "src/main.ts:625",
+    "hash": "4fd39e6ab43773a8"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "src/anki-service.ts:166",
+    "hash": "e306a0fe7470ed0e"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "src/anki-service.ts:120",
+    "hash": "39a99628ca2ba464"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "src/anki-service.ts:40",
+    "hash": "f2f7e346e26b27f9"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "src/anki-service.ts:174",
+    "hash": "5a9ff6865cd3eef8"
+   }
+  ],
+  "updateNote": [
+   {
+    "at": "src/main.ts:532",
+    "hash": "0667d5cff1667312"
+   },
+   {
+    "at": "src/main.ts:555",
+    "hash": "4d5c06d0d78f43c8"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "src/anki-service.ts:88",
+    "hash": "cd0094b26f61b029"
+   }
+  ],
+  "updateNoteTags": [
+   {
+    "at": "src/anki-service.ts:94",
+    "hash": "24c453b9b981cb3a"
+   }
+  ]
+ }
+}

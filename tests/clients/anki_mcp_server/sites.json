@@ -1,0 +1,1197 @@
+{
+ "commit": "e0e347f",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   ".docker/ankiconnect-config.json:6",
+   ".docker/docker-compose.yml:10",
+   ".github/workflows/e2e-inspector-latest.yml:100",
+   ".github/workflows/e2e-npm-package.yml:67",
+   ".github/workflows/e2e-tests.yml:39",
+   "manifest.json:288",
+   "manifest.json:289",
+   "scripts/e2e-full.sh:47",
+   "src/cli/args.ts:79",
+   "src/cli/args.ts:156",
+   "src/cli/args.ts:188",
+   "src/cli/args.ts:236",
+   "src/cli/args.ts:268",
+   "src/config/config.schema.ts:84",
+   "src/main-stdio.ts:33",
+   "src/mcp/config/anki-config.interface.ts:8"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "manifest.json:83",
+    "hash": "62ce7a559536b12c"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:53",
+    "hash": "00bff13d7068b931"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-note.tool.ts:19",
+    "hash": "fa953e397ad5b5e3"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-note.tool.ts:187",
+    "hash": "25bfab6b2d59797a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-notes.tool.ts:220",
+    "hash": "058d952ab284d6c4"
+   }
+  ],
+  "addNotes": [
+   {
+    "at": "manifest.json:87",
+    "hash": "9c1bd20305900f7d"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-notes.tool.ts:34",
+    "hash": "776d06ea34c1f6df"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "manifest.json:231",
+    "hash": "a7cdcacecfbb040b"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:60",
+    "hash": "ebe6c8f79ae8917b"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-tags.tool.ts:16",
+    "hash": "15def02bbcb8c1fb"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-tags.tool.ts:65",
+    "hash": "65211dc954d970c0"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/tagActions/actions/addTags.action.ts:49",
+    "hash": "ca3ef341b945154f"
+   }
+  ],
+  "answerCards": [
+   {
+    "at": "src/mcp/primitives/essential/tools/rate-card.tool.ts:81",
+    "hash": "7cd97833212917db"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/rate-card.tool.ts:113",
+    "hash": "9450a08afc5d2d0b"
+   }
+  ],
+  "areSuspended": [
+   {
+    "at": "manifest.json:71",
+    "hash": "abc4a97314c3dcd1"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/are-suspended.tool.ts:33",
+    "hash": "a38fd61cfe2dcee2"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/are-suspended.tool.ts:84",
+    "hash": "dec45185053c1210"
+   },
+   {
+    "at": "src/mcp/utils/card-suspension.utils.ts:5",
+    "hash": "939bf31fcaae5a8e"
+   },
+   {
+    "at": "src/mcp/utils/card-suspension.utils.ts:21",
+    "hash": "74edc81f9f969fbb"
+   },
+   {
+    "at": "src/mcp/utils/card-suspension.utils.ts:46",
+    "hash": "40b86c5f8dee24f0"
+   },
+   {
+    "at": "src/mcp/utils/card-suspension.utils.ts:53",
+    "hash": "d2ddea5182b49216"
+   },
+   {
+    "at": "src/mcp/utils/card-suspension.utils.ts:110",
+    "hash": "101b665d35351ca3"
+   }
+  ],
+  "cardReviews": [
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:145",
+    "hash": "92cc6bcc4c79fedc"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:147",
+    "hash": "49d42435305eb86c"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:154",
+    "hash": "9fbdc6c65c4da999"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:247",
+    "hash": "9955c6f933cc28ff"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:256",
+    "hash": "8feb587f2f9e03fd"
+   }
+  ],
+  "cardsInfo": [
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/changeDeck.action.ts:87",
+    "hash": "8c4848b81d67344a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-cards.tool.ts:154",
+    "hash": "98c0cab8a52e76b2"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-due-cards.tool.ts:176",
+    "hash": "98c0cab8a52e76b2"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/present-card.tool.ts:76",
+    "hash": "c54d0edfc2da3d44"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/rate-card.tool.ts:82",
+    "hash": "0f96faa7510cdbf5"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/rate-card.tool.ts:85",
+    "hash": "0dfc22761dda74e4"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/rate-card.tool.ts:129",
+    "hash": "7d0646044cde5340"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/set-due-date.tool.ts:173",
+    "hash": "dba98202b450fead"
+   },
+   {
+    "at": "src/mcp/utils/anki.utils.ts:74",
+    "hash": "988f9cea700ec121"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:4",
+    "hash": "f0326285e26749ac"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:23",
+    "hash": "81fab3adcb885055"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:29",
+    "hash": "60cd8d44214811cf"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:30",
+    "hash": "d01800a45aada9f7"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:75",
+    "hash": "ec354b757569238e"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:88",
+    "hash": "69725b6abe796ae2"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:122",
+    "hash": "a6887b1e9b7885db"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:133",
+    "hash": "77967e1784250e5a"
+   },
+   {
+    "at": "src/test-fixtures/mock-data.ts:63",
+    "hash": "343d380907f86e6d"
+   }
+  ],
+  "cardsModTime": [
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:28",
+    "hash": "f1d8c55a7836d364"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:75",
+    "hash": "ec354b757569238e"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:88",
+    "hash": "69725b6abe796ae2"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:134",
+    "hash": "9f4eb28adb858cd7"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:149",
+    "hash": "b21989568454f139"
+   }
+  ],
+  "changeDeck": [
+   {
+    "at": "manifest.json:211",
+    "hash": "f55173292f614825"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:58",
+    "hash": "52b85e818af67499"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/change-deck.tool.ts:16",
+    "hash": "1039f7ee85f31e28"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/change-deck.tool.ts:59",
+    "hash": "dab00661ff245179"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/changeDeck.action.ts:57",
+    "hash": "f302ff45fbd1a1d7"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/changeDeck.action.ts:58",
+    "hash": "2b0cb004d758fb0d"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/changeDeck.action.ts:104",
+    "hash": "3514e9b0f83aabc4"
+   }
+  ],
+  "clearUnusedTags": [
+   {
+    "at": "manifest.json:243",
+    "hash": "422d10c41d5a0f5c"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:62",
+    "hash": "1a37a8edf30bc7dd"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/clear-unused-tags.tool.ts:16",
+    "hash": "9a5728dbbd8ff7c6"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/clear-unused-tags.tool.ts:42",
+    "hash": "61ab38a9225a9b05"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/tagActions/actions/clearUnusedTags.action.ts:30",
+    "hash": "7812fac6e4fdbca8"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "manifest.json:207",
+    "hash": "5f6bde7676545415"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:57",
+    "hash": "213910d250cb8647"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/create-deck.tool.ts:16",
+    "hash": "a87f0f6f530565a9"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/create-deck.tool.ts:58",
+    "hash": "0223293b27faeb1d"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/createDeck.action.ts:92",
+    "hash": "94770256dee2680f"
+   }
+  ],
+  "createModel": [
+   {
+    "at": "manifest.json:123",
+    "hash": "4a44c37bfcaeb49e"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:68",
+    "hash": "c3b5667a17e4ad7e"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/create-model.tool.ts:19",
+    "hash": "ba051ba5bf74903d"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/create-model.tool.ts:144",
+    "hash": "717b70ff1e77dfb9"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.tool.ts:150",
+    "hash": "818b684b46a7b956"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.types.ts:79",
+    "hash": "434425d375df830c"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/listDecks.action.ts:62",
+    "hash": "702744c3325f2986"
+   }
+  ],
+  "deckNamesAndIds": [
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.tool.ts:154",
+    "hash": "ad998fbe1784cdbe"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/createDeck.action.ts:58",
+    "hash": "ba79f5207c01647b"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/createDeck.action.ts:170",
+    "hash": "ccdd0319dd06314b"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:113",
+    "hash": "03f04e394036da5d"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/listDecks.action.ts:80",
+    "hash": "ca443c94ed059b54"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:148",
+    "hash": "461fbae028e9d4f7"
+   }
+  ],
+  "deleteMediaFile": [
+   {
+    "at": "manifest.json:227",
+    "hash": "c54860569ec2d5d2"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:66",
+    "hash": "a11dfcb86be6f31e"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/delete-media-file.tool.ts:16",
+    "hash": "dd9163ab7c57ac5b"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/delete-media-file.tool.ts:52",
+    "hash": "6d445e7331cb1fad"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/mediaActions/actions/deleteMediaFile.action.ts:37",
+    "hash": "9eec736400518dcb"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "manifest.json:103",
+    "hash": "b85e82c893ad5bd5"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:55",
+    "hash": "8eb5e4dc472c673a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/delete-notes.tool.ts:18",
+    "hash": "7a4df4acf5257364"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/delete-notes.tool.ts:105",
+    "hash": "714bdf8b40cebb31"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.tool.ts:283",
+    "hash": "d152be770de2c888"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.tool.ts:289",
+    "hash": "444f13dac7aa6b78"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:178",
+    "hash": "314250a9098a1740"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:185",
+    "hash": "468e83243d8d654c"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:209",
+    "hash": "a655ee3941e15b33"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-cards.tool.ts:136",
+    "hash": "54d7caf4e51b7274"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-due-cards.tool.ts:132",
+    "hash": "54d7caf4e51b7274"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-due-cards.tool.ts:157",
+    "hash": "7ee1f7ebdddd17cc"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:255",
+    "hash": "21cbc1e6661ad21d"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:263",
+    "hash": "add6f618a213098b"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:155",
+    "hash": "d2561d2a842ba95b"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:157",
+    "hash": "04bce92c306fe9b4"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:183",
+    "hash": "a756d8e8b9af1cb6"
+   },
+   {
+    "at": "src/test-fixtures/test-helpers.ts:17",
+    "hash": "4b69f194ca507da4"
+   },
+   {
+    "at": "src/test-fixtures/test-helpers.ts:31",
+    "hash": "7afc2ac867c61ebf"
+   },
+   {
+    "at": "src/test-fixtures/test-helpers.ts:41",
+    "hash": "9a2250ccaf375f82"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "manifest.json:91",
+    "hash": "f00ff53830cc1d21"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/find-notes.tool.ts:18",
+    "hash": "f3a3c7768fa1803a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/find-notes.tool.ts:54",
+    "hash": "1e09093f380495b4"
+   }
+  ],
+  "forgetCards": [
+   {
+    "at": "manifest.json:63",
+    "hash": "495971425458e7ee"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:76",
+    "hash": "c383d8de1a56e680"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/forget-cards.tool.ts:34",
+    "hash": "dd78d61a9e072ed2"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/forget-cards.tool.ts:118",
+    "hash": "64c837b33d8e468e"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/forget-cards.tool.ts:131",
+    "hash": "5725b6b7734708fb"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:106",
+    "hash": "597e7e0a03e2718a"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:107",
+    "hash": "ef828fd2f84b6277"
+   }
+  ],
+  "getDeckStats": [
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.tool.ts:187",
+    "hash": "6bbadfe443cb4c8a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:36",
+    "hash": "1a82293c41a4f4eb"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:131",
+    "hash": "1482588af2a79163"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/listDecks.action.ts:45",
+    "hash": "fadef4512c4494de"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/listDecks.action.ts:87",
+    "hash": "3c4510bc10a9af80"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:10",
+    "hash": "6553dfb90ad4d9c2"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:27",
+    "hash": "08eba3e72dc12f25"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:258",
+    "hash": "edac0fed515fdad1"
+   },
+   {
+    "at": "src/mcp/utils/deck-hierarchy.utils.ts:6",
+    "hash": "7b5acb3cba11613f"
+   }
+  ],
+  "getEaseFactors": [
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.tool.ts:329",
+    "hash": "b24d77a77824cd04"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:215",
+    "hash": "9d6ac272354c2bcd"
+   }
+  ],
+  "getIntervals": [
+   {
+    "at": "src/mcp/primitives/essential/tools/collection-stats/collection-stats.tool.ts:349",
+    "hash": "f74a11069b129132"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/deckActions/actions/deckStats.action.ts:229",
+    "hash": "a0aef25dce020b09"
+   }
+  ],
+  "getMediaFilesNames": [
+   {
+    "at": "manifest.json:219",
+    "hash": "8174bf0e5c5ac6ec"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-media-files-names.tool.ts:16",
+    "hash": "7d474d7a4b678291"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-media-files-names.tool.ts:55",
+    "hash": "ad856ba23cf64685"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/mediaActions/actions/getMediaFilesNames.action.ts:40",
+    "hash": "1cd04821340edf18"
+   }
+  ],
+  "getReviewsOfCards": [
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:250",
+    "hash": "524dc73cebf2bc74"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts:273",
+    "hash": "be7456b3ba82571b"
+   }
+  ],
+  "getTags": [
+   {
+    "at": "manifest.json:115",
+    "hash": "721e1af07cd8229a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-tags.tool.ts:23",
+    "hash": "53dfe39188720601"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-tags.tool.ts:57",
+    "hash": "4efc3f6e0a1d3b0f"
+   }
+  ],
+  "guiAddCards": [
+   {
+    "at": "manifest.json:167",
+    "hash": "1af7b5f4680196fd"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:81",
+    "hash": "128bb7badf21edeb"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-add-cards.tool.ts:18",
+    "hash": "26d929b1696d7c82"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-add-cards.tool.ts:89",
+    "hash": "67543078b7b87d79"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "manifest.json:155",
+    "hash": "0af96b08fe07a418"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-browse.tool.ts:18",
+    "hash": "a97f68732b39b979"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-browse.tool.ts:82",
+    "hash": "915273750e018ed6"
+   }
+  ],
+  "guiCurrentCard": [
+   {
+    "at": "manifest.json:183",
+    "hash": "698411fc9d75383f"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-current-card.tool.ts:19",
+    "hash": "d96567a77f177453"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-current-card.tool.ts:62",
+    "hash": "1d470f2c9e75c939"
+   }
+  ],
+  "guiDeckBrowser": [
+   {
+    "at": "manifest.json:179",
+    "hash": "69690ac630961240"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-deck-browser.tool.ts:18",
+    "hash": "466320feba5a249d"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-deck-browser.tool.ts:41",
+    "hash": "a99f873d8e84736b"
+   }
+  ],
+  "guiDeckOverview": [
+   {
+    "at": "manifest.json:175",
+    "hash": "f417c60d46d85e9b"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-deck-overview.tool.ts:18",
+    "hash": "b0dbdbb20ffe348e"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-deck-overview.tool.ts:47",
+    "hash": "e09fa8073fa45189"
+   }
+  ],
+  "guiEditNote": [
+   {
+    "at": "manifest.json:171",
+    "hash": "d82836fc2fe737c7"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:82",
+    "hash": "9f59e26b9e0260f7"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-edit-note.tool.ts:18",
+    "hash": "3df4be23df654606"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-edit-note.tool.ts:47",
+    "hash": "879858257726245c"
+   }
+  ],
+  "guiSelectCard": [
+   {
+    "at": "manifest.json:159",
+    "hash": "873b944280a43212"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-select-card.tool.ts:18",
+    "hash": "e75909658b10a592"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-select-card.tool.ts:50",
+    "hash": "1b2baefff30718b7"
+   }
+  ],
+  "guiSelectedNotes": [
+   {
+    "at": "manifest.json:163",
+    "hash": "af038435a278d690"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-selected-notes.tool.ts:18",
+    "hash": "9e700e4727b5d1e3"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-selected-notes.tool.ts:44",
+    "hash": "c60afd5a5d8a6ebe"
+   }
+  ],
+  "guiShowAnswer": [
+   {
+    "at": "manifest.json:191",
+    "hash": "077819e035a3f88a"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-show-answer.tool.ts:18",
+    "hash": "1347accf604b0940"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-show-answer.tool.ts:42",
+    "hash": "c764f8fe8a006469"
+   }
+  ],
+  "guiShowQuestion": [
+   {
+    "at": "manifest.json:187",
+    "hash": "a3c19a55140529d3"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-show-question.tool.ts:18",
+    "hash": "48b262882a388b1d"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-show-question.tool.ts:42",
+    "hash": "e9a917e459903da4"
+   }
+  ],
+  "guiUndo": [
+   {
+    "at": "manifest.json:195",
+    "hash": "56a1c526338c5769"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:79",
+    "hash": "3f0c234a4a38fdb6"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-undo.tool.ts:18",
+    "hash": "672054a2a5558dcc"
+   },
+   {
+    "at": "src/mcp/primitives/gui/tools/gui-undo.tool.ts:42",
+    "hash": "27cf8b856d6a02bf"
+   }
+  ],
+  "modelFieldAdd": [
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:71",
+    "hash": "1f437b83d591e630"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-model-field.tool.ts:156",
+    "hash": "6b61a891fa016bb5"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "manifest.json:111",
+    "hash": "05eed1041b29d40c"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-model-field.tool.ts:83",
+    "hash": "0bba4b88405bcd89"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-note.tool.ts:117",
+    "hash": "17d7f65a0ccf7157"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/add-notes.tool.ts:130",
+    "hash": "32fd817a838197b5"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-field-names.tool.ts:18",
+    "hash": "b841d747520d3ce5"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-field-names.tool.ts:50",
+    "hash": "58d38db9e2b30ae8"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/rename-model-field.tool.ts:91",
+    "hash": "dbc74129ef299e0b"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/reposition-model-field.tool.ts:76",
+    "hash": "62817cb6f588a25b"
+   }
+  ],
+  "modelFieldRemove": [
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:72",
+    "hash": "502e0d450479b507"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/remove-model-field.tool.ts:79",
+    "hash": "77b6bde865d6008b"
+   }
+  ],
+  "modelFieldRename": [
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:73",
+    "hash": "cff814e466129378"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/rename-model-field.tool.ts:160",
+    "hash": "5996cc55cb582474"
+   }
+  ],
+  "modelFieldReposition": [
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:74",
+    "hash": "7a47858371592323"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/reposition-model-field.tool.ts:122",
+    "hash": "78cd954292886af7"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "manifest.json:107",
+    "hash": "b65e48d646a9cbdb"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-names.tool.ts:18",
+    "hash": "653f9c063a71da7e"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-names.tool.ts:46",
+    "hash": "03e59ac629243765"
+   }
+  ],
+  "modelStyling": [
+   {
+    "at": "manifest.json:119",
+    "hash": "2c98a585f269c3fd"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-styling.tool.ts:18",
+    "hash": "db8130cf38e9f8dc"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-styling.tool.ts:55",
+    "hash": "531851df6187eef6"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-model-styling.tool.ts:71",
+    "hash": "d50fe203a386f85e"
+   }
+  ],
+  "modelTemplates": [
+   {
+    "at": "manifest.json:131",
+    "hash": "fa711584c2440442"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-templates.tool.ts:18",
+    "hash": "4228b4db2ff8ef57"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/model-templates.tool.ts:56",
+    "hash": "9d0d578833c3260c"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-model-templates.tool.ts:88",
+    "hash": "acd15479f2ce1823"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "manifest.json:95",
+    "hash": "38f1ee2c4fe9978a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/delete-notes.tool.ts:76",
+    "hash": "5e61f94d20da6dc4"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/notes-info.tool.ts:19",
+    "hash": "5b5a7d35976621d7"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/notes-info.tool.ts:69",
+    "hash": "c6cfe729f97d9618"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/present-card.tool.ts:138",
+    "hash": "c255e877473df855"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/tagActions/actions/replaceTags.action.ts:69",
+    "hash": "57d8ffefd6765b83"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-note-fields.tool.ts:148",
+    "hash": "f4235d06b56b1131"
+   }
+  ],
+  "removeTags": [
+   {
+    "at": "manifest.json:235",
+    "hash": "b0e4b131f4766c01"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:61",
+    "hash": "1b3d2671c2d3a468"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/remove-tags.tool.ts:16",
+    "hash": "61b1cb060e6e5482"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/remove-tags.tool.ts:65",
+    "hash": "141c5a61d785631a"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/tagActions/actions/removeTags.action.ts:49",
+    "hash": "d05f0ad4e16f26a1"
+   }
+  ],
+  "replaceTags": [
+   {
+    "at": "manifest.json:239",
+    "hash": "4ea130911e8cd488"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:63",
+    "hash": "cb1461e1f6aed2ad"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/replace-tags.tool.ts:16",
+    "hash": "a9741b065180a1a3"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/replace-tags.tool.ts:79",
+    "hash": "704727507e0b5cfb"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/tagActions/actions/replaceTags.action.ts:85",
+    "hash": "78d75bd7f735b625"
+   }
+  ],
+  "retrieveMediaFile": [
+   {
+    "at": "manifest.json:215",
+    "hash": "8f2146e4df16692b"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/mediaActions/actions/retrieveMediaFile.action.ts:40",
+    "hash": "c3f1a6b909d0dd39"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/retrieve-media-file.tool.ts:16",
+    "hash": "e605883bcb60209e"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/retrieve-media-file.tool.ts:54",
+    "hash": "be23f3ec2e061907"
+   }
+  ],
+  "setDueDate": [
+   {
+    "at": "manifest.json:67",
+    "hash": "e6861745d135441f"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:77",
+    "hash": "774a0f67fd8846bb"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/set-due-date.tool.ts:53",
+    "hash": "f28dea218ce88dd7"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/set-due-date.tool.ts:155",
+    "hash": "0f2d10c1f713fb62"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/set-due-date.tool.ts:228",
+    "hash": "976e98e07ab8d535"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:106",
+    "hash": "597e7e0a03e2718a"
+   },
+   {
+    "at": "src/mcp/utils/card-validation.utils.ts:108",
+    "hash": "711104b94397ccc0"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "manifest.json:223",
+    "hash": "6669902f6f774567"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:65",
+    "hash": "df202438b565f9ce"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/mediaActions/actions/storeMediaFile.action.ts:11",
+    "hash": "bac3185c7b697216"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/mediaActions/actions/storeMediaFile.action.ts:117",
+    "hash": "3cab013f30816f9e"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/store-media-file.tool.ts:16",
+    "hash": "c96592a1b8e9ecc4"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/store-media-file.tool.ts:81",
+    "hash": "726e35acf0634ec9"
+   }
+  ],
+  "suspend": [
+   {
+    "at": "manifest.json:75",
+    "hash": "1376528cacd3d0c8"
+   }
+  ],
+  "suspended": [
+   {
+    "at": "src/mcp/primitives/essential/tools/get-cards.tool.ts:17",
+    "hash": "bc725703921254b1"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-cards.tool.ts:52",
+    "hash": "948b1f4c3a56aa8c"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/get-cards.tool.ts:125",
+    "hash": "dd242877dfdbd28a"
+   },
+   {
+    "at": "src/mcp/utils/card-states.utils.ts:107",
+    "hash": "9a674abb82465f81"
+   }
+  ],
+  "sync": [
+   {
+    "at": "manifest.json:43",
+    "hash": "fab4f12213892e2c"
+   }
+  ],
+  "unsuspend": [
+   {
+    "at": "manifest.json:79",
+    "hash": "19b8119a6e0712e3"
+   }
+  ],
+  "updateModelStyling": [
+   {
+    "at": "manifest.json:127",
+    "hash": "9e64b0ff10062397"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:69",
+    "hash": "885f60f38194a7d3"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-model-styling.tool.ts:18",
+    "hash": "31694fcb96143e54"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-model-styling.tool.ts:82",
+    "hash": "44008a33c91c9e3a"
+   }
+  ],
+  "updateModelTemplates": [
+   {
+    "at": "manifest.json:135",
+    "hash": "9a4dc7504fc7e1eb"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:70",
+    "hash": "b79415f819c03427"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-model-templates.tool.ts:18",
+    "hash": "708cfa003de2139f"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-model-templates.tool.ts:127",
+    "hash": "08594b598367ae65"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "manifest.json:99",
+    "hash": "0704645a68a6a1f3"
+   },
+   {
+    "at": "src/mcp/clients/anki-connect.client.ts:54",
+    "hash": "ded3c73c8c113c63"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-note-fields.tool.ts:23",
+    "hash": "f69dbeb61b5131df"
+   },
+   {
+    "at": "src/mcp/primitives/essential/tools/update-note-fields.tool.ts:198",
+    "hash": "c9cecd44c1abf842"
+   }
+  ],
+  "version": [
+   {
+    "at": ".github/workflows/e2e-inspector-latest.yml:100",
+    "hash": "5fb1c06f6e89ec70"
+   },
+   {
+    "at": ".github/workflows/e2e-inspector-latest.yml:100",
+    "hash": "5fb1c06f6e89ec70"
+   },
+   {
+    "at": ".github/workflows/e2e-npm-package.yml:67",
+    "hash": "5fb1c06f6e89ec70"
+   },
+   {
+    "at": ".github/workflows/e2e-npm-package.yml:67",
+    "hash": "5fb1c06f6e89ec70"
+   },
+   {
+    "at": ".github/workflows/e2e-tests.yml:39",
+    "hash": "5fb1c06f6e89ec70"
+   },
+   {
+    "at": ".github/workflows/e2e-tests.yml:39",
+    "hash": "5fb1c06f6e89ec70"
+   },
+   {
+    "at": "manifest.json:5",
+    "hash": "f21db3f9f11cafc9"
+   },
+   {
+    "at": "scripts/e2e-full.sh:47",
+    "hash": "c5f44d9178bdfdb6"
+   },
+   {
+    "at": "scripts/e2e-full.sh:47",
+    "hash": "c5f44d9178bdfdb6"
+   },
+   {
+    "at": "src/cli/args.ts:141",
+    "hash": "a7af05acf859ce71"
+   }
+  ]
+ }
+}

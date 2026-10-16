@@ -29,6 +29,10 @@ class CardsInfoParams(BaseModel):
     cards: Any = ...
 
 
+class CardsInfoFieldsParams(CardsInfoParams):
+    fields: Any = None  # the record's names to return (AnkiConnect 0a5be02)
+
+
 class DueParams(BaseModel):
     cards: Any
 
@@ -156,24 +160,38 @@ def ac_cardsModTime(p: CardsInfoParams) -> List[Dict[str, Any]]:
     return cards_mod_times(_object_ids(p.cards))
 
 
-# Everything cardsInfo's wire shape reads - notably NOT retrievability,
+# What each name in cardsInfo's record reads - notably NOT retrievability,
 # whose build is a per-card FSRS stats call the response would just discard.
-_CARDS_INFO_WANTS = {
-    "id", "fields", "template_index", "question", "answer", "note_type_name", "deck_name",
-    "css", "ease_factor", "interval", "note_id", "type", "queue", "due", "reps",
-    "lapses", "modified", "next_reviews",
+# left and flags come from raw_left_and_flags.
+_CARDS_INFO_READS = {
+    "cardId": "id", "fields": "fields", "fieldOrder": "template_index",
+    "question": "question", "answer": "answer", "modelName": "note_type_name",
+    "ord": "template_index", "deckName": "deck_name", "css": "css",
+    "factor": "ease_factor", "interval": "interval", "note": "note_id", "type": "type",
+    "queue": "queue", "due": "due", "reps": "reps", "lapses": "lapses", "mod": "modified",
+    "nextReviews": "next_reviews",
 }
+_CARDS_INFO_WANTS = set(_CARDS_INFO_READS.values())
 
 
-@registry.register("cardsInfo", params=CardsInfoParams, permission="read:cards")
-def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
+@registry.register("cardsInfo", params=CardsInfoFieldsParams, permission="read:cards")
+def ac_cardsInfo(p: CardsInfoFieldsParams) -> List[Dict[str, Any]]:
+    if p.fields is not None and not (isinstance(p.fields, list)
+                                     and all(isinstance(name, str) for name in p.fields)):
+        raise ValueError("fields must be a list of card record field names.")
     if p.cards is None:
         raise ValueError("'NoneType' object is not iterable")
     ids = _object_ids(p.cards)
+    # `fields` keeps only those names, and what isn't asked for isn't read:
+    # no render, note or next reviews unless a name needs them, as upstream.
+    keep = None if p.fields is None else set(p.fields)
+    wants = (_CARDS_INFO_WANTS if keep is None
+             else {"id"} | {_CARDS_INFO_READS[n] for n in keep if n in _CARDS_INFO_READS})
     # Anki treats get_card(0) as constructing an unsaved card. Upstream catches
     # its missing-note error and returns an empty object at that input position.
-    by_id = {c.id: c for c in get_cards_by_ids([cid for cid in ids if cid], _CARDS_INFO_WANTS)}
-    raw = raw_left_and_flags(list(by_id)) if by_id else {}
+    by_id = {c.id: c for c in get_cards_by_ids([cid for cid in ids if cid], wants)}
+    raw = (raw_left_and_flags(list(by_id))
+           if by_id and (keep is None or keep & {"left", "flags"}) else {})
     out: List[Dict[str, Any]] = []
     for cid in ids:
         card = by_id.get(int(cid))
@@ -182,7 +200,7 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
             continue
         fields = {f.name: {"value": f.value, "order": f.index}
                   for f in (card.fields or [])}
-        out.append({
+        record = {
             "cardId": card.id,
             "fields": fields,
             "fieldOrder": card.template_index,
@@ -201,11 +219,12 @@ def ac_cardsInfo(p: CardsInfoParams) -> List[Dict[str, Any]]:
             "due": card.due,
             "reps": card.reps,
             "lapses": card.lapses,
-            "left": raw[card.id]["left"],
+            "left": raw.get(card.id, {}).get("left"),
             "mod": card.modified,
             "nextReviews": card.next_reviews or [],
-            "flags": raw[card.id]["flags"],
-        })
+            "flags": raw.get(card.id, {}).get("flags"),
+        }
+        out.append(record if keep is None else {k: v for k, v in record.items() if k in keep})
     return out
 
 

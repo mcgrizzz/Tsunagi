@@ -45,6 +45,21 @@ def card_changes(col: Any, where: str, *args: Any) -> Callable[[], dict]:
     return changes
 
 
+def combined(factories: Iterable[Callable[[], dict]]) -> Callable[[], dict]:
+    """One factory listing what each of several `card_changes` names, for a
+    write that saves note types one by one (their cards don't overlap)."""
+    factories = list(factories)
+
+    def changes() -> dict:
+        result: Dict[str, Dict[str, list]] = {}
+        for factory in factories:
+            for resource, kinds in factory().items():
+                for kind, ids in kinds.items():
+                    result.setdefault(resource, {}).setdefault(kind, []).extend(ids)
+        return result
+    return changes
+
+
 def _ids(ids: Iterable[int]) -> str:
     return "(" + ",".join(str(int(i)) for i in ids) + ")"
 

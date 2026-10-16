@@ -1,0 +1,88 @@
+{
+ "commit": "e45a792",
+ "hints": {
+  "multi": [
+   "src/anki/ankiconnect.h:53"
+  ],
+  "port_8765": [
+   "src/anki/ankiconfigkeys.h:77"
+  ],
+  "version": []
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/anki/ankiconnect.h:50",
+    "hash": "9447641b5a3ebbc5"
+   },
+   {
+    "at": "src/qml/definition/DefinitionPage.qml:26",
+    "hash": "842c98ba160d76b3"
+   },
+   {
+    "at": "src/qml/definition/KanjiEntry.qml:52",
+    "hash": "3e3b85292357eb9f"
+   },
+   {
+    "at": "src/qml/definition/TermEntry.qml:84",
+    "hash": "1175fbd1a05be67e"
+   }
+  ],
+  "canAddNotes": [
+   {
+    "at": "src/anki/ankiconnect.h:49",
+    "hash": "ac197960a320890f"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "src/anki/ankiconnect.h:45",
+    "hash": "b8cdd9861e8d60fd"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "src/anki/ankiconnect.h:51",
+    "hash": "6e834c14b7896e4e"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "src/anki/ankiconnect.h:47",
+    "hash": "b11395cec504a28b"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "src/anki/ankiconnect.h:46",
+    "hash": "4d0a5ddd02b9fec7"
+   }
+  ],
+  "multi": [
+   {
+    "at": "src/anki/ankiconnect.h:53",
+    "hash": "c59b54ccea7e3a1b"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "src/anki/ankiconnect.h:52",
+    "hash": "6badd7896a2570e4"
+   }
+  ],
+  "version": [
+   {
+    "at": "src/anki/ankiconnect.h:34",
+    "hash": "e944d83d1fb2b33b"
+   },
+   {
+    "at": "src/anki/ankiconnect.h:40",
+    "hash": "bfb886706dc02c74"
+   },
+   {
+    "at": "src/anki/ankiconnect.h:48",
+    "hash": "886de259cc87a900"
+   }
+  ]
+ }
+}

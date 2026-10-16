@@ -1,0 +1,610 @@
+{
+ "commit": "62c4d6e",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "common/settings/settings-provider.ts:123",
+   "scripts/web-socket-server/.env.example:7",
+   "scripts/web-socket-server/main.go:434"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "common/anki/anki.ts:612",
+    "hash": "5b5b2c9ffa186103"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:21",
+    "hash": "5123139d02116e25"
+   },
+   {
+    "at": "scripts/web-socket-server/main.go:250",
+    "hash": "6bd309e9382692a5"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "common/anki/anki.ts:794",
+    "hash": "a938a7f28737d549"
+   },
+   {
+    "at": "common/anki/anki.ts:820",
+    "hash": "e2618d9ac41bb5e4"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:24",
+    "hash": "84eb2a773891e85a"
+   }
+  ],
+  "areSuspended": [
+   {
+    "at": "common/anki/anki.ts:434",
+    "hash": "9a09fdf0cbb61e76"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:514",
+    "hash": "229fb44b43caa235"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:6",
+    "hash": "ee26c7f614678da5"
+   }
+  ],
+  "cardsInfo": [
+   {
+    "at": "common/anki/anki.ts:402",
+    "hash": "328c03f5b3804d41"
+   },
+   {
+    "at": "common/annotations/anki-annotations.ts:221",
+    "hash": "6944de7c1b546987"
+   },
+   {
+    "at": "common/annotations/anki-annotations.ts:232",
+    "hash": "84af04a54a4cbc90"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:486",
+    "hash": "37ab830972fdf24f"
+   },
+   {
+    "at": "common/dictionary-statistics/dictionary-statistics-view.ts:921",
+    "hash": "7885a637f0892ab4"
+   },
+   {
+    "at": "common/dictionary-statistics/dictionary-statistics-view.ts:931",
+    "hash": "371b763d2aeb3064"
+   },
+   {
+    "at": "common/dictionary-statistics/dictionary-statistics-view.ts:946",
+    "hash": "b40dc69fa5683459"
+   },
+   {
+    "at": "common/dictionary-statistics/dictionary-statistics-view.ts:985",
+    "hash": "a36dc64d0754b522"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:16",
+    "hash": "11ca7891b2198f30"
+   }
+  ],
+  "cardsModTime": [
+   {
+    "at": "common/anki/anki.ts:422",
+    "hash": "5f8ebc2c6aaddf16"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:445",
+    "hash": "e875b01664ae6c1c"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:17",
+    "hash": "a2f6aad6fa2260a6"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "common/anki/anki.ts:472",
+    "hash": "c5496bdac6b7ae4c"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:360",
+    "hash": "3151d949ab74b6bb"
+   }
+  ],
+  "createModel": [
+   {
+    "at": "common/anki/anki.ts:477",
+    "hash": "12facf6c9dcb6014"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:373",
+    "hash": "6748d5298165c93c"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "common/anki/anki.ts:302",
+    "hash": "1a5b22887c5488a5"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:223",
+    "hash": "34fe164bec5450d3"
+   },
+   {
+    "at": "common/components/DictionarySettingsTab.tsx:902",
+    "hash": "9cbc5565bf7bff05"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:8",
+    "hash": "7efa23347197ce2b"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "common/anki/anki.ts:317",
+    "hash": "151a208ce7c85d94"
+   },
+   {
+    "at": "common/anki/anki.ts:323",
+    "hash": "a70bf18e60c06468"
+   },
+   {
+    "at": "common/anki/anki.ts:331",
+    "hash": "7297514dd2fb33a5"
+   },
+   {
+    "at": "common/anki/anki.ts:374",
+    "hash": "14bfdbf348c2805c"
+   },
+   {
+    "at": "common/anki/anki.ts:389",
+    "hash": "a4e8983a58aea436"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:599",
+    "hash": "90978914594f9865"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:607",
+    "hash": "57c90694571f76c3"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:617",
+    "hash": "ae5fe74b0552f35b"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:622",
+    "hash": "8cb0513bf4d195a9"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:630",
+    "hash": "5f9d81b43437e0c3"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:638",
+    "hash": "1b1c704c3a87a377"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:11",
+    "hash": "db01a6433e931ed9"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "common/anki/anki.ts:338",
+    "hash": "22432c4981cf77a6"
+   },
+   {
+    "at": "common/anki/anki.ts:347",
+    "hash": "2c289656f92b02a9"
+   },
+   {
+    "at": "common/anki/anki.ts:438",
+    "hash": "405fbf943860f41d"
+   },
+   {
+    "at": "common/anki/anki.ts:560",
+    "hash": "9123c340e937653d"
+   },
+   {
+    "at": "common/components/CardSelectView.tsx:111",
+    "hash": "b20be17443a276f8"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:428",
+    "hash": "a3aea5af3f4dcc5d"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:12",
+    "hash": "b42039f8a3e03c72"
+   }
+  ],
+  "getIntervals": [
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:13",
+    "hash": "6d9efbdeb2473a08"
+   }
+  ],
+  "guiAddCards": [
+   {
+    "at": "common/anki/anki.ts:588",
+    "hash": "7c1725480259db4a"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:7",
+    "hash": "5b8118ea76661214"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "common/anki/anki.ts:355",
+    "hash": "c911a0bdb99b3a3d"
+   },
+   {
+    "at": "common/anki/anki.ts:842",
+    "hash": "12e287090dd5ba3b"
+   },
+   {
+    "at": "common/anki/anki.ts:843",
+    "hash": "67b8a34342e2f27e"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:14",
+    "hash": "ccc7a58b1f8d7688"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "common/anki/anki.ts:312",
+    "hash": "72f4af09f1720dc7"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:273",
+    "hash": "c9cea0812e12ffb5"
+   },
+   {
+    "at": "common/components/DictionarySettingsTab.tsx:906",
+    "hash": "cfb7f807fa2953e5"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:10",
+    "hash": "050a72fc67ebee0d"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "common/anki/anki.ts:307",
+    "hash": "a3b8d5d7f2b65e4f"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:224",
+    "hash": "b8157f41d67e657d"
+   },
+   {
+    "at": "common/components/DictionarySettingsTab.tsx:903",
+    "hash": "01981bbb8863bdf4"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:9",
+    "hash": "e8af38dcb3474696"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "common/anki/anki.ts:448",
+    "hash": "fd8eb9050f71e297"
+   },
+   {
+    "at": "common/anki/anki.ts:763",
+    "hash": "76c313f3430b2109"
+   },
+   {
+    "at": "common/anki/anki.ts:804",
+    "hash": "857a7c9286b288b3"
+   },
+   {
+    "at": "common/components/CardSelectView.tsx:65",
+    "hash": "b64b1c36a80226fe"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:436",
+    "hash": "f7209a5e089fe84f"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:18",
+    "hash": "a6350006a7f5a7ce"
+   }
+  ],
+  "notesModTime": [
+   {
+    "at": "common/anki/anki.ts:461",
+    "hash": "9513ba2af008f72f"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:19",
+    "hash": "ba8b9f55d2f9b87a"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "common/anki/anki.ts:482",
+    "hash": "016ca69b06842cb1"
+   },
+   {
+    "at": "common/annotations/anki-annotations.ts:128",
+    "hash": "4f8ea67537f3f7b1"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:208",
+    "hash": "a4dfdb84076c7f4e"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:81",
+    "hash": "055ccbc290fbc3da"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:15",
+    "hash": "f9fe50ca35071176"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "common/anki/anki.ts:76",
+    "hash": "2d3b3f093665375d"
+   },
+   {
+    "at": "common/anki/anki.ts:742",
+    "hash": "003ea831f61f7f9d"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:22",
+    "hash": "78d0a9224826a8f9"
+   }
+  ],
+  "suspended": [
+   {
+    "at": "common/components/WordBrowserDialog.tsx:66",
+    "hash": "400f4c6c0e47b219"
+   },
+   {
+    "at": "common/components/WordBrowserDialog.tsx:71",
+    "hash": "70e616ab5715bf85"
+   },
+   {
+    "at": "common/components/WordBrowserDialog.tsx:1464",
+    "hash": "845becf009e518d4"
+   },
+   {
+    "at": "common/components/WordBrowserDialog.tsx:1817",
+    "hash": "580dea4fb56c7cd2"
+   },
+   {
+    "at": "common/components/WordBrowserDialog.tsx:1819",
+    "hash": "883485e0bb52b9f0"
+   },
+   {
+    "at": "common/components/WordBrowserDialog.tsx:1988",
+    "hash": "83569a336b3eb681"
+   },
+   {
+    "at": "common/locales/de.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/de.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/de.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/en.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/en.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/en.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/es.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/es.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/es.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/fi.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/fi.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/fi.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/fr.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/fr.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/fr.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/id.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/id.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/id.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/it.json:694",
+    "hash": "8e583b4eb47c31cb"
+   },
+   {
+    "at": "common/locales/it.json:702",
+    "hash": "26941967206fe112"
+   },
+   {
+    "at": "common/locales/it.json:754",
+    "hash": "3ab0b785ed8077bc"
+   },
+   {
+    "at": "common/locales/ja.json:694",
+    "hash": "8b9174e335f9308e"
+   },
+   {
+    "at": "common/locales/ja.json:702",
+    "hash": "270b561774ff30d4"
+   },
+   {
+    "at": "common/locales/ja.json:754",
+    "hash": "511dec5e0a97db39"
+   },
+   {
+    "at": "common/locales/ko.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/ko.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/ko.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/pl.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/pl.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/pl.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/pt_BR.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/pt_BR.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/pt_BR.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/ru.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/ru.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/ru.json:754",
+    "hash": "96e0248cd6f13884"
+   },
+   {
+    "at": "common/locales/zh_CN.json:694",
+    "hash": "683d9a8696c2257b"
+   },
+   {
+    "at": "common/locales/zh_CN.json:702",
+    "hash": "006ce8d80a8197b7"
+   },
+   {
+    "at": "common/locales/zh_CN.json:754",
+    "hash": "a48aa8e9ca4394ef"
+   }
+  ],
+  "sync": [
+   {
+    "at": "scripts/web-socket-server/main.go:11",
+    "hash": "80d5e7e56e1229bf"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "common/anki/anki.ts:787",
+    "hash": "b79b5ba92290887c"
+   },
+   {
+    "at": "common/anki/anki.ts:817",
+    "hash": "b95b5809b016c576"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:20",
+    "hash": "edfdb9053015fc56"
+   }
+  ],
+  "version": [
+   {
+    "at": "common/anki/anki.ts:487",
+    "hash": "f65475854ae3fed3"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:213",
+    "hash": "4c08fad2890bb562"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:215",
+    "hash": "4b953e68c744bea6"
+   },
+   {
+    "at": "common/components/AnkiSettingsTab.tsx:219",
+    "hash": "b63417edb88236bc"
+   },
+   {
+    "at": "common/components/DictionarySettingsTab.tsx:829",
+    "hash": "28ef4bc7ffaaa79f"
+   },
+   {
+    "at": "common/dictionary-db/dictionary-db-anki.ts:147",
+    "hash": "c932b2fec272a0c5"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:4",
+    "hash": "bf9adc706d93d0c8"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:23",
+    "hash": "506564d260d53997"
+   },
+   {
+    "at": "extension/src/handlers/video/http-post-handler.ts:71",
+    "hash": "ab3f45f31e0cbfce"
+   }
+  ]
+ }
+}

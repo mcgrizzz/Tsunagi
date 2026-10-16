@@ -54,6 +54,10 @@ Or download the `.ankiaddon` file from
 Missed the offer? Open **Tools → 🔗 Tsunagi → Server → Take over from
 AnkiConnect…**
 
+**Tested tools:** Yomitan, asbplayer, Obsidian_to_Anki and
+[13 more](docs/compatible_clients.md) are checked against Tsunagi request by
+request on every change.
+
 ### Connect a tool without AnkiConnect
 
 1. Check that the server is on in **Tools → 🔗 Tsunagi → Server**.
