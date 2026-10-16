@@ -2,6 +2,9 @@
 
 CLIENT = {
     "name": "LunaTranslator",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Visual novel translator; adds looked-up words",
+    "needs": ("0.7.5", "for all of its requests (it sends them as GET)"),
     "repo": "https://github.com/HIllya51/LunaTranslator",
     "commit": "0ee08c6",
     "read": "2026-10-15",

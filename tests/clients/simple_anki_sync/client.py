@@ -10,6 +10,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "simple-anki-sync",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Syncs Markdown tables in Obsidian to Anki",
     "repo": "https://github.com/russluber/simple-anki-sync",
     "commit": "36ddadd",
     "read": "2026-10-15",

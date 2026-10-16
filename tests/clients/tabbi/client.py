@@ -2,6 +2,8 @@
 
 CLIENT = {
     "name": "Tabbi",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "macOS notch app showing due counts and streaks",
     "repo": "https://github.com/ethanwchen/tabbi",
     "commit": "60fef5f",
     "read": "2026-10-15",

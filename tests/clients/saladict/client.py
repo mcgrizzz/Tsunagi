@@ -8,6 +8,8 @@ as a too-old AnkiConnect, a truthy `error` is thrown, else `result` is used.
 
 CLIENT = {
     "name": "Saladict",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Pop-up dictionary extension; syncs its notebook",
     "repo": "https://github.com/crimx/ext-saladict",
     "commit": "7d93a65",
     "read": "2026-10-15",

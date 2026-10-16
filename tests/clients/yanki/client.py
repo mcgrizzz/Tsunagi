@@ -4,6 +4,9 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "Yanki",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Syncs Markdown to Anki (command line and Obsidian)",
+    "needs": ("0.7.5", "to delete a deck and its subdecks in one sync"),
     "repo": "https://github.com/kitschpatrol/yanki",
     "commit": "60603b4",
     "read": "2026-10-15",

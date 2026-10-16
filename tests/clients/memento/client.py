@@ -12,6 +12,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "Memento",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Video player for learning Japanese; mines words",
     "repo": "https://github.com/ripose-jp/Memento",
     "commit": "e45a792",
     "read": "2026-10-15",

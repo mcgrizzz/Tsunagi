@@ -4,6 +4,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "JL",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Pop-up dictionary for Windows; mines words",
     "repo": "https://github.com/rampaa/JL",
     "commit": "8995ac5",
     "read": "2026-10-15",

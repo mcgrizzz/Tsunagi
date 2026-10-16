@@ -10,6 +10,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "Obsidian_to_Anki",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Syncs Obsidian notes to Anki (plugin and script)",
     "repo": "https://github.com/ObsidianToAnki/Obsidian_to_Anki",
     "commit": "feb3db2",
     "read": "2026-10-15",

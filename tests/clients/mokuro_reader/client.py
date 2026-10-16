@@ -4,6 +4,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "mokuro-reader",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Manga reader; makes cards from page crops",
     "repo": "https://github.com/Gnathonic/mokuro-reader",
     "commit": "bfaeb48",
     "read": "2026-10-15",

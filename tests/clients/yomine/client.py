@@ -4,6 +4,9 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "Yomine",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Japanese immersion miner",
+    "note": "Works with AnkiConnect or with Tsunagi's own API; this checks its AnkiConnect mode",
     "repo": "https://github.com/mcgrizzz/Yomine",
     "commit": "7044efc",
     "read": "2026-10-15",

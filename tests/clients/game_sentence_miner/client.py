@@ -4,6 +4,9 @@ from clients.support import PATH
 
 CLIENT = {
     "name": "Game Sentence Miner",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Adds audio, screenshots and sentences to mined notes",
+    "needs": ("0.7.5", "for media files named with a folder"),
     "repo": "https://github.com/bpwhelan/GameSentenceMiner",
     "commit": "c3499a0",
     "read": "2026-10-15",

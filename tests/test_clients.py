@@ -117,3 +117,9 @@ def test_client(name):
         assert not seen or c.name in accepts, (
             f"{c.name} differs from AnkiConnect deliberately ({c.differs[0]}) and {module.CLIENT['name']} "
             f"reads it ({seen}): check the client, then accept it in ACCEPTS")
+
+
+def test_compatible_clients_page_is_current():
+    from tools.compatible_clients import PAGE, render
+
+    assert PAGE.read_text(encoding="utf-8") == render(), "out of date: python tools/compatible_clients.py"

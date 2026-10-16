@@ -4,6 +4,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "logseq-anki-sync",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Syncs Logseq blocks to Anki notes",
     "repo": "https://github.com/debanjandhar12/logseq-anki-sync",
     "commit": "0d881e3",
     "read": "2026-10-15",

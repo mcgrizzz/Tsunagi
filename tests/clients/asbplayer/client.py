@@ -4,6 +4,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "asbplayer",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Subtitle player; mines sentence cards",
     "repo": "https://github.com/asbplayer/asbplayer",
     "commit": "62c4d6e",
     "read": "2026-10-15",

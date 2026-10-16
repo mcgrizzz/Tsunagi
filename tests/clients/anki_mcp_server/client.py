@@ -4,6 +4,8 @@ from clients.support import NOTE
 
 CLIENT = {
     "name": "anki-mcp-server",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Gives AI assistants tools to read and edit Anki (MCP)",
     "repo": "https://github.com/ankimcp/anki-mcp-server",
     "commit": "e0e347f",
     "read": "2026-10-15",

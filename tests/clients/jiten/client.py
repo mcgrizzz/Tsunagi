@@ -2,6 +2,8 @@
 
 CLIENT = {
     "name": "Jiten",
+    # For docs/compatible_clients.md (tools/compatible_clients.py).
+    "about": "Imports known words and review history (jiten.moe)",
     "repo": "https://github.com/Sirush/Jiten",
     "commit": "fe383fc",
     "read": "2026-10-15",
