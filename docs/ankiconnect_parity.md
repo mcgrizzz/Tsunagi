@@ -149,7 +149,7 @@ supported behaviour. Actions checked by hand only are marked.
 | `answerCards` | implemented | Uses the Tsunagi API's scheduler answer method. Missing keys and invalid ease preserve preceding answers; earlier invalid ease takes precedence over later missing keys. Responses, review rows and backend undo/redo are compared. |
 | `areDue` | implemented | Batched Tsunagi API reader, with strict history enabled by the AnkiConnect Shim. Matches upstream's error for non-new/missing cards without review history. |
 | `areSuspended` | implemented |  |
-| `cardsInfo` | implemented |  |
+| `cardsInfo` | implemented | Includes `fields`, which AnkiConnect added after `de6e6e1b` (2026-10-12): it picks the record's names to return, and what isn't asked for isn't read (no rendering unless `question` or `answer` is asked for). |
 | `cardsModTime` | implemented |  |
 | `cardsToNotes` | implemented |  |
 | `findCards` | implemented |  |

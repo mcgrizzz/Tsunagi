@@ -1,6 +1,7 @@
 """AnkiConnect argument names, isolated from native request validation.
 
-Snapshot: de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e.
+Snapshot: de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e, plus cardsInfo's `fields`
+(0a5be02, 2026-10-12; backlog 6.140).
 The differential suite checks this against the pinned upstream methods.
 Only argument binding belongs here; action handlers own value semantics.
 """
@@ -19,7 +20,7 @@ SIGNATURES = {'addNote': [['note'], [], False, []],
  'canAddNotes': [['notes'], [], False, []],
  'canAddNotesWithErrorDetail': [['notes'], [], False, []],
  'cardReviews': [['deck', 'startID'], [], False, []],
- 'cardsInfo': [['cards'], [], False, []],
+ 'cardsInfo': [['cards'], ['fields'], False, []],
  'cardsModTime': [['cards'], [], False, []],
  'cardsToNotes': [['cards'], [], False, []],
  'changeDeck': [['cards', 'deck'], [], False, []],
