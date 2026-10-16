@@ -2,31 +2,36 @@
 Tested AnkiConnect clients (6.135): the requests each client's code sends,
 answered by the Shim as AnkiConnect answers them.
 
-One folder per client, tests/clients/<name>/:
+Two parts:
 
-- cases.py: CLIENT (its repo, the commit read and the files that talk to
-  AnkiConnect) and CASES, the requests that code sends. Each case names what
-  the client reads from the answer, so only that is compared. Written from
-  reading the client's source; its code is never run.
-- reference.json: AnkiConnect's answers to the same cases at the pinned
-  commit (tools/upstream_reference.py), written by
-  tools/record_client_references.py. Recorded on Linux: behaviour that
-  depends on the OS (a backslash in a path) isn't covered.
+- tests/clients/catalog/: the entries, each a request with its data and the
+  collection state it needs (Case, below). Each is compared whole with
+  AnkiConnect's answer at the pinned commit (tools/upstream_reference.py),
+  recorded in catalog/reference.json by tools/record_client_references.py:
+  one entry per line, a hash of the request, the answer, and for effects
+  what the request changed in the collection. Recorded on Linux: behaviour
+  that depends on the OS (a backslash in a path) isn't covered.
+- tests/clients/<name>/client.py, one per client, no data: CLIENT (its repo,
+  the commit read, the files that talk to AnkiConnect), ENVELOPE, SENDS
+  (each action its code sends: its requests' shape and what it reads of the
+  answer) and ACCEPTS (deliberate differences it would see, accepted).
+  Written from reading the client's source; its code is never run.
 
-tests/test_clients.py sends every case to the Shim, on a collection seeded
-the same way, and compares what the client reads with the reference.
+tests/test_clients.py runs the entries against the Shim, then checks each
+client against the catalog: every option it sends is exercised by an entry,
+what it reads is in a recorded answer, and a deliberate difference on what
+it reads fails until the client accepts it.
 
 Adding a client, cheapest first:
 
 1. Clone it into an empty scratch folder (its code is only read).
    tools/scan_client.py CHECKOUT --save NAME lists the actions it names and
    where (sites.json, with a hash per call site), and its envelope hints.
-2. cases.py: CLIENT (commit and date checked), ENVELOPE, USES (the standard
-   requests of catalog.py its code sends; they run once, in standard/), and
-   CASES only for what is its own: other option shapes, queries, one-offs.
-   Read only the call sites the scan lists.
-3. tools/record_client_references.py NAME, then the tests.
-   tools/scan_client.py --coverage NAME names actions no case covers yet.
+2. client.py: CLIENT (commit and date checked), ENVELOPE and SENDS, from
+   reading only the call sites the scan lists.
+3. The tests name any option no entry exercises: add an entry for it,
+   usually to catalog/<name>.py, then tools/record_client_references.py.
+   tools/scan_client.py --coverage NAME names actions SENDS leaves out.
 
 A checked client is rechecked only when the owner asks; tools/scan_client.py
 CHECKOUT --compare NAME reports which call sites changed since.
@@ -37,7 +42,8 @@ import importlib.util
 import json
 import re
 import threading
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -60,8 +66,8 @@ class Case:
     # count that varies), "~keys" an object's keys (exactly these),
     # "~present" only that it's there.
     reads: Tuple[str, ...]
-    # Also compare the collection afterwards: notes, cards' scheduling, decks,
-    # note types, tags and media files.
+    # Also compare what the request changed in the collection: notes, cards'
+    # scheduling, decks, note types, tags and media files.
     effects: bool = False
     method: str = "POST"
     # Changes to the seeded collection this case needs first: setup(col, ctx).
@@ -85,6 +91,11 @@ def case(name, action, params=None, *, version=6, reads=("result", "error"),
             out["params"] = params(ctx) if callable(params) else params
         return out
     return Case(name, body, tuple(reads), effects, method, setup, tuple(then), differs)
+
+
+def named(origin, cases):
+    """A client's catalog entries, each name ending in the client's: "addNote (Memento)"."""
+    return [replace(c, name=f"{c.name} ({origin})") for c in cases]
 
 
 def raw(name, body, *, reads=("",), effects=False, method="POST", setup=None, then=(), differs=None):
@@ -157,7 +168,12 @@ def request_key(c: Case) -> str:
     return json.dumps(requests if c.then else requests[0], ensure_ascii=False, sort_keys=True)
 
 
-def _effects(col) -> Dict[str, Any]:
+def request_hash(c: Case) -> str:
+    """What reference.json keeps of the request: enough to tell it changed."""
+    return hashlib.sha256(request_key(c).encode()).hexdigest()[:16]
+
+
+def _state(col) -> Dict[str, Any]:
     notes = sorted([list(col.get_note(n).fields), sorted(col.get_note(n).tags)]
                    for n in col.find_notes(""))
     cards = sorted([card.note().fields[0], card.ord, card.queue, card.type, card.ivl,
@@ -173,6 +189,19 @@ def _effects(col) -> Dict[str, Any]:
         "tags": sorted(col.tags.all()),
         "media": sorted(p.name for p in Path(col.media.dir()).iterdir() if p.is_file()),
     }
+
+
+def _changes(before: Dict[str, Any], after: Dict[str, Any]) -> Dict[str, Any]:
+    """Each part of the collection that changed: its items added and removed (a card rescheduled is both)."""
+    out = {}
+    for part in after:
+        old = Counter(json.dumps(item, ensure_ascii=False) for item in before[part])
+        new = Counter(json.dumps(item, ensure_ascii=False) for item in after[part])
+        change = {"added": sorted((new - old).elements()), "removed": sorted((old - new).elements())}
+        change = {k: [json.loads(item) for item in v] for k, v in change.items() if v}
+        if change:
+            out[part] = change
+    return out
 
 
 def _send_one(send, c: Case, ctx) -> Dict[str, Any]:
@@ -191,6 +220,7 @@ def send_case(send, col, c: Case, ctx) -> Dict[str, Any]:
             more = c.setup(col, ctx)
             if isinstance(more, dict):  # a lambda's last call may return anything else
                 ctx.update(more)
+        before = _state(col) if c.effects else None
         out = _send_one(send, c, ctx)
         if c.then:
             out["then"] = []
@@ -201,11 +231,83 @@ def send_case(send, col, c: Case, ctx) -> Dict[str, Any]:
                 out["then"].append(got)
                 answer = got["body"]
         if c.effects:
-            out["effects"] = _effects(col)
+            out["effects"] = _changes(before, _state(col))
         return out
     finally:
         for undo in ctx.get("cleanup", []):
             undo()
+
+
+# ----- Shapes: what a client sends, without its data -----
+# A client's SENDS lists each distinct request it sends to an action as a
+# shape, matched exactly by some catalog entry: the same keys present and
+# absent. In a shape, str, int and float stand for any such value, PATH for
+# a filename with a folder in it, "" for an empty string; True, False, None
+# and the strings that choose a behaviour (CHOICES) are themselves. A list
+# holds its items' distinct shapes ([] when empty). The keys of a note's
+# fields or templates are its note type's names: {str: v}, with a tuple of
+# the values' distinct shapes when they differ ((str, "")). multi's shape is
+# the actions it batches, without their params, which are their own action's.
+
+PATH = "<path>"
+CHOICES = {"duplicateScope"}
+_NAMED_KEYS = {"fields", "templates"}
+_PLACEHOLDER = re.compile(r"<([a-z0-9_]+)>(\[[^\]]*\])*")
+
+
+def _distinct(values):
+    return sorted({json.dumps(v, sort_keys=True) for v in values})
+
+
+def _canon(value, key=None):
+    """A request's or a shape's canonical form: data replaced by its kind."""
+    if isinstance(value, dict):
+        if key in _NAMED_KEYS and value:
+            values = [w for v in value.values() for w in (v if isinstance(v, tuple) else (v,))]
+            return {"*": _distinct(_canon(v) for v in values)}
+        return {k: _canon(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return _distinct(_canon(v, key) for v in value) or "[]"
+    if value is str:
+        return "<text>"
+    if value is int or value is float or (not isinstance(value, bool) and isinstance(value, (int, float))):
+        return "<number>"
+    if isinstance(value, str):
+        if key == "action" or key in CHOICES or value == PATH:
+            return value
+        if value == "":
+            return "<empty>"
+        placeholder = _PLACEHOLDER.fullmatch(value)
+        if placeholder and ("id" in placeholder[1] or placeholder[1] == "answer"):
+            return "<number>"  # an entry's placeholder for an id (request_key)
+        if key == "filename" and ("/" in value or "\\" in value):
+            return PATH
+        return "<text>"
+    return value  # True, False, None
+
+
+def shape_key(action, params) -> str:
+    """What two requests to an action must share to count as the same request."""
+    if action == "multi" and isinstance(params, dict) and isinstance(params.get("actions"), list):
+        params = {**params, "actions": [{k: v for k, v in a.items() if k != "params"} if isinstance(a, dict) else a
+                                        for a in params["actions"]]}
+    return json.dumps(_canon(params), sort_keys=True)
+
+
+def requests(c: Case):
+    """(action, params) of each request a case sends: its steps, and the actions a multi batches."""
+    def walk(body):
+        yield body.get("action"), body.get("params", {})
+        params = body.get("params")
+        actions = params.get("actions") if isinstance(params, dict) else None
+        if body.get("action") == "multi" and isinstance(actions, list):
+            for inner in actions:
+                if isinstance(inner, dict):
+                    yield from walk(inner)
+
+    for step in (c, *c.then):
+        key = json.loads(request_key(step))
+        yield from walk(key["body"] if "body" in key else key[0]["body"])
 
 
 def _segments(path: str):
@@ -298,15 +400,12 @@ def view(c: Case, answer: Dict[str, Any]) -> Dict[str, str]:
 
 
 def clients() -> Dict[str, Any]:
-    """Each client folder's cases module, by folder name."""
+    """Each client folder's client module, by folder name."""
     out = {}
-    for path in sorted(HERE.glob("*/cases.py")):
-        spec = importlib.util.spec_from_file_location(f"client_cases_{path.parent.name}", path)
+    for path in sorted(HERE.glob("*/client.py")):
+        spec = importlib.util.spec_from_file_location(f"client_{path.parent.name}", path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         out[path.parent.name] = module
     return out
 
-
-def reference_path(name: str) -> Path:
-    return HERE / name / "reference.json"

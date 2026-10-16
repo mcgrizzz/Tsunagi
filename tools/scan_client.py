@@ -5,7 +5,7 @@ AnkiConnect action it names, where, and hints about its envelope.
     python tools/scan_client.py CHECKOUT                 # print what it finds
     python tools/scan_client.py CHECKOUT --save NAME     # write tests/clients/NAME/sites.json
     python tools/scan_client.py CHECKOUT --compare NAME  # what changed since NAME's sites.json
-    python tools/scan_client.py --coverage NAME          # actions NAME's code names that no case sends
+    python tools/scan_client.py --coverage NAME          # actions NAME's code names that SENDS leaves out
 
 The checkout is only read as text, never run. Each call site is hashed (its
 line and the lines around it), so --compare names the actions whose code
@@ -109,27 +109,13 @@ def compare(old, new):
 
 
 def covered(name):
-    """The actions a client folder's cases send, and its standard requests (USES)."""
+    """The actions a client's SENDS names, and those its multi batches."""
     sys.path[:0] = [str(ROOT / "lib/shared"), str(ROOT), str(ROOT / "tests")]
-    from clients.catalog import STANDARD
-    from clients.support import clients, request_key
+    from clients.support import clients
 
-    module = clients()[name]
-    standard = {c.name: c for c in STANDARD}
-    out = set()
-    for c in [*module.CASES, *(standard[n] for n in getattr(module, "USES", ()))]:
-        for step in (c, *c.then):
-            body = json.loads(request_key(step))["body"]
-            stack = [body]
-            while stack:  # multi's actions too
-                item = stack.pop()
-                if isinstance(item, dict):
-                    if isinstance(item.get("action"), str):
-                        out.add(item["action"])
-                    stack.extend(item.values())
-                elif isinstance(item, list):
-                    stack.extend(item)
-    return out
+    sends = clients()[name].SENDS
+    shapes = sends.get("multi", ([], ()))[0]
+    return set(sends) | {a.get("action") for s in shapes for a in s.get("actions", ()) if isinstance(a, dict)}
 
 
 def main():
