@@ -8,6 +8,8 @@ tests can't reach the internet; the server answers only when the query arrives
 decoded to the same word.
 """
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "Memento",
     "repo": "https://github.com/ripose-jp/Memento",
@@ -34,34 +36,20 @@ ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method"
 SENDS = {
     "addNote": (
         [
+            {"note": {**NOTE, "options": {"duplicateScope": "deck"}}},
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
-                    "options": {"duplicateScope": "deck"},
-                    "tags": [str],
-                },
-            },
-            {
-                "note": {
+                    **NOTE,
                     "audio": [{"fields": [str], "filename": str, "skipHash": str, "url": str}],
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
                     "options": {"duplicateScope": "deck"},
-                    "tags": [str],
                 },
             },
             {
                 "note": {
+                    **NOTE,
                     "audio": [{"data": str, "fields": [str], "filename": str}],
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
                     "options": {"duplicateScope": "deck"},
                     "picture": [{"data": str, "fields": [str], "filename": str}],
-                    "tags": [str],
                     "video": [{"data": str, "fields": [str], "filename": str}],
                 },
             },
@@ -70,39 +58,9 @@ SENDS = {
     ),
     "canAddNotes": (
         [
-            {
-                "notes": [
-                    {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
-                        "options": {"duplicateScope": "deck"},
-                        "tags": [str],
-                    },
-                ],
-            },
-            {
-                "notes": [
-                    {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
-                        "options": {"allowDuplicate": False},
-                        "tags": [str],
-                    },
-                ],
-            },
-            {
-                "notes": [
-                    {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
-                        "options": {"allowDuplicate": True},
-                        "tags": [str],
-                    },
-                ],
-            },
+            {"notes": [{**NOTE, "options": {"duplicateScope": "deck"}}]},
+            {"notes": [{**NOTE, "options": {"allowDuplicate": False}}]},
+            {"notes": [{**NOTE, "options": {"allowDuplicate": True}}]},
         ],
         ("",),
     ),

@@ -1,5 +1,7 @@
 """logseq-anki-sync: syncs Logseq blocks (cloze, multiline, image occlusion) to Anki notes."""
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "logseq-anki-sync",
     "repo": "https://github.com/debanjandhar12/logseq-anki-sync",
@@ -29,20 +31,7 @@ ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST"}
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).
 SENDS = {
-    "addNote": (
-        [
-            {
-                "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
-                    "options": {"allowDuplicate": True},
-                    "tags": [str],
-                },
-            },
-        ],
-        (),
-    ),
+    "addNote": ([{"note": {**NOTE, "options": {"allowDuplicate": True}}}], ()),
     "addTags": ([{"notes": [int], "tags": str}], ()),
     "changeDeck": ([{"cards": [int], "deck": str}], ()),
     "createDeck": ([{"deck": str}], ()),

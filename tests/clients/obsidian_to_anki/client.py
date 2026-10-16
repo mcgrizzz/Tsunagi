@@ -6,6 +6,8 @@ error, at every level of a nested multi (anki.ts invoke/parse,
 obsidian_to_anki.py AnkiConnect.parse), so most cases read the whole answer.
 """
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "Obsidian_to_Anki",
     "repo": "https://github.com/ObsidianToAnki/Obsidian_to_Anki",
@@ -41,15 +43,7 @@ SENDS = {
                     "tags": [str, ""],
                 },
             },
-            {
-                "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
-                    "options": {"allowDuplicate": False, "duplicateScope": "deck"},
-                    "tags": [str],
-                },
-            },
+            {"note": {**NOTE, "options": {"allowDuplicate": False, "duplicateScope": "deck"}}},
             {
                 "note": {
                     "audio": [],

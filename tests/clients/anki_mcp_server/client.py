@@ -1,5 +1,7 @@
 """anki-mcp-server: an MCP server giving AI assistants Anki tools, each one or more AnkiConnect actions."""
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "anki-mcp-server",
     "repo": "https://github.com/ankimcp/anki-mcp-server",
@@ -31,15 +33,12 @@ SENDS = {
             {"note": {"deckName": str, "fields": {str: str}, "modelName": str}},
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
+                    **NOTE,
                     "options": {
                         "allowDuplicate": False,
                         "duplicateScope": "deck",
                         "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": str},
                     },
-                    "tags": [str],
                 },
             },
             {

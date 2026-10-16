@@ -1,5 +1,7 @@
 """JL: Japanese pop-up dictionary (Windows), mining to Anki through AnkiConnect."""
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "JL",
     "repo": "https://github.com/rampaa/JL",
@@ -31,49 +33,38 @@ SENDS = {
         [
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
+                    **NOTE,
                     "options": {
                         "allowDuplicate": False,
                         "duplicateScope": "deck",
                         "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False},
                     },
-                    "tags": [str],
                 },
             },
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
+                    **NOTE,
                     "options": {
                         "allowDuplicate": True,
                         "duplicateScope": "collection",
                         "duplicateScopeOptions": {"checkAllModels": True, "checkChildren": True},
                     },
-                    "tags": [str],
                 },
             },
             {
                 "note": {
+                    **NOTE,
                     "audio": [{"data": str, "fields": [str], "filename": str, "skipHash": str}],
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
                     "options": {
                         "allowDuplicate": False,
                         "duplicateScope": "deck",
                         "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False},
                     },
-                    "tags": [str],
                 },
             },
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
+                    **NOTE,
                     "options": {
                         "allowDuplicate": False,
                         "duplicateScope": "deck",
@@ -83,7 +74,6 @@ SENDS = {
                         {"data": str, "fields": [str], "filename": str},
                         {"fields": [str], "filename": str, "path": str},
                     ],
-                    "tags": [str],
                 },
             },
         ],

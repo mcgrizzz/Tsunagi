@@ -1,5 +1,7 @@
 """Yomine: a Japanese immersion miner; its AnkiConnect path (used when GET /v1/health isn't Tsunagi's)."""
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "Yomine",
     "repo": "https://github.com/mcgrizzz/Yomine",
@@ -26,26 +28,13 @@ ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method"
 SENDS = {
     "addNote": (
         [
+            {"note": {**NOTE, "audio": [], "options": {"allowDuplicate": False}, "picture": []}},
             {
                 "note": {
-                    "audio": [],
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
-                    "options": {"allowDuplicate": False},
-                    "picture": [],
-                    "tags": [str],
-                },
-            },
-            {
-                "note": {
+                    **NOTE,
                     "audio": [{"data": str, "fields": [str], "filename": str}],
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
                     "options": {"allowDuplicate": False},
                     "picture": [{"data": str, "fields": [str], "filename": str}],
-                    "tags": [str],
                 },
             },
         ],

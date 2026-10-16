@@ -1,5 +1,7 @@
 """Yanki: Markdown to Anki sync (CLI, and yanki-obsidian), through yanki-connect."""
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "Yanki",
     "repo": "https://github.com/kitschpatrol/yanki",
@@ -18,20 +20,7 @@ ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method"
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).
 SENDS = {
-    "addNote": (
-        [
-            {
-                "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
-                    "options": {"allowDuplicate": True},
-                    "tags": [str],
-                },
-            },
-        ],
-        ("result", "error"),
-    ),
+    "addNote": ([{"note": {**NOTE, "options": {"allowDuplicate": True}}}], ("result", "error")),
     "changeDeck": ([{"cards": [int], "deck": str}], ("result", "error")),
     "createDeck": ([{"deck": str}], ("error",)),
     "createModel": (
@@ -66,17 +55,7 @@ SENDS = {
     "updateModelStyling": ([{"model": {"css": str, "name": str}}], ("result", "error")),
     "updateNoteModel": (
         [
-            {
-                "note": {
-                    "cards": [int],
-                    "deckName": str,
-                    "fields": {str: str},
-                    "id": int,
-                    "modelName": str,
-                    "noteId": int,
-                    "tags": [str],
-                },
-            },
+            {"note": {**NOTE, "cards": [int], "id": int, "noteId": int}},
             {"note": {"fields": {str: str}, "id": int, "modelName": str, "tags": []}},
         ],
         ("result", "error"),

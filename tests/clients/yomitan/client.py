@@ -7,6 +7,8 @@ object with an `error` property (even null) is taken as an error, so each
 case reads the whole answer unless only some fields of rows are read.
 """
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "Yomitan",
     "repo": "https://github.com/yomidevs/yomitan",
@@ -36,28 +38,22 @@ SENDS = {
         [
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
+                    **NOTE,
                     "options": {
                         "allowDuplicate": True,
                         "duplicateScope": "collection",
                         "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": None},
                     },
-                    "tags": [str],
                 },
             },
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
+                    **NOTE,
                     "options": {
                         "allowDuplicate": True,
                         "duplicateScope": "deck",
                         "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": True, "deckName": str},
                     },
-                    "tags": [str],
                 },
             },
         ],
@@ -68,30 +64,24 @@ SENDS = {
             {
                 "notes": [
                     {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
+                        **NOTE,
                         "options": {
                             "allowDuplicate": True,
                             "duplicateScope": "collection",
                             "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": None},
                         },
-                        "tags": [str],
                     },
                 ],
             },
             {
                 "notes": [
                     {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
+                        **NOTE,
                         "options": {
                             "allowDuplicate": True,
                             "duplicateScope": "collection",
                             "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": None},
                         },
-                        "tags": [str],
                     },
                     {
                         "deckName": str,
@@ -114,26 +104,20 @@ SENDS = {
             {
                 "notes": [
                     {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
+                        **NOTE,
                         "options": {
                             "allowDuplicate": True,
                             "duplicateScope": "collection",
                             "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": None},
                         },
-                        "tags": [str],
                     },
                     {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
+                        **NOTE,
                         "options": {
                             "allowDuplicate": False,
                             "duplicateScope": "collection",
                             "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": None},
                         },
-                        "tags": [str],
                     },
                 ],
             },
@@ -145,15 +129,12 @@ SENDS = {
             {
                 "notes": [
                     {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
+                        **NOTE,
                         "options": {
                             "allowDuplicate": False,
                             "duplicateScope": "collection",
                             "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": None},
                         },
-                        "tags": [str],
                     },
                     {
                         "deckName": str,
@@ -171,30 +152,24 @@ SENDS = {
             {
                 "notes": [
                     {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
+                        **NOTE,
                         "options": {
                             "allowDuplicate": False,
                             "duplicateScope": "deck",
                             "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": True, "deckName": str},
                         },
-                        "tags": [str],
                     },
                 ],
             },
             {
                 "notes": [
                     {
-                        "deckName": str,
-                        "fields": {str: str},
-                        "modelName": str,
+                        **NOTE,
                         "options": {
                             "allowDuplicate": False,
                             "duplicateScope": "collection",
                             "duplicateScopeOptions": {"checkAllModels": True, "checkChildren": False, "deckName": None},
                         },
-                        "tags": [str],
                     },
                 ],
             },
@@ -221,16 +196,13 @@ SENDS = {
         [
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
+                    **NOTE,
                     "id": int,
-                    "modelName": str,
                     "options": {
                         "allowDuplicate": True,
                         "duplicateScope": "collection",
                         "duplicateScopeOptions": {"checkAllModels": False, "checkChildren": False, "deckName": None},
                     },
-                    "tags": [str],
                 },
             },
         ],

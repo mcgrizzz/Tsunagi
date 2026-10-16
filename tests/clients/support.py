@@ -251,6 +251,8 @@ def send_case(send, col, c: Case, ctx) -> Dict[str, Any]:
 
 PATH = "<path>"
 CHOICES = {"duplicateScope"}
+# The note most clients send, as a shape: {**NOTE, "options": {...}} adds to it.
+NOTE = {"deckName": str, "fields": {str: str}, "modelName": str, "tags": [str]}
 _NAMED_KEYS = {"fields", "templates"}
 _PLACEHOLDER = re.compile(r"<([a-z0-9_]+)>(\[[^\]]*\])*")
 

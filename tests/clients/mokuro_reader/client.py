@@ -1,5 +1,7 @@
 """mokuro-reader: manga reader (web app) making or updating Anki cards from a page crop."""
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "mokuro-reader",
     "repo": "https://github.com/Gnathonic/mokuro-reader",
@@ -28,12 +30,9 @@ SENDS = {
         [
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
+                    **NOTE,
                     "options": {"allowDuplicate": True},
                     "picture": [{"data": str, "fields": [str], "filename": str}],
-                    "tags": [str],
                 },
             },
             {

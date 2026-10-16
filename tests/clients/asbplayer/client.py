@@ -1,5 +1,7 @@
 """asbplayer: subtitle player (web app and extension) mining sentence cards, with an Anki word cache."""
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "asbplayer",
     "repo": "https://github.com/asbplayer/asbplayer",
@@ -30,17 +32,14 @@ SENDS = {
         [
             {
                 "note": {
+                    **NOTE,
                     "audio": {"data": str, "fields": [str], "filename": str},
-                    "deckName": str,
-                    "fields": {str: str},
-                    "modelName": str,
                     "options": {
                         "allowDuplicate": True,
                         "duplicateScope": "deck",
                         "duplicateScopeOptions": {"checkChildren": False, "deckName": str},
                     },
                     "picture": {"data": str, "fields": [str], "filename": str},
-                    "tags": [str],
                 },
             },
             {
@@ -97,16 +96,13 @@ SENDS = {
         [
             {
                 "note": {
-                    "deckName": str,
-                    "fields": {str: str},
+                    **NOTE,
                     "id": int,
-                    "modelName": str,
                     "options": {
                         "allowDuplicate": True,
                         "duplicateScope": "deck",
                         "duplicateScopeOptions": {"checkChildren": False, "deckName": str},
                     },
-                    "tags": [str],
                 },
             },
             {"note": {"fields": {str: str}, "id": int}},

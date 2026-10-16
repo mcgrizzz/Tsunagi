@@ -6,6 +6,8 @@ with a non-null error. Since PR #4 (2026-10-12) it sends card ids, read from
 notesInfo, to cardsInfo and changeDeck.
 """
 
+from clients.support import NOTE
+
 CLIENT = {
     "name": "simple-anki-sync",
     "repo": "https://github.com/russluber/simple-anki-sync",
@@ -28,7 +30,7 @@ ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST"}
 SENDS = {
     "addNote": (
         [
-            {"note": {"deckName": str, "fields": {str: str}, "modelName": str, "tags": [str]}},
+            {"note": NOTE},
             {"note": {"deckName": str, "fields": {str: (str, "")}, "modelName": str, "tags": [str]}},
         ],
         ("result", "error"),
