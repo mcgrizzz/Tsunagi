@@ -1,0 +1,33 @@
+{
+ "commit": "defeab6",
+ "hints": {
+  "multi": [
+   "anki-editor-tests.el:614",
+   "anki-editor-tests.el:618"
+  ],
+  "port_8765": [
+   "README.org:239",
+   "anki-editor-tests.el:98",
+   "anki-editor.el:109"
+  ],
+  "version": []
+ },
+ "sites": {
+  "multi": [
+   {
+    "at": "anki-editor-tests.el:614",
+    "hash": "e99da845f18e5b76"
+   },
+   {
+    "at": "anki-editor-tests.el:618",
+    "hash": "a998580c9b52385f"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "anki-editor-tests.el:608",
+    "hash": "089a8c4f01defc74"
+   }
+  ]
+ }
+}

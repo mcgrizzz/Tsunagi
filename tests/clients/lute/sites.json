@@ -1,0 +1,133 @@
+{
+ "commit": "933d084",
+ "hints": {
+  "multi": [
+   "lute/ankiexport/service.py:145",
+   "lute/static/js/lute-anki.js:45",
+   "lute/static/js/lute-anki.js:67",
+   "lute/static/js/lute-anki.js:97",
+   "lute/static/js/lute-anki.js:150",
+   "lute/static/js/lute-anki.js:159"
+  ],
+  "port_8765": [
+   "lute/db/management.py:110"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "lute/ankiexport/service.py:133",
+    "hash": "9331b775d89cebac"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:98",
+    "hash": "fdabc521ee3fcdae"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:154",
+    "hash": "e98acfd99bead4bb"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:163",
+    "hash": "e98acfd99bead4bb"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:211",
+    "hash": "0a9c0d486dad6583"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "lute/templates/term/_form.html:283",
+    "hash": "aafb0003b0d8ff0c"
+   },
+   {
+    "at": "lute/templates/term/_form.html:290",
+    "hash": "b28740fb6e1d2bea"
+   },
+   {
+    "at": "lute/templates/term/index.html:204",
+    "hash": "683b7560c9c91113"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "lute/static/js/lute-anki.js:49",
+    "hash": "49ea6b2aa97caf12"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "lute/static/js/lute-anki.js:60",
+    "hash": "c2c6208567aef88e"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "lute/static/js/lute-anki.js:50",
+    "hash": "d1f2c2f3979d5f23"
+   }
+  ],
+  "multi": [
+   {
+    "at": "lute/ankiexport/service.py:145",
+    "hash": "e37705f556a6e1d8"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:45",
+    "hash": "d3b7f83ff45bb1d9"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:67",
+    "hash": "271feffd1101fb50"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:97",
+    "hash": "07be19374f398d8a"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:150",
+    "hash": "1d5e984580e418fa"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:159",
+    "hash": "b98327233ab2f613"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "lute/ankiexport/service.py:123",
+    "hash": "5d086f7406b6b0c5"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:98",
+    "hash": "fdabc521ee3fcdae"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:153",
+    "hash": "9b7c27ab68abce41"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:162",
+    "hash": "9b7c27ab68abce41"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:191",
+    "hash": "91c728d4d06bd004"
+   }
+  ],
+  "version": [
+   {
+    "at": "lute/static/js/lute-anki.js:46",
+    "hash": "681b1d7db7207e8e"
+   },
+   {
+    "at": "lute/static/js/lute-anki.js:68",
+    "hash": "d1b5d4ec3e0fa022"
+   }
+  ]
+ }
+}

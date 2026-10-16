@@ -1,0 +1,172 @@
+{
+ "commit": "d9b7bf8",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "src/bg/js/ankiconnect.js:4",
+   "src/bg/js/utils.js:14",
+   "src/bg/options.html:112"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/bg/js/ankiconnect.js:70",
+    "hash": "79dc7867a3fc1107"
+   },
+   {
+    "at": "src/bg/js/serviceworker.js:327",
+    "hash": "e1bdf74920352551"
+   },
+   {
+    "at": "src/bg/js/serviceworker.js:333",
+    "hash": "521a123acd57e32b"
+   },
+   {
+    "at": "src/fg/js/frame.js:14",
+    "hash": "59402112b2e4d125"
+   },
+   {
+    "at": "src/fg/js/frontend.js:3",
+    "hash": "9ce5fd26ec32c9a7"
+   },
+   {
+    "at": "src/fg/js/frontend.js:162",
+    "hash": "7305f1a8486a721d"
+   },
+   {
+    "at": "src/fg/js/frontend_api.js:23",
+    "hash": "eeae0bcaafdee6c9"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "src/bg/js/ankiconnect.js:76",
+    "hash": "5993c0a8fab8e3d9"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "src/bg/js/ankiconnect.js:84",
+    "hash": "9f65d49629c0d0b4"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "src/bg/js/ankiconnect.js:80",
+    "hash": "de1848735070baf6"
+   }
+  ],
+  "removeTags": [
+   {
+    "at": "src/dict/cncn_Zdic.js:53",
+    "hash": "fc0e9e617c7850b1"
+   },
+   {
+    "at": "src/dict/cncn_Zdic.js:54",
+    "hash": "4fba36d6e119982e"
+   },
+   {
+    "at": "src/dict/cncn_Zdic.js:55",
+    "hash": "0f96a337fb794d01"
+   },
+   {
+    "at": "src/dict/cncn_Zdic_old.js:95",
+    "hash": "b4adba01710c46bb"
+   },
+   {
+    "at": "src/dict/cncn_Zdic_old.js:98",
+    "hash": "ab632c931e4f8b3f"
+   },
+   {
+    "at": "src/dict/decn_Eudict.js:87",
+    "hash": "d4abcb0ffd1ac779"
+   },
+   {
+    "at": "src/dict/decn_Eudict.js:88",
+    "hash": "269972f630d6012a"
+   },
+   {
+    "at": "src/dict/decn_Eudict.js:89",
+    "hash": "c3327a372d065ed6"
+   },
+   {
+    "at": "src/dict/decn_Eudict.js:90",
+    "hash": "bc555b891b573618"
+   },
+   {
+    "at": "src/dict/enfr_Cambridge.js:69",
+    "hash": "465a7c93b910cc7b"
+   },
+   {
+    "at": "src/dict/enfr_Cambridge.js:70",
+    "hash": "809b05879083eb09"
+   },
+   {
+    "at": "src/dict/enfr_Cambridge.js:71",
+    "hash": "05d23ce1dc809c4d"
+   },
+   {
+    "at": "src/dict/enfr_Cambridge.js:72",
+    "hash": "6e137f0a4a505093"
+   },
+   {
+    "at": "src/dict/enfr_Cambridge.js:73",
+    "hash": "961b50de90a56256"
+   },
+   {
+    "at": "src/dict/escn_Eudict.js:87",
+    "hash": "d4abcb0ffd1ac779"
+   },
+   {
+    "at": "src/dict/escn_Eudict.js:88",
+    "hash": "269972f630d6012a"
+   },
+   {
+    "at": "src/dict/escn_Eudict.js:89",
+    "hash": "c3327a372d065ed6"
+   },
+   {
+    "at": "src/dict/escn_Eudict.js:90",
+    "hash": "4b6eac0a3e1c2174"
+   },
+   {
+    "at": "src/dict/esen_Spanishdict.js:69",
+    "hash": "d4888280cc262cdc"
+   },
+   {
+    "at": "src/dict/esen_Spanishdict.js:70",
+    "hash": "63b202677afb45de"
+   },
+   {
+    "at": "src/dict/frcn_Eudict.js:125",
+    "hash": "c3dd54602fbfce23"
+   },
+   {
+    "at": "src/dict/frcn_Eudict.js:126",
+    "hash": "2ea0669e029338dd"
+   },
+   {
+    "at": "src/dict/frcn_Eudict.js:127",
+    "hash": "ca299d9825e4ac52"
+   },
+   {
+    "at": "src/dict/frcn_Eudict.js:128",
+    "hash": "cd6921dd98e21503"
+   },
+   {
+    "at": "src/dict/frcn_Eudict.js:129",
+    "hash": "8a9a08f8cca26cdd"
+   }
+  ],
+  "version": [
+   {
+    "at": "src/bg/js/ankiconnect.js:92",
+    "hash": "6517464c85a41f92"
+   }
+  ]
+ }
+}

@@ -1,0 +1,82 @@
+{
+ "commit": "26e4102",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "mpvacious/config/default_config.conf:47",
+   "mpvacious/config/default_config.conf:51",
+   "mpvacious/config/defaults.lua:115"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:201",
+    "hash": "9096d3cfa1107b27"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:349",
+    "hash": "68b462251f017c3e"
+   }
+  ],
+  "changeDeck": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:181",
+    "hash": "3b8d90748b5bfca0"
+   }
+  ],
+  "findModelsByName": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:317",
+    "hash": "cb7fedf46e336f0b"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:241",
+    "hash": "38ae578e5449ccaa"
+   }
+  ],
+  "getMediaDirPath": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:165",
+    "hash": "35d51bf86242c12d"
+   }
+  ],
+  "guiAddCards": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:201",
+    "hash": "9096d3cfa1107b27"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:336",
+    "hash": "5b3f9e2db326f374"
+   }
+  ],
+  "guiSelectedNotes": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:272",
+    "hash": "37397eff0d29ee03"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:285",
+    "hash": "a7d3202e1cf1f0c4"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "mpvacious/anki/ankiconnect.lua:367",
+    "hash": "cd128735a112776b"
+   }
+  ]
+ }
+}
