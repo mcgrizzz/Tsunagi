@@ -1,0 +1,129 @@
+{
+ "commit": "0ee08c6",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "src/LunaTranslator/gui/showword.py:577",
+   "src/LunaTranslator/gui/showword.py:1040",
+   "src/LunaTranslator/gui/showword.py:1112",
+   "src/LunaTranslator/myutils/ankiconnect.py:3",
+   "src/NativeImpl/LunaHook/LunaHook/emulators/ppsspp_1.cpp:2456",
+   "src/NativeImpl/LunaHook/LunaHook/engine32/Circus.cpp:804",
+   "src/NativeImpl/LunaHook/LunaHook/engine32/Circus.cpp:805",
+   "src/NativeImpl/LunaHook/LunaHook/engine32/Circus.cpp:806"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:144",
+    "hash": "d1739f339f988e85"
+   }
+  ],
+  "answerCards": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:93",
+    "hash": "8390064858722caf"
+   }
+  ],
+  "cardsInfo": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:97",
+    "hash": "aab19dd8d577b3b3"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:53",
+    "hash": "ffe0a97d358842d4"
+   }
+  ],
+  "createModel": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:112",
+    "hash": "bb9ca482182de5b1"
+   }
+  ],
+  "deckNamesAndIds": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:58",
+    "hash": "94ab352e6f15562b"
+   }
+  ],
+  "deleteDecks": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:68",
+    "hash": "8829cc9162cb7d3c"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:171",
+    "hash": "ae7e6547a145ec8c"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:101",
+    "hash": "32670f7c6f358064"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:167",
+    "hash": "24a1addf7eee5f96"
+   }
+  ],
+  "forgetCards": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:87",
+    "hash": "1970c7ad5fac0ff7"
+   }
+  ],
+  "getDeckConfig": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:72",
+    "hash": "d25ecb6429090191"
+   }
+  ],
+  "getDecks": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:105",
+    "hash": "7c6168e814bcf9a2"
+   }
+  ],
+  "relearnCards": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:90",
+    "hash": "4a87c9ba44e61e6f"
+   }
+  ],
+  "saveDeckConfig": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:76",
+    "hash": "4a9f64e3af22222d"
+   }
+  ],
+  "updateModelStyling": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:125",
+    "hash": "02709267a72abf98"
+   }
+  ],
+  "updateModelTemplates": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:129",
+    "hash": "f8ee6e6b65003eff"
+   }
+  ],
+  "version": [
+   {
+    "at": "src/LunaTranslator/myutils/ankiconnect.py:26",
+    "hash": "281389a87ad6c0a1"
+   }
+  ]
+ }
+}

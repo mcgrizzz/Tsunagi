@@ -1,0 +1,60 @@
+{
+ "commit": "8995ac5",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "JL.Core/Config/CoreConfigManager.cs:17"
+  ],
+  "version": []
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:25",
+    "hash": "6ada7064fc857cc6"
+   }
+  ],
+  "canAddNotes": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:59",
+    "hash": "08c80bc70d48e778"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:36",
+    "hash": "5946e273d4990bc1"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:71",
+    "hash": "19f1b98ccabc62ae"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:48",
+    "hash": "1c7201573d3e2083"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:42",
+    "hash": "d3be5bec29aad934"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:83",
+    "hash": "ab35e5b128e2baaa"
+   }
+  ],
+  "sync": [
+   {
+    "at": "JL.Core/External/AnkiConnect/AnkiConnectClient.cs:98",
+    "hash": "d10afc501a4efd57"
+   }
+  ]
+ }
+}

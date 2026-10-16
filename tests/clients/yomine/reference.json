@@ -1,0 +1,754 @@
+{
+ "anki_connect": "de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e",
+ "cases": {
+  "addNote duplicate": {
+   "answer": {
+    "body": {
+     "error": "cannot create note because it is a duplicate",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"audio\": [], \"deckName\": \"Default\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false}, \"picture\": [], \"tags\": [\"yomine\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote missing deck": {
+   "answer": {
+    "body": {
+     "error": "deck was not found: Mining",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"audio\": [], \"deckName\": \"Mining\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false}, \"picture\": [], \"tags\": [\"yomine\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote missing model": {
+   "answer": {
+    "body": {
+     "error": "model was not found: Yomine",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"audio\": [], \"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Yomine\", \"options\": {\"allowDuplicate\": false}, \"picture\": [], \"tags\": [\"yomine\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote no media": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101943801
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "猫",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "猫",
+        "cat"
+       ],
+       [
+        "yomine",
+        "yomine::no-media"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded",
+      "yomine",
+      "yomine::no-media"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"audio\": [], \"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false}, \"picture\": [], \"tags\": [\"yomine\", \"yomine::no-media\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote with audio and picture": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101943884
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "猫",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt",
+      "yomine-0123456789abcdef.mp3",
+      "yomine-fedcba9876543210.png"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "猫",
+        "cat[sound:yomine-0123456789abcdef.mp3]<img src=\"yomine-fedcba9876543210.png\">"
+       ],
+       [
+        "yomine"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded",
+      "yomine"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"audio\": [{\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"yomine-0123456789abcdef.mp3\"}], \"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false}, \"picture\": [{\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"yomine-fedcba9876543210.png\"}], \"tags\": [\"yomine\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes edited": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101942952
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"edited:2\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes existing": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101944178
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"nid:<nid>,12345\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes sample of a note type": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101943500
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"note:\\\"Basic\\\"\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes sample, quote escaped": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"note:\\\"Model \\\\\\\"A\\\\\\\"\\\"\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getActiveProfile": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": "User 1"
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getActiveProfile\", \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getIntervals learning card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      -600
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getIntervals\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getIntervals new card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      0
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getIntervals\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getIntervals review card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      12
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getIntervals\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "notesInfo missing note": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      {}
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"notesInfo\", \"params\": {\"notes\": [12345]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "retrieveMediaFile missing": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": false
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"retrieveMediaFile\", \"params\": {\"filename\": \"yomine-gone.mp3\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": "yomine-0123456789abcdef.mp3"
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt",
+      "yomine-0123456789abcdef.mp3"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"data\": \"iVBORw0KGgpmYWtl\", \"filename\": \"yomine-0123456789abcdef.mp3\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile name taken by other bytes": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": "seed-1.txt"
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"data\": \"iVBORw0KGgpmYWtl\", \"filename\": \"seed-1.txt\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog[sound:yomine-0123456789abcdef.mp3]"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"fields\": {\"Back\": \"dog[sound:yomine-0123456789abcdef.mp3]\"}, \"id\": \"<nid>\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  }
+ }
+}

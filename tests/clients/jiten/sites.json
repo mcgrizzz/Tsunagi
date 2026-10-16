@@ -1,0 +1,170 @@
+{
+ "commit": "fe383fc",
+ "hints": {
+  "multi": [
+   "Jiten.Web/app/components/AnkiConnectImport.vue:266"
+  ],
+  "port_8765": [
+   "Jiten.Tests/Integration/MediaListFileImportTests.cs:169",
+   "Jiten.Web/app/components/AnkiConnectImport.vue:141",
+   "Shared/resources/vndb_anime_mal.json:1"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "cardsInfo": [
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:152",
+    "hash": "88fe4b26de6c9896"
+   },
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:154",
+    "hash": "191b1a39bbdca1f1"
+   },
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:523",
+    "hash": "59e2b0d1f9a14286"
+   }
+  ],
+  "deckNamesAndIds": [
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:513",
+    "hash": "e673bc009a0e9282"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:741",
+    "hash": "c2b8cbfd9118c340"
+   }
+  ],
+  "getReviewsOfCards": [
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:167",
+    "hash": "af50ff887b8e6a7a"
+   },
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:532",
+    "hash": "34b0497bdea6fee2"
+   }
+  ],
+  "multi": [
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:266",
+    "hash": "996fbb45718027e7"
+   }
+  ],
+  "retrieveMediaFile": [
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:236",
+    "hash": "4bdc1744235c81df"
+   },
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:267",
+    "hash": "48de8aa4546bf262"
+   },
+   {
+    "at": "Jiten.Web/app/utils/ankiMediaExtract.ts:44",
+    "hash": "810a9a59c86cd9ce"
+   }
+  ],
+  "suspended": [
+   {
+    "at": "Jiten.Api/Controllers/MediaDeckController.cs:1487",
+    "hash": "16d9d3af5d618ca2"
+   },
+   {
+    "at": "Jiten.Api/Controllers/UserController.cs:465",
+    "hash": "5e9964c27b6142ef"
+   },
+   {
+    "at": "Jiten.Api/Dtos/Requests/ImportFromIdsRequest.cs:19",
+    "hash": "3c01c2517aff3862"
+   },
+   {
+    "at": "Jiten.Tests/Integration/StudyTests.cs:2392",
+    "hash": "326bbef10fa93573"
+   },
+   {
+    "at": "Jiten.Web/app/components/FranchiseVocabulary.vue:113",
+    "hash": "d01cd5c43c225a97"
+   },
+   {
+    "at": "Jiten.Web/app/components/VocabularyDisplayFilter.vue:5",
+    "hash": "ef3ede61f81053a3"
+   },
+   {
+    "at": "Jiten.Web/app/components/VocabularyDisplayFilter.vue:63",
+    "hash": "1c28e73735748297"
+   },
+   {
+    "at": "Jiten.Web/app/components/VocabularyFilters.vue:24",
+    "hash": "1cf48a7004cb5cdc"
+   },
+   {
+    "at": "Jiten.Web/app/components/VocabularyFilters.vue:123",
+    "hash": "4714edef38a7075e"
+   },
+   {
+    "at": "Jiten.Web/app/composables/useJpdbApi.ts:70",
+    "hash": "7b64bb8184ba47db"
+   },
+   {
+    "at": "Jiten.Web/app/composables/useJpdbApi.ts:226",
+    "hash": "62bc2e9c7a552728"
+   },
+   {
+    "at": "Jiten.Web/app/composables/useJpdbApi.ts:226",
+    "hash": "62bc2e9c7a552728"
+   },
+   {
+    "at": "Jiten.Web/app/composables/useStudyTimer.ts:76",
+    "hash": "833f0120885bcc93"
+   },
+   {
+    "at": "Jiten.Web/app/composables/useStudyTimer.ts:92",
+    "hash": "e876a6b88fbc05ad"
+   },
+   {
+    "at": "Jiten.Web/app/pages/decks/media/[id]/vocabulary.vue:93",
+    "hash": "d01cd5c43c225a97"
+   },
+   {
+    "at": "Jiten.Web/app/pages/profile/[username]/vocabulary.vue:209",
+    "hash": "577701fef40ae67b"
+   },
+   {
+    "at": "Jiten.Web/app/pages/settings/word-sets/[slug].vue:285",
+    "hash": "351409845ca8908d"
+   },
+   {
+    "at": "Jiten.Web/app/pages/srs/decks/[id]/vocabulary.vue:390",
+    "hash": "577701fef40ae67b"
+   },
+   {
+    "at": "Jiten.Web/app/pages/srs/stats.vue:78",
+    "hash": "7a4c6aef4c8461eb"
+   },
+   {
+    "at": "Jiten.Web/app/pages/srs/stats.vue:92",
+    "hash": "7f9279421fd1704b"
+   },
+   {
+    "at": "Jiten.Web/app/utils/customAudioPlayback.ts:157",
+    "hash": "140c2aba51d1f9e9"
+   },
+   {
+    "at": "Jiten.Web/app/utils/srsWriteIn.ts:124",
+    "hash": "ea7130bfb36fabb3"
+   }
+  ],
+  "version": [
+   {
+    "at": "Jiten.Web/app/components/AnkiConnectImport.vue:255",
+    "hash": "ebd843137a00b458"
+   }
+  ]
+ }
+}

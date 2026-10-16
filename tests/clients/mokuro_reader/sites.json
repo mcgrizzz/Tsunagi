@@ -1,0 +1,122 @@
+{
+ "commit": "bfaeb48",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "src/lib/anki-connect/index.ts:230",
+   "src/lib/anki-connect/index.ts:478",
+   "src/lib/anki-connect/index.ts:545",
+   "src/lib/components/Settings/AnkiConnectSettings.svelte:120",
+   "src/lib/settings/settings.ts:339"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/lib/anki-connect/index.ts:879",
+    "hash": "1682b788f16d6392"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "src/lib/anki-connect/index.ts:1063",
+    "hash": "1a00ce595848d7b5"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "src/lib/anki-connect/index.ts:266",
+    "hash": "de041d7f8342d458"
+   },
+   {
+    "at": "src/lib/anki-connect/index.ts:835",
+    "hash": "a793f429acd58153"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "src/lib/anki-connect/index.ts:241",
+    "hash": "abad5bb9b4f3a9b1"
+   },
+   {
+    "at": "src/lib/anki-connect/index.ts:825",
+    "hash": "08b380b4ed95ed83"
+   }
+  ],
+  "deleteDecks": [
+   {
+    "at": "src/lib/anki-connect/index.ts:273",
+    "hash": "2d21e02798f3d65c"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "src/lib/anki-connect/index.ts:593",
+    "hash": "8430087109e2814b"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "src/lib/anki-connect/index.ts:257",
+    "hash": "ca3687c86681fe6d"
+   },
+   {
+    "at": "src/lib/anki-connect/index.ts:863",
+    "hash": "a68da491eb46a877"
+   },
+   {
+    "at": "src/lib/components/Reader/AnkiFieldModal.svelte:318",
+    "hash": "d32c034925b52fa4"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "src/lib/anki-connect/index.ts:248",
+    "hash": "161015484eddb2b9"
+   },
+   {
+    "at": "src/lib/anki-connect/index.ts:849",
+    "hash": "0e9c57ea5b9178d1"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "src/lib/anki-connect/index.ts:588",
+    "hash": "3f8e92857eba5a71"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "src/lib/anki-connect/index.ts:463",
+    "hash": "8fe7e01f0502ffcf"
+   },
+   {
+    "at": "src/lib/util/sync/providers/filesystem/filesystem-provider.ts:91",
+    "hash": "ec7d1794cf3fa201"
+   },
+   {
+    "at": "src/lib/util/sync/providers/filesystem/filesystem-provider.ts:132",
+    "hash": "fb600397fdcc4874"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "src/lib/anki-connect/index.ts:1054",
+    "hash": "0b44949374d7dca9"
+   }
+  ],
+  "version": [
+   {
+    "at": "src/lib/anki-connect/index.ts:474",
+    "hash": "5276d6111654113d"
+   },
+   {
+    "at": "src/lib/anki-connect/index.ts:483",
+    "hash": "fe56be2c26dcd25c"
+   }
+  ]
+ }
+}

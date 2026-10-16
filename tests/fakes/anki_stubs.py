@@ -34,6 +34,15 @@ class _FakeMainWindow:
         self.taskman = _TaskMan()
         # notesInfo reports the profile name
         self.pm = types.SimpleNamespace(name="User 1")
+        # AnkiConnect's replaceTags shows Anki's progress bar (client references).
+        self.progress = types.SimpleNamespace(start=lambda *a, **k: None, finish=lambda: None)
+
+    # AnkiConnect asks Anki to refresh its windows after some edits.
+    def requireReset(self, *args, **kwargs):
+        pass
+
+    def reset(self, *args, **kwargs):
+        pass
 
 
 mw = _FakeMainWindow()

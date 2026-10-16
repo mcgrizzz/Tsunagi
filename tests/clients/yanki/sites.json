@@ -1,0 +1,222 @@
+{
+ "commit": "60603b4",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "src/bin/options.ts:26"
+  ],
+  "version": []
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/lib/model/note.ts:6",
+    "hash": "f5e5e8fda2691eba"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:87",
+    "hash": "76f3046c0364622f"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:347",
+    "hash": "dd40eeab6964a066"
+   }
+  ],
+  "cardsInfo": [
+   {
+    "at": "src/lib/actions/sync-notes.ts:280",
+    "hash": "0624276cf504e29e"
+   }
+  ],
+  "changeDeck": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:184",
+    "hash": "22888f4084ffa848"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:114",
+    "hash": "43b0eb60c3b62e7f"
+   }
+  ],
+  "createModel": [
+   {
+    "at": "src/lib/model/model.ts:5",
+    "hash": "6b3a24ba53478a05"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:22",
+    "hash": "503138f563132013"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:485",
+    "hash": "f691a5e89d1020f4"
+   }
+  ],
+  "deleteDecks": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:627",
+    "hash": "2849607c8360833e"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:638",
+    "hash": "9057673b8df4863b"
+   }
+  ],
+  "deleteMediaFile": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:838",
+    "hash": "b8060f8c6cf88ef0"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:38",
+    "hash": "a6d3a879ab11fcd4"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:50",
+    "hash": "4c361dea5c6824db"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:322",
+    "hash": "109d485ac6e558b6"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:343",
+    "hash": "9606fa3133336d95"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:346",
+    "hash": "b18c0a188f36c05d"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:528",
+    "hash": "7ac4e715069b9c06"
+   }
+  ],
+  "getDeckConfig": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:463",
+    "hash": "94d2b9f4bea605fc"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:466",
+    "hash": "d4c47c74045561cc"
+   }
+  ],
+  "getDeckStats": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:571",
+    "hash": "4648fb043a239950"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:590",
+    "hash": "9545a9bfd23c98ad"
+   }
+  ],
+  "getDecks": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:369",
+    "hash": "8ddd7343bcb3c6e2"
+   }
+  ],
+  "getMediaFilesNames": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:756",
+    "hash": "9cee4332c7331dbf"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:827",
+    "hash": "db50db060d1d82ca"
+   }
+  ],
+  "guiCheckDatabase": [
+   {
+    "at": "src/lib/actions/sync-notes.ts:275",
+    "hash": "b2ee05314d41e479"
+   },
+   {
+    "at": "src/lib/actions/sync-notes.ts:283",
+    "hash": "d9cb494356559833"
+   }
+  ],
+  "modelStyling": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:686",
+    "hash": "a9bb111a21f3bcea"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:732",
+    "hash": "ed75003accf45589"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:346",
+    "hash": "b18c0a188f36c05d"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:356",
+    "hash": "0b4dedde98e136e7"
+   }
+  ],
+  "reloadCollection": [
+   {
+    "at": "src/lib/actions/sync-notes.ts:285",
+    "hash": "3446fdce6ee40a49"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:886",
+    "hash": "3f9d74d81a9aabbe"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:761",
+    "hash": "e46a3ac41e1a33ae"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:848",
+    "hash": "9a5e13d80636f4fa"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:859",
+    "hash": "6f034258c6fa6ef9"
+   }
+  ],
+  "sync": [
+   {
+    "at": "src/bin/options.ts:19",
+    "hash": "5b495fc8cb25fa26"
+   },
+   {
+    "at": "src/bin/options.ts:80",
+    "hash": "15e73db338298260"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:910",
+    "hash": "1e790ca1c1a1ad7c"
+   }
+  ],
+  "updateModelStyling": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:717",
+    "hash": "7532a38421ea93c6"
+   }
+  ],
+  "updateNoteModel": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:202",
+    "hash": "8b4d47b8a62d3fd9"
+   }
+  ]
+ }
+}

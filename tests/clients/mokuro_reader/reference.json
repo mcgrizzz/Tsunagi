@@ -1,0 +1,971 @@
+{
+ "anki_connect": "de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e",
+ "cases": {
+  "addNote no tags": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101936938
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "猫",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "mokuro_one_piece_v01_0001.jpg",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "猫",
+        "cat<img src=\"mokuro_one_piece_v01_0001.jpg\">"
+       ],
+       []
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true}, \"picture\": [{\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"mokuro_One_Piece_v01_0001.jpg\"}]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote picture": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101936866
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "mokuro_one_piece_v01_0001.jpg",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "<img src=\"mokuro_one_piece_v01_0001.jpg\">"
+       ],
+       [
+        "One_Piece",
+        "mining"
+       ]
+      ],
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "One_Piece",
+      "mining",
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true}, \"picture\": [{\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"mokuro_One_Piece_v01_0001.jpg\"}], \"tags\": [\"mining\", \"One_Piece\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addTags": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "One_Piece",
+        "mining",
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "One_Piece",
+      "mining",
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addTags\", \"params\": {\"notes\": [\"<nid>\"], \"tags\": \"mining One_Piece\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "createDeck resolved deck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101936795
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default",
+      "Mining",
+      "Mining::One_Piece"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"createDeck\", \"params\": {\"deck\": \"Mining::One_Piece\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "createDeck test deck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101936656
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default",
+      "__mokuro_test_1760000000000"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"createDeck\", \"params\": {\"deck\": \"__mokuro_test_1760000000000\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "deleteDecks test deck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"deleteDecks\", \"params\": {\"cardsToo\": true, \"decks\": [\"__mokuro_test_1760000000000\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelFieldNames missing model": {
+   "answer": {
+    "body": {
+     "error": "model was not found: Japanese (mokuro)",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelFieldNames\", \"params\": {\"modelName\": \"Japanese (mokuro)\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields missing note": {
+   "answer": {
+    "body": {
+     "error": "Note was not found: 12345",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"fields\": {\"Back\": \"\", \"Front\": \"犬\"}, \"id\": 12345, \"picture\": [{\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"mokuro_One_Piece_v01_0001.jpg\"}]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields picture after existing": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "mokuro_one_piece_v01_0001.jpg",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog<img src=\"mokuro_one_piece_v01_0001.jpg\">"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"id\": \"<nid>\", \"picture\": [{\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"mokuro_One_Piece_v01_0001.jpg\"}]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields picture field cleared": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬が走る",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "mokuro_one_piece_v01_0001.jpg",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬が走る",
+        "<img src=\"mokuro_one_piece_v01_0001.jpg\">"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"fields\": {\"Back\": \"\", \"Front\": \"犬が走る\"}, \"id\": \"<nid>\", \"picture\": [{\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"mokuro_One_Piece_v01_0001.jpg\"}]}}, \"version\": 6}, \"method\": \"POST\"}"
+  }
+ }
+}

@@ -1,0 +1,334 @@
+{
+ "commit": "0d881e3",
+ "hints": {
+  "multi": [
+   "src/anki-connect/AnkiConnect.ts:196",
+   "src/anki-connect/AnkiConnect.ts:207",
+   "src/anki-connect/operations/AddNoteOperation.ts:82",
+   "src/anki-connect/operations/AssetOperation.ts:36",
+   "src/anki-connect/operations/AssetOperation.ts:52"
+  ],
+  "port_8765": [
+   "src/anki-connect/AnkiConnect.ts:5"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:68",
+    "hash": "8b2af0757386a8ee"
+   },
+   {
+    "at": "src/anki-connect/LazyAnkiNoteManager.ts:45",
+    "hash": "39de9aaa12252fdc"
+   },
+   {
+    "at": "src/anki-connect/operations/AddNoteOperation.ts:26",
+    "hash": "cb3f61ba3570595a"
+   },
+   {
+    "at": "src/sync/tasks/CreateNotesTask.ts:83",
+    "hash": "cdce74f75ec5cc4b"
+   }
+  ],
+  "addNotes": [
+   {
+    "at": "src/anki-connect/types.ts:67",
+    "hash": "bf40d31c7838b144"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:99",
+    "hash": "9bb8ceac8d245a99"
+   },
+   {
+    "at": "src/anki-connect/operations/UpdateNoteOperation.ts:55",
+    "hash": "45f4b363bfe39e66"
+   }
+  ],
+  "changeDeck": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:92",
+    "hash": "2edd680ff1b50ff4"
+   },
+   {
+    "at": "src/anki-connect/operations/UpdateNoteOperation.ts:33",
+    "hash": "ee4a761024afa93e"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:52",
+    "hash": "810ddd08b768a154"
+   },
+   {
+    "at": "src/anki-connect/operations/AddNoteOperation.ts:19",
+    "hash": "81ed8a6046fe03fe"
+   }
+  ],
+  "createModel": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:150",
+    "hash": "9071e96a2e245ddb"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:124",
+    "hash": "db8d97e88de0e42a"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:111",
+    "hash": "34a44d6fea6b69de"
+   },
+   {
+    "at": "src/anki-connect/operations/DeleteNoteOperation.ts:13",
+    "hash": "54ca277c58973e9f"
+   },
+   {
+    "at": "src/anki-connect/types.ts:67",
+    "hash": "bf40d31c7838b144"
+   },
+   {
+    "at": "src/sync/syncLogseqToAnki.ts:383",
+    "hash": "153508c1112276c6"
+   }
+  ],
+  "exportPackage": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:129",
+    "hash": "01ebfa8aa2cba058"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:119",
+    "hash": "134e451e19500fcf"
+   },
+   {
+    "at": "src/anki-connect/operations/AddNoteOperation.ts:77",
+    "hash": "2df12ac1c5de9886"
+   }
+  ],
+  "getDecks": [
+   {
+    "at": "src/anki-connect/internal/AnkiNoteCache.ts:17",
+    "hash": "db0cbee4f031ae05"
+   }
+  ],
+  "getMediaFilesNames": [
+   {
+    "at": "src/anki-connect/internal/AnkiNoteCache.ts:36",
+    "hash": "d39a26f3b4ab8e03"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "src/addons/PreviewInAnki.ts:32",
+    "hash": "6697b24b19cec971"
+   },
+   {
+    "at": "src/addons/PreviewInAnki.ts:72",
+    "hash": "8658dbd9aecf4a98"
+   },
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:228",
+    "hash": "f5b2b20987419b2d"
+   },
+   {
+    "at": "src/ui/pages/SyncSelectionDialog.tsx:471",
+    "hash": "02f95ab81c10b731"
+   }
+  ],
+  "modelFieldAdd": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:284",
+    "hash": "0bf8b462b1031c4c"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:254",
+    "hash": "5b166250e6eeb1ba"
+   },
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:296",
+    "hash": "e637f010accaf0a9"
+   }
+  ],
+  "modelFieldRemove": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:327",
+    "hash": "71c2a9e3ead12bcd"
+   }
+  ],
+  "modelFieldReposition": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:305",
+    "hash": "ae8c0b3a050a6a2f"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:148",
+    "hash": "5c5c4896f70e0a52"
+   }
+  ],
+  "multi": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:196",
+    "hash": "ce8dea52cf11ad51"
+   },
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:207",
+    "hash": "fb9343cf0e473154"
+   },
+   {
+    "at": "src/anki-connect/operations/AddNoteOperation.ts:82",
+    "hash": "8b38c11a4f91af42"
+   },
+   {
+    "at": "src/anki-connect/operations/AssetOperation.ts:36",
+    "hash": "3983ad38d48fc38f"
+   },
+   {
+    "at": "src/anki-connect/operations/AssetOperation.ts:52",
+    "hash": "9f4fbf130a8a61c4"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:89",
+    "hash": "8fde9bef1c52a651"
+   },
+   {
+    "at": "src/anki-connect/internal/AnkiNoteCache.ts:13",
+    "hash": "4cce21edc619f546"
+   }
+  ],
+  "reloadCollection": [
+   {
+    "at": "src/sync/syncLogseqToAnki.ts:396",
+    "hash": "c54980597cc568a6"
+   }
+  ],
+  "removeEmptyNotes": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:115",
+    "hash": "5a4a7202648def48"
+   }
+  ],
+  "removeTags": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:98",
+    "hash": "827fadb02cb69bb8"
+   },
+   {
+    "at": "src/anki-connect/operations/UpdateNoteOperation.ts:47",
+    "hash": "488aee44ed587fb8"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "src/addons/PreviewInAnki.ts:31",
+    "hash": "4f1d2f4f56cc99d6"
+   },
+   {
+    "at": "src/addons/PreviewInAnki.ts:43",
+    "hash": "3684f17cac5ac300"
+   },
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:42",
+    "hash": "60ae279adb3f300f"
+   },
+   {
+    "at": "src/sync/syncLogseqToAnki.ts:190",
+    "hash": "b5c5004474ee2ab6"
+   }
+  ],
+  "retrieveMediaFile": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:193",
+    "hash": "d5561421e54373a7"
+   },
+   {
+    "at": "src/anki-connect/operations/AssetOperation.ts:32",
+    "hash": "2209a51ff5853f43"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:203",
+    "hash": "0aadbcfe6eff3005"
+   },
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:214",
+    "hash": "0aa4b239cce43707"
+   },
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:221",
+    "hash": "372a8d111fef3176"
+   },
+   {
+    "at": "src/anki-connect/operations/AssetOperation.ts:76",
+    "hash": "6e23f75161e48667"
+   },
+   {
+    "at": "src/anki-connect/operations/AssetOperation.ts:85",
+    "hash": "4cf1dc981c35061e"
+   }
+  ],
+  "suspend": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:235",
+    "hash": "6ff9e5d988b1a349"
+   }
+  ],
+  "unsuspend": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:242",
+    "hash": "c634586df2ee7b90"
+   }
+  ],
+  "updateModelTemplates": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:169",
+    "hash": "370afab4b6dfac7e"
+   }
+  ],
+  "updateNote": [
+   {
+    "at": "src/anki-connect/LazyAnkiNoteManager.ts:55",
+    "hash": "d9e19691637e3741"
+   },
+   {
+    "at": "src/sync/tasks/UpdateNotesTask.ts:26",
+    "hash": "dfc9904397ddd9d5"
+   },
+   {
+    "at": "src/sync/tasks/UpdateNotesTask.ts:102",
+    "hash": "9efef7dffc3b78f3"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "src/anki-connect/AnkiConnect.ts:100",
+    "hash": "45b4c05178bc2354"
+   },
+   {
+    "at": "src/anki-connect/operations/AddNoteOperation.ts:44",
+    "hash": "f6393fb9d61f2637"
+   },
+   {
+    "at": "src/anki-connect/operations/UpdateNoteOperation.ts:80",
+    "hash": "7ddfe0c63a3b895a"
+   }
+  ]
+ }
+}

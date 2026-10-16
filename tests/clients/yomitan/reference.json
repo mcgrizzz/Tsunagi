@@ -1,0 +1,984 @@
+{
+ "anki_connect": "de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e",
+ "cases": {
+  "addNote deck-root": {
+   "answer": {
+    "body": 1792101945910,
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "猫",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default",
+      "Default::Sub"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "猫",
+        "cat"
+       ],
+       [
+        "yomitan"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded",
+      "yomitan"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default::Sub\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"deck\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": true, \"deckName\": \"Default\"}}, \"tags\": [\"yomitan\"]}}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "addNote duplicate allowed": {
+   "answer": {
+    "body": 1792101945835,
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "yomitan"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded",
+      "yomitan"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "addNote missing deck": {
+   "answer": {
+    "body": {
+     "error": "deck was not found: Japanese",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Japanese\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "addNotes": {
+   "answer": {
+    "body": [
+     1792101946234,
+     1792101946236
+    ],
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "猫",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "鳥",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "猫",
+        "cat"
+       ],
+       [
+        "yomitan"
+       ]
+      ],
+      [
+       [
+        "鳥",
+        "bird"
+       ],
+       [
+        "yomitan"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded",
+      "yomitan"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNotes\", \"params\": {\"notes\": [{\"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}, {\"deckName\": \"Default\", \"fields\": {\"Back\": \"bird\", \"Front\": \"鳥\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "addNotes one empty": {
+   "answer": {
+    "body": {
+     "error": "['cannot create note because it is empty']",
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded",
+      "yomitan"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNotes\", \"params\": {\"notes\": [{\"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}, {\"deckName\": \"Default\", \"fields\": {\"Back\": \"x\", \"Front\": \"\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "canAddNotes duplicates allowed and not": {
+   "answer": {
+    "body": [
+     true,
+     false
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"canAddNotes\", \"params\": {\"notes\": [{\"deckName\": \"Default\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}, {\"deckName\": \"Default\", \"fields\": {\"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "canAddNotesWithErrorDetail checkAllModels": {
+   "answer": {
+    "body": [
+     {
+      "canAdd": false,
+      "error": "cannot create note because it is a duplicate"
+     }
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"canAddNotesWithErrorDetail\", \"params\": {\"notes\": [{\"deckName\": \"Default\", \"fields\": {\"Front\": \"犬\"}, \"modelName\": \"Basic (and reversed card)\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": true, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "canAddNotesWithErrorDetail deck-root from a subdeck": {
+   "answer": {
+    "body": [
+     {
+      "canAdd": false,
+      "error": "cannot create note because it is a duplicate"
+     }
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"canAddNotesWithErrorDetail\", \"params\": {\"notes\": [{\"deckName\": \"Default::Sub\", \"fields\": {\"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"deck\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": true, \"deckName\": \"Default\"}}, \"tags\": [\"yomitan\"]}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "canAddNotesWithErrorDetail duplicate, new, empty": {
+   "answer": {
+    "body": [
+     {
+      "canAdd": false,
+      "error": "cannot create note because it is a duplicate"
+     },
+     {
+      "canAdd": true
+     },
+     {
+      "canAdd": false,
+      "error": "cannot create note because it is empty"
+     }
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"canAddNotesWithErrorDetail\", \"params\": {\"notes\": [{\"deckName\": \"Default\", \"fields\": {\"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}, {\"deckName\": \"Default\", \"fields\": {\"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}, {\"deckName\": \"Default\", \"fields\": {\"Front\": \"\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "cardsInfo []": {
+   "answer": {
+    "body": [],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"cardsInfo\", \"params\": {\"cards\": []}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "findCards nid": {
+   "answer": {
+    "body": [
+     1792101946074
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"nid:<nid>\"}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "findNotes test query deck:current": {
+   "answer": {
+    "body": [
+     1792101945551
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"deck:current\"}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "findNotes test query reading": {
+   "answer": {
+    "body": [],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"\\\"よむ\\\" deck:current\"}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "findNotes union": {
+   "answer": {
+    "body": [
+     1792101945111
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"(\\\"front:犬\\\") or (\\\"deck:Default\\\" \\\"front:猫\\\")\"}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "multi findNotes constrained to candidates": {
+   "answer": {
+    "body": [
+     [
+      1792101945170
+     ],
+     []
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"multi\", \"params\": {\"actions\": [{\"action\": \"findNotes\", \"params\": {\"query\": \"nid:<nid> (\\\"front:犬\\\")\"}}, {\"action\": \"findNotes\", \"params\": {\"query\": \"nid:<nid> (\\\"deck:Default\\\" \\\"front:猫\\\")\"}}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "multi findNotes one query": {
+   "answer": {
+    "body": [
+     [
+      1792101945020
+     ]
+    ],
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"multi\", \"params\": {\"actions\": [{\"action\": \"findNotes\", \"params\": {\"query\": \"\\\"front:犬\\\"\"}}]}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile dictionary media": {
+   "answer": {
+    "body": "yomitan_dictionary_media_9b002b3bba0e52490a34888666ea7f57e79145cf.png",
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt",
+      "yomitan_dictionary_media_9b002b3bba0e52490a34888666ea7f57e79145cf.png"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"data\": \"iVBORw0KGgpmYWtl\", \"filename\": \"yomitan_dictionary_media_9b002b3bba0e52490a34888666ea7f57e79145cf.png\"}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile screenshot": {
+   "answer": {
+    "body": "yomitan_browser_screenshot_2026-09-15-08-30-00-000.png",
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt",
+      "yomitan_browser_screenshot_2026-09-15-08-30-00-000.png"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"data\": \"iVBORw0KGgpmYWtl\", \"filename\": \"yomitan_browser_screenshot_2026-09-15-08-30-00-000.png\"}, \"version\": 2}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields whole note plus id": {
+   "answer": {
+    "body": null,
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog; hound"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"dog; hound\", \"Front\": \"犬\"}, \"id\": \"<nid>\", \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"collection\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": null}}, \"tags\": [\"yomitan\"]}}, \"version\": 2}, \"method\": \"POST\"}"
+  }
+ }
+}

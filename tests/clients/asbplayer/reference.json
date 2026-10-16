@@ -1,0 +1,1853 @@
+{
+ "anki_connect": "de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e",
+ "cases": {
+  "addNote audio and picture": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101925347
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "犬が走る",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "asbp_show_ep01_83400.jpeg",
+      "asbp_show_ep01_83400.mp3",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "犬が走る",
+        "Show ep01 (00:01:23.4)[sound:asbp_show_ep01_83400.mp3]<img src=\"asbp_show_ep01_83400.jpeg\">"
+       ],
+       [
+        "asbplayer"
+       ]
+      ]
+     ],
+     "tags": [
+      "asbplayer",
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"audio\": {\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"asbp_Show_ep01_83400.mp3\"}, \"deckName\": \"Default\", \"fields\": {\"Back\": \"Show ep01 (00:01:23.4)\", \"Front\": \"犬が走る\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"deck\", \"duplicateScopeOptions\": {\"checkChildren\": false, \"deckName\": \"Default\"}}, \"picture\": {\"data\": \"iVBORw0KGgpmYWtl\", \"fields\": [\"Back\"], \"filename\": \"asbp_Show_ep01_83400.jpeg\"}, \"tags\": [\"asbplayer\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote duplicate of the seeded note, no tags": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101925418
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       []
+      ],
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"deck\", \"duplicateScopeOptions\": {\"checkChildren\": false, \"deckName\": \"Default\"}}, \"tags\": []}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote missing deck": {
+   "answer": {
+    "body": {
+     "error": "deck was not found: Mining",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Mining\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"deck\", \"duplicateScopeOptions\": {\"checkChildren\": false, \"deckName\": \"Default\"}}, \"tags\": []}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addTags": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "asbplayer",
+        "mined",
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "asbplayer",
+      "mined",
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addTags\", \"params\": {\"notes\": [\"<nid>\"], \"tags\": \"asbplayer mined\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "areSuspended": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      false
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"areSuspended\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "areSuspended suspended": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      true
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"areSuspended\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "cardsInfo batch of 10": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>犬\n\n<hr id=answer>\n\ndog",
+       "cardId": 1792101926735,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 1,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "dog"
+        },
+        "Front": {
+         "order": 0,
+         "value": "犬"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨4⁩d"
+       ],
+       "note": 1792101926735,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>犬",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語0\n\n<hr id=answer>\n\nword 0",
+       "cardId": 1792101926785,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 2,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 0"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語0"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨5⁩d"
+       ],
+       "note": 1792101926785,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語0",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語1\n\n<hr id=answer>\n\nword 1",
+       "cardId": 1792101926787,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 3,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 1"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語1"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨3⁩d"
+       ],
+       "note": 1792101926787,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語1",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語2\n\n<hr id=answer>\n\nword 2",
+       "cardId": 1792101926789,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 4,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 2"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語2"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨5⁩d"
+       ],
+       "note": 1792101926789,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語2",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語3\n\n<hr id=answer>\n\nword 3",
+       "cardId": 1792101926792,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 5,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 3"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語3"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨4⁩d"
+       ],
+       "note": 1792101926792,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語3",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語4\n\n<hr id=answer>\n\nword 4",
+       "cardId": 1792101926794,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 6,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 4"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語4"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨5⁩d"
+       ],
+       "note": 1792101926794,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語4",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語5\n\n<hr id=answer>\n\nword 5",
+       "cardId": 1792101926796,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 7,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 5"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語5"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨3⁩d"
+       ],
+       "note": 1792101926796,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語5",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語6\n\n<hr id=answer>\n\nword 6",
+       "cardId": 1792101926799,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 8,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 6"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語6"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨5⁩d"
+       ],
+       "note": 1792101926799,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語6",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語7\n\n<hr id=answer>\n\nword 7",
+       "cardId": 1792101926801,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 9,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 7"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語7"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨3⁩d"
+       ],
+       "note": 1792101926801,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語7",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      },
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語8\n\n<hr id=answer>\n\nword 8",
+       "cardId": 1792101926804,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 10,
+       "factor": 0,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "word 8"
+        },
+        "Front": {
+         "order": 0,
+         "value": "語8"
+        }
+       },
+       "flags": 0,
+       "interval": 0,
+       "lapses": 0,
+       "left": 0,
+       "mod": 1792101926,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨1⁩m",
+        "<⁨6⁩m",
+        "<⁨10⁩m",
+        "⁨3⁩d"
+       ],
+       "note": 1792101926804,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>語8",
+       "queue": 0,
+       "reps": 0,
+       "type": 0
+      }
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"cardsInfo\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "cardsModTime": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      {
+       "cardId": 1792101926671,
+       "mod": 1792101926
+      }
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"cardsModTime\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "createDeck Sentences": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792101925207
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default",
+      "Sentences"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"createDeck\", \"params\": {\"deck\": \"Sentences\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "createModel Sentence Card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": {
+      "css": ".card {\n  font-family: arial;\n  font-size: 20px;\n  text-align: center;\n  color: white;\n  background-color: black;\n}\n\n.image {\n  width: auto;\n  height: auto;\n  max-width: 500px;\n  max-height: 500px;\n  margin-left: auto;\n  margin-right: auto;\n}\n\n.front {\n  font-size: 30px;\n}",
+      "did": null,
+      "flds": [
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": -2678684726701518025,
+        "name": "Sentence",
+        "ord": 0,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       },
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": 2322801089483443540,
+        "name": "Word",
+        "ord": 1,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       },
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": -1596901946065313058,
+        "name": "Definition",
+        "ord": 2,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       },
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": 760930231487086711,
+        "name": "Image",
+        "ord": 3,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       },
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": 5581075084151374195,
+        "name": "Audio",
+        "ord": 4,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       },
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": -6563678382185192647,
+        "name": "Source",
+        "ord": 5,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       },
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": -8790806854302112166,
+        "name": "URL",
+        "ord": 6,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       }
+      ],
+      "id": 1792101925269,
+      "latexPost": "\\end{document}",
+      "latexPre": "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
+      "latexsvg": false,
+      "mod": 1792101925,
+      "name": "Sentence Card",
+      "originalStockKind": 1,
+      "req": [
+       [
+        0,
+        "any",
+        [
+         0
+        ]
+       ]
+      ],
+      "sortf": 0,
+      "tmpls": [
+       {
+        "afmt": "<div class=\"front\">{{Sentence}}</div>\n<hr id=answer>\n{{Definition}}\n<p/>\n<div class=\"image\">\n{{Image}}\n</div>\n<p/>\n{{Audio}}\n<p/>\n{{Source}}\n<p/>\n{{URL}}",
+        "bafmt": "",
+        "bfont": "",
+        "bqfmt": "",
+        "bsize": 0,
+        "did": null,
+        "id": -472862197394846879,
+        "name": "Card 1",
+        "ord": 0,
+        "qfmt": "<div class=\"front\">{{Sentence}}</div>"
+       }
+      ],
+      "type": 0,
+      "usn": -1
+     }
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"createModel\", \"params\": {\"cardTemplates\": [{\"Back\": \"<div class=\\\"front\\\">{{Sentence}}</div>\\n<hr id=answer>\\n{{Definition}}\\n<p/>\\n<div class=\\\"image\\\">\\n{{Image}}\\n</div>\\n<p/>\\n{{Audio}}\\n<p/>\\n{{Source}}\\n<p/>\\n{{URL}}\", \"Front\": \"<div class=\\\"front\\\">{{Sentence}}</div>\"}], \"css\": \".card {\\n  font-family: arial;\\n  font-size: 20px;\\n  text-align: center;\\n  color: white;\\n  background-color: black;\\n}\\n\\n.image {\\n  width: auto;\\n  height: auto;\\n  max-width: 500px;\\n  max-height: 500px;\\n  margin-left: auto;\\n  margin-right: auto;\\n}\\n\\n.front {\\n  font-size: 30px;\\n}\", \"inOrderFields\": [\"Sentence\", \"Word\", \"Definition\", \"Image\", \"Audio\", \"Source\", \"URL\"], \"modelName\": \"Sentence Card\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards due<=0": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"prop:due<=0 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards due<=1": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"prop:due<=1 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards due<=7": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101928604
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"prop:due<=7 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards poll": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101928330
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"(edited:1 OR rated:1) (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards poll in a deck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101928397
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"(edited:1 OR rated:1) ((\\\"deck:Default\\\") (\\\"Front:_*\\\" OR \\\"Back:_*\\\"))\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status in a deck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101927611
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:new ((\\\"deck:Default\\\") (\\\"Front:_*\\\" OR \\\"Back:_*\\\"))\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status is:learn": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:learn (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status is:learn (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:learn (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status is:new": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101926986
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:new (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status is:new (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:new (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:ivl graduated": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:ivl<11 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:ivl graduated (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101928125
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:ivl<11 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:ivl mature": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:ivl>=21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:ivl mature (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:ivl>=21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:ivl young": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:ivl>=11 prop:ivl<21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:ivl young (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:ivl>=11 prop:ivl<21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s graduated": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:s<11 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s graduated (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:s<11 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s mature": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:s>=21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s mature (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:s>=21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s young": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:s>=11 prop:s<21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s young (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:new -is:learn prop:s>=11 prop:s<21 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s>=0 (FSRS check)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"prop:s>=0 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards status prop:s>=0 (FSRS check) (review card)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"prop:s>=0 (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes added:2 (same subtitle)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101925740
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"added:2\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes added:30": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101926076
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"added:30\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes fields containing word": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101926350
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"\\\"Front:*犬*\\\" OR \\\"Back:*犬*\\\"\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes word cache": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101926410
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"\\\"Front:_*\\\" OR \\\"Back:_*\\\"\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes word cache in a deck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792101926473
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"(\\\"deck:Default\\\") (\\\"Front:_*\\\" OR \\\"Back:_*\\\")\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes word escaped": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"\\\"Front:a\\\\_b\\\\*c\\\\:d\\\"\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": "asbp_show_ep01_83400_ab3de6gh.jpeg"
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "asbp_show_ep01_83400_ab3de6gh.jpeg",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"data\": \"iVBORw0KGgpmYWtl\", \"deleteExisting\": false, \"filename\": \"asbp_Show_ep01_83400_Ab3dE6gh.jpeg\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile name taken": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": "asbp_show_ep01_83400_ab3de6gh-9b002b3bba0e52490a34888666ea7f57e79145cf.jpeg"
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "asbp_show_ep01_83400_ab3de6gh-9b002b3bba0e52490a34888666ea7f57e79145cf.jpeg",
+      "asbp_show_ep01_83400_ab3de6gh.jpeg",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"data\": \"iVBORw0KGgpmYWtl\", \"deleteExisting\": false, \"filename\": \"asbp_Show_ep01_83400_Ab3dE6gh.jpeg\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields media fields only (same subtitle)": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "[sound:asbp_Show_ep01_83400_Ab3dE6gh.mp3]"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"fields\": {\"Back\": \"[sound:asbp_Show_ep01_83400_Ab3dE6gh.mp3]\"}, \"id\": \"<nid>\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields whole note": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬が<b>走る</b>",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬が<b>走る</b>",
+        "<img src=\"asbp_Show_ep01_83400_Ab3dE6gh.jpeg\">"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"<img src=\\\"asbp_Show_ep01_83400_Ab3dE6gh.jpeg\\\">\", \"Front\": \"犬が<b>走る</b>\"}, \"id\": \"<nid>\", \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true, \"duplicateScope\": \"deck\", \"duplicateScopeOptions\": {\"checkChildren\": false, \"deckName\": \"Default\"}}, \"tags\": [\"asbplayer\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  }
+ }
+}

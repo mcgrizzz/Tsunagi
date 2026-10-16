@@ -1,0 +1,322 @@
+{
+ "commit": "feb3db2",
+ "hints": {
+  "multi": [
+   "obsidian_to_anki.py:968",
+   "obsidian_to_anki.py:979",
+   "obsidian_to_anki.py:1157",
+   "obsidian_to_anki.py:1178",
+   "obsidian_to_anki.py:1357",
+   "obsidian_to_anki.py:1383",
+   "obsidian_to_anki.py:1431",
+   "obsidian_to_anki.py:1660",
+   "obsidian_to_anki.py:1670",
+   "obsidian_to_anki.py:1680",
+   "obsidian_to_anki.py:1690",
+   "obsidian_to_anki.py:1698",
+   "obsidian_to_anki.py:1731",
+   "obsidian_to_anki.py:1741",
+   "obsidian_to_anki.py:1750",
+   "obsidian_to_anki.py:1758",
+   "src/anki.ts:65",
+   "src/file.ts:195",
+   "src/file.ts:203",
+   "src/file.ts:219",
+   "src/file.ts:249"
+  ],
+  "port_8765": [
+   "obsidian_to_anki.py:77",
+   "obsidian_to_anki.py:233",
+   "src/anki.ts:1"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "obsidian_to_anki.py:1360",
+    "hash": "a3972e9f2fcb252d"
+   },
+   {
+    "at": "src/anki.ts:69",
+    "hash": "b00e452e455da1df"
+   },
+   {
+    "at": "src/file.ts:201",
+    "hash": "e5621e378c6e5e4b"
+   }
+  ],
+  "addNotes": [
+   {
+    "at": "obsidian_to_anki.py:1368",
+    "hash": "8d7fce41581ae40d"
+   }
+  ],
+  "addTags": [
+   {
+    "at": "obsidian_to_anki.py:1434",
+    "hash": "a5bbe3335cb0d141"
+   },
+   {
+    "at": "src/anki.ts:119",
+    "hash": "192646c199d486e5"
+   },
+   {
+    "at": "src/file.ts:246",
+    "hash": "e7a535fc75932d76"
+   }
+  ],
+  "changeDeck": [
+   {
+    "at": "obsidian_to_anki.py:1415",
+    "hash": "4f2ef618bde44827"
+   },
+   {
+    "at": "src/anki.ts:101",
+    "hash": "5c6e3bbdc50e2e6e"
+   },
+   {
+    "at": "src/file.ts:231",
+    "hash": "d5ab1dbd86cdf6f9"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "src/anki.ts:73",
+    "hash": "e9acb2496f5227ee"
+   },
+   {
+    "at": "src/file.ts:193",
+    "hash": "0842c4fa428c6b02"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "obsidian_to_anki.py:1376",
+    "hash": "beaec408899a37c5"
+   },
+   {
+    "at": "src/anki.ts:77",
+    "hash": "8d57c51ad32cb84c"
+   },
+   {
+    "at": "src/file.ts:207",
+    "hash": "cb5ebdda5f3aa70e"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "obsidian_to_anki.py:1193",
+    "hash": "3e8ad202a673db10"
+   },
+   {
+    "at": "src/setting-to-data.ts:28",
+    "hash": "b369222e26da29c7"
+   }
+  ],
+  "getTags": [
+   {
+    "at": "obsidian_to_anki.py:958",
+    "hash": "ce966b0d9b99b87c"
+   },
+   {
+    "at": "src/anki.ts:127",
+    "hash": "49483113c477e066"
+   },
+   {
+    "at": "src/files-manager.ts:194",
+    "hash": "353ad7f3ebcfa094"
+   },
+   {
+    "at": "src/note.ts:59",
+    "hash": "89a4037b84c78fa8"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "main.ts:54",
+    "hash": "6d15dde9769233bb"
+   },
+   {
+    "at": "main.ts:66",
+    "hash": "40e1036da5be7e1e"
+   },
+   {
+    "at": "obsidian_to_anki.py:1173",
+    "hash": "8131649999dfc035"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "main.ts:49",
+    "hash": "2df2f2e536fdf058"
+   },
+   {
+    "at": "main.ts:190",
+    "hash": "d9d68868b54cfc6a"
+   },
+   {
+    "at": "obsidian_to_anki.py:765",
+    "hash": "1765b7731d627bd9"
+   },
+   {
+    "at": "obsidian_to_anki.py:1170",
+    "hash": "1f590ad68bca8e60"
+   },
+   {
+    "at": "src/settings.ts:350",
+    "hash": "034413d39cd28ae8"
+   }
+  ],
+  "multi": [
+   {
+    "at": "obsidian_to_anki.py:968",
+    "hash": "3ca7e0d2b37ac3af"
+   },
+   {
+    "at": "obsidian_to_anki.py:979",
+    "hash": "0e10d76b6819c7e8"
+   },
+   {
+    "at": "obsidian_to_anki.py:1157",
+    "hash": "d5f04019f9c0feb4"
+   },
+   {
+    "at": "obsidian_to_anki.py:1178",
+    "hash": "8ea876c5b6608d0c"
+   },
+   {
+    "at": "obsidian_to_anki.py:1357",
+    "hash": "4ade6903ed6be6f2"
+   },
+   {
+    "at": "obsidian_to_anki.py:1383",
+    "hash": "e011751692095a57"
+   },
+   {
+    "at": "obsidian_to_anki.py:1431",
+    "hash": "d245912d5562ea8e"
+   },
+   {
+    "at": "obsidian_to_anki.py:1660",
+    "hash": "ce16e6d6ed5e94df"
+   },
+   {
+    "at": "obsidian_to_anki.py:1670",
+    "hash": "18d7756bc13fb9cd"
+   },
+   {
+    "at": "obsidian_to_anki.py:1680",
+    "hash": "25298d5b1fa563d1"
+   },
+   {
+    "at": "obsidian_to_anki.py:1690",
+    "hash": "4c0d058ec54d1cc8"
+   },
+   {
+    "at": "obsidian_to_anki.py:1698",
+    "hash": "17818dc60fd512a7"
+   },
+   {
+    "at": "obsidian_to_anki.py:1731",
+    "hash": "8b036d24be10c511"
+   },
+   {
+    "at": "obsidian_to_anki.py:1741",
+    "hash": "147a2daef2047a82"
+   },
+   {
+    "at": "obsidian_to_anki.py:1750",
+    "hash": "08c583b8bebd3c19"
+   },
+   {
+    "at": "obsidian_to_anki.py:1758",
+    "hash": "17818dc60fd512a7"
+   },
+   {
+    "at": "src/anki.ts:65",
+    "hash": "f44ff8ed657d3e8c"
+   },
+   {
+    "at": "src/file.ts:195",
+    "hash": "7d924ba4ae130fb6"
+   },
+   {
+    "at": "src/file.ts:203",
+    "hash": "e7e4623dac31790a"
+   },
+   {
+    "at": "src/file.ts:219",
+    "hash": "37c7c5daf4670a4a"
+   },
+   {
+    "at": "src/file.ts:249",
+    "hash": "31e2605488807fcf"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "obsidian_to_anki.py:1399",
+    "hash": "e735cfab73fa574a"
+   },
+   {
+    "at": "src/anki.ts:93",
+    "hash": "1cfb459922ca6ea7"
+   },
+   {
+    "at": "src/file.ts:227",
+    "hash": "fabd948f482aed7f"
+   }
+  ],
+  "removeTags": [
+   {
+    "at": "obsidian_to_anki.py:1423",
+    "hash": "78bb5b6840c72ba3"
+   },
+   {
+    "at": "src/anki.ts:110",
+    "hash": "8c7d88036fafb76a"
+   },
+   {
+    "at": "src/file.ts:239",
+    "hash": "108f2f3bdc29dee4"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "obsidian_to_anki.py:1160",
+    "hash": "3ffb931be2eeffc5"
+   },
+   {
+    "at": "src/anki.ts:132",
+    "hash": "35e9f2af05bd8795"
+   },
+   {
+    "at": "src/anki.ts:141",
+    "hash": "526b126635507d8e"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "obsidian_to_anki.py:1386",
+    "hash": "032272e5691f835c"
+   },
+   {
+    "at": "src/anki.ts:82",
+    "hash": "9938f2ed7356c9d1"
+   },
+   {
+    "at": "src/file.ts:214",
+    "hash": "019bbc321d2cca72"
+   }
+  ],
+  "version": [
+   {
+    "at": "obsidian_to_anki.py:225",
+    "hash": "fcc33e6d26bcd6df"
+   }
+  ]
+ }
+}

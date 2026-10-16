@@ -1,0 +1,278 @@
+{
+ "commit": "60fef5f",
+ "hints": {
+  "multi": [
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:23",
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:115",
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:146",
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:152",
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:191",
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:198",
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:241",
+   "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:251",
+   "Sources/TabbiKitCore/Anki/AnkiSummary.swift:193"
+  ],
+  "port_8765": [
+   "Sources/TabbiKitCore/Anki/AnkiConnectTransport.swift:32",
+   "Sources/TabbiKitCore/Anki/AnkiConnectTransport.swift:37",
+   "site/build.py:865"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "cardReviews": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:187",
+    "hash": "93ee2266f83833d7"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:191",
+    "hash": "31a0544835ce6f94"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:196",
+    "hash": "73077d48f1b4bea6"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:204",
+    "hash": "2a49a12c46158749"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:204",
+    "hash": "2a49a12c46158749"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift:173",
+    "hash": "01707fa47ab83948"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:42",
+    "hash": "77bd824ce7d49982"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:75",
+    "hash": "5b5502fa3be37daa"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:192",
+    "hash": "ff593835b3ecb403"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:214",
+    "hash": "56dae4a123a53c9f"
+   }
+  ],
+  "deckNamesAndIds": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:102",
+    "hash": "2b0035ec862bb858"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift:34",
+    "hash": "7bd595f9bdf3dbc4"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:181",
+    "hash": "08ada5f55c78b7f5"
+   }
+  ],
+  "getDeckStats": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:143",
+    "hash": "e1c3d230d67ea2a1"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:146",
+    "hash": "247df8f4b7b632d9"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:150",
+    "hash": "a2bde520e0dffeec"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:164",
+    "hash": "60686c5305537b83"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:164",
+    "hash": "60686c5305537b83"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift:59",
+    "hash": "756b8cf051db357f"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectionState.swift:193",
+    "hash": "b9601262975eaab2"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:71",
+    "hash": "e6bc370913282b35"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:138",
+    "hash": "a81326670f8207e8"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Connections/ConnectionGallery.swift:25",
+    "hash": "4ae8ebc5e37b11c0"
+   }
+  ],
+  "getNumCardsReviewedByDay": [
+   {
+    "at": "Sources/Tabbi/Modules/Anki/AnkiPanel.swift:534",
+    "hash": "5e6f7f04b4605558"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:176",
+    "hash": "04f2fbb0e4ea101d"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift:146",
+    "hash": "e8ea01e66a576b5d"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:38",
+    "hash": "ff9201229089f57c"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:40",
+    "hash": "536fcd80b873f9ce"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:74",
+    "hash": "2d3630cf1eecd321"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:211",
+    "hash": "745d588995fda40d"
+   }
+  ],
+  "getNumCardsReviewedToday": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:171",
+    "hash": "72d8060e372b16a9"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:37",
+    "hash": "7dfc36c25b6c03b4"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:73",
+    "hash": "6a0b14310a9a4bdd"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:210",
+    "hash": "cc47bfe468ff262e"
+   }
+  ],
+  "guiDeckOverview": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:220",
+    "hash": "1e46de5330ed08ed"
+   }
+  ],
+  "guiDeckReview": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:214",
+    "hash": "17f71bce33c6d30f"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiDeckOpener.swift:128",
+    "hash": "2790d3a154deffd0"
+   }
+  ],
+  "multi": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:23",
+    "hash": "d7df941eb471d118"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:115",
+    "hash": "e84019460db927f7"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:146",
+    "hash": "247df8f4b7b632d9"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:152",
+    "hash": "f5a5767e14790d4a"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:191",
+    "hash": "31a0544835ce6f94"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:198",
+    "hash": "ef722d9e81cc3257"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:241",
+    "hash": "f86cedca2004bc26"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:251",
+    "hash": "bebc8ed4d472aa56"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:193",
+    "hash": "667abcef049c0343"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:68",
+    "hash": "7320d820f283634a"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectError.swift:13",
+    "hash": "1649b419fcbb4162"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift:3",
+    "hash": "2dc61512505a91d0"
+   }
+  ],
+  "sync": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:26",
+    "hash": "d316b11ac39feb00"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:226",
+    "hash": "db5916e15ac11732"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:228",
+    "hash": "62485cd6d77770e2"
+   }
+  ],
+  "version": [
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:5",
+    "hash": "5e28218f4ad298cf"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:63",
+    "hash": "a76cfb1b31ce0966"
+   },
+   {
+    "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:242",
+    "hash": "99e9cb7c7fa79f06"
+   },
+   {
+    "at": "site/build.py:325",
+    "hash": "8d49c6e8d2631648"
+   },
+   {
+    "at": "site/build.py:328",
+    "hash": "3e3d07a13a2e6e99"
+   }
+  ]
+ }
+}

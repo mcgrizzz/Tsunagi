@@ -1,0 +1,2290 @@
+{
+ "anki_connect": "de6e6e1b8aaf4ae195eb1d1ff6db5409b99b2a3e",
+ "cases": {
+  "addNote duplicate": {
+   "answer": {
+    "body": {
+     "error": "cannot create note because it is a duplicate",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote duplicate allowed": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792102036668
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       []
+      ],
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": true}}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote duplicate in deck scope": {
+   "answer": {
+    "body": {
+     "error": "cannot create note because it is a duplicate",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"dog\", \"Front\": \"犬\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"deck\"}}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote missing deck": {
+   "answer": {
+    "body": {
+     "error": "deck was not found: Nope",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Nope\", \"fields\": {\"Front\": \"猫\"}, \"modelName\": \"Basic\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote missing model": {
+   "answer": {
+    "body": {
+     "error": "model was not found: Vocab",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Front\": \"猫\"}, \"modelName\": \"Vocab\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote no tags or options": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792102036416
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "猫",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "猫",
+        "cat"
+       ],
+       []
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addNote tags and duplicate scope": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792102036484
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      [
+       "猫",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ],
+      [
+       [
+        "猫",
+        "cat"
+       ],
+       [
+        "ai",
+        "n5"
+       ]
+      ]
+     ],
+     "tags": [
+      "ai",
+      "n5",
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addNote\", \"params\": {\"note\": {\"deckName\": \"Default\", \"fields\": {\"Back\": \"cat\", \"Front\": \"猫\"}, \"modelName\": \"Basic\", \"options\": {\"allowDuplicate\": false, \"duplicateScope\": \"deck\", \"duplicateScopeOptions\": {\"checkAllModels\": false, \"checkChildren\": false, \"deckName\": \"Default\"}}, \"tags\": [\"ai\", \"n5\"]}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "addTags": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "ai",
+        "n5",
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "ai",
+      "n5",
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"addTags\", \"params\": {\"notes\": [\"<nid>\"], \"tags\": \"ai n5\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "answerCards": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      true
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"answerCards\", \"params\": {\"answers\": [{\"cardId\": \"<cid>\", \"ease\": 3}]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "answerCards bogus id": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      false
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"answerCards\", \"params\": {\"answers\": [{\"cardId\": 12345, \"ease\": 3}]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "areSuspended one missing": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      false,
+      null
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"areSuspended\", \"params\": {\"cards\": [\"<cid>\", 12345]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "areSuspended suspended": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      true
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"areSuspended\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "cardReviews": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      [
+       1792000000000,
+       1792102035931,
+       -1,
+       3,
+       12,
+       4,
+       2500,
+       6000,
+       1
+      ]
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"cardReviews\", \"params\": {\"deck\": \"Default\", \"startID\": 1700000000000}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "cardsInfo review card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      {
+       "answer": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>犬\n\n<hr id=answer>\n\ndog",
+       "cardId": 1792102034376,
+       "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+       "deckName": "Default",
+       "due": 0,
+       "factor": 2500,
+       "fieldOrder": 0,
+       "fields": {
+        "Back": {
+         "order": 1,
+         "value": "dog"
+        },
+        "Front": {
+         "order": 0,
+         "value": "犬"
+        }
+       },
+       "flags": 0,
+       "interval": 12,
+       "lapses": 1,
+       "left": 0,
+       "mod": 1792102034,
+       "modelName": "Basic",
+       "nextReviews": [
+        "<⁨10⁩m",
+        "⁨15⁩d",
+        "⁨30⁩d",
+        "⁨1.3⁩mo"
+       ],
+       "note": 1792102034376,
+       "ord": 0,
+       "question": "<style>.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n</style>犬",
+       "queue": 2,
+       "reps": 3,
+       "type": 2
+      }
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"cardsInfo\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "changeDeck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default",
+      "Japanese"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"changeDeck\", \"params\": {\"cards\": [\"<cid>\"], \"deck\": \"Japanese\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "clearUnusedTags": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"clearUnusedTags\", \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "createDeck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": 1792102036153
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default",
+      "Japanese",
+      "Japanese::Vocab"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"createDeck\", \"params\": {\"deck\": \"Japanese::Vocab\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "createModel": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": {
+      "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+      "did": null,
+      "flds": [
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": 3815392873839258296,
+        "name": "Word",
+        "ord": 0,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       },
+       {
+        "collapsed": false,
+        "description": "",
+        "excludeFromSearch": false,
+        "font": "Arial",
+        "id": -7619119904059800148,
+        "name": "Meaning",
+        "ord": 1,
+        "plainText": false,
+        "preventDeletion": false,
+        "rtl": false,
+        "size": 20,
+        "sticky": false,
+        "tag": null
+       }
+      ],
+      "id": 1792102037241,
+      "latexPost": "\\end{document}",
+      "latexPre": "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
+      "latexsvg": false,
+      "mod": 1792102037,
+      "name": "Vocab",
+      "originalStockKind": 1,
+      "req": [
+       [
+        0,
+        "any",
+        [
+         0
+        ]
+       ]
+      ],
+      "sortf": 0,
+      "tmpls": [
+       {
+        "afmt": "{{FrontSide}}<hr id=answer>{{Meaning}}",
+        "bafmt": "",
+        "bfont": "",
+        "bqfmt": "",
+        "bsize": 0,
+        "did": null,
+        "id": -3687473853390660536,
+        "name": "Card 1",
+        "ord": 0,
+        "qfmt": "{{Word}}"
+       }
+      ],
+      "type": 0,
+      "usn": -1
+     }
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"createModel\", \"params\": {\"cardTemplates\": [{\"Back\": \"{{FrontSide}}<hr id=answer>{{Meaning}}\", \"Front\": \"{{Word}}\", \"Name\": \"Card 1\"}], \"inOrderFields\": [\"Word\", \"Meaning\"], \"isCloze\": false, \"modelName\": \"Vocab\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "createModel existing name": {
+   "answer": {
+    "body": {
+     "error": "Model name already exists",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"createModel\", \"params\": {\"cardTemplates\": [{\"Back\": \"{{FrontSide}}<hr id=answer>{{Meaning}}\", \"Front\": \"{{Word}}\", \"Name\": \"Card 1\"}], \"inOrderFields\": [\"Word\", \"Meaning\"], \"isCloze\": false, \"modelName\": \"Basic\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards deck:*": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792102035068
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"deck:*\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards escaped deck name": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"\\\"deck:JLPT\\\\_N5\\\" -is:suspended is:due\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards get_cards due": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792102034446
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:suspended is:due\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards get_cards new in deck": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792102034514
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"\\\"deck:Default\\\" -is:suspended is:new\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards get_due_cards": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792102034579
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"-is:suspended (is:due OR is:learn OR is:new)\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards scoped state new": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792102035460
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"\\\"deck:Default\\\" is:new -is:suspended -is:buried\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards state buried": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:buried\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards state learning": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:learn -is:suspended -is:buried\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards state new": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792102035144
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:new -is:suspended -is:buried\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards state review": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:review -is:learn -is:suspended -is:buried\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards state suspended": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": []
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:suspended\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findCards suspended": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      1792102034724
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findCards\", \"params\": {\"query\": \"is:suspended\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "findNotes bad query": {
+   "answer": {
+    "body": {
+     "error": "Invalid search: ⁨an opening bracket `(` was found, but there was no closing bracket `)` following it. If you want to search for a literal `(`, wrap it in double quotes or prepend a backslash: `\"(\"` or `\\(` .⁩",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"findNotes\", \"params\": {\"query\": \"deck:Default (\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "forgetCards": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"forgetCards\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getDeckStats review card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": {
+      "1": {
+       "deck_id": 1,
+       "learn_count": 0,
+       "name": "Default",
+       "new_count": 0,
+       "review_count": 1,
+       "total_in_deck": 1
+      }
+     }
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getDeckStats\", \"params\": {\"decks\": [\"Default\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getDeckStats subtree": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": {
+      "1792102035022": {
+       "deck_id": 1792102035022,
+       "learn_count": 0,
+       "name": "Japanese",
+       "new_count": 1,
+       "review_count": 0,
+       "total_in_deck": 0
+      },
+      "1792102035023": {
+       "deck_id": 1792102035023,
+       "learn_count": 0,
+       "name": "Vocab",
+       "new_count": 1,
+       "review_count": 0,
+       "total_in_deck": 1
+      }
+     }
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getDeckStats\", \"params\": {\"decks\": [\"Japanese\", \"Japanese::Vocab\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getEaseFactors new card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      0
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getEaseFactors\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getEaseFactors review card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      2500
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getEaseFactors\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getIntervals new card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      0
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getIntervals\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getIntervals review card": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      12
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getIntervals\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getMediaFilesNames pattern": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      "seed-1.txt"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getMediaFilesNames\", \"params\": {\"pattern\": \"seed*\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getMediaFilesNames {}": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": [
+      "seed-1.txt"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getMediaFilesNames\", \"params\": {}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getReviewsOfCards": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": {
+      "1792102035799": [
+       {
+        "ease": 3,
+        "factor": 2500,
+        "id": 1792000000000,
+        "ivl": 12,
+        "lastIvl": 4,
+        "time": 6000,
+        "type": 1,
+        "usn": -1
+       }
+      ]
+     }
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getReviewsOfCards\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "getReviewsOfCards no reviews": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": {
+      "1792102035872": []
+     }
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"getReviewsOfCards\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelFieldAdd": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back",
+        "Notes"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog",
+        ""
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelFieldAdd\", \"params\": {\"fieldName\": \"Notes\", \"modelName\": \"Basic\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelFieldAdd at index": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Notes",
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "",
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelFieldAdd\", \"params\": {\"fieldName\": \"Notes\", \"index\": 0, \"modelName\": \"Basic\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelFieldNames missing model": {
+   "answer": {
+    "body": {
+     "error": "model was not found: Vocab",
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelFieldNames\", \"params\": {\"modelName\": \"Vocab\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelFieldRemove": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelFieldRemove\", \"params\": {\"fieldName\": \"Back\", \"modelName\": \"Basic\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelFieldRename": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelFieldRename\", \"params\": {\"modelName\": \"Basic\", \"newFieldName\": \"Meaning\", \"oldFieldName\": \"Back\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelFieldReposition": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "dog",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Back",
+        "Front"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "dog",
+        "犬"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelFieldReposition\", \"params\": {\"fieldName\": \"Back\", \"index\": 0, \"modelName\": \"Basic\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "modelTemplates": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": {
+      "Card 1": {
+       "Back": "{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}",
+       "Front": "{{Front}}"
+      }
+     }
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"modelTemplates\", \"params\": {\"modelName\": \"Basic\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "replaceTags": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "ai"
+       ]
+      ]
+     ],
+     "tags": [
+      "ai",
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"replaceTags\", \"params\": {\"notes\": [\"<nid>\"], \"replace_with_tag\": \"ai\", \"tag_to_replace\": \"seeded\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "retrieveMediaFile missing": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": false
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"retrieveMediaFile\", \"params\": {\"filename\": \"gone.png\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "setDueDate": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": true
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"setDueDate\", \"params\": {\"cards\": [\"<cid>\"], \"days\": \"3\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile data": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": "ai.png"
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "ai.png",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"data\": \"iVBORw0KGgpmYWtl\", \"deleteExisting\": true, \"filename\": \"ai.png\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "storeMediaFile path": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": "ai.png"
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "ai.png",
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "dog"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"storeMediaFile\", \"params\": {\"deleteExisting\": true, \"filename\": \"ai.png\", \"path\": \"<png_path>\"}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "unsuspend": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"unsuspend\", \"params\": {\"cards\": [\"<cid>\"]}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateModelStyling": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateModelStyling\", \"params\": {\"model\": {\"css\": \".card { color: red; }\", \"name\": \"Basic\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateModelTemplates": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateModelTemplates\", \"params\": {\"model\": {\"name\": \"Basic\", \"templates\": {\"Card 1\": {\"Back\": \"{{FrontSide}}<hr id=answer>{{Back}}\", \"Front\": \"{{Front}}!\"}}}}, \"version\": 6}, \"method\": \"POST\"}"
+  },
+  "updateNoteFields": {
+   "answer": {
+    "body": {
+     "error": null,
+     "result": null
+    },
+    "effects": {
+     "cards": [
+      [
+       "犬",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     ],
+     "decks": [
+      "Default"
+     ],
+     "media": [
+      "seed-1.txt"
+     ],
+     "models": [
+      [
+       "Basic",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Basic (and reversed card)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (optional reversed card)",
+       [
+        "Front",
+        "Back",
+        "Add Reverse"
+       ],
+       [
+        "Card 1",
+        "Card 2"
+       ]
+      ],
+      [
+       "Basic (type in the answer)",
+       [
+        "Front",
+        "Back"
+       ],
+       [
+        "Card 1"
+       ]
+      ],
+      [
+       "Cloze",
+       [
+        "Text",
+        "Back Extra"
+       ],
+       [
+        "Cloze"
+       ]
+      ],
+      [
+       "Image Occlusion",
+       [
+        "Occlusion",
+        "Image",
+        "Header",
+        "Back Extra",
+        "Comments"
+       ],
+       [
+        "Image Occlusion"
+       ]
+      ]
+     ],
+     "notes": [
+      [
+       [
+        "犬",
+        "<b>dog</b>"
+       ],
+       [
+        "seeded"
+       ]
+      ]
+     ],
+     "tags": [
+      "seeded"
+     ]
+    },
+    "status": 200
+   },
+   "request": "{\"body\": {\"action\": \"updateNoteFields\", \"params\": {\"note\": {\"fields\": {\"Back\": \"<b>dog</b>\"}, \"id\": \"<nid>\"}}, \"version\": 6}, \"method\": \"POST\"}"
+  }
+ }
+}
