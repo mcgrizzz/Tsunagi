@@ -15,6 +15,11 @@ ISSUES = "https://github.com/mcgrizzz/Tsunagi/issues"
 INTRO = """\
 # Tested AnkiConnect tools
 
+Every AnkiConnect action has its own tests; the few that need Anki's windows
+are checked by hand ([compatibility notes](ankiconnect_parity.md)). The tools
+below are extra insurance, in case a tool sends something those tests don't
+expect.
+
 These tools were checked request by request against Tsunagi. For each one,
 we read its source at the commit shown and listed the requests it sends to
 Anki. On every change, Tsunagi's tests check that each of those requests gets

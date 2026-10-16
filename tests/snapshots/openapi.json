@@ -4813,7 +4813,7 @@
       "Versions": {
         "properties": {
           "addon": {
-            "default": "0.7.4",
+            "default": "0.7.5",
             "description": "Tsunagi release version",
             "type": "string"
           },
