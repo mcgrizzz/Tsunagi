@@ -1,0 +1,54 @@
+{
+ "commit": "af5b654",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   ".agents/skills/fireworks-tech-graph/scripts/motion.py:423",
+   "Easydict/App/Localizable.xcstrings:18139",
+   "Easydict/App/Localizable.xcstrings:18145",
+   "Easydict/App/Localizable.xcstrings:18151",
+   "Easydict/App/Localizable.xcstrings:18157",
+   "Easydict/App/Localizable.xcstrings:18163",
+   "Easydict/App/Localizable.xcstrings:18169",
+   "Easydict/Swift/Feature/Configuration/Defaults.Keys+Extension.swift:162",
+   "Easydict/Swift/View/SettingView/Tabs/TabView/AdvancedTabAnkiSection.swift:80",
+   "Pods/Pods.xcodeproj/project.pbxproj:233",
+   "Pods/Pods.xcodeproj/project.pbxproj:1402"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "Easydict/Swift/Feature/AnkiConnect/AnkiConnectClient.swift:551",
+    "hash": "b0485b738f124446"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "Easydict/Swift/Feature/AnkiConnect/AnkiConnectClient.swift:588",
+    "hash": "775ce6c2c5e0d636"
+   }
+  ],
+  "version": [
+   {
+    "at": ".agents/skills/fireworks-tech-graph/scripts/motion.py:1190",
+    "hash": "77761922e6652fcf"
+   },
+   {
+    "at": "Easydict/App/Localizable.xcstrings:22434",
+    "hash": "addb2d42dcb5090b"
+   },
+   {
+    "at": "Easydict/Swift/Feature/AnkiConnect/AnkiConnectClient.swift:552",
+    "hash": "44d6d6fbae951c1e"
+   },
+   {
+    "at": "Easydict/Swift/Feature/AnkiConnect/AnkiConnectClient.swift:589",
+    "hash": "460e32cede6dd828"
+   }
+  ]
+ }
+}

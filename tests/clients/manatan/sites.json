@@ -1,0 +1,207 @@
+{
+ "commit": "92d3787",
+ "hints": {
+  "multi": [
+   "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:366"
+  ],
+  "port_8765": [
+   "WebUI/src/Manatan/components/DictionaryView.tsx:384",
+   "WebUI/src/Manatan/components/DictionaryView.tsx:725",
+   "WebUI/src/Manatan/components/DictionaryView.tsx:761",
+   "WebUI/src/Manatan/components/DictionaryView.tsx:799",
+   "WebUI/src/Manatan/components/SettingsModal.tsx:308",
+   "WebUI/src/Manatan/components/SettingsModal.tsx:338",
+   "WebUI/src/Manatan/components/SettingsModal.tsx:1080",
+   "WebUI/src/Manatan/components/SettingsModal.tsx:1082",
+   "WebUI/src/Manatan/components/TextBox.tsx:355",
+   "WebUI/src/Manatan/types.ts:372",
+   "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:2802",
+   "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:3805",
+   "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:3978",
+   "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:4094",
+   "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:99",
+   "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:100"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:268",
+    "hash": "a762945720bfe5c6"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:350",
+    "hash": "fd6b10e65fa5f940"
+   }
+  ],
+  "canAddNotes": [
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:360",
+    "hash": "41c697d01f8e49ef"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:101",
+    "hash": "fb98a540aaa13d7e"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:335",
+    "hash": "0013c5e910bcb6fc"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:389",
+    "hash": "465be3116e20cc6a"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:122",
+    "hash": "cb96a9ac65cf0224"
+   },
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:276",
+    "hash": "6715665612d49e8c"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:344",
+    "hash": "3de93bacaa663d79"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:228",
+    "hash": "1a87c6475819d759"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:347",
+    "hash": "a6dc03245dbc8cc7"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:582",
+    "hash": "d57dff942e91c196"
+   }
+  ],
+  "modelFieldNames": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:115",
+    "hash": "d39805cb262cb927"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:341",
+    "hash": "51c2b57de0dd757d"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:108",
+    "hash": "0644990c96b5cbeb"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:338",
+    "hash": "cc4f4d9f7739158d"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:399",
+    "hash": "21a4543134f0854d"
+   }
+  ],
+  "multi": [
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:366",
+    "hash": "7ce12c3f0b23f464"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:130",
+    "hash": "e6ae492515faf706"
+   },
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:456",
+    "hash": "ddb7abc4ce4cdb7d"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:357",
+    "hash": "d671f87e84ac5efb"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:69",
+    "hash": "30889e7545cd0fc4"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:322",
+    "hash": "8582ee5aeadc74e0"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:332",
+    "hash": "7b137b8971254ec8"
+   }
+  ],
+  "storeMediaFile": [
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:363",
+    "hash": "db13f187eaeda244"
+   }
+  ],
+  "suspended": [
+   {
+    "at": "WebUI/src/Manatan/utils/wordAudio.ts:87",
+    "hash": "d665ec1bebd2858c"
+   },
+   {
+    "at": "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:1964",
+    "hash": "6d8d7a786c56f104"
+   },
+   {
+    "at": "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:2379",
+    "hash": "94dd4bb87ba366ad"
+   },
+   {
+    "at": "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:2401",
+    "hash": "94dd4bb87ba366ad"
+   },
+   {
+    "at": "WebUI/src/features/anime/reader/components/AnimeVideoPlayer.tsx:2603",
+    "hash": "9f387106783e5d4b"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:149",
+    "hash": "e92d2cb25afba6d7"
+   },
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:529",
+    "hash": "22a2830c01a88cf8"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:353",
+    "hash": "a3e1a223864b7fa0"
+   }
+  ],
+  "version": [
+   {
+    "at": "WebUI/src/Manatan/utils/anki.ts:90",
+    "hash": "cb46d84db8696572"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:319",
+    "hash": "54be7f79b0a6c982"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:329",
+    "hash": "68ec7c4abba481da"
+   },
+   {
+    "at": "bin/manatan_android/java/com/mangatan/app/AnkiBridge.java:380",
+    "hash": "8099329ec7fd7a45"
+   }
+  ]
+ }
+}

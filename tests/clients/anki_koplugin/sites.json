@@ -1,0 +1,44 @@
+{
+ "commit": "55b07ed",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "main.lua:118"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "ankiconnect.lua:73",
+    "hash": "ee518a140ab49b52"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "ankiconnect.lua:68",
+    "hash": "b886f68ff68e7d91"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "ankiconnect.lua:265",
+    "hash": "94d22f9673ee7fd8"
+   }
+  ],
+  "requestPermission": [
+   {
+    "at": "ankiconnect.lua:59",
+    "hash": "85dee51a7307054c"
+   }
+  ],
+  "version": [
+   {
+    "at": "ankiconnect.lua:265",
+    "hash": "94d22f9673ee7fd8"
+   }
+  ]
+ }
+}

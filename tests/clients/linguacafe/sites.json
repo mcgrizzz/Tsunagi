@@ -1,0 +1,66 @@
+{
+ "commit": "c1ea298",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "database/seeders/SettingsSeeder.php:76"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "app/Services/AnkiApiService.php:115",
+    "hash": "d6b33744cf858f6a"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "app/Services/AnkiApiService.php:72",
+    "hash": "12b446f78f805a93"
+   }
+  ],
+  "createModel": [
+   {
+    "at": "app/Services/AnkiApiService.php:55",
+    "hash": "0fde7d5a380d75f8"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "app/Services/AnkiApiService.php:181",
+    "hash": "22b34c01a26e306f"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "app/Services/AnkiApiService.php:211",
+    "hash": "c36bd5be4eb33792"
+   }
+  ],
+  "version": [
+   {
+    "at": "app/Services/AnkiApiService.php:56",
+    "hash": "264a2d671bea3a9f"
+   },
+   {
+    "at": "app/Services/AnkiApiService.php:73",
+    "hash": "089a30f6ce1e7879"
+   },
+   {
+    "at": "app/Services/AnkiApiService.php:114",
+    "hash": "1ae4743bc52ab82a"
+   },
+   {
+    "at": "app/Services/AnkiApiService.php:182",
+    "hash": "49db94e0914327cb"
+   },
+   {
+    "at": "app/Services/AnkiApiService.php:212",
+    "hash": "c6b52ff68e31ad6d"
+   }
+  ]
+ }
+}

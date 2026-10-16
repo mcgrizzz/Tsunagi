@@ -56,20 +56,22 @@ def files(checkout: Path):
 
 def scan(checkout: Path):
     names = actions()
-    # An action named as a string ("addNote", 'addNote', `addNote`), or called
-    # as a wrapper library's method (yanki-connect's client.note.addNote(...)).
+    # An action named as a string ("addNote", 'addNote', `addNote`), called
+    # as a wrapper library's method (yanki-connect's client.note.addNote(...)),
+    # or quoted as an Emacs Lisp symbol (anki-editor's 'addNote).
     alternatives = "|".join(names)
-    quoted = re.compile(r"""["'`](%s)["'`]|\.(%s)\(""" % (alternatives, alternatives))
+    quoted = re.compile(r"""["'`](%s)["'`]|\.(%s)\(|(?<![\w"'`])'(%s)(?=[\s)]|$)"""
+                        % (alternatives, alternatives, alternatives))
     sites, hints = {}, {"version": set(), "port_8765": [], "multi": []}
     version = re.compile(r"""["']?version["']?\s*[:=]\s*(\d)\b""")
     for rel, lines in files(checkout):
         text = "\n".join(lines)
-        named = {a or b for a, b in quoted.findall(text)}
+        named = {a or b or c for a, b, c in quoted.findall(text)}
         relevant = len(named - COMMON) >= 2 or "8765" in text
         if not named and "8765" not in text:
             continue
         for i, line in enumerate(lines):
-            for action in (a or b for a, b in quoted.findall(line)):
+            for action in (a or b or c for a, b, c in quoted.findall(line)):
                 if action in COMMON and not relevant:
                     continue
                 window = "\n".join(lines[max(0, i - CONTEXT): i + CONTEXT + 1])

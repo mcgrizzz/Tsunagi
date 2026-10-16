@@ -1,0 +1,42 @@
+{
+ "commit": "5b1bade",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "src/config.cc:55"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "src/ankiconnector.cc:64",
+    "hash": "829c06fd436f5bdd"
+   }
+  ],
+  "getTags": [
+   {
+    "at": "src/dict/slob.cc:740",
+    "hash": "df47c045ab287d3c"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "src/ankiconnector.cc:97",
+    "hash": "68ab78b4845208f1"
+   }
+  ],
+  "version": [
+   {
+    "at": "src/ankiconnector.cc:65",
+    "hash": "7e15a6802ca18c72"
+   },
+   {
+    "at": "src/ankiconnector.cc:98",
+    "hash": "df70feb362c915f3"
+   }
+  ]
+ }
+}

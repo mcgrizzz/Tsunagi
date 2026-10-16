@@ -333,5 +333,24 @@ ENVELOPES = [
     for action in ACTIONS for version in (2, 6)
 ]
 
+# The Content-Type a client sends with its JSON: curl -d's form type, fetch's
+# for a string body, or none at all. AnkiConnect reads the body whatever it says.
+CONTENT_TYPES = {"json": "application/json", "form": "application/x-www-form-urlencoded",
+                 "text": "text/plain;charset=UTF-8", "absent": None}
+ENVELOPES += [
+    raw(f"{action}: Content-Type {kind}", _envelope_body(action, 6, "given", "absent"),
+        headers=[("Content-Type", value)])
+    for action in ACTIONS for kind, value in CONTENT_TYPES.items() if kind != "json"
+] + [
+    # anki.koplugin sends Basic auth when the URL has user:pass@; AnkiConnect ignores it.
+    raw("deckNames: Basic auth header", _envelope_body("deckNames", 6, "given", "absent"),
+        headers=[("Authorization", "Basic dXNlcjpwYXNz")]),
+    # LinguaCafe builds its bodies by concatenation: a quote in a word breaks them.
+    raw("body not JSON: an unescaped quote",
+        lambda c: b'{"action": "addNote", "version": 6, "params": {"note": {"fields": {"Front": "say "hi""}}}}'),
+    raw("body not JSON: cut short", lambda c: b'{"action": "deckNames", "version": 6'),
+]
+
 ENVELOPE_KINDS = {"version": (2, 4, 6, "absent"), "params": ("always", "omit-when-empty", "null"),
-                  "key": ("absent", "null", "configured"), "method": ("POST", "GET")}
+                  "key": ("absent", "null", "configured"), "method": ("POST", "GET"),
+                  "content_type": tuple(CONTENT_TYPES)}

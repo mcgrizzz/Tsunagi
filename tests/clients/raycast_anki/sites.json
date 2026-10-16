@@ -1,0 +1,449 @@
+{
+ "commit": "aad25dd3",
+ "hints": {
+  "multi": [],
+  "port_8765": [
+   "extensions/anki/api-testing/areDue.sh:1",
+   "extensions/anki/api-testing/cardsInfo.sh:1",
+   "extensions/anki/api-testing/createDeck.sh:1",
+   "extensions/anki/api-testing/deckNames.sh:1",
+   "extensions/anki/api-testing/findCards.sh:1",
+   "extensions/anki/api-testing/findModelsByName.sh:1",
+   "extensions/anki/api-testing/getCollectionStats.sh:10",
+   "extensions/anki/api-testing/guiAddCards.sh:2",
+   "extensions/anki/api-testing/modelNames.sh:1",
+   "extensions/anki/api-testing/notesInfo.sh:1",
+   "extensions/anki/package.json:24",
+   "extensions/anki/scripts/verify-live.cjs:8",
+   "extensions/anki/src/api/axios.ts:8",
+   "extensions/anki/src/error/presentation.ts:33"
+  ],
+  "version": [
+   6
+  ]
+ },
+ "sites": {
+  "addNote": [
+   {
+    "at": "extensions/anki/src/actions/AddCardAction.tsx:102",
+    "hash": "0effeeb19d72559e"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:32",
+    "hash": "e805c2b25d38b94e"
+   },
+   {
+    "at": "extensions/anki/src/tools/create-note.ts:69",
+    "hash": "2e08752f8c67258b"
+   }
+  ],
+  "answerCards": [
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:10",
+    "hash": "5ff412b2618eb9ba"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:22",
+    "hash": "598a5f481785da8e"
+   }
+  ],
+  "areDue": [
+   {
+    "at": "extensions/anki/api-testing/areDue.sh:4",
+    "hash": "57048f0c4b48b3ae"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:69",
+    "hash": "bfc5897e62e2d193"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:31",
+    "hash": "d703cacbd3468cc8"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:66",
+    "hash": "dfb1ed8aff575b97"
+   }
+  ],
+  "cardsInfo": [
+   {
+    "at": "extensions/anki/api-testing/cardsInfo.sh:4",
+    "hash": "c5b33350999271cb"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:70",
+    "hash": "55e28eab56f5979b"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:38",
+    "hash": "a0541c89cd48fe56"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:45",
+    "hash": "28d44ee8c2e494fd"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:53",
+    "hash": "a2ae7de2e1956a51"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:113",
+    "hash": "0b268f7fc9689708"
+   },
+   {
+    "at": "extensions/anki/src/helpers/cardPages.ts:16",
+    "hash": "fec66a591edd3694"
+   }
+  ],
+  "cardsToNotes": [
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:71",
+    "hash": "b230a30c3328ac0f"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:43",
+    "hash": "582ddb4a5705e907"
+   }
+  ],
+  "createDeck": [
+   {
+    "at": "extensions/anki/api-testing/createDeck.sh:4",
+    "hash": "2afa56e0d16c9a3c"
+   },
+   {
+    "at": "extensions/anki/src/actions/CreateDeckAction.tsx:24",
+    "hash": "e30adf213ae2f911"
+   },
+   {
+    "at": "extensions/anki/src/api/deckActions.ts:7",
+    "hash": "bae2d6607ce2472a"
+   },
+   {
+    "at": "extensions/anki/src/tools/create-deck.ts:22",
+    "hash": "5a7e54b77989dcda"
+   }
+  ],
+  "createModel": [
+   {
+    "at": "extensions/anki/scripts/verify-live.cjs:65",
+    "hash": "d9b9e009cca39deb"
+   }
+  ],
+  "deckNames": [
+   {
+    "at": "extensions/anki/api-testing/deckNames.sh:4",
+    "hash": "0910842bf8469a41"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:72",
+    "hash": "7c3d97656f6cde88"
+   },
+   {
+    "at": "extensions/anki/src/tools/create-note.ts:27",
+    "hash": "e5daf4c9efa1ce7a"
+   }
+  ],
+  "deckNamesAndIds": [
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:73",
+    "hash": "9436b9c7977ae705"
+   },
+   {
+    "at": "extensions/anki/src/api/deckActions.ts:15",
+    "hash": "0f6dda762f1f7d57"
+   },
+   {
+    "at": "extensions/anki/src/decks.tsx:21",
+    "hash": "daf1f43e90b4c1fb"
+   }
+  ],
+  "deleteDecks": [
+   {
+    "at": "extensions/anki/src/api/deckActions.ts:11",
+    "hash": "46513d244a267a7e"
+   }
+  ],
+  "deleteNotes": [
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:44",
+    "hash": "99f6f574dacb463b"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "extensions/anki/api-testing/findCards.sh:4",
+    "hash": "75fd8b1db30977c8"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:74",
+    "hash": "0354366b20fd9ec6"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:92",
+    "hash": "1b4f6e397c1c58b8"
+   },
+   {
+    "at": "extensions/anki/src/api/cardActions.ts:107",
+    "hash": "b0c202521ec0108a"
+   },
+   {
+    "at": "extensions/anki/src/helpers/cardPages.ts:10",
+    "hash": "7a48df68e91ed4ce"
+   }
+  ],
+  "findModelsByName": [
+   {
+    "at": "extensions/anki/api-testing/findModelsByName.sh:4",
+    "hash": "ccde5273de16d654"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:75",
+    "hash": "a3af5fdf08476326"
+   },
+   {
+    "at": "extensions/anki/src/api/modelActions.ts:11",
+    "hash": "0ffa50159413c112"
+   },
+   {
+    "at": "extensions/anki/src/tools/create-note.ts:28",
+    "hash": "390b3918aff7e455"
+   }
+  ],
+  "findNotes": [
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:76",
+    "hash": "2256bbad6426f3a3"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:21",
+    "hash": "5d72ba62b275fc9d"
+   },
+   {
+    "at": "extensions/anki/src/tools/search-notes.ts:19",
+    "hash": "f909814b5c09ec89"
+   }
+  ],
+  "getCollectionStatsHTML": [
+   {
+    "at": "extensions/anki/api-testing/getCollectionStats.sh:4",
+    "hash": "61fcee4ca8df7791"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:81",
+    "hash": "cd530e60be4115ff"
+   },
+   {
+    "at": "extensions/anki/src/api/statisticActions.ts:5",
+    "hash": "8add99de01c4445f"
+   }
+  ],
+  "getDeckStats": [
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:77",
+    "hash": "13aa614f7876f29e"
+   },
+   {
+    "at": "extensions/anki/src/api/deckActions.ts:17",
+    "hash": "ed546fd65f231bfb"
+   },
+   {
+    "at": "extensions/anki/src/decks.tsx:32",
+    "hash": "6987943861ed92b4"
+   }
+  ],
+  "getDecks": [
+   {
+    "at": "extensions/anki/src/tools/list-decks.ts:4",
+    "hash": "a19648f5aa4219a4"
+   }
+  ],
+  "getMediaDirPath": [
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:78",
+    "hash": "2ed934c074ae8dfa"
+   },
+   {
+    "at": "extensions/anki/src/api/mediaActions.ts:5",
+    "hash": "2bedc9aa27912b26"
+   }
+  ],
+  "getTags": [
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:79",
+    "hash": "a6b19d53b9ad3da3"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:47",
+    "hash": "bc19043c28b6ad2b"
+   }
+  ],
+  "guiAddCards": [
+   {
+    "at": "extensions/anki/api-testing/guiAddCards.sh:5",
+    "hash": "1c03dd8aa83cecc3"
+   }
+  ],
+  "guiBrowse": [
+   {
+    "at": "extensions/anki/src/api/guiActions.ts:12",
+    "hash": "d66510bf5bbf0dae"
+   },
+   {
+    "at": "extensions/anki/src/browseCards.tsx:94",
+    "hash": "e715648c3ff39ecf"
+   }
+  ],
+  "guiDeckReview": [
+   {
+    "at": "extensions/anki/src/actions/StudyDeck.tsx:167",
+    "hash": "ef8764a30ec1e7c1"
+   },
+   {
+    "at": "extensions/anki/src/api/guiActions.ts:6",
+    "hash": "e1662d03525e6ced"
+   },
+   {
+    "at": "extensions/anki/src/api/guiActions.ts:8",
+    "hash": "4f54f5833875b9cf"
+   }
+  ],
+  "modelNames": [
+   {
+    "at": "extensions/anki/api-testing/findModelsByName.sh:7",
+    "hash": "f2a8e792be376357"
+   },
+   {
+    "at": "extensions/anki/api-testing/modelNames.sh:4",
+    "hash": "8c9ec309481a4e28"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:80",
+    "hash": "a2fbabc246e35397"
+   },
+   {
+    "at": "extensions/anki/src/api/modelActions.ts:7",
+    "hash": "ad2f6539efa47048"
+   }
+  ],
+  "modelNamesAndIds": [
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:82",
+    "hash": "ac33c0e5e19d1598"
+   }
+  ],
+  "notesInfo": [
+   {
+    "at": "extensions/anki/api-testing/notesInfo.sh:4",
+    "hash": "ad4d9096d203a058"
+   },
+   {
+    "at": "extensions/anki/src/api/ankiClient.ts:83",
+    "hash": "0d12f470f29761f1"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:9",
+    "hash": "e0758e21e13367e6"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:25",
+    "hash": "9621e96b37c470c8"
+   },
+   {
+    "at": "extensions/anki/src/tools/note-utils.ts:42",
+    "hash": "3f238dac7b93d974"
+   },
+   {
+    "at": "extensions/anki/src/tools/search-notes.ts:21",
+    "hash": "f41dcedbf062047a"
+   }
+  ],
+  "sync": [
+   {
+    "at": "extensions/anki/src/decks.tsx:77",
+    "hash": "4261265fe5d7b132"
+   }
+  ],
+  "updateNote": [
+   {
+    "at": "extensions/anki/src/actions/EditNoteAction.tsx:64",
+    "hash": "f91c973a4687f688"
+   },
+   {
+    "at": "extensions/anki/src/actions/EditNoteAction.tsx:70",
+    "hash": "e64bd3c59f3f76ff"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:52",
+    "hash": "dfe7213f0b5d2d19"
+   },
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:57",
+    "hash": "469e0684d9980bd9"
+   },
+   {
+    "at": "extensions/anki/src/error/presentation.ts:14",
+    "hash": "28134a6726ae4fa7"
+   },
+   {
+    "at": "extensions/anki/src/tools/note-utils.ts:72",
+    "hash": "ae9023b4dfb6b105"
+   },
+   {
+    "at": "extensions/anki/src/tools/update-note.ts:54",
+    "hash": "2289b596345234a1"
+   }
+  ],
+  "updateNoteFields": [
+   {
+    "at": "extensions/anki/src/api/noteActions.ts:65",
+    "hash": "ae6718b3dfc70864"
+   }
+  ],
+  "version": [
+   {
+    "at": "extensions/anki/api-testing/areDue.sh:5",
+    "hash": "f6d17ddce81d8106"
+   },
+   {
+    "at": "extensions/anki/api-testing/cardsInfo.sh:5",
+    "hash": "87619d580702753b"
+   },
+   {
+    "at": "extensions/anki/api-testing/createDeck.sh:5",
+    "hash": "b249d44ef5c79846"
+   },
+   {
+    "at": "extensions/anki/api-testing/deckNames.sh:5",
+    "hash": "5b86bac2d4bc86b2"
+   },
+   {
+    "at": "extensions/anki/api-testing/findCards.sh:5",
+    "hash": "833c35fb0994074a"
+   },
+   {
+    "at": "extensions/anki/api-testing/findModelsByName.sh:5",
+    "hash": "2c7dc62fd576c7a6"
+   },
+   {
+    "at": "extensions/anki/api-testing/getCollectionStats.sh:5",
+    "hash": "4786e0832c40a1d9"
+   },
+   {
+    "at": "extensions/anki/api-testing/guiAddCards.sh:6",
+    "hash": "e050086bc6da7e0c"
+   },
+   {
+    "at": "extensions/anki/api-testing/modelNames.sh:5",
+    "hash": "90ecdc0c9b101ded"
+   },
+   {
+    "at": "extensions/anki/api-testing/notesInfo.sh:5",
+    "hash": "06abfb6ec7d8517f"
+   },
+   {
+    "at": "extensions/anki/scripts/verify-live.cjs:51",
+    "hash": "6926081bb219c433"
+   }
+  ]
+ }
+}

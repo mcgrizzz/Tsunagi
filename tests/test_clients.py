@@ -16,6 +16,7 @@ from clients.support import (
     mask,
     pick,
     request_hash,
+    request_headers,
     requests,
     seed,
     send_case,
@@ -36,9 +37,8 @@ def test_entry(client, col, tmp_path, c):
         "the entry changed since its reference: python tools/record_client_references.py")
     ctx = seed(col, tmp_path)
 
-    def send(method, body):
-        response = client.request(method, "/", content=body,
-                                  headers={"Content-Type": "application/json"})
+    def send(method, body, headers):
+        response = client.request(method, "/", content=body, headers=request_headers(headers))
         return response.status_code, response.text
 
     expected = view(c, recorded["answer"])

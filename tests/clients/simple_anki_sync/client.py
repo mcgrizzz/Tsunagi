@@ -25,7 +25,8 @@ CLIENT = {
               "changeDeck and read cardsInfo[0].deckName. No key."),
 }
 
-ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST"}
+# XMLHttpRequest.send of a string with no Content-Type: text/plain;charset=UTF-8.
+ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST", "content_type": "text"}
 
 # Each action its code sends: (each distinct request's shape, tests/clients/support.py;
 # what it reads of the answer).

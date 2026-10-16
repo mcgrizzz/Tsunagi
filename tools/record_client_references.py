@@ -33,8 +33,8 @@ def record(checkout):
                 endpoint("upstream", checkout) as send:
             ctx = seed(col, Path(scratch))
 
-            def post(method, body):
-                response = send(method, "/", body, None)
+            def post(method, body, headers):
+                response = send(method, "/", body, None, headers)
                 return response.status_code, response.content.decode("utf-8", errors="replace")
 
             cases[c.name] = {"request": request_hash(c), "answer": send_case(post, col, c, ctx)}
