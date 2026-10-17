@@ -51,7 +51,10 @@ from .model_export import model_row_dict
 from .permissions import requires
 from .planning import SourceCaps, _search_hydrator, make_plan
 from .query_encoding import render_query_page
+from .schemas.notes import FIELD_TEXT, WHOLE_ROW
 from .selecting import (
+    SelectArrayMulti,
+    SelectArrayPluck,
     SelectScalar,
     maybe_flatten,
     parse_select_csv,
@@ -509,9 +512,20 @@ def _wanted_fields(select: Optional[str], where: Optional[List[str]]) -> Optiona
     building expensive ones. None means "the whole record".
     """
     wants = referenced_top_fields(select)
+    text = {FIELD_TEXT} if _names_field_text(select, where) else set()
     if wants is None:
-        return None
-    return wants | {parse_where(w).tokens[0] for w in (where or [])}
+        return {WHOLE_ROW} | text if text else None
+    return wants | {parse_where(w).tokens[0] for w in (where or [])} | text
+
+
+def _names_field_text(select: Optional[str], where: Optional[List[str]]) -> bool:
+    """Whether select or where names fields[].text, which is built only then."""
+    for node in parse_select_csv(select) if select else ():
+        if isinstance(node, SelectArrayPluck) and node.base == ("fields",) and node.child == ("text",):
+            return True
+        if isinstance(node, SelectArrayMulti) and node.base == ("fields",) and ("text",) in node.children:
+            return True
+    return any(parse_where(w).tokens == ("fields", "[]", "text") for w in where or [])
 
 def _check_fields(select: Optional[str], where: Optional[List[str]], fields: FrozenSet[str]) -> None:
     """A name the rows don't have is a 400 naming the ones they do: a guessed
@@ -644,6 +658,8 @@ def _query_page(
             pred_wants = None
             if where:
                 required = {parse_where(w).tokens[0] for w in where} | {"id"}
+                if _names_field_text(None, where):
+                    required.add(FIELD_TEXT)
                 if wants is None or any(
                     group & wants and not group & required
                     for group in caps.expensive_groups

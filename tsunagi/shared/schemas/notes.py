@@ -23,6 +23,24 @@ class NoteField(BaseModel):
     name: str = Field(description="Field name.")
     value: str = Field(description="Field content, as stored (HTML).")
     index: int = Field(description="Field position in the note type, from 0.")
+    text: Optional[str] = Field(None, description=(
+        "The content without HTML, on one line, as Anki's Browser shows it; media keep their "
+        "filenames (`<b>犬</b>[sound:inu.mp3]` is `犬inu.mp3`). Only when select or where names "
+        "it, e.g. select=fields[].(name,text) or where=fields[].text==犬; otherwise absent."))
+
+    def dict(self, **kwargs: Any) -> Dict[str, Any]:
+        # Absent, not null, where no query named it (a PATCH answer's note).
+        out = super().dict(**kwargs)
+        if out.get("text") is None:
+            out.pop("text", None)
+        return out
+
+
+# A field's text costs a backend call per field, so a query's wants (its
+# top-level names) carry FIELD_TEXT when select or where names it, and
+# WHOLE_ROW beside it when there is no select (the whole row, plus text).
+FIELD_TEXT = "fields[].text"
+WHOLE_ROW = "*"
 
 
 class NoteInfo(BaseModel):

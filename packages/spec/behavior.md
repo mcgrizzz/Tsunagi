@@ -34,7 +34,7 @@ A wire name becomes the client's name in the language's case
 client renames nothing. Sorts are named the same way. A row's key, the field that identifies it, is `id` unless `keys` names
 another (a tag's `name`, a media file's `filename`). Names in
 `omit` don't exist in the client (`usn` everywhere; a note type's
-`req`). Nested types are named by `nestedTypes`, row types by `types`.
+`req`; a field's `text`, which a read has only when it names it). Nested types are named by `nestedTypes`, row types by `types`.
 
 **Coded values.** A field with `x-values` in the description reads and
 filters by name, never by number: the value's text in the language's case
