@@ -19,6 +19,11 @@ def check_reviewer(app, screenshot):
     gui = tsunagi("http.compat.actions.gui")
 
     col = aqt.mw.col
+    # Keep the day's cutoff far off: a card answered just before it is due
+    # tomorrow, so the reviewer leaves review and undo can't bring it back.
+    prefs = col.get_preferences()
+    prefs.scheduling.rollover = (time.localtime().tm_hour + 12) % 24
+    col.set_preferences(prefs)
     note = col.new_note(col.models.by_name("Basic"))
     note["Front"], note["Back"] = "Tsunagi reviewer question", "Tsunagi reviewer answer"
     col.add_note(note, col.decks.id("Default"))

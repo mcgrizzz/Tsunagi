@@ -18,6 +18,11 @@ def add(col, front):
 
 @pytest.fixture
 def scan(col):
+    # Keep the day's cutoff far off: a learning step ending after it makes the
+    # answered card due tomorrow, and the learn count doesn't move.
+    prefs = col.get_preferences()
+    prefs.scheduling.rollover = (time.localtime().tm_hour + 12) % 24
+    col.set_preferences(prefs)
     kept, _ = add(col, "kept")
     doomed, _ = add(col, "doomed")
     time.sleep(1.05)  # `mod` has one-second resolution; start after these rows

@@ -30,6 +30,7 @@ from ...shared.sql_query import Column, ColumnSource
 from ..events import publish_review
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 from .id_queries import select_ids, select_rows
+from .notes import field_text, text_wants
 
 QUEUE_SUSPENDED = -1
 BURIED_QUEUES = (-2, -3)  # sibling-buried, manually buried
@@ -112,8 +113,9 @@ def _memory_state(card: Any) -> Optional[Dict[str, float]]:
 
 
 def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
-               retrievability: Dict[int, float], wants: Optional[Set[str]] = None) -> CardInfo:
-    return CardInfo(**_card_row(col, card, deck_names, retrievability, wants))
+               retrievability: Dict[int, float], wants: Optional[Set[str]] = None,
+               text: bool = False) -> CardInfo:
+    return CardInfo(**_card_row(col, card, deck_names, retrievability, wants, text))
 
 
 def _optional(convert: Any, value: Any) -> Any:
@@ -122,7 +124,7 @@ def _optional(convert: Any, value: Any) -> Any:
 
 def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
               retrievability: Dict[int, float],
-              wants: Optional[Set[str]] = None) -> Dict[str, Any]:
+              wants: Optional[Set[str]] = None, text: bool = False) -> Dict[str, Any]:
     """
     A card as CardInfo's field names and types, without per-row validation:
     the values come from Anki's own card, note and notetype. The conversions
@@ -140,6 +142,9 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
         css = notetype.get("css", "")
         fields = [{"name": n, "value": v, "index": i}
                   for i, (n, v) in enumerate(zip(note.keys(), note.fields))]
+        if text:
+            for field in fields:
+                field["text"] = field_text(col, field["value"])
 
     question = card.question() if want_render else None
     answer = card.answer() if want_render else None
@@ -233,6 +238,7 @@ def get_cards_by_ids(col: Collection, ids: Sequence[int],
 
 def _get_cards_by_ids(col: Collection, ids: Sequence[int],
                       wants: Optional[Set[str]] = None, build: Any = _card_info) -> List[Any]:
+    wants, text = text_wants(wants)
     deck_names = _deck_names(col)
     retrievability = (_retrievabilities(col, ids)
                       if wants is None or "retrievability" in wants else {})
@@ -244,7 +250,7 @@ def _get_cards_by_ids(col: Collection, ids: Sequence[int],
             if type(e).__name__ == "NotFoundError":
                 continue  # missing ids are skipped, like get_notes_by_ids
             raise
-        out.append(build(col, card, deck_names, retrievability, wants))
+        out.append(build(col, card, deck_names, retrievability, wants, text))
     return out
 
 
@@ -281,9 +287,10 @@ def get_card_rows_by_ids(col: Collection, ids: Sequence[int],
 
 @as_query_op
 def get_cards_of_notes(col: Collection, note_ids: Sequence[int],
-                       wants: Optional[Set[str]] = None) -> List[CardInfo]:
+                       wants: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
     card_ids = [int(cid) for nid in note_ids for cid in col.card_ids_of_note(int(nid))]
-    return _get_cards_by_ids(col, card_ids, wants)
+    # Plain rows, as the search hydrator's: a CardInfo would send text: null.
+    return _get_cards_by_ids(col, card_ids, wants, _card_row)
 
 
 @as_query_op

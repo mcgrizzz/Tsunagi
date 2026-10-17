@@ -32,6 +32,9 @@
     ],
     "NoteTypeRow": [
       "req"
+    ],
+    "NoteField": [
+      "text"
     ]
   },
   "valueOverrides": {
