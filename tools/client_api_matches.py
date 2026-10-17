@@ -5,6 +5,7 @@ release of the same major.minor:
 
     python tools/client_api_matches.py v0.6.0
 """
+import copy
 import json
 import subprocess
 import sys
@@ -25,8 +26,17 @@ def shape(node: Any) -> Any:
     return node
 
 
+def unversioned(description: dict) -> dict:
+    """Without what every release changes: `info` and the add-on version that
+    Versions.addon defaults to."""
+    description = copy.deepcopy({**description, "info": None})
+    versions = description.get("components", {}).get("schemas", {}).get("Versions", {})
+    versions.get("properties", {}).get("addon", {}).pop("default", None)
+    return description
+
+
 def matches(released: dict, current: dict) -> bool:
-    return shape({**released, "info": None}) == shape({**current, "info": None})
+    return shape(unversioned(released)) == shape(unversioned(current))
 
 
 def main(tag: str) -> int:

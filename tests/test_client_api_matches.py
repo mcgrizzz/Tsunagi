@@ -23,6 +23,10 @@ def test_wording_may_change_the_api_may_not():
     reworded["components"]["schemas"]["CardRow"]["properties"]["due"]["description"] = "Other words."
     assert tool.matches(released, reworded)
 
+    bumped = copy.deepcopy(released)  # a release commit, before its tag exists
+    bumped["components"]["schemas"]["Versions"]["properties"]["addon"]["default"] = "99.0.0"
+    assert tool.matches(released, bumped)
+
     new_field = copy.deepcopy(released)
     new_field["components"]["schemas"]["CardRow"]["properties"]["extra"] = {"type": "integer"}
     assert not tool.matches(released, new_field)
