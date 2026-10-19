@@ -20,6 +20,8 @@ from ...shared.errors import (
 )
 from ...shared.schemas.media import MediaStored
 from ...shared.schemas.notes import (
+    FIELD_TEXT,
+    WHOLE_ROW,
     NoteCreate,
     NoteInfo,
     NotePatch,
@@ -72,7 +74,8 @@ def _note_info(col: Collection, note: Any, model_names: Dict[int, str],
 
 def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
               wants: Optional[Set[str]] = None,
-              cards_by_nid: Optional[Dict[int, List[int]]] = None) -> Dict[str, Any]:
+              cards_by_nid: Optional[Dict[int, List[int]]] = None,
+              text: bool = False) -> Dict[str, Any]:
     """
     A note as NoteInfo's field names and types, without per-row validation:
     the values come from Anki's own note. tests/test_note_rows.py checks the
@@ -83,6 +86,9 @@ def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
         names = list(note.keys())
         fields = [{"name": n, "value": v, "index": i}
                   for i, (n, v) in enumerate(zip(names, note.fields))]
+        if text:
+            for field in fields:
+                field["text"] = field_text(col, field["value"])
     # A backend call per note unless the page prefetched the map, and only
     # when the caller asked for the field at all.
     cards = None
@@ -103,6 +109,19 @@ def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
         "fields": fields,
         "cards": cards,
     }
+
+
+def field_text(col: Collection, value: str) -> str:
+    """A field without HTML, as Anki's Browser shows it (media filenames kept)."""
+    return col._backend.html_to_text_line(text=value, preserve_media_filenames=True)
+
+
+def text_wants(wants: Optional[Set[str]]) -> Tuple[Optional[Set[str]], bool]:
+    """A query's wants without its FIELD_TEXT and WHOLE_ROW markers, and
+    whether fields carry their text."""
+    if wants is None or FIELD_TEXT not in wants:
+        return wants, False
+    return (None if WHOLE_ROW in wants else wants - {FIELD_TEXT}), True
 
 
 def _model_names(col: Collection) -> Dict[int, str]:
@@ -292,6 +311,7 @@ def find_note_ids(col: Collection, query: str) -> List[int]:
 @as_query_op
 def get_notes_by_ids(col: Collection, ids: Sequence[int],
                      wants: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
+    wants, text = text_wants(wants)
     model_names = _model_names(col) if wants is None or "note_type_name" in wants else {}
     ints = [int(i) for i in ids]
     # One query for the whole page's card ids instead of a backend call per
@@ -313,7 +333,7 @@ def get_notes_by_ids(col: Collection, ids: Sequence[int],
             if type(e).__name__ == "NotFoundError":
                 continue  # missing ids are skipped, like get_models_by_ids
             raise
-        out.append(_note_row(col, note, model_names, wants, cards_by_nid))
+        out.append(_note_row(col, note, model_names, wants, cards_by_nid, text))
     return out
 
 

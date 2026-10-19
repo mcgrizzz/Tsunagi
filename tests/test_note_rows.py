@@ -26,7 +26,8 @@ def test_rows_match_note_schema(client, col):
         assert all(type(tag) is str for tag in row["tags"])
         assert row["cards"] == note["cards"]
         for field in row["fields"]:
-            assert list(field) == list(NoteField.__fields__), field
+            # text only when the read names it (tests/test_field_text.py)
+            assert list(field) == [k for k in NoteField.__fields__ if k != "text"], field
             assert [type(field[k]) for k in field] == [str, str, int]
     # Distinct values in each position: fields and tags map to the right names.
     assert rows[0]["fields"] == [{"name": "Front", "value": "食べる <b>x</b>", "index": 0},

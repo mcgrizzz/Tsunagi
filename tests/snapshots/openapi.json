@@ -2817,6 +2817,10 @@
             "description": "Field name.",
             "type": "string"
           },
+          "text": {
+            "description": "The content without HTML, on one line, as Anki's Browser shows it; media keep their filenames (`<b>犬</b>[sound:inu.mp3]` is `犬inu.mp3`). Only when select or where names it, e.g. select=fields[].(name,text) or where=fields[].text==犬; otherwise absent.",
+            "type": "string"
+          },
           "value": {
             "description": "Field content, as stored (HTML).",
             "type": "string"
@@ -4813,7 +4817,7 @@
       "Versions": {
         "properties": {
           "addon": {
-            "default": "0.7.5",
+            "default": "0.7.6",
             "description": "Tsunagi release version",
             "type": "string"
           },
