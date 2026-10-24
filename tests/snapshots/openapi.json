@@ -101,7 +101,7 @@
         }
       },
       "query.select": {
-        "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.",
+        "description": "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every element, `fields[].name` one property of each, `fields[].(name,value)` several, and `fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed (`fields[name in []]`: none).",
         "in": "query",
         "name": "select",
         "required": false,

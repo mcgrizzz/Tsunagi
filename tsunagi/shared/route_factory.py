@@ -823,7 +823,8 @@ def create_resource_routes(
         select: Optional[str] = Query(default=None, description=(
             "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every "
             "element, `fields[].name` one property of each, `fields[].(name,value)` several, and "
-            "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.")),
+            "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed "
+            "(`fields[name in []]`: none).")),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         # Documented only where it works (6.103); elsewhere it is a 400.
         search: Optional[str] = Query(default=None, include_in_schema=(
