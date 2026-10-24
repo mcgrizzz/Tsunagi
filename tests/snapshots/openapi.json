@@ -2,13 +2,14 @@
   "components": {
     "parameters": {
       "IdempotencyKey": {
-        "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes.",
+        "description": "Optional. Send a new unique value (for example a UUID) with each request you may retry. A retry with the same key returns the first attempt's response (header Idempotent-Replayed: true) instead of creating again, including after a 503 whose write completed later. Keys are per app and kept ten minutes (x-retention-seconds). To resend later, also send If-Session with the Tsunagi-Session header of an earlier response: a 412 means Anki restarted or switched profile since, so the key is gone; check before writing again.",
         "in": "header",
         "name": "Idempotency-Key",
         "required": false,
         "schema": {
           "type": "string"
-        }
+        },
+        "x-retention-seconds": 600
       },
       "path.field_id": {
         "description": "Field identifier",
@@ -3975,6 +3976,10 @@
             "description": "How often a heartbeat comment is sent; a few missed means a dead connection.",
             "type": "integer"
           },
+          "profile": {
+            "description": "The open profile's name. A new session_id with another profile means Anki switched profile; with the same one, it restarted.",
+            "type": "string"
+          },
           "resources": {
             "description": "The resources this stream carries: those asked for that the app may read.",
             "items": {
@@ -3998,6 +4003,7 @@
         "required": [
           "type",
           "session_id",
+          "profile",
           "after_seq",
           "ts",
           "resources",

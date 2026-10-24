@@ -380,9 +380,15 @@ curl -X POST http://127.0.0.1:7777/v1/notes -H "Idempotency-Key: 9b2c…" \
   it returns its recorded result instead of writing; only the response's
   `stats` timing can differ.
 - Keys belong to the app and route that sent them and to the open profile,
-  and are kept for ten minutes. After a switch to another profile, a retry is
-  a new request there. A first attempt that failed with an error is
-  forgotten, so its retry runs again.
+  and are kept for ten minutes (`x-retention-seconds` on the parameter in the
+  API description). After a switch to another profile, a retry is a new
+  request there. A first attempt that failed with an error is forgotten, so
+  its retry runs again.
+- Keys are forgotten when Anki restarts. To be sure a later retry isn't run a
+  second time, send `If-Session` with the `Tsunagi-Session` header of a
+  response from before the first attempt: if Anki restarted or switched
+  profile since, the answer is 412 and nothing runs. The write may or may not
+  have happened then; check (search for the note) before writing again.
 - A 200 response is recorded even when some items are in `failed`. To retry
   just those items with corrected input, send a new request with a new key.
 - Some writes are safe to repeat without a key: an upsert updates the same

@@ -13,7 +13,7 @@ Add a note in Anki or through the API, and this arrives:
 
 ```text
 event: ready
-data: {"type":"ready","session_id":"5f0c…","after_seq":0,"ts":1790000000000,"resources":["notes"],"heartbeat_ms":15000}
+data: {"type":"ready","session_id":"5f0c…","profile":"User 1","after_seq":0,"ts":1790000000000,"resources":["notes"],"heartbeat_ms":15000}
 
 event: notes.created
 id: 5f0c…:1
@@ -229,7 +229,8 @@ without telling Anki are reported with the next change Anki does announce.
   `timeout` / `max_events` if you asked for a limit.
 
 Missed messages aren't replayed after a reconnect: load your data again on
-the new `ready`. A new `session_id` means a new server session.
+the new `ready`. A new `session_id` means a new server session: Anki
+restarted, or, when `ready`'s `profile` differs too, switched profile.
 
 </details>
 
@@ -246,7 +247,7 @@ retry: 3000
 : connected
 
 event: ready
-data: {"type":"ready","session_id":"8839…","after_seq":0,"ts":1790894419127,"resources":[],"heartbeat_ms":15000}
+data: {"type":"ready","session_id":"8839…","profile":"User 1","after_seq":0,"ts":1790894419127,"resources":[],"heartbeat_ms":15000}
 
 event: sync
 id: 8839…:1

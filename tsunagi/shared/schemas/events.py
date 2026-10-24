@@ -84,6 +84,9 @@ class Ready(_Message):
     """`ready`: connected; load the data you show now."""
     type: Literal["ready"]
     session_id: str
+    profile: str = Field(description=(
+        "The open profile's name. A new session_id with another profile means Anki switched "
+        "profile; with the same one, it restarted."))
     after_seq: int = Field(description="Messages after this number come on this connection.")
     ts: int
     resources: List[str] = Field(description="The resources this stream carries: those asked for that the app may read.")

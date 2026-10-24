@@ -28,6 +28,7 @@ from .http.middleware import (
     DynamicCORSMiddleware,
     IdempotencyMiddleware,
     RequestLogMiddleware,
+    SessionMiddleware,
     check_route_permission,
     is_local_request,
     provided_key,
@@ -145,7 +146,9 @@ def openapi_with_auth():
     key = {"$ref": "#/components/parameters/IdempotencyKey"}
     schema["components"].setdefault("parameters", {})["IdempotencyKey"] = {
         "name": "Idempotency-Key", "in": "header", "required": False,
-        "description": IDEMPOTENCY_HELP, "schema": {"type": "string"}}
+        "description": IDEMPOTENCY_HELP, "schema": {"type": "string"},
+        # How long a key is kept, for clients that resend (6.143).
+        "x-retention-seconds": int(idempotency.TTL)}
     for path, operations in schema["paths"].items():
         for method, operation in operations.items():
             if method in {"post", "put", "patch", "delete"} and not path.endswith("/query"):
@@ -295,8 +298,10 @@ register_exception_handlers(app, syncing=lambda: anki_collection.syncing)
 # Auth inner, CORS outside it (added last runs first) so auth 401s still carry
 # CORS headers for allowed origins and disallowed origins never reach auth.
 # The request log wraps both, so it sees what they refuse too. Idempotency
-# keys innermost: a key belongs to the caller auth resolved.
+# keys innermost: a key belongs to the caller auth resolved. The session
+# check (If-Session) between them: for callers, before any key is opened.
 app.add_middleware(IdempotencyMiddleware)
+app.add_middleware(SessionMiddleware)
 app.add_middleware(ApiKeyAuthMiddleware, settings=settings)
 app.add_middleware(DynamicCORSMiddleware, settings=settings)
 app.add_middleware(RequestLogMiddleware, settings=settings)
@@ -515,7 +520,7 @@ def start_server(mw) -> None:
         from .adapters.events import broker
         if mw.col is None:
             raise RuntimeError("No collection is open")
-        session_id = broker.start_session(mw.col)
+        session_id = broker.start_session(mw.col, profile=mw.pm.name or "")
         from aqt.qt import QTimer
 
         from .adapters.change_scan import ChangeScan

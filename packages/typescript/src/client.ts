@@ -9,6 +9,7 @@ import { decodeSync, DraftProtocol, flagCode, inputId, operationName, ratingCode
 import type { Operation } from "./protocol.js";
 import { Query } from "./query.js";
 import { raw } from "./raw.js";
+import { resendable } from "./resend.js";
 import { deadline, pause, positive, Transport } from "./transport.js";
 import type {
   AccessRequestInput, AddedNote, ClientOptions, Health, IfDuplicate, ItemReport, JobStartOptions, MediaInput, NoteCheck, NoteInput, NotePatch, NoteUpsert, OpenAddInput,
@@ -62,6 +63,9 @@ const included = (flags: Readonly<Record<string, boolean | undefined>>) =>
   Object.entries(flags).filter(([, on]) => on).map(([name]) => name);
 /** Registers a method as the operation it sends, for access checks. */
 const sends = <T extends object>(method: T, protocol: DraftProtocol, operation: Operation) => registerAccess(method, protocol, operationName(operation));
+/** A write: registered like sends(), and resendable (resend.ts); its options are argument `at`. */
+const writes = <F extends (...args: never[]) => Promise<unknown>>(at: number, method: F, protocol: DraftProtocol, operation: Operation) =>
+  sends(resendable(at, method as unknown as (...args: unknown[]) => Promise<unknown>) as unknown as F, protocol, operation);
 
 /** A resource Tsunagi sends events for: a query, and `onChange`. */
 class Resource<N extends WatchResource> extends Query<N> {
@@ -103,10 +107,10 @@ class Decks extends Resource<"decks"> {
   }
 
   /** Shows the deck's overview screen in Anki. A deck that doesn't exist is a 404. */
-  readonly openOverview = sends(async (deck: Reference, options: WriteOptions = {}): Promise<void> =>
+  readonly openOverview = writes(1, async (deck: Reference, options: WriteOptions = {}): Promise<void> =>
     this.protocol.openDeck("guiDeckOverview", deck, options), this.protocol, "guiDeckOverview");
   /** Starts reviewing the deck in Anki. A deck that doesn't exist is a 404. */
-  readonly openReview = sends(async (deck: Reference, options: WriteOptions = {}): Promise<void> =>
+  readonly openReview = writes(1, async (deck: Reference, options: WriteOptions = {}): Promise<void> =>
     this.protocol.openDeck("guiDeckReview", deck, options), this.protocol, "guiDeckReview");
 
   constructor(protocol: DraftProtocol) { super(protocol, "decks"); }
@@ -114,7 +118,7 @@ class Decks extends Resource<"decks"> {
 
 class Notes extends Resource<"notes"> {
   /** Adds the note. What happens when it duplicates a saved note is `ifDuplicate`. */
-  readonly create = sends(this.createImpl.bind(this) as {
+  readonly create = writes(1, this.createImpl.bind(this) as {
     (input: NoteInput, options?: CreateOptions & NoSkip): Promise<CreatedNote>;
     (input: NoteInput, options: CreateOptions & Skip): Promise<AddedNote>;
   }, this.protocol, "notesCreate");
@@ -122,7 +126,7 @@ class Notes extends Resource<"notes"> {
     return single(await this.add([input], options));
   }
 
-  readonly createMany = sends(this.createManyImpl.bind(this) as {
+  readonly createMany = writes(1, this.createManyImpl.bind(this) as {
     (input: readonly NoteInput[], options: CreateOptions & NoSkip & Collect): Promise<ItemReport<CreatedNote, NoteFailure>>;
     (input: readonly NoteInput[], options?: CreateOptions & NoSkip & OnError): Promise<CreatedNote[]>;
     (input: readonly NoteInput[], options: CreateOptions & Skip & Collect): Promise<ItemReport<AddedNote, NoteFailure>>;
@@ -151,7 +155,7 @@ class Notes extends Resource<"notes"> {
   }
 
   /** Resolves when the PATCH completes: fields, tags and files in one undo step. Does not read the note again. */
-  readonly update = sends(async (id: number, patch: NotePatch, options: WriteOptions = {}): Promise<void> =>
+  readonly update = writes(2, async (id: number, patch: NotePatch, options: WriteOptions = {}): Promise<void> =>
     this.protocol.updateNote(id, patch, options), this.protocol, "notesUpdate");
 
   /**
@@ -186,7 +190,7 @@ class Notes extends Resource<"notes"> {
   this.protocol, "notesCheck");
 
   /** Opens the note in Anki's Browser, to edit it. A note that doesn't exist is a 404. */
-  readonly openEditor = sends(async (id: number, options: WriteOptions = {}): Promise<void> =>
+  readonly openEditor = writes(1, async (id: number, options: WriteOptions = {}): Promise<void> =>
     this.protocol.openEditor(id, options), this.protocol, "guiEditNote");
 
   /**
@@ -194,15 +198,15 @@ class Notes extends Resource<"notes"> {
    * deck, note type, fields, tags and files (stored now, referenced in their
    * fields). Nothing is added until the user confirms.
    */
-  readonly openAdd = sends(async (note: OpenAddInput, options: WriteOptions = {}): Promise<void> =>
+  readonly openAdd = writes(1, async (note: OpenAddInput, options: WriteOptions = {}): Promise<void> =>
     this.protocol.openAdd(note, options), this.protocol, "guiAddCards");
 
   /** Adds the note, or updates the one it matches. */
-  readonly upsert = sends(async (input: NoteUpsert, options: WriteOptions & { cards?: boolean } = {}): Promise<UpsertedNote> =>
+  readonly upsert = writes(1, async (input: NoteUpsert, options: WriteOptions & { cards?: boolean } = {}): Promise<UpsertedNote> =>
     single(await this.protocol.upsertNotes([input], included({ cards: options.cards }), options)),
   this.protocol, "notesUpsert");
 
-  readonly upsertMany = sends(this.upsertManyImpl.bind(this), this.protocol, "notesUpsert");
+  readonly upsertMany = writes(1, this.upsertManyImpl.bind(this), this.protocol, "notesUpsert");
   private upsertManyImpl(input: readonly NoteUpsert[], options: WriteOptions & { cards?: boolean } & Collect): Promise<ItemReport<UpsertedNote, UpsertFailure>>;
   private upsertManyImpl(input: readonly NoteUpsert[], options?: WriteOptions & { cards?: boolean } & OnError): Promise<UpsertedNote[]>;
   private async upsertManyImpl(input: readonly NoteUpsert[], options: WriteOptions & { cards?: boolean; onError?: "throw" | "collect" } = {}) {
@@ -212,7 +216,7 @@ class Notes extends Resource<"notes"> {
   }
 
   /** Deletes the notes and their cards, as one undo step. */
-  readonly delete = sends(async (notes: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly delete = writes(1, async (notes: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("notesDelete", { note_ids: ids(notes) }, options), this.protocol, "notesDelete");
 
   constructor(protocol: DraftProtocol) { super(protocol, "notes"); }
@@ -233,36 +237,36 @@ class Cards extends Resource<"cards"> {
     }, () => this.protocol.access(), options.signal);
   }
 
-  readonly suspend = sends(async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly suspend = writes(1, async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsSuspend", { card_ids: ids(cards) }, options), this.protocol, "cardsSuspend");
-  readonly unsuspend = sends(async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly unsuspend = writes(1, async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsUnsuspend", { card_ids: ids(cards) }, options), this.protocol, "cardsUnsuspend");
-  readonly bury = sends(async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly bury = writes(1, async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsBury", { card_ids: ids(cards) }, options), this.protocol, "cardsBury");
-  readonly unbury = sends(async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly unbury = writes(1, async (cards: readonly number[], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsUnbury", { card_ids: ids(cards) }, options), this.protocol, "cardsUnbury");
   /** Makes the cards new again. */
-  readonly forget = sends(async (cards: readonly number[], options: ForgetOptions = {}): Promise<VerbReport> =>
+  readonly forget = writes(1, async (cards: readonly number[], options: ForgetOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsForget", {
       card_ids: ids(cards), restore_position: options.restorePosition ?? false, reset_counts: options.resetCounts ?? false,
     }, options), this.protocol, "cardsForget");
   /** `days` in Anki's syntax: "0" today, "3" in three days, "3-7" a day in that range, "1!" also sets the interval. */
-  readonly setDueDate = sends(async (cards: readonly number[], days: string, options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly setDueDate = writes(2, async (cards: readonly number[], days: string, options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsSetDueDate", { card_ids: ids(cards), days }, options), this.protocol, "cardsSetDueDate");
-  readonly changeDeck = sends(async (cards: readonly number[], deck: Reference, options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly changeDeck = writes(2, async (cards: readonly number[], deck: Reference, options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsChangeDeck", {
       card_ids: ids(cards), ...(typeof deck === "string" ? { deck_name: deck } : { deck_id: inputId(deck.id) }),
     }, options), this.protocol, "cardsChangeDeck");
   /** Moves new cards in the new queue. */
-  readonly reposition = sends(async (cards: readonly number[], options: RepositionOptions = {}): Promise<VerbReport> =>
+  readonly reposition = writes(1, async (cards: readonly number[], options: RepositionOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsReposition", {
       card_ids: ids(cards), starting_from: options.start ?? 0, step_size: options.step ?? 1,
       randomize: options.randomize ?? false, shift_existing: options.shiftExisting ?? false,
     }, options), this.protocol, "cardsReposition");
-  readonly setFlag = sends(async (cards: readonly number[], flag: Card["flag"], options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly setFlag = writes(2, async (cards: readonly number[], flag: Card["flag"], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsSetFlag", { card_ids: ids(cards), flag: flagCode(flag) }, options), this.protocol, "cardsSetFlag");
   /** Answers the cards as the reviewer would, each with its own rating. */
-  readonly answer = sends(async (answers: readonly { cardId: number; rating: "again" | "hard" | "good" | "easy" }[], options: WriteOptions = {}): Promise<VerbReport> =>
+  readonly answer = writes(1, async (answers: readonly { cardId: number; rating: "again" | "hard" | "good" | "easy" }[], options: WriteOptions = {}): Promise<VerbReport> =>
     this.protocol.verb("cardsAnswer", {
       answers: list(answers).map(answer => ({ card_id: inputId(answer.cardId), rating: ratingCode(answer.rating) })),
     }, options), this.protocol, "cardsAnswer");
@@ -272,10 +276,10 @@ class Cards extends Resource<"cards"> {
 
 class Media extends Query<"media"> {
   /** Stores a file in Anki's media folder; Anki may rename it (see `filename`). */
-  readonly upload = sends(async (file: MediaInput, options: WriteOptions = {}): Promise<UploadedFile> =>
+  readonly upload = writes(1, async (file: MediaInput, options: WriteOptions = {}): Promise<UploadedFile> =>
     single(await this.protocol.uploadMedia([file], options)), this.protocol, "mediaUpload");
 
-  readonly uploadMany = sends(this.uploadManyImpl.bind(this), this.protocol, "mediaUpload");
+  readonly uploadMany = writes(1, this.uploadManyImpl.bind(this), this.protocol, "mediaUpload");
   private uploadManyImpl(files: readonly MediaInput[], options: WriteOptions & Collect): Promise<ItemReport<UploadedFile, MediaFailure>>;
   private uploadManyImpl(files: readonly MediaInput[], options?: WriteOptions & OnError): Promise<UploadedFile[]>;
   private async uploadManyImpl(files: readonly MediaInput[], options: WriteOptions & { onError?: "throw" | "collect" } = {}) {
@@ -360,8 +364,8 @@ export class Tsunagi {
     this.media = new Media(protocol);
     const startSync = async (request: JobStartOptions = {}) => new SyncOperation(protocol, await protocol.startSync(request));
     this.collection = {
-      startSync: sends(startSync, protocol, "sync"),
-      sync: sends(async (request: SyncOptions = {}): Promise<SyncResult> => {
+      startSync: writes(0, startSync, protocol, "sync"),
+      sync: writes(0, async (request: SyncOptions = {}): Promise<SyncResult> => {
         // Validate waiting options before starting a remote mutation.
         if (request.waitTimeoutMs !== undefined) positive(request.waitTimeoutMs, "waitTimeoutMs");
         if (request.pollIntervalMs !== undefined) positive(request.pollIntervalMs, "pollIntervalMs");
@@ -393,8 +397,10 @@ export class Tsunagi {
    * denied is an answer, not an error. Asking again asks again, and replaces the key.
    */
   requestAccess(input: AccessRequestInput = {}, options: WriteOptions = {}): Promise<AccessAnswer> {
-    return this.protocol.requestAccess(input, { ...options, timeoutMs: options.timeoutMs ?? 135_000 });
+    return this.askAccess(input, options);
   }
+  private readonly askAccess = resendable(1, (input: AccessRequestInput, options: WriteOptions) =>
+    this.protocol.requestAccess(input, { ...options, timeoutMs: options.timeoutMs ?? 135_000 }));
 
   capabilities(request: RequestOptions = {}) { return this.protocol.capabilities(request); }
 

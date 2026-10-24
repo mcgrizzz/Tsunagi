@@ -12,7 +12,7 @@ export interface Need {
 
 /** What a listener hears. A data message is the server's JSON, with `type`. */
 export type Signal =
-  | { readonly kind: "ready"; readonly resources: readonly string[] }
+  | { readonly kind: "ready"; readonly resources: readonly string[]; readonly profile: string }
   | { readonly kind: "message"; readonly message: Readonly<Record<string, unknown>> }
   | { readonly kind: "gap" }
   | { readonly kind: "accessChanged" }
@@ -74,6 +74,8 @@ export class EventConnection {
   up = false;
   /** What the last `ready` said the stream carries (resources the app may read). */
   resources: readonly string[] = [];
+  /** The open profile, as the last `ready` named it. */
+  profile = "";
 
   constructor(private readonly transport: Transport) {}
 
@@ -166,7 +168,8 @@ export class EventConnection {
             delay = FIRST_DELAY;
             this.up = true;
             this.resources = ready.resources;
-            this.tell({ kind: "ready", resources: ready.resources });
+            this.profile = ready.profile;
+            this.tell({ kind: "ready", resources: ready.resources, profile: ready.profile });
           } else if (frame.event === "access.changed") {
             this.tell({ kind: "accessChanged" });
           } else if (frame.event === "gap") {

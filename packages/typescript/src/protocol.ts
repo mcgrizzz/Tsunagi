@@ -231,7 +231,7 @@ export class DraftProtocol {
       const value = type === null ? response.data : decodeAs(type as Parameters<typeof decodeAs>[0], response.data);
       return then(response.status, deepFreeze(value) as Answers[O][keyof Answers[O]]);
     } catch (error) {
-      if (write) throw new WriteOutcomeUnknownError(response.idempotencyKey, error);
+      if (write) throw new WriteOutcomeUnknownError(response.idempotencyKey, error, response.attempt);
       throw error;
     }
   }

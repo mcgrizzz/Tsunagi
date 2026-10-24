@@ -25,7 +25,7 @@ function fixture(answer = () => json({ items: [], next_cursor: null, stats: {} }
   const send = (event, data) => stream.enqueue(new TextEncoder().encode(
     `event: ${event}\ndata: ${JSON.stringify({ type: event, seq: ++seq, session_id: "s", ts: 1, ...data })}\n\n`));
   const ready = resources => stream.enqueue(new TextEncoder().encode(`event: ready\ndata: ${JSON.stringify(
-    { type: "ready", session_id: "s", after_seq: 0, ts: 1, resources, heartbeat_ms: 15000 })}\n\n`));
+    { type: "ready", session_id: "s", profile: "User 1", after_seq: 0, ts: 1, resources, heartbeat_ms: 15000 })}\n\n`));
   return { anki, send, ready };
 }
 
@@ -64,6 +64,38 @@ test("a watch handler that throws ends the watch with its error", async () => {
   const subscription = await watching;
   send("notes.created", { ids: [2], origin: "ui" });
   await assert.rejects(subscription.done, error => error === failure);
+  anki.close();
+});
+
+test("a watch waits for a handler's promise; changes meanwhile come in its next call", async () => {
+  const requests = [];
+  const { anki, send, ready } = fixture(url => {
+    const search = new URL(url).searchParams.get("search");
+    requests.push(search);
+    const ids = search?.match(/nid:([\d,]+)/)?.[1].split(",").map(Number) ?? [1];
+    return json({ items: ids.map(id => ({ first_field: `n${id}`, id })), next_cursor: null, stats: {} });
+  });
+  const calls = [];
+  let finish;
+  const watching = anki.notes.search("deck:A").select("firstField").watch({
+    added: (rows, change) => {
+      calls.push(rows.map(row => row.id));
+      if (!change.initial) return new Promise(resolve => { finish = resolve; });
+    },
+  });
+  await settle();
+  ready(["notes"]);
+  await watching;
+  send("notes.created", { ids: [2] });
+  await settle();
+  send("notes.created", { ids: [3] });
+  await settle();
+  assert.deepEqual(calls, [[1], [2]]);  // 3 waits for the handler writing 2
+  assert.deepEqual(requests, ["deck:A", "(deck:A) nid:2"]);
+  finish();
+  await settle();
+  assert.deepEqual(calls, [[1], [2], [3]]);
+  assert.deepEqual(requests, ["deck:A", "(deck:A) nid:2", "(deck:A) nid:3"]);
   anki.close();
 });
 

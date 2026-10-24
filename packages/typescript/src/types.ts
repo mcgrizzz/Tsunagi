@@ -95,6 +95,13 @@ export interface AccessRequestInput {
 export interface WriteOptions extends RequestOptions {
   /** Reuse only for the same logical request with identical input. */
   idempotencyKey?: string | undefined;
+  /**
+   * When Anki may or may not have done the write (it was busy, the connection
+   * dropped), send it again by itself, with the same key: after 1 s, then each
+   * wait twice as long up to 30 s, while that is safe. Then it raises
+   * WriteOutcomeUnknownError (which can still retry()) or ResendExpiredError.
+   */
+  resendIfUnknown?: boolean | undefined;
 }
 /** A keyed submission can recover the same accepted job; waiting only polls it. */
 export type JobStartOptions = WriteOptions;

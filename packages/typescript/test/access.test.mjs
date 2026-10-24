@@ -122,7 +122,8 @@ test("ordinary calls have no permission preflight and expose actual 403 denials 
     assert.equal(error.reason, undefined);
     return true;
   });
-  assert.deepEqual(calls.map(call => [call.method, call.url.pathname]), [["PATCH", "/v1/notes/1"]]);
+  // The session read before a first write isn't a permission preflight (packages/spec/behavior.md, Resending).
+  assert.deepEqual(calls.map(call => [call.method, call.url.pathname]), [["GET", "/v1/health"], ["PATCH", "/v1/notes/1"]]);
 });
 
 test("401 and 403 have distinct errors and preserve non-JSON proxy responses", async () => {
@@ -249,5 +250,5 @@ test("method references remain bound and callable after checking access", async 
   const access = await anki.access();
   assert.equal(access.can(create), true);
   assert.deepEqual(await create({ deck: "Default", noteType: "Basic", fields: { Front: "a" } }), { index: 0, id: 123, cards: null, files: null });
-  assert.deepEqual(calls, [["GET", "/v1/capabilities"], ["POST", "/v1/notes"]]);
+  assert.deepEqual(calls, [["GET", "/v1/capabilities"], ["GET", "/v1/health"], ["POST", "/v1/notes"]]);
 });

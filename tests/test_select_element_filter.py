@@ -28,6 +28,16 @@ def test_cards_filter_their_note_fields_too(client):
     assert rows == [{"id": card_id, "fields": [{"name": "Front", "value": "猫"}]}]
 
 
+def test_an_empty_list_keeps_no_elements(client):
+    # An app's empty mapping (6.142): fields[name in []] keeps none, as where's `in []` matches none.
+    note = add(client, "鳥", "bird")
+    for path, where in (("/v1/notes", f"id=={note['id']}"), ("/v1/cards", f"note_id=={note['id']}")):
+        for select in ('id,fields[name in []]', 'id,fields[name in []].(name,text)'):
+            assert get(client, path, where=where, select=select) == [{"id": i, "fields": []} for i in (
+                [note["id"]] if path == "/v1/notes" else note["cards"])], (path, select)
+
+
 def test_malformed_filter_is_a_client_error(client):
-    response = client.get("/v1/notes", params={"select": "fields[name in []]"})
-    assert response.status_code == 400, response.text
+    for select in ("fields[name in [true]]", "fields[name in [\"a\",]]", "fields[name in ]"):
+        response = client.get("/v1/notes", params={"select": select})
+        assert response.status_code == 400, (select, response.text)

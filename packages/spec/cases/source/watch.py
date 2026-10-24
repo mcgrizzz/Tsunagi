@@ -1,6 +1,6 @@
 """Watching a query, as scripted scenarios. Built into ../watch.json by build.py."""
-def events(resources): return {"method": "GET", "path": "/v1/events", "query": {"resources": ",".join(sorted(resources)), "types": "change"}}
-def ready(resources): return {"send": [{"event": "ready", "data": {"type": "ready", "session_id": "s", "after_seq": 0, "ts": 1, "resources": sorted(resources), "heartbeat_ms": 15000}}]}
+def events(resources): return {"method": "GET", "path": "/v1/events", "query": {"resources": ",".join(sorted(resources)), "types": "change,sync"}}
+def ready(resources): return {"send": [{"event": "ready", "data": {"type": "ready", "session_id": "s", "profile": "User 1", "after_seq": 0, "ts": 1, "resources": sorted(resources), "heartbeat_ms": 15000}}]}
 def page(items, cursor=None): return {"status": 200, "body": {"items": items, "next_cursor": cursor, "stats": {}}}
 def msg(type_, ids=None, by=None, app=None, **extra):
     data = {"type": type_, "seq": 1, "session_id": "s", "ts": 1, **({"ids": ids} if ids is not None else {}), **({"by": by} if by else {}), **({"app": app} if app else {}), **extra}
@@ -27,9 +27,24 @@ def start(rows=((1, "apple"), (2, "banana"))):
             {"expect": nread(), "response": page([row(i, t) for i, t in rows])},
             {"settle": "w", "ok": True},
             {"heard": "h", "calls": [["added", [crow(i, t) for i, t in rows], first]]}]
+# A narrowed watch (6.142): only the Word field's text, kept current like any selection.
+narrowed = {"query": "notes", "method": "watch",
+            "steps": [["search", "deck:Mining"], ["select", "fields"],
+                      ["narrow", "fields", {"$steps": [["where", "name", "eq", "Word"], ["select", "name", "text"]]}]]}
+def wread(search="deck:Mining"):
+    return {"method": "GET", "path": "/v1/notes", "keyed": False, "query": {
+        "select": 'fields[name in ["Word"]].(name,text),id', "shape": "object", "limit": "2000", "search": search}}
+def wrow(i, text): return {"fields": [{"name": "Word", "text": text}], "id": i}
 cases = [
  {"name": "the first load waits for the connection, reads the query, and comes as added with initial",
   "script": start()},
+ {"name": "a narrowed query is watched with its narrowed select; a change to the kept part is updated",
+  "script": [{"call": narrowed, "as": "w", "listener": "h"}, {"expect": events(ALL), "stream": True}, ready(ALL),
+             {"expect": wread(), "response": page([wrow(1, "犬")])},
+             {"settle": "w", "ok": True}, {"heard": "h", "calls": [["added", [wrow(1, "犬")], first]]},
+             send(msg("notes.updated", [1], "ui")),
+             {"expect": wread("(deck:Mining) nid:1"), "response": page([wrow(1, "猫")])},
+             {"heard": "h", "calls": [["updated", [wrow(1, "猫")], ui]]}]},
  {"name": "the first load reads every page, 2,000 rows each, and delivers them together",
   "script": [{"call": mining, "as": "w", "listener": "h"}, {"expect": events(ALL), "stream": True}, ready(ALL),
              {"expect": nread(), "response": page([row(1, "apple")], "c1")},
@@ -68,9 +83,30 @@ cases = [
   "script": start() + [send(msg("day.changed")),
                        {"expect": nread(), "response": page([row(1, "apple"), row(2, "banana"), row(3, "carrot")])},
                        {"heard": "h", "calls": [["added", [crow(3, "carrot")], unk]]}]},
- {"name": "after a drop, the new ready reads everything again",
-  "script": start() + [{"end": True}, {"wait": 1000}, {"expect": events(ALL), "stream": True}, ready(ALL),
-                       {"expect": nread(), "response": page([row(1, "apple")])}, {"heard": "h", "calls": [["removed", [2], unk]]}]},
+ {"name": "after a drop, the new ready reads everything again; status says reconnecting, then live",
+  "script": start() + [{"end": True}, {"heard": "h", "calls": [["status", "reconnecting"]]},
+                       {"wait": 1000}, {"expect": events(ALL), "stream": True}, ready(ALL),
+                       {"expect": nread(), "response": page([row(1, "apple")])},
+                       {"heard": "h", "calls": [["removed", [2], unk], ["status", "live"]]}]},
+ {"name": "a ready naming another profile ends the watch: profile changed",
+  "script": start() + [{"end": True}, {"heard": "h", "calls": [["status", "reconnecting"]]},
+                       {"wait": 1000}, {"expect": events(ALL), "stream": True},
+                       {"send": [{"event": "ready", "data": {**ready(ALL)["send"][0]["data"], "session_id": "s2", "profile": "User 2"}}]},
+                       {"quiet": True}, {"heard": "h", "calls": [["error", "profileChanged"]]}]},
+ {"name": "a read that fails after the first load: reconnecting, then live once a read again succeeds",
+  "script": start() + [send(msg("notes.stale", reason="details_unavailable")),
+                       {"expect": nread(), "response": {"status": 503, "body": {"detail": "busy", "reason": "busy"}}},
+                       {"heard": "h", "calls": [["status", "reconnecting"]]}, {"wait": 1000},
+                       {"expect": nread(), "response": page([row(1, "apple"), row(2, "banana")])},
+                       {"heard": "h", "calls": [["status", "live"]]}]},
+ {"name": "during a sync, changes are held; when it finishes they are handled together",
+  "script": start() + [send(msg("sync", phase="started")), send(msg("notes.updated", [1], "ui")), {"quiet": True},
+                       send(msg("notes.updated", [2], "ui")), {"quiet": True}, send(msg("sync", phase="finished")),
+                       {"expect": nread(search="(deck:Mining) nid:1,2"), "response": page([row(1, "Apple"), row(2, "banana")])},
+                       {"heard": "h", "calls": [["updated", [crow(1, "Apple")], ui]]}]},
+ {"name": "more than 10,000 keys gathered become one read again",
+  "script": start() + [send(msg("notes.updated", list(range(1, 10_002)), "ui")),
+                       {"expect": nread(), "response": page([row(1, "apple"), row(2, "banana")])}, {"quiet": True}]},
  {"name": "card ids on a notes watch: their notes are found, then checked",
   "script": start() + [send(msg("cards.updated", [11, 12], "ui")),
                        {"expect": {"method": "GET", "path": "/v1/notes", "query": {"select": "id", "shape": "scalar", "search": "cid:11,12", "limit": "2000"}},
@@ -95,7 +131,7 @@ cases = [
                        {"expect": nread(search="(deck:Mining) nid:3"), "response": {"status": 503, "body": {"detail": "busy"}}},
                        {"wait": 999}, {"quiet": True}, {"wait": 1},
                        {"expect": nread(), "response": page([row(1, "apple"), row(2, "banana"), row(3, "carrot")])},
-                       {"heard": "h", "calls": [["added", [crow(3, "carrot")], unk]]}]},
+                       {"heard": "h", "calls": [["status", "reconnecting"], ["added", [crow(3, "carrot")], unk], ["status", "live"]]}]},
  {"name": "a 403 ends the watch: the error handler hears it",
   "script": start() + [send(msg("notes.created", [3], "ui")),
                        {"expect": nread(search="(deck:Mining) nid:3"), "response": {"status": 403, "body": {"detail": "no"}}},

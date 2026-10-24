@@ -23,4 +23,7 @@ IDEMPOTENCY_HELP = (
     "Optional. Send a new unique value (for example a UUID) with each request you "
     "may retry. A retry with the same key returns the first attempt's response "
     "(header Idempotent-Replayed: true) instead of creating again, including after "
-    "a 503 whose write completed later. Keys are per app and kept ten minutes.")
+    "a 503 whose write completed later. Keys are per app and kept ten minutes "
+    "(x-retention-seconds). To resend later, also send If-Session with the "
+    "Tsunagi-Session header of an earlier response: a 412 means Anki restarted or "
+    "switched profile since, so the key is gone; check before writing again.")

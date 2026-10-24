@@ -1,5 +1,6 @@
 import { routeWrites } from "./generated.js";
 import type { RawRoutes } from "./generated.js";
+import { resendable } from "./resend.js";
 import type { JsonResponse, Method, Transport } from "./transport.js";
 import type { RequestOptions, WriteOptions } from "./types.js";
 
@@ -40,7 +41,8 @@ function search(query: Parameters | undefined): URLSearchParams | undefined {
 export function raw(transport: Transport) {
   /**
    * Send one operation and answer its JSON undecoded. Writes are keyed as the
-   * client's own methods are; nothing is retried.
+   * client's own methods are; nothing is retried unless asked (resendIfUnknown,
+   * or the outcome-unknown error's retry()).
    */
   function request<R extends RawRoute>(
     route: R, ...options: {} extends RawOptions<R> ? [options?: RawOptions<R>] : [options: RawOptions<R>]
@@ -51,16 +53,20 @@ export function raw(transport: Transport) {
    */
   function request(method: Method, path: string, options?: WriteOptions & { body?: unknown; query?: URLSearchParams }): Promise<JsonResponse>;
   async function request(first: string, second?: unknown, third: WriteOptions & { body?: unknown; query?: URLSearchParams } = {}): Promise<unknown> {
-    if (typeof second === "string") {
-      return transport.request(first as Method, second, { ...third, write: first === "GET" ? false : "unkeyed" });
-    }
+    return typeof second === "string" ? older(first, second, third) : typed(first, second);
+  }
+  // The answer without the transport's own record of the attempt.
+  const answer = ({ attempt: _, ...response }: JsonResponse): JsonResponse => response;
+  const older = resendable(2, async (method: string, path: string, options: WriteOptions & { body?: unknown; query?: URLSearchParams }) =>
+    answer(await transport.request(method as Method, path, { ...options, write: method === "GET" ? false : "unkeyed" })));
+  const typed = resendable(1, async (first: string, second: unknown) => {
     const space = first.indexOf(" ");
     const method = first.slice(0, space);
     if (space < 0 || !methods.includes(method)) throw new TypeError('Expected a route such as "GET /v1/cards"');
     const { path = {}, query, body, ...options } = (second ?? {}) as WriteOptions & { path?: Parameters; query?: Parameters; body?: unknown };
     const url = first.slice(space + 1).replace(/\{([^}]+)\}/g, (_, name: string) => segment(name, path[name]));
     const write = Object.hasOwn(routeWrites, first) ? routeWrites[first as RawRoute] : method === "GET" ? false : "unkeyed";
-    return transport.request(method as Method, url, { ...options, body, query: search(query), write });
-  }
+    return answer(await transport.request(method as Method, url, { ...options, body, query: search(query), write }));
+  });
   return { request };
 }

@@ -4,6 +4,31 @@ Each version of the TypeScript client, newest first. Its major.minor is
 Tsunagi's: 0.7.x speaks the API of Tsunagi 0.7.x. Patch versions are client
 changes that need no add-on release.
 
+## 0.7.2 (unreleased)
+
+Needs Tsunagi 0.7.7.
+
+- **Only some elements of a list:** `narrow(list, step)` keeps the elements
+  of a list in each row whose key is a value (`eq`) or one of several (`in`;
+  `in []` keeps none), and with `select` in the step only those parts:
+  `anki.notes.select("id", "fields").narrow("fields", f => f.where("name",
+  "in", ["Word", "Reading"]))`. It works on a note's and card's `fields` and
+  a note type's `fields` and `templates`, is typed from the API description,
+  and can be watched.
+- **A field's text:** `narrow`'s `select` can name `text`, the field without
+  HTML as Anki's Browser shows it; whole fields leave it out.
+- **Resending a write safely:** `WriteOutcomeUnknownError` has `retry()`,
+  which sends the same request with the same key: Tsunagi answers the first
+  attempt's result, or writes once if it never arrived. `resendableUntil`
+  says until when that is safe; after it, or once Anki restarted or switched
+  profile, `retry()` raises `ResendExpiredError` (check before writing
+  again). `{ resendIfUnknown: true }` on any write resends by itself. A
+  client's first write reads `/v1/health` once, for the server session.
+- **Watching an app's own copy:** watch handlers may return a promise, and
+  the watch waits for it; changes during an Anki sync are delivered together
+  when it ends; a `status` handler hears `reconnecting` and `live`; a profile
+  switch ends the watch with `ProfileChangedError`.
+
 ## 0.7.1 (2026-10-11)
 
 Needs Tsunagi 0.7.1 for `requestAccess()` and day changes; the rest works with 0.7.0.

@@ -1,4 +1,7 @@
-import { HttpError, ProtocolError, RequestTimeoutError, TransportError, WriteOutcomeUnknownError } from "./errors.js";
+import { HttpError, ProtocolError, RequestTimeoutError, ResendExpiredError, TransportError, WriteOutcomeUnknownError } from "./errors.js";
+import { idempotency } from "./generated.js";
+import { resendOf } from "./resend.js";
+import type { Attempt, Resending } from "./resend.js";
 import type { ClientOptions, RequestOptions, WriteOptions } from "./types.js";
 
 export function positive(value: number, name: string): number {
@@ -29,7 +32,13 @@ export function deadline(timeoutMs: number, parent?: AbortSignal) {
   };
 }
 
-export interface JsonResponse { status: number; data: unknown; headers: Headers; idempotencyKey: string | undefined }
+export interface JsonResponse {
+  status: number; data: unknown; headers: Headers; idempotencyKey: string | undefined;
+  /** A keyed write's attempt, for an outcome found unknown after it answered. */
+  attempt?: Attempt | undefined;
+}
+/** Each response's server session (packages/spec/behavior.md, Resending). */
+const SESSION = "tsunagi-session";
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export class Transport {
@@ -39,6 +48,9 @@ export class Transport {
   readonly maxGetUrlLength: number;
   /** Told of every 401 or 403 answer (the access cache drops its snapshot). */
   refused: (() => void) | null = null;
+  /** The last server session a response named, sent back when a write is resent. */
+  private session: string | undefined;
+  private sessionRead: Promise<unknown> | undefined;
 
   constructor(private readonly options: ClientOptions) {
     this.root = new URL(options.baseUrl);
@@ -64,22 +76,29 @@ export class Transport {
   async request(
     method: Method,
     path: string,
-    { body, query, write = false, ...options }: WriteOptions & {
+    { body, query, write = false, ...options }: WriteOptions & Resending & {
       body?: unknown; query?: URLSearchParams | undefined; write?: false | "keyed" | "unkeyed";
     } = {},
   ): Promise<JsonResponse> {
     options.signal?.throwIfAborted();
     const url = this.url(path, query);
+    const resend = write ? options[resendOf] : undefined;
+    if (resend && (resend.method !== method || resend.url !== url.href)) throw new TypeError("A resend must be the same request");
     // Freeze the wire representation before awaiting a key provider or fetch.
-    const text = body === undefined ? undefined : JSON.stringify(body);
+    const text = resend ? resend.text : body === undefined ? undefined : JSON.stringify(body);
     // Generate a key only for operations with documented replay support.
     // Raw calls may supply one explicitly after checking their route's contract.
-    const key = write ? options.idempotencyKey ?? (write === "keyed"
+    const key = resend ? resend.key : write ? options.idempotencyKey ?? (write === "keyed"
       ? this.options.makeIdempotencyKey?.() ?? globalThis.crypto.randomUUID()
       : undefined) : undefined;
     if (key !== undefined && (!key || /[\r\n]/.test(key))) throw new TypeError("Invalid idempotencyKey");
+    // A first write learns the session first, so it can be resent (once per client; a failure is ignored).
+    if (key && !resend && this.session === undefined) {
+      await (this.sessionRead ??= this.request("GET", "/v1/health", { signal: options.signal }).catch(() => undefined));
+    }
     const scope = deadline(options.timeoutMs ?? this.timeout, options.signal);
     let dispatched = false;
+    let attempt: Attempt | undefined = resend;
     try {
       const supplied = this.options.apiKey;
       const apiKey = await abortable(Promise.resolve(typeof supplied === "function" ? supplied() : supplied), scope.signal);
@@ -87,11 +106,18 @@ export class Transport {
       const headers = new Headers({ Accept: "application/json" });
       if (apiKey) headers.set("X-Api-Key", apiKey);
       if (key) headers.set("Idempotency-Key", key);
+      if (resend?.session) headers.set("If-Session", resend.session);
       if (text !== undefined) headers.set("Content-Type", "application/json");
       const init: RequestInit = { method, headers, signal: scope.signal, redirect: "error", credentials: "omit" };
       if (text !== undefined) init.body = text;
+      attempt ??= key === undefined ? undefined : {
+        method, url: url.href, text, key, session: this.session,
+        until: Date.now() + (idempotency.retentionSeconds - 60) * 1_000,
+      };
       dispatched = true;
       const response = await abortable(this.fetcher(url, init), scope.signal);
+      this.session = response.headers.get(SESSION) ?? this.session;
+      if (resend && response.status === 412) throw new ResendExpiredError(resend.key, "session");
       const Failure = response.status === 401 ? AuthenticationError
         : response.status === 403 ? PermissionError : HttpError;
       if (Failure !== HttpError) this.refused?.();
@@ -106,10 +132,11 @@ export class Transport {
       if (!response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
         throw new ProtocolError("Expected application/json from Tsunagi");
       }
-      return { status: response.status, headers: response.headers, data, idempotencyKey: key };
+      return { status: response.status, headers: response.headers, data, idempotencyKey: key, attempt };
     } catch (error) {
+      if (error instanceof ResendExpiredError) throw error;
       if (write && dispatched && (!(error instanceof HttpError) || error.status >= 500)) {
-        throw new WriteOutcomeUnknownError(key, error);
+        throw new WriteOutcomeUnknownError(key, error, attempt);
       }
       if (scope.signal.aborted) throw scope.signal.reason;
       if (error instanceof HttpError || error instanceof ProtocolError) throw error;
@@ -132,6 +159,7 @@ export class Transport {
     const headers = new Headers({ Accept: "text/event-stream" });
     if (apiKey) headers.set("X-Api-Key", apiKey);
     const response = await this.fetcher(url, { method: "GET", headers, signal, redirect: "error", credentials: "omit" });
+    this.session = response.headers.get(SESSION) ?? this.session;
     if (!response.ok) {
       const raw = await response.text();
       let data: unknown = raw;

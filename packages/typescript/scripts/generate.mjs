@@ -18,6 +18,8 @@ const parametersOf = operation => (operation.parameters ?? []).map(resolve);
 const camel = name => name.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 const ref = node => node?.$ref?.split("/").pop();
 const omitted = (schema, wire) => [...names.omit["*"], ...(names.omit[schema] ?? [])].includes(wire);
+/** Parts an element has only when narrow() selects them (a note field's text). */
+const selectOnly = (schema, wire) => (names.selectOnly?.[schema] ?? []).includes(wire);
 /** A schema's short name: FastAPI prefixes a module path when two share a name. */
 const short = schema => schema.split("__").pop().replace(/_+$/, "");
 const counts = Object.keys(schemas).map(short).reduce((seen, name) => seen.set(name, (seen.get(name) ?? 0) + 1), new Map());
@@ -79,7 +81,8 @@ function fieldsOf(schema, answer = false) {
       : type.ts + (nullable ? " | null" : "");
     const optional = answer && !required.includes(wire);
     const from = node["x-from"];
-    out.push({ wire, name: camel(wire), ts, type, values, nullable, optional, from, description: node.description });
+    out.push({ wire, name: camel(wire), ts, type, values, nullable, optional, from, description: node.description,
+      selectOnly: selectOnly(schema, wire) });
   }
   unique(`fields of ${schema}`, out.map(f => f.name));
   return out;
@@ -88,7 +91,7 @@ function fieldsOf(schema, answer = false) {
 const comment = (text, indent = "  ") => text ? `${indent}/** ${text.replace(/\*\//g, "*\\/").replace(/\n/g, " ")} */\n` : "";
 /** Answers are read-only (the client freezes them); rows are the app's to change. */
 function interfaceFor(name, fields, readonly = false) {
-  const lines = fields.map(f => `${comment(f.description)}  ${readonly ? "readonly " : ""}${f.name}: ${f.ts};`);
+  const lines = fields.filter(f => !f.selectOnly).map(f => `${comment(f.description)}  ${readonly ? "readonly " : ""}${f.name}: ${f.ts};`);
   return `export interface ${name} {\n${lines.join("\n")}\n}`;
 }
 
@@ -106,6 +109,7 @@ function fieldTable(fields) {
     if (f.nullable) parts.push("nullable: true");
     if (f.optional) parts.push("optional: true");
     if (f.from) parts.push(`from: ${JSON.stringify(f.from)}`);
+    if (f.selectOnly) parts.push("selectOnly: true");
     return `    ${f.name}: { ${parts.join(", ")} },`;
   });
   return `{\n${entries.join("\n")}\n  }`;
@@ -279,6 +283,7 @@ for (const [name, operation] of Object.entries(names.operations)) {
 
 // Objects can name further objects; generate until none is new.
 const tables = [];
+const elements = [];  // each row object with its select-only parts, for narrow()
 const done = new Set();
 for (let pending = [...objects]; pending.length; pending = [...objects].filter(schema => !done.has(schema))) {
   for (const schema of pending.sort()) {
@@ -287,6 +292,10 @@ for (let pending = [...objects]; pending.length; pending = [...objects].filter(s
     const fields = fieldsOf(schema, answer);
     out.push(interfaceFor(typeName(schema), fields, answer), "");
     tables.push(`  ${typeName(schema)}: ${fieldTable(fields)},`);
+    if (!answer) {
+      const extra = fields.filter(f => f.selectOnly).map(f => `${f.name}: ${f.ts}`);
+      elements.push(`  ${typeName(schema)}: ${typeName(schema)}${extra.length ? ` & { ${extra.join("; ")} }` : ""};`);
+    }
   }
 }
 unique("object types", [...done].map(typeName));
@@ -299,6 +308,7 @@ unique("request bodies", [...bodies].map(bodyName));
 out.push("// Request bodies, as the server takes them.", "", ...bodyLines);
 
 out.push(`/** Each resource's row type. */\nexport interface Rows {\n${rows.join("\n")}\n}`, "");
+out.push(`/** Each object inside a row, with the parts only narrow() selects. */\nexport interface Elements {\n${elements.join("\n")}\n}`, "");
 out.push(`/** Each operation's request body (wire names). */\nexport interface Requests {\n${requests.join("\n")}\n}`, "");
 out.push(`/** Each operation's answers by status, in client names. */\nexport interface Answers {\n${answers.join("\n")}\n}`, "");
 out.push(`export const objectFields = {\n${tables.join("\n")}\n} as const;`, "");
@@ -307,6 +317,9 @@ out.push(`export const events = {\n${events.join("\n")}\n} as const;`, "");
 out.push(`export const resources = {\n${resources.join("\n")}\n} as const;`, "");
 out.push(`/** The server's objects in wire names, as raw requests answer them. */\nexport interface Wire {\n${wireLines.join("\n")}\n}`, "");
 out.push(`/** Every operation raw.request reaches: its options (wire names) and answers by status. */\nexport interface RawRoutes {\n${routes.join("\n")}\n}`, "");
+const retention = api.components.parameters?.IdempotencyKey?.["x-retention-seconds"];
+if (!Number.isInteger(retention)) throw new Error("The Idempotency-Key parameter has no x-retention-seconds");
+out.push(`/** How long Tsunagi keeps a write's key (x-retention-seconds), for resending. */\nexport const idempotency = { retentionSeconds: ${retention} } as const;`, "");
 out.push(`/** How each route writes: "keyed" sends an Idempotency-Key; false is a read. */\nexport const routeWrites = {\n${routeWrites.join("\n")}\n} as const;`, "");
 const states = Object.fromEntries(Object.entries(names.states).filter(([name]) => name !== "_"));
 out.push(`/** Anki's search states as the client names them, and their search terms (is:<term>). */\nexport const states = ${JSON.stringify(states)} as const;`, "");

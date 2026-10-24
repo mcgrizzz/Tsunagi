@@ -2,7 +2,7 @@
 // Run by Tsunagi's tests/test_typescript_client.py, which starts the server on
 // a throwaway collection, waits for "WATCHING", then changes this app's role.
 import assert from "node:assert/strict";
-import { ItemRejectedError, Tsunagi } from "../dist/index.js";
+import { ItemRejectedError, Tsunagi, WriteOutcomeUnknownError } from "../dist/index.js";
 import { resources } from "../dist/generated.js";
 
 let reports = 0;  // capabilities requests: the access cache should spare most
@@ -57,6 +57,28 @@ for (const client of [anki, viaPost]) {
 const [first] = await anki.notes.where("id", "eq", ids[0]).select("fields", "tags", "noteTypeId").take(1);
 assert.deepEqual(first.fields.map(field => [field.name, field.value, field.index]), [["Front", "apple", 0], ["Back", "A", 1]]);
 assert.deepEqual([...first.tags].sort(), ["checked", "live"]);
+// narrow(): some fields by name, whole or some parts; a field's text only there; in [] keeps none.
+const [narrowed] = await anki.notes.where("id", "eq", ids[0]).select("id", "fields")
+  .narrow("fields", f => f.where("name", "eq", "Back").select("name", "text")).take(1);
+assert.deepEqual(narrowed.fields, [{ name: "Back", text: "A" }]);
+const [whole] = await anki.notes.where("id", "eq", ids[0]).narrow("fields", f => f.where("index", "in", [0])).take(1);
+assert.deepEqual([whole.fields, whole.tags.length], [[{ name: "Front", value: "apple", index: 0 }], 2]);
+const [none] = await anki.notes.where("id", "eq", ids[0]).select("fields").narrow("fields", f => f.where("name", "in", [])).take(1);
+assert.deepEqual(none.fields, []);
+// A create whose answer was lost: retry() resends it, and the server answers the first attempt's note.
+let lose = true;
+const losing = new Tsunagi({ baseUrl: process.argv[2], keepAccess: false, fetch: async (url, init) => {
+  const response = await fetch(url, init);
+  if (lose && init.method === "POST") { lose = false; throw new TypeError("The answer was lost"); }
+  return response;
+} });
+const fig = { deck: "Default", noteType: "Basic", fields: { Front: "fig" } };
+const lost = await losing.notes.create(fig).catch(error => error);
+assert.ok(lost instanceof WriteOutcomeUnknownError);
+const resent = await lost.retry();
+assert.equal(await anki.notes.where("firstField", "eq", "fig").count(), 1);
+assert.deepEqual((await anki.notes.where("firstField", "eq", "fig").values("id").take(1)), [resent.id]);
+await anki.notes.delete([resent.id]);
 assert.equal(await anki.notes.where("firstField", "in", ["apple", "date"]).count(), 2);
 assert.equal(await anki.notes.where("firstField", "startsWith", "ca").where("firstField", "endsWith", "ot").count(), 1);
 

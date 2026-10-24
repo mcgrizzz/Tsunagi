@@ -51,11 +51,14 @@ class TestParseSelect:
         ]
         assert parse_select_csv("fields[ord in [0, -1]].(name,ord)")[0].where == ("ord", frozenset({0, -1}))
 
+    def test_an_empty_filter_keeps_nothing(self):
+        assert parse_select_csv("fields[name in []]")[0].where == ("name", frozenset())
+
     def test_empty_returns_no_nodes(self):
         assert parse_select_csv("") == []
 
     @pytest.mark.parametrize("bad", ["fields[", "id,,name", "fields[].(name", "1abc",
-                                     "fields[name in []]", 'fields[name in ["a"]', "fields[name in [a]]",
+                                     'fields[name in ["a"]', "fields[name in [a]]",
                                      'fields[name == "a"]', 'fields[name in ["a"]]x'])
     def test_malformed_raises(self, bad):
         with pytest.raises(SelectParseError):
