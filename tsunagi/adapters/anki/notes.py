@@ -6,7 +6,8 @@ they land in Anki's undo stack. Duplicate/empty detection lives here too
 (fields_check_impl) because both the native /v1 check endpoint and the
 AnkiConnect compat layer need exactly the same answer.
 """
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
+import re
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from anki.collection import Collection
 from anki.consts import MODEL_CLOZE
@@ -26,6 +27,8 @@ from ...shared.schemas.notes import (
     NoteInfo,
     NotePatch,
     NoteTypeChange,
+    is_field_text,
+    text_filter,
 )
 from ...shared.sql_query import Column, ColumnSource
 from ..event_results import card_changes, note_result
@@ -72,10 +75,14 @@ def _note_info(col: Collection, note: Any, model_names: Dict[int, str],
     return NoteInfo(**_note_row(col, note, model_names, wants, cards_by_nid))
 
 
+# Which fields of a row carry their text (text_wants).
+TextFor = Callable[[Dict[str, Any]], bool]
+
+
 def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
               wants: Optional[Set[str]] = None,
               cards_by_nid: Optional[Dict[int, List[int]]] = None,
-              text: bool = False) -> Dict[str, Any]:
+              text: Optional[TextFor] = None) -> Dict[str, Any]:
     """
     A note as NoteInfo's field names and types, without per-row validation:
     the values come from Anki's own note. tests/test_note_rows.py checks the
@@ -88,7 +95,8 @@ def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
                   for i, (n, v) in enumerate(zip(names, note.fields))]
         if text:
             for field in fields:
-                field["text"] = field_text(col, field["value"])
+                if text(field):
+                    field["text"] = field_text(col, field["value"])
     # A backend call per note unless the page prefetched the map, and only
     # when the caller asked for the field at all.
     cards = None
@@ -111,17 +119,29 @@ def _note_row(col: Collection, note: Any, model_names: Dict[int, str],
     }
 
 
+# What Anki's conversion changes: tags, entities, [sound:]/[[type:]], line
+# breaks and the ends' whitespace. A value with none of them is its own text.
+_CONVERTED = re.compile(r"[<&\[\n\r]")
+
+
 def field_text(col: Collection, value: str) -> str:
     """A field without HTML, as Anki's Browser shows it (media filenames kept)."""
+    if not _CONVERTED.search(value) and value == value.strip():
+        return value
     return col._backend.html_to_text_line(text=value, preserve_media_filenames=True)
 
 
-def text_wants(wants: Optional[Set[str]]) -> Tuple[Optional[Set[str]], bool]:
-    """A query's wants without its FIELD_TEXT and WHOLE_ROW markers, and
-    whether fields carry their text."""
-    if wants is None or FIELD_TEXT not in wants:
-        return wants, False
-    return (None if WHOLE_ROW in wants else wants - {FIELD_TEXT}), True
+def text_wants(wants: Optional[Set[str]]) -> Tuple[Optional[Set[str]], Optional[TextFor]]:
+    """A query's wants without its text markers and WHOLE_ROW, and which
+    fields carry their text: None for none."""
+    markers = {w for w in wants or () if is_field_text(w)}
+    if not markers:
+        return wants, None
+    rest = None if WHOLE_ROW in wants else wants - markers
+    if FIELD_TEXT in markers:
+        return rest, lambda field: True
+    filters = [text_filter(m) for m in markers]
+    return rest, lambda field: any(field.get(key) in values for key, values in filters)
 
 
 def _model_names(col: Collection) -> Dict[int, str]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Union
+import json
+from typing import Any, Dict, FrozenSet, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, StrictBool, root_validator, validator
 
@@ -39,8 +40,27 @@ class NoteField(BaseModel):
 # A field's text costs a backend call per field, so a query's wants (its
 # top-level names) carry FIELD_TEXT when select or where names it, and
 # WHOLE_ROW beside it when there is no select (the whole row, plus text).
+# A select whose element filter keeps some fields (fields[name in ["Word"]].text)
+# carries a marker per filter instead, so only those fields are converted.
 FIELD_TEXT = "fields[].text"
 WHOLE_ROW = "*"
+
+
+def some_field_text(key: str, values: Any) -> str:
+    """The marker for the text of the fields whose `key` is one of `values`."""
+    return f"{FIELD_TEXT}={json.dumps([key, sorted(values, key=repr)], ensure_ascii=False)}"
+
+
+def is_field_text(name: str) -> bool:
+    return name == FIELD_TEXT or name.startswith(FIELD_TEXT + "=")
+
+
+def text_filter(marker: str) -> Optional[Tuple[str, FrozenSet[Any]]]:
+    """A marker's (key, values), or None for every field's text."""
+    if marker == FIELD_TEXT:
+        return None
+    key, values = json.loads(marker[len(FIELD_TEXT) + 1:])
+    return key, frozenset(values)
 
 
 class NoteInfo(BaseModel):
