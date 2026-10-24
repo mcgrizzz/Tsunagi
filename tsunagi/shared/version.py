@@ -1,4 +1,4 @@
 """Release and native API identifiers shared by discovery and OpenAPI."""
 
-ADDON_VERSION = "0.7.6"
+ADDON_VERSION = "0.7.7"
 API_VERSION = "v1"

@@ -4,7 +4,7 @@ Each version of the TypeScript client, newest first. Its major.minor is
 Tsunagi's: 0.7.x speaks the API of Tsunagi 0.7.x. Patch versions are client
 changes that need no add-on release.
 
-## 0.7.2 (unreleased)
+## 0.7.2 (2026-10-24)
 
 Needs Tsunagi 0.7.7.
 
