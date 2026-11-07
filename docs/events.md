@@ -129,6 +129,8 @@ data: {"type":"notes.created","ids":[1790000000123],"notes":[{"id":1790000000123
 | Sync start and finish | `?types=sync` |
 | Due counts for a deck list | `?types=decks.counts` |
 | Only to know when your access changes | `?types=access.changed` |
+| One add-on's event | `?types=addons.hitoiki.set_done` |
+| Every add-on's events | `?resources=addons` |
 
 To keep a list up to date, ask for the whole resource (`resources=notes`). An
 exact type such as `types=notes.deleted` leaves out `notes.stale`, so it can
@@ -137,8 +139,24 @@ miss a deletion Tsunagi couldn't give IDs for.
 Your app must be allowed to read the collection, except to receive only
 `access.changed`. Card answers (`cards.answered`, `reviews.created`) go only to
 apps whose role allows **Each card you answer**; of the built-in roles, only
-Everything does. `GET /v1/capabilities` lists what the stream would send your
-app ([discovery](capabilities.md)).
+Everything does. Add-on events need **read:addons**. `GET /v1/capabilities`
+lists what the stream would send your app ([discovery](capabilities.md)).
+
+## Add-on events
+
+Other add-ons can send their own events through Tsunagi
+([for add-on authors](addon_providers.md#events)). Each is named
+`addons.<provider>.<event>` and carries the add-on's data in `payload`:
+
+```text
+event: addons.hitoiki.set_done
+data: {"payload":{"deck":"Japanese","count":20,"goal":20,"ms":512000},"type":"addons.hitoiki.set_done",…}
+```
+
+The add-on's own documentation says what its events mean. Asking for an
+event that no installed add-on declares answers 422. Add-on events come on a
+stream without filters, and with `resources=addons`; `types=change` and the
+other resources leave them out.
 
 ## Know when your access changes
 
@@ -169,6 +187,7 @@ capabilities report.
 | `decks.counts` | A deck's new, learning or review counts changed. |
 | `day.changed` | Anki's day changed: a new day started, or changing **Next day starts at** moved it. Searches relative to today (`is:due`, `is:buried`, `rated:1`, `prop:due=0`) can now match other cards, though no card changed: run them again. Every stream that receives changes gets it, whatever its `resources`. |
 | `decks.stale`, `note_types.stale`, `tags.stale`, … | That kind of thing changed. |
+| `addons.<provider>.<event>` | An add-on sent one of its events ([above](#add-on-events)). |
 
 One change can produce several messages. Deleting a note sends
 `notes.deleted` with its ID and `cards.deleted` with its cards' IDs, because

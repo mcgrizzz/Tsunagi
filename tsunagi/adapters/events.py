@@ -39,6 +39,10 @@ ACCESS_CHANGED = "access.changed"
 # no row written. Part of `change`, about no one resource.
 DAY_CHANGED = "day.changed"
 EVENT_TYPES = DATA_EVENT_TYPES | {"change", "cards.answered", "sync", ACCESS_CHANGED, DAY_CHANGED}
+# Events add-on providers declare (addon_actions): addons.<provider>.<event>.
+# resources=addons selects them all; they aren't part of `change`.
+ADDONS = "addons"
+ADDON_EVENT_PREFIX = ADDONS + "."
 
 
 def _collection_events(payload: dict, *, broad: bool = False) -> List[dict]:
@@ -104,6 +108,12 @@ class _Subscriber:
             return False
         if type == DAY_CHANGED:
             return self.types is None or bool({"change", DAY_CHANGED} & self.types)
+        if type.startswith(ADDON_EVENT_PREFIX):
+            if self.types is not None and type in self.types:
+                return True
+            if self.resources is not None:
+                return ADDONS in self.resources and (self.types is None or "change" in self.types)
+            return self.types is None
         is_data = type in DATA_EVENT_TYPES
         if self.types is not None and type not in self.types:
             if not (is_data and "change" in self.types):
@@ -298,9 +308,12 @@ def _fsrs_enabled(collection: Any) -> Optional[bool]:
 
 
 def event_permitted(grants: FrozenSet[str], type: str) -> bool:
-    """Review events need events:reviews, data events and day.changed events:changes."""
+    """Review events need events:reviews, data events and day.changed
+    events:changes, add-on events read:addons (like add-on reads)."""
     if type == "cards.answered" or type.startswith("reviews."):
         return allows(grants, "events:reviews")
+    if type.startswith(ADDON_EVENT_PREFIX):
+        return allows(grants, "read:addons")
     return (type not in DATA_EVENT_TYPES | {DAY_CHANGED}
             or allows(grants, "events:changes"))
 

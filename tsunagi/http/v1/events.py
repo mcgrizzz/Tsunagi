@@ -23,8 +23,11 @@ from fastapi import APIRouter, HTTPException, Query
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import StreamingResponse
 
+from ...adapters import addon_actions
 from ...adapters.events import (
     ACCESS_CHANGED,
+    ADDON_EVENT_PREFIX,
+    ADDONS,
     CHANGE_RESOURCES,
     DATA_EVENT_TYPES,
     DAY_CHANGED,
@@ -204,6 +207,15 @@ a profile is open again), shutdown, auth (the caller's key or role changed), tim
 comments keep idle connections alive. No active session returns HTTP 503.
 Browser EventSource can use api_key when it cannot set an authentication header.
 
+### Add-on events
+
+Add-ons can declare their own events (docs/addon_providers.md). Each arrives as
+addons.<provider>.<event>, such as addons.hitoiki.set_done, with the add-on's
+JSON in payload. Ask for one with types=addons.<provider>.<event> (an event
+no installed add-on declares returns HTTP 422), or for all of them with
+resources=addons; they come on a stream without filters too, but not with
+types=change. They need read:addons, like add-on reads.
+
 General and detailed Add-dialog notifications can overlap. Media/import coverage
 is incomplete; other add-ons can bypass hooks. Optional by/app/anki fields are
 diagnostics, not stable identifiers for user actions. Changes made through the
@@ -308,12 +320,14 @@ def stream_events(
                           "Checked by the auth middleware."),
     types: Annotated[Optional[str], Query(
         description="Comma-separated event names, such as notes.updated, notes.deleted, "
-                    "notes.stale, cards.answered, sync; change selects all data events. "
+                    "notes.stale, cards.answered, sync, or an add-on's addons.<provider>.<event>; "
+                    "change selects all data events. "
                     "Defaults to change when resources is supplied, otherwise all.",
     )] = None,
     resources: Annotated[Optional[str], Query(
         description="Views to keep current, comma-separated: "
-                    "notes, cards, note_types, decks, tags, reviews, scheduler, config. "
+                    "notes, cards, note_types, decks, tags, reviews, scheduler, config; "
+                    "addons for every add-on event. "
                     "Selects changes unless types is explicit. "
                     "Combined types must match at least one selected data resource.",
     )] = None,
@@ -323,8 +337,8 @@ def stream_events(
                     "are the resource's GET select; id is always included. Needs read:<resource>.",
     )] = None,
 ) -> StreamingResponse:
-    selected_types = _parse_filter(types, "types", EVENT_TYPES)
-    selected_resources = _parse_filter(resources, "resources", CHANGE_RESOURCES)
+    selected_types = _parse_filter(types, "types", EVENT_TYPES | addon_actions.event_types())
+    selected_resources = _parse_filter(resources, "resources", CHANGE_RESOURCES | {ADDONS})
     if (selected_types != {ACCESS_CHANGED} or selected_resources is not None) \
             and not permitted("read:collection"):
         raise HTTPException(status_code=403, detail=current_denial("read:collection"))
@@ -333,9 +347,14 @@ def stream_events(
     data_types = (DATA_EVENT_TYPES if selected_types is None or "change" in selected_types
                   else selected_types & DATA_EVENT_TYPES)
     data_resources = frozenset(name.split(".", 1)[0] for name in data_types)
+    # The same choice as the broker's _Subscriber.accepts for add-on events.
+    addons = (selected_types is None
+              or any(t.startswith(ADDON_EVENT_PREFIX) for t in selected_types)
+              or (selected_resources is not None and ADDONS in selected_resources
+                  and "change" in selected_types))
     if selected_resources is not None:
         data_resources &= selected_resources
-        if not data_resources:
+        if not data_resources and not addons:
             raise HTTPException(status_code=422,
                                 detail="types must match at least one selected data resource")
     selects = _parse_select(select, data_resources)
@@ -344,6 +363,8 @@ def stream_events(
     caller = current_caller.get()
     data_resources = frozenset(r for r in data_resources
                                if event_permitted(caller.grants, f"{r}.stale"))
+    if addons and event_permitted(caller.grants, ADDON_EVENT_PREFIX):
+        data_resources |= {ADDONS}
     if broker.is_draining():
         raise CollectionUnavailableError("No active event session")
 
