@@ -284,6 +284,7 @@ export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWat
       keyWire: this.fields[key]!.wire,
       search,
       selected,
+      columns: selected && !Object.keys(this.state.narrow).length ? selected.map(name => this.fields[name]!.wire) : null,
       // From the description's x-from: a search follows what it reads, a field what it is built from.
       related: [...new Set([
         ...(search === undefined ? [] : (resources[this.resource].search as { from: readonly string[] } | null)?.from ?? []),

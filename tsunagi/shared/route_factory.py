@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -14,6 +15,7 @@ from typing import (
     List,
     Literal,
     Mapping,
+    NamedTuple,
     Optional,
     Set,
     Type,
@@ -82,6 +84,19 @@ _SCALAR_TYPESET = frozenset(get_args(Scalar))
 # fetched in bounded slices rather than one call: each slice gets its own
 # budget, and a large `limit` can't turn a slow page into a 503.
 HYDRATE_CHUNK = 250
+
+
+class RowReader(NamedTuple):
+    """A resource's rows by id, selected as its GET's select would: the event
+    stream sends them with the events naming them (?select=notes:fields)."""
+    permission: str
+    prepare: Callable[[str], str]           # checks a select; returns it with id first
+    read: Callable[[List[int], str], List[Any]]
+
+
+# Filled by create_resource_routes, by resource_plural.
+ROW_READERS: Dict[str, RowReader] = {}
+
 
 def _stats(start_time: float) -> dict:
     duration_ms = (time.perf_counter() - start_time) * 1000.0
@@ -807,6 +822,22 @@ def create_resource_routes(
         if type(page) is Paginated[ModelRow]:
             return Response(render_query_page(page), media_type="application/json")
         return page
+
+    def prepare_select(select: str) -> str:
+        if fields is not None:
+            _check_fields(select, None, fields)
+        try:
+            named = referenced_top_fields(select) or set()
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve)) from ve
+        return select if "id" in named else f"id,{select}"
+
+    def read_rows(ids: List[int], select: str) -> List[Any]:
+        page = _execute_query(select=select, where=[f"id in [{','.join(map(str, ids))}]"],
+                              shape="object", limit=None, cursor=None, caps=caps, id_getter=id_getter)
+        return json.loads(render_query_page(page))["items"]
+
+    ROW_READERS[resource_plural] = RowReader(f"read:{permission_resource}", prepare_select, read_rows)
 
     # GET endpoint - query params in URL
     @router.get(

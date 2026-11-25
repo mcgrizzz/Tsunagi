@@ -37,6 +37,18 @@ class _Change(_Live):
 class RowsChanged(_Change):
     """`<resource>.created`, `.updated`, `.deleted`; `reviews.created`."""
     ids: List[int] = Field(description="The ids of the rows that changed.")
+    # With ?select=<resource>:<columns>: the rows, read when the event is sent.
+    notes: Optional[List[Dict[str, Any]]] = Field(None, description=(
+        "notes.created and notes.updated, with select=notes:<columns>: the notes as "
+        "GET /v1/notes?select=id,<columns> returns them; a note deleted since isn't listed. "
+        "Null otherwise."), **NULLABLE)
+    cards: Optional[List[Dict[str, Any]]] = Field(None, description=(
+        "cards.created and cards.updated, with select=cards:<columns>: the cards as "
+        "GET /v1/cards?select=id,<columns> returns them; a card deleted since isn't listed. "
+        "Null otherwise."), **NULLABLE)
+    reviews: Optional[List[Dict[str, Any]]] = Field(None, description=(
+        "reviews.created, with select=reviews:<columns>: the reviews as "
+        "GET /v1/reviews?select=id,<columns> returns them. Null otherwise."), **NULLABLE)
 
 
 class RowsStale(_Change):

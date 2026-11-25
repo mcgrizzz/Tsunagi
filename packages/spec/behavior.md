@@ -442,9 +442,11 @@ that listens: the access cache, `onAccessChange`, and the features below.
 - **What it asks for.** The union of what its listeners need:
   `resources=` the resources, comma-separated and sorted; `types=` `change`
   (every data event of those resources) when there are resources, plus
-  `cards.answered` and `sync` when asked for. With no resources and no
-  types, `types=access.changed`, which needs no permission. Every stream
-  gets `access.changed`.
+  `cards.answered` and `sync` when asked for; and one
+  `select=<resource>:<columns>` per resource whose rows a listener wants
+  with the messages, the union of their columns, sorted. With no resources
+  and no types, `types=access.changed`, which needs no permission. Every
+  stream gets `access.changed`.
 - **Opening and closing.** It opens when the first listener joins and closes
   when the last one leaves, or on `close()`. When a listener joins that
   needs something the connection doesn't carry, the client reconnects with
@@ -542,6 +544,21 @@ ignored.
 | any `.stale` of its resources; `day.changed`; `gap`; a `ready` after a drop | read everything again |
 | `sync` `started`, then `finished` | hold: gather messages, handle none; after `finished`, handle them together |
 | a `ready` whose `profile` differs from the first load's | end the watch: profile changed |
+
+**Rows with the message.** A watch on `notes`, `cards` or `reviews` whose
+select is plain fields (no narrowed list, not every field) adds them to its
+connection need: `select=<resource>:<their wire names>`. The server then
+sends the rows with `<own>.created` and `.updated` (`reviews.created`),
+under the resource's name, with the union of every listener's columns. The
+watch keeps a key's row from its latest message, cut to its own fields in
+its select's order, so its fingerprint matches a read's. A key whose latest
+message carried no row for it (an older server, a row that couldn't be read
+or is gone) is checked as below. Checking keys with rows:
+
+- Without a search or filters, no request: compare the rows.
+- With them, one request for which still match: the query narrowed to those
+  keys, values of the key (as below). Compare only the matching rows; the
+  others count as no longer matching.
 
 **Checking keys** is one request, read in pages of 2,000: the query
 (search, filters, select) narrowed to those keys. On notes and cards with a

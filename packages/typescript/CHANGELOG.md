@@ -28,6 +28,11 @@ Needs Tsunagi 0.7.7.
   the watch waits for it; changes during an Anki sync are delivered together
   when it ends; a `status` handler hears `reconnecting` and `live`; a profile
   switch ends the watch with `ProfileChangedError`.
+- **Fewer reads while watching:** a watch whose `select` names plain fields
+  gets the changed notes, cards or reviews with each change from Tsunagi,
+  instead of reading them after it. With a search or filter it still asks
+  which of them match, reading only their keys. Nothing changes in how you
+  call it; with an older Tsunagi it reads as before.
 
 ## 0.7.1 (2026-10-11)
 
