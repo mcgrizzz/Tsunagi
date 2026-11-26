@@ -8,8 +8,8 @@ CLIENT = {
     "about": "Adds audio, screenshots and sentences to mined notes",
     "needs": ("0.7.5", "for media files named with a folder"),
     "repo": "https://github.com/bpwhelan/GameSentenceMiner",
-    "commit": "c3499a0",
-    "read": "2026-10-15",
+    "commit": "bb62e5b",
+    "read": "2026-11-25",
     "files": [
         "GameSentenceMiner/anki.py",
         "GameSentenceMiner/anki_setup.py",
@@ -18,12 +18,15 @@ CLIENT = {
         "GameSentenceMiner/util/cron/anki_word_sync.py",
         "GameSentenceMiner/web/anki_api_endpoints.py",
         "GameSentenceMiner/util/platform/notification.py",
+        "GameSentenceMiner/session_review.py",
     ],
     "uses": "requests.post, version 6, params always sent ({} when none); urllib for anki_word_sync.py",
     "notes": "anki.py invoke needs exactly the two keys result and error. Field names follow the "
              "user's settings (defaults Expression, Sentence, SentenceAudio, Picture); the cases map "
              "the word to Front and the sentence to Back of the seeded Basic note. The bundled "
-             "Hachidori and Yomitan extensions in GSM_Overlay are separate clients, not covered here.",
+             "Hachidori and Yomitan extensions in GSM_Overlay are separate clients, not covered here. "
+             "invoke retries the error 'A collection operation is active.' (the rewritten AnkiConnect's); "
+             "Tsunagi never sends it: a request waits for Anki, as before.",
 }
 
 ENVELOPE = {"version": 6, "params": "always", "key": "absent", "method": "POST"}
@@ -38,12 +41,18 @@ SENDS = {
     ),
     "createDeck": ([{"deck": str}], ("",)),
     "deckNames": ([{}], ("",)),
+    # session_review.py: deletes a media file only when no template, style or note names it.
+    "deleteMediaFile": ([{"filename": str}], ("",)),
     "deleteNotes": ([{"notes": [int]}], ("",)),
     "findCards": ([{"query": str}], ("",)),
     "findNotes": ([{"query": str}], ("result", "")),
+    # session_review.py: binds a review to the open profile.
+    "getActiveProfile": ([{}], ("",)),
     "getReviewsOfCards": ([{"cards": [int]}], ("result", "error")),
     "modelFieldNames": ([{"modelName": str}], ("",)),
     "modelNames": ([{}], ("",)),
+    "modelStyling": ([{"modelName": str}], ("",)),
+    "modelTemplates": ([{"modelName": str}], ("",)),
     "notesInfo": (
         [{"notes": [int]}],
         ("result[*].noteId", "result[*].modelName", "result[*].tags", "result[*].fields", "result[*].cards", "error"),

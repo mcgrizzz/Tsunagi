@@ -1,9 +1,9 @@
 {
- "commit": "7d93a65",
+ "commit": "1673df15",
  "hints": {
   "multi": [],
   "port_8765": [
-   "src/background/sync-manager/services/ankiconnect/index.ts:33"
+   "src/background/sync-manager/services/ankiconnect/index.ts:34"
   ],
   "version": [
    6
@@ -12,43 +12,49 @@
  "sites": {
   "addNote": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:138",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:143",
     "hash": "a9f785ec57479863"
    }
   ],
   "createDeck": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:162",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:167",
     "hash": "7ce4eea979137f93"
    }
   ],
   "createModel": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:179",
-    "hash": "49eec1836f808ccd"
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:199",
+    "hash": "b082a743e726d34a"
    }
   ],
   "deckNames": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:52",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:53",
     "hash": "e0e5c8f64091c59e"
+   }
+  ],
+  "findModelsByName": [
+   {
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:362",
+    "hash": "268416b22b1094e2"
    }
   ],
   "findNotes": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:87",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:90",
     "hash": "f32f5b6c3ad3f210"
    }
   ],
   "modelFieldNames": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:274",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:314",
     "hash": "57fdd00c6bb20ab0"
    }
   ],
   "modelNames": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:57",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:58",
     "hash": "aeafb7a694badac7"
    }
   ],
@@ -60,25 +66,25 @@
   ],
   "sync": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:128",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:133",
     "hash": "87c60e8f8aef601b"
    }
   ],
   "updateModelTemplates": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:195",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:204",
     "hash": "cc4b8b0d9708d913"
    }
   ],
   "updateNoteFields": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:153",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:158",
     "hash": "b64b600ad0a7d1ca"
    }
   ],
   "version": [
    {
-    "at": "src/background/sync-manager/services/ankiconnect/index.ts:358",
+    "at": "src/background/sync-manager/services/ankiconnect/index.ts:419",
     "hash": "d13bf9c9efd0f354"
    }
   ]
