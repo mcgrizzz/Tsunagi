@@ -32,3 +32,20 @@ def test_array_selection_reads_new_values_without_mutating_the_input():
     assert obj["fields"][0]["name"] == "Front"
     obj["fields"][0]["name"] = "Renamed"
     assert project_scalars(obj, nodes) == {"fields": [{"name": "Renamed", "ord": 0}]}
+
+
+def test_rows_that_already_match_the_selection_are_not_copied():
+    from tsunagi.shared.route_factory import _finish
+
+    rows = [{"id": 1, "rating": 3}, {"id": 2, "rating": 4}]
+    page = _finish(rows, None, "id,rating", None, 0.0)
+    assert page.items is rows
+
+
+def test_rows_with_other_keys_or_order_are_projected_in_the_selections_order():
+    from tsunagi.shared.route_factory import _finish
+
+    rows = [{"rating": 3, "id": 1, "type": 0}]
+    page = _finish(rows, None, "id,rating", None, 0.0)
+    assert page.items == [{"id": 1, "rating": 3}] and list(page.items[0]) == ["id", "rating"]
+    assert rows == [{"rating": 3, "id": 1, "type": 0}]
