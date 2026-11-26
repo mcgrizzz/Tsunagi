@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnkiConnect parity</title>
+<meta name="description" content="Every AnkiConnect action in Tsunagi: how it is answered, the permission it needs, which tested tools send it, the Tsunagi API way to do the same, and where AnkiConnect itself is broken.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@300;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .acts { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .acts th, .acts td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .acts thead th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .acts tbody.group th { padding-top: 18px; font-size: 15px; color: var(--ink); border-bottom: 1px solid var(--ink); }
+  .acts tbody.group th span { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .acts tr.row { cursor: pointer; }
+  .acts tr.row:hover td { background: var(--accent-soft); }
+  .acts tr.row td:first-child { font: 13.5px var(--mono); white-space: nowrap; }
+  .acts tr.row td:first-child::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--muted); font-family: sans-serif; }
+  .acts tr.row.open td:first-child::before { content: "▾"; }
+  .acts td.ok { color: var(--good); white-space: nowrap; }
+  .acts td.used { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .acts td.used i { display: inline-block; height: 6px; border-radius: 3px; background: var(--seq-2); margin-right: 6px; vertical-align: 2px; }
+  .acts td.used.none { color: var(--muted); }
+  .acts td.way code { white-space: nowrap; }
+  .acts tr.more td { background: var(--bg); padding: 10px 14px 14px; }
+  .acts tr.more dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 14px; }
+  .acts tr.more dt { color: var(--muted); }
+  .acts tr.more dd { margin: 0; min-width: 0; }
+  .bugs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .bug { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; }
+  .bug b { display: block; font-size: 14.5px; }
+  .bug p, .bug ul { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+  .bug ul { padding-left: 18px; }
+  .bug .chips { margin-top: 6px; }
+  @media (max-width: 860px) { .bugs { grid-template-columns: minmax(0, 1fr); } .acts th.way, .acts td.way { display: none; } }
+  @media (max-width: 520px) { .acts th.used, .acts td.used { display: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div>
+        <p class="eyebrow"><a class="brand" href="./"><span class="ja" lang="ja">繋ぎ</span> Tsunagi</a><span class="sep">·</span><span aria-current="page">AnkiConnect parity</span><span class="sep">·</span><a href="tools.html">Tested tools</a><span class="sep">·</span><a href="benchmarks.html">Benchmarks</a><span class="sep">·</span><a href="roadmap.html">Roadmap &amp; releases</a><span class="sep">·</span><a href="https://github.com/mcgrizzz/Tsunagi">GitHub</a></p>
+        <h1>Every AnkiConnect action, <span class="accent">answered</span></h1>
+        <p class="lede">Tsunagi answers AnkiConnect's requests on its port, so a tool built for AnkiConnect works by pointing
+          it there. Each action below is answered and checked against AnkiConnect's own code, and each has a Tsunagi API
+          way to do the same.</p>
+      </div>
+      <button id="theme" class="btn" type="button" aria-label="Switch between light and dark">Theme</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="cards" id="stats"></div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Every action</h2>
+      <p class="hint">Grouped as AnkiConnect's README groups them. <em>Used by</em> counts the tested tools whose code
+        sends the action. Click an action for how Tsunagi answers it, what it needs, and which tools use it.</p>
+    </div>
+    <div class="controls">
+      <input type="search" id="search" placeholder="Find an action" aria-label="Find an action">
+      <div class="seg" id="filter" role="group" aria-label="Show"></div>
+    </div>
+    <div class="table-wrap"><table class="acts" id="acts">
+      <thead><tr><th>Action</th><th>Tested</th><th class="used">Used by</th><th class="way">Tsunagi API way</th></tr></thead>
+    </table></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Where AnkiConnect is broken</h2>
+      <p class="hint">Read from AnkiConnect's code. Tsunagi fixes what no tool can be relying on, and keeps the rest so
+        existing tools behave the same.</p>
+    </div>
+    <div class="bugs">
+      <div><h3>Fixed in Tsunagi</h3><div id="fixed"></div></div>
+      <div><h3>Kept as AnkiConnect does it</h3><div id="kept"></div></div>
+    </div>
+  </section>
+
+  <section class="panel prose">
+    <h2>How this is checked</h2>
+    <ul>
+      <li>The list of actions comes from AnkiConnect's code, not its README, and the test suite fails if Tsunagi answers an
+        action this page doesn't list, or lists one it doesn't answer.</li>
+      <li>Every action has tests, except <code>getProfiles</code> and <code>loadProfile</code>, which need Anki's real
+        profile manager and are checked by hand. Actions that drive Anki's windows are tested with stand-ins for them, or in a
+        real Anki running offscreen.</li>
+      <li>Answers and errors are compared with AnkiConnect's for the requests the tests cover, and each
+        <a href="tools.html">tested tool</a>'s requests are replayed against Tsunagi.</li>
+      <li>Permissions come from each action's registration in Tsunagi; the Tsunagi API routes are checked against the API
+        description when this site is built.</li>
+      <li>Everything here is from the <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/ankiconnect_parity.md">parity
+        page</a> in the docs, which also lists the <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/ankiconnect_parity.md#differences-you-might-notice">differences
+        you might notice</a>.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="wrap foot">Written from <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/ankiconnect_parity.md">docs/ankiconnect_parity.md</a>,
+  the actions' registrations and the tested tools' declarations.</footer>
+<script src="site.js"></script>
+<script>
+(async () => {
+  const { load, esc, prose, h, seg } = window.UI;
+  const $ = id => document.getElementById(id);
+  const [{ actions, broken }, { tools }] = await Promise.all([load("parity"), load("tools")]);
+  const toolName = Object.fromEntries(tools.map(t => [t.id, t.name]));
+  const bugsOf = {};
+  broken.forEach((b, i) => b.actions.forEach(a => (bugsOf[a] ??= []).push(i)));
+  const used = actions.filter(a => a.tools.length).length;
+  const byHand = actions.filter(a => a.tested === "hand");
+
+  $("stats").innerHTML = [
+    ["Actions answered", `${actions.filter(a => a.status === "implemented").length} of ${actions.length}`, "every action in AnkiConnect's code", true],
+    ["Tested", `${actions.length} of ${actions.length}`, `${actions.length - byHand.length} by the test suite, ${byHand.length} by hand`],
+    ["AnkiConnect bugs fixed", broken.filter(b => !b.kept).length, `${broken.filter(b => b.kept).length} quirks kept on purpose`],
+    ["Used by the tested tools", `${used} of ${actions.length}`, `the actions ${tools.length} real tools send`],
+  ].map(([k, v, sub, accent]) => `<div class="card"><div class="k">${k}</div><div class="v${accent ? " accent" : ""}">${v}</div><div class="s">${sub}</div></div>`).join("");
+
+  const most = Math.max(...actions.map(a => a.tools.length));
+  let query = "", filter = "all";
+  const open = new Set(location.hash.startsWith("#a-") ? [location.hash.slice(3)] : []);
+  const table = $("acts");
+  const groups = [...new Set(actions.map(a => a.group))];
+
+  function details(a) {
+    const route = a.route ? `<code>${esc(a.route)}</code>${a.how ? ` ${prose(a.how)}` : ""}` : prose(a.how);
+    const users = a.tools.length ? a.tools.map(id => `<a href="tools.html#tool-${id}">${esc(toolName[id])}</a>`).join(", ") : "none of the tested tools";
+    const bugs = (bugsOf[a.name] || []).map(i => `${broken[i].kept ? "Kept as AnkiConnect does it" : "Fixed in Tsunagi"}: ${prose(broken[i].title)}`).join("<br>");
+    return `<dl>
+      <dt>How Tsunagi answers</dt><dd>${prose(a.notes) || "As AnkiConnect does."}</dd>
+      <dt>Needs</dt><dd>${a.permission === "public" ? "nothing: anyone who can reach Tsunagi" : a.name === "multi" ? "what each action it carries needs" : `<code>${esc(a.permission)}</code>`}</dd>
+      <dt>Used by</dt><dd>${users}</dd>
+      <dt>Tsunagi API way</dt><dd>${route}</dd>
+      ${bugs ? `<dt>AnkiConnect</dt><dd>${bugs}</dd>` : ""}</dl>`;
+  }
+  function matches(a) {
+    if (query && !a.name.toLowerCase().includes(query)) return false;
+    if (filter === "used") return a.tools.length > 0;
+    if (filter === "bugs") return Boolean(bugsOf[a.name]);
+    return true;
+  }
+  function draw() {
+    table.querySelectorAll("tbody").forEach(b => b.remove());
+    for (const g of groups) {
+      const rows = actions.filter(a => a.group === g && matches(a));
+      if (!rows.length) continue;
+      table.append(h("tbody", { class: "group", html: `<tr><th colspan="4">${esc(g)} actions<span>${rows.length}</span></th></tr>` }));
+      const body = h("tbody");
+      for (const a of rows) {
+        const tr = h("tr", { class: `row${open.has(a.name) ? " open" : ""}`, id: `a-${a.name}`, tabindex: 0, "aria-expanded": String(open.has(a.name)) });
+        const n = a.tools.length;
+        tr.innerHTML = `<td>${esc(a.name)}</td>
+          <td class="ok">${a.tested === "hand" ? "✓ by hand" : "✓"}</td>
+          <td class="used${n ? "" : " none"}">${n ? `<i style="width:${Math.max(3, 60 * n / most)}px"></i>${n} tool${n > 1 ? "s" : ""}` : "–"}</td>
+          <td class="way">${a.route ? `<code>${esc(a.route)}</code>` : '<span class="muted">none</span>'}</td>`;
+        const toggle = () => { open.has(a.name) ? open.delete(a.name) : open.add(a.name); draw(); };
+        tr.addEventListener("click", toggle);
+        tr.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+        body.append(tr);
+        if (open.has(a.name)) body.append(h("tr", { class: "more", html: `<td colspan="4">${details(a)}</td>` }));
+      }
+      table.append(body);
+    }
+  }
+  $("search").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); draw(); });
+  seg($("filter"), [["all", "All"], ["used", "Used by tested tools"], ["bugs", "AnkiConnect gets wrong"]], filter, v => { filter = v; draw(); });
+  draw();
+  if (open.size) document.getElementById(`a-${[...open][0]}`)?.scrollIntoView({ block: "center" });
+
+  for (const b of broken) {
+    $(b.kept ? "kept" : "fixed").append(h("div", { class: "bug" }, h("b", { html: prose(b.title) }),
+      b.text ? h("p", { html: prose(b.text) }) : null,
+      b.points.length ? h("ul", {}, b.points.map(p => h("li", { html: prose(p) }))) : null,
+      h("ul", { class: "chips" }, b.actions.map(a => h("li", {}, h("a", { href: `#a-${a}`, onclick: () => {
+        $("filter").firstElementChild.click(); open.add(a); draw(); setTimeout(() => document.getElementById(`a-${a}`)?.scrollIntoView({ block: "center" }));
+      } }, a))))));
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tested tools</title>
+<meta name="description" content="The AnkiConnect tools Tsunagi is checked against: what each one sends, and when its code was last read.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@300;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
+  .tool { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tool .name { font-weight: 600; text-decoration: none; color: var(--ink); }
+  .tool .name:hover { color: var(--accent); text-decoration: underline; }
+  .tool .about { font-size: 14px; color: var(--muted); }
+  .works { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; font-weight: 600; color: var(--good); margin-top: 4px; }
+  .works svg { flex: none; margin-top: 2px; }
+  .works small { display: block; font-weight: 400; color: var(--muted); }
+  .tool .meta { font-size: 13px; color: var(--muted); margin-top: auto; padding-top: 6px; }
+  .tool details summary { font-size: 13.5px; color: var(--accent); cursor: pointer; margin-top: 4px; }
+  .tool details p, .tool details dl { font-size: 13.5px; margin: 6px 0 0; }
+  .tool details dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 10px; }
+  .tool details dt { color: var(--muted); }
+  .tool details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .tool:target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  @media (max-width: 900px) { .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .tools { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div>
+        <p class="eyebrow"><a class="brand" href="./"><span class="ja" lang="ja">繋ぎ</span> Tsunagi</a><span class="sep">·</span><a href="parity.html">AnkiConnect parity</a><span class="sep">·</span><span aria-current="page">Tested tools</span><span class="sep">·</span><a href="benchmarks.html">Benchmarks</a><span class="sep">·</span><a href="roadmap.html">Roadmap &amp; releases</a><span class="sep">·</span><a href="https://github.com/mcgrizzz/Tsunagi">GitHub</a></p>
+        <h1 id="title">AnkiConnect tools that work with Tsunagi</h1>
+        <p class="lede">Each tool's code was read at a commit, and every request it sends is checked against Tsunagi on every
+          change. Switch from AnkiConnect and these keep working, with no change to the tool.</p>
+      </div>
+      <button id="theme" class="btn" type="button" aria-label="Switch between light and dark">Theme</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="cards" id="stats"></div>
+
+  <section class="panel">
+    <div class="panel-head row">
+      <div><h2>Every tool</h2>
+        <p class="hint">Missing one you use? <a href="#add">Add it to the checks</a>.</p></div>
+      <input type="search" id="search" placeholder="Find a tool or an action it sends" aria-label="Find a tool or an action it sends">
+    </div>
+    <div class="tools" id="tools"></div>
+  </section>
+
+  <section class="panel prose" id="add">
+    <h2>How tools are checked</h2>
+    <ul>
+      <li>Every AnkiConnect action has tests of its own (see <a href="parity.html">AnkiConnect parity</a>). The tools are
+        extra insurance, in case a tool sends something those tests don't expect.</li>
+      <li>For each tool, its source was read at the commit shown and every request it sends to Anki written down. On every
+        change, Tsunagi's tests check that each of those requests gets the answer AnkiConnect gave before its October 2026
+        rewrite, including for cards that are new, learning, in review, relearning, suspended, buried or in a filtered deck.</li>
+      <li>The tools' own code isn't run, so what a tool does with Anki's windows, such as opening the Browser, isn't covered.</li>
+      <li>Want a tool added to the checks? <a href="https://github.com/mcgrizzz/Tsunagi/compare">Open a pull request</a> with its
+        declaration (<a href="https://github.com/mcgrizzz/Tsunagi/blob/main/tests/clients/support.py">how to write one</a>: read its
+        code, list what it sends), or <a href="https://github.com/mcgrizzz/Tsunagi/issues/new?title=Add%20a%20tool%20to%20the%20checks%3A%20">open an issue</a>
+        naming it and we'll add it.</li>
+    </ul>
+  </section>
+</main>
+<footer class="wrap foot">Written from the tools' declarations in
+  <a href="https://github.com/mcgrizzz/Tsunagi/tree/main/tests/clients">tests/clients</a>.</footer>
+<script src="site.js"></script>
+<script>
+(async () => {
+  const { load, esc, prose, fmt, h } = window.UI;
+  const $ = id => document.getElementById(id);
+  const { tools } = await load("tools");
+  const requests = t => t.actions.reduce((n, a) => n + a.requests, 0);
+  const newest = tools.reduce((a, t) => (t.read > a.read ? t : a));
+  const needs = tools.filter(t => t.needs);
+  $("stats").innerHTML = [
+    ["Tools that work", `${tools.length} of ${tools.length}`, "with every request they send", true],
+    ["Requests checked", fmt.int(tools.reduce((n, t) => n + requests(t), 0)), "on every change to Tsunagi"],
+    ["Need a recent Tsunagi", needs.length, needs.length ? `${needs.map(t => esc(t.name)).join(" and ")}: ${esc(needs[0].needs[0])} or newer` : "none"],
+    ["Last checked", fmt.date(newest.read), esc(newest.name)],
+  ].map(([k, v, sub, accent]) => `<div class="card"><div class="k">${k}</div><div class="v${accent ? " accent" : ""}">${v}</div><div class="s">${sub}</div></div>`).join("");
+
+  const CHECK = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const card = t => {
+    const env = t.envelope;
+    const envelope = [`version ${env.version ?? "none"}`, env.key === "absent" ? "no key" : `key ${env.key}`, env.method].filter(Boolean).join(", ");
+    const sent = t.actions.map(a => {
+      const label = `${esc(a.name)}${a.requests > 1 ? ` <span class="n">×${a.requests}</span>` : ""}`;
+      return `<li>${a.code ? `<a href="${esc(a.code)}" title="Where ${esc(t.name)} sends it">${label}</a>` : `<span>${label}</span>`}</li>`;
+    }).join("");
+    return h("article", { class: "tool", id: `tool-${t.id}` },
+      h("a", { class: "name", href: t.repo }, t.name),
+      h("div", { class: "about" }, t.about),
+      h("div", { class: "works", html: t.needs
+        ? `${CHECK}<span>Works with Tsunagi ${esc(t.needs[0])} or newer<small>${esc(t.needs[1])}</small></span>`
+        : `${CHECK}<span>Works${t.note ? `<small>${prose(t.note)}</small>` : ""}</span>` }),
+      h("div", { class: "meta" }, `${requests(t)} requests checked · code read ${fmt.date(t.read)}`),
+      h("details", {}, h("summary", {}, "What it sends"),
+        h("ul", { class: "chips", html: sent }),
+        h("dl", { html: `<dt>Code read at</dt><dd><a href="${esc(t.repo)}/tree/${esc(t.commit)}"><code>${esc(t.commit)}</code></a></dd>
+          <dt>Sends</dt><dd>${esc(envelope)}</dd>${t.details ? `<dt>From its code</dt><dd>${prose(t.details)}</dd>` : ""}` })));
+  };
+  const cards = new Map(tools.map(t => [t, card(t)]));
+  $("tools").replaceChildren(...cards.values());
+  $("search").addEventListener("input", e => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const [t, el] of cards) {
+      el.hidden = Boolean(q) && !t.name.toLowerCase().includes(q) && !t.about.toLowerCase().includes(q)
+        && !t.actions.some(a => a.name.toLowerCase().includes(q));
+    }
+  });
+  if (location.hash) document.querySelector(location.hash)?.scrollIntoView({ block: "center" });
+})();
+</script>
+</body>
+</html>
