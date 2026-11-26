@@ -106,6 +106,10 @@ data: {"type":"notes.created","ids":[1790000000123],"notes":[{"id":1790000000123
 - `notes.created` and `notes.updated` then carry `notes`: the rows
   `GET /v1/notes?where=id in [...]&select=id,fields,tags` would return. `id` is
   always included.
+- Every save sends the whole row, and Anki's editor saves as you type. Name
+  only the fields you use, as on GET:
+  `select=notes:fields[name in ["Front"]].value,tags` sends
+  `{"id":…,"fields":["犬"],"tags":["mined"]}`.
 - Cards and reviews work the same way, each with its own columns:
   `select=notes:fields&select=cards:queue,due&select=reviews:rating`. Cards
   come on `cards.created` and `cards.updated`, reviews on `reviews.created`.

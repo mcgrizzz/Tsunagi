@@ -51,6 +51,12 @@ def test_id_comes_once_and_first(client, note):
     assert list(frames["notes.created"]["notes"][0]) == ["id", "first_field"]
 
 
+def test_fields_narrow_as_on_get(client, note):
+    nid, _ = note
+    frames = stream(client, 'select=notes:fields[name in ["Front"]].value,tags', {"notes": {"updated": [nid]}})
+    assert frames["notes.updated"]["notes"] == [{"id": nid, "fields": ["犬"], "tags": ["mined"]}]
+
+
 def test_each_resource_has_its_own_columns(client, note):
     nid, cid = note
     frames = stream(client, "select=notes:first_field&select=cards:queue",
