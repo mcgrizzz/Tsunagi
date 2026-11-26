@@ -102,3 +102,11 @@ def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp
     assert len(vocab) == 13 and {v["term"] for v in vocab.values()} == {f"word{i}" for i in range(12)}
     outcomes = native["sync_notes_batch"]["result_sample"]["outcomes"]
     assert outcomes == ["added"] * 15 + ["duplicate"] * 3 + ["empty", "rejected"]
+
+
+def test_the_collection_size_comes_with_the_results(server, tmp_path):
+    # 12 Kiku notes and the Kiku+ one, one card each, no reviews yet.
+    size = asyncio.run(bw.collection(bw.Client(bw.Endpoint.parse(server), None)))
+    assert {k: size[k] for k in ("notes", "cards", "reviews", "media_files")} == {
+        "notes": 13, "cards": 13, "reviews": 0, "media_files": 0}
+    assert size["note_types"] >= 2 and size["decks"] >= 2

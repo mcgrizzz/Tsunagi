@@ -42,7 +42,7 @@ PREFIX = "tsunagi_bench_"
 MODEL = "Kiku"
 TERM_FIELD = "Expression"
 BENCH_SEARCH = f'"deck:{DECK}"'
-TIMEOUT = 120
+TIMEOUT = 120   # seconds per request; --timeout changes it
 
 
 class Client:
@@ -52,14 +52,14 @@ class Client:
     action, or the method and path without the query, so no search terms) and
     when it started and ended, in ms from `started`."""
 
-    def __init__(self, endpoint, api_key):
-        self.endpoint, self.api_key = endpoint, api_key
+    def __init__(self, endpoint, api_key, timeout=TIMEOUT):
+        self.endpoint, self.api_key, self.timeout = endpoint, api_key, timeout
         self.requests = self.response_bytes = 0
         self.started, self.log = None, []
 
     async def _send(self, wire, what):
         sent = time.perf_counter()
-        result = await exchange(self.endpoint, wire, TIMEOUT, return_payload=True)
+        result = await exchange(self.endpoint, wire, self.timeout, return_payload=True)
         self.requests += 1
         self.response_bytes += result.get("response_bytes", 0)
         if self.started is not None:
@@ -136,6 +136,7 @@ class Workload:
     name = ""
     source = ""
     writes = False
+    scales_with = None   # a key of the report's "collection" its request count grows with
 
     async def setup(self, c, ctx, trial):
         pass
@@ -438,6 +439,7 @@ class ChangePoll(Workload):
 class NoteTypeFields(Workload):
     name = "note_type_fields"
     source = "Obsidian_to_Anki: setup reads every note type's field names, one request each"
+    scales_with = "note_types"
 
     async def ankiconnect(self, c, ctx, trial):
         names = await c.action("modelNames")
@@ -734,18 +736,30 @@ async def leftovers(c):
             "media": await c.action("getMediaFilesNames", pattern=f"{PREFIX}*")}
 
 
+async def collection(c):
+    """How big the collection is, reported with the results; read before the
+    benchmark deck exists, through requests every implementation answers."""
+    return {"notes": len(await c.action("findNotes", query="")),
+            "cards": len(await c.action("findCards", query="")),
+            "reviews": sum(count for _day, count in await c.action("getNumCardsReviewedByDay")),
+            "note_types": len(await c.action("modelNames")),
+            "decks": len(await c.action("deckNames")),
+            "media_files": len(await c.action("getMediaFilesNames", pattern="*"))}
+
+
 async def run(args, report):
     endpoint = Endpoint.parse(args.url)
     # AnkiConnect refuses any key but its own, including a key it doesn't have,
     # so upstream runs send AnkiConnect's key, if one is set, never Tsunagi's.
     key_env = "ANKICONNECT_API_KEY" if args.implementation == "upstream" else args.api_key_env
-    c = Client(endpoint, os.environ.get(key_env))
+    c = Client(endpoint, os.environ.get(key_env), getattr(args, "timeout", TIMEOUT))
     if await c.action("getActiveProfile") != args.profile:
         raise RuntimeError(f"Expected testing profile {args.profile!r}")
     before = await leftovers(c)
     if any(before.values()):
         raise RuntimeError(f"Benchmark deck, tag or media already present; clean up first: {before}")
-    report["baseline_notes"] = len(await c.action("findNotes", query=""))
+    report["collection"] = await collection(c)
+    report["baseline_notes"] = report["collection"]["notes"]
     if MODEL not in await c.action("modelNames"):
         raise RuntimeError(f"The testing profile needs the {MODEL!r} note type")
     # Ten real terms for the duplicate lookup: the lowest note IDs with plain text.
@@ -825,6 +839,7 @@ def main():
     parser.add_argument("--implementation", required=True, choices=("upstream", "shim", "native"))
     parser.add_argument("--workloads", nargs="*", choices=[w.name for w in WORKLOADS])
     parser.add_argument("--repeats", type=int, default=10)
+    parser.add_argument("--timeout", type=float, default=TIMEOUT, help="seconds to wait for each answer")
     parser.add_argument("--api-key-env", default="TSUNAGI_BENCH_API_KEY",
                         help="Tsunagi key variable; upstream runs use ANKICONNECT_API_KEY, if set")
     parser.add_argument("--server-label", default="")
