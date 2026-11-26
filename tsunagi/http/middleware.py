@@ -20,6 +20,7 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from ..adapters import idempotency, ops, request_log
+from ..adapters.events import broker
 from ..adapters.settings import from_program, is_loopback_host
 from ..shared.errors import ValidationError
 from ..shared.permissions import ADDON, PUBLIC, allows, current_caller, denied_message
@@ -35,6 +36,8 @@ AUTH_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json", "/docs/oauth2-redi
                      "/v1/permissions:request"}
 # Where a website not yet allowed asks to be: any origin may reach them (6.26).
 PERMISSION_PATHS = {"/", "/v1/permissions:request"}
+# The server session on every /v1 response, sent back on a resend as If-Session.
+SESSION_HEADER = "Tsunagi-Session"
 
 
 # Set by a proxy in front of Tsunagi. Tailscale Serve always adds
@@ -162,6 +165,39 @@ class ApiKeyAuthMiddleware:
             await self.app(scope, receive, send)
         finally:
             current_caller.reset(token)
+
+
+class SessionMiddleware:
+    """
+    The server's session (a new one each time a profile opens) on every /v1
+    response, `Tsunagi-Session`, and `If-Session` checked against it (6.143).
+    A client resending a write sends the session it saw before the first
+    attempt: when Anki restarted since, the key is forgotten, and after a
+    profile switch the write would land in the other collection, so a
+    different session is a 412 and nothing runs. Inside the key check (the
+    session is for callers), outside the idempotency journal.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not scope["path"].startswith("/v1/"):
+            return await self.app(scope, receive, send)
+        session = broker.session_id
+        expected = Headers(scope=scope).get("if-session")
+        if expected is not None and expected != session:
+            return await JSONResponse({"detail": (
+                "Anki restarted or switched profile since this write was first sent, so it may or "
+                "may not have happened. Check before writing again.")},
+                status_code=412, headers={SESSION_HEADER: session} if session else None)(scope, receive, send)
+
+        async def send_session(message):
+            if message["type"] == "http.response.start" and session:
+                MutableHeaders(scope=message)[SESSION_HEADER] = session
+            await send(message)
+
+        await self.app(scope, receive, send_session)
 
 
 class IdempotencyMiddleware:
@@ -350,6 +386,7 @@ class DynamicCORSMiddleware:
                 if message["type"] == "http.response.start":
                     hdrs = MutableHeaders(scope=message)
                     hdrs["Access-Control-Allow-Origin"] = origin
+                    hdrs["Access-Control-Expose-Headers"] = SESSION_HEADER
                     hdrs.append("Vary", "Origin")
                 await send(message)
             return await self.app(scope, receive, send_with_cors)

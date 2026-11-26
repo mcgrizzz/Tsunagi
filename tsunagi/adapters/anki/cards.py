@@ -30,7 +30,7 @@ from ...shared.sql_query import Column, ColumnSource
 from ..events import publish_review
 from ..ops import ValueWithChanges, as_collection_op, as_query_op
 from .id_queries import select_ids, select_rows
-from .notes import field_text, text_wants
+from .notes import TextFor, field_text, text_wants
 
 QUEUE_SUSPENDED = -1
 BURIED_QUEUES = (-2, -3)  # sibling-buried, manually buried
@@ -114,7 +114,7 @@ def _memory_state(card: Any) -> Optional[Dict[str, float]]:
 
 def _card_info(col: Collection, card: Any, deck_names: Dict[int, str],
                retrievability: Dict[int, float], wants: Optional[Set[str]] = None,
-               text: bool = False) -> CardInfo:
+               text: Optional[TextFor] = None) -> CardInfo:
     return CardInfo(**_card_row(col, card, deck_names, retrievability, wants, text))
 
 
@@ -124,7 +124,7 @@ def _optional(convert: Any, value: Any) -> Any:
 
 def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
               retrievability: Dict[int, float],
-              wants: Optional[Set[str]] = None, text: bool = False) -> Dict[str, Any]:
+              wants: Optional[Set[str]] = None, text: Optional[TextFor] = None) -> Dict[str, Any]:
     """
     A card as CardInfo's field names and types, without per-row validation:
     the values come from Anki's own card, note and notetype. The conversions
@@ -144,7 +144,8 @@ def _card_row(col: Collection, card: Any, deck_names: Dict[int, str],
                   for i, (n, v) in enumerate(zip(note.keys(), note.fields))]
         if text:
             for field in fields:
-                field["text"] = field_text(col, field["value"])
+                if text(field):
+                    field["text"] = field_text(col, field["value"])
 
     question = card.question() if want_render else None
     answer = card.answer() if want_render else None

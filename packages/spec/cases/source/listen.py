@@ -4,7 +4,7 @@ def events(resources=None, types=None):
     if resources: q["resources"] = ",".join(sorted(resources))
     q["types"] = ",".join((["change"] if resources else []) + sorted(types or [])) or "access.changed"
     return {"method": "GET", "path": "/v1/events", "query": q}
-def ready(resources=()): return {"send": [{"event": "ready", "data": {"type": "ready", "session_id": "s", "after_seq": 0, "ts": 1, "resources": sorted(resources), "heartbeat_ms": 15000}}]}
+def ready(resources=()): return {"send": [{"event": "ready", "data": {"type": "ready", "session_id": "s", "profile": "User 1", "after_seq": 0, "ts": 1, "resources": sorted(resources), "heartbeat_ms": 15000}}]}
 def send(*m): return {"send": list(m)}
 def msg(t, **data): return {"event": t, "data": {"type": t, "seq": 1, "session_id": "s", "ts": 1, **data}}
 def caps(answers="available", sync="available"):

@@ -34,7 +34,9 @@ A wire name becomes the client's name in the language's case
 client renames nothing. Sorts are named the same way. A row's key, the field that identifies it, is `id` unless `keys` names
 another (a tag's `name`, a media file's `filename`). Names in
 `omit` don't exist in the client (`usn` everywhere; a note type's
-`req`; a field's `text`, which a read has only when it names it). Nested types are named by `nestedTypes`, row types by `types`.
+`req`). Names in `selectOnly` exist only where a query names them: a note's
+or card's field has `text` only through `narrow` (Narrowing a list). Nested
+types are named by `nestedTypes`, row types by `types`.
 
 **Coded values.** A field with `x-values` in the description reads and
 filters by name, never by number: the value's text in the language's case
@@ -91,6 +93,7 @@ query; the old one is unchanged.
 | `orderBy(sort, direction)` | One of the resource's sorts, ascending by default. Replaces a previous order. |
 | `distinctOn(field)` | One row per value of a field: the first in the order. |
 | `select(fields...)` | Only these fields. The row type has exactly these. |
+| `narrow(list, step)` | Only some elements of a list field, or some parts of each (below). |
 | `values(field)` | Each row's value of one field, bare. |
 | `take(n)` | At most `n` rows, one request. `take(0)` sends nothing. |
 | `page(size = 50, total = false)` | One page, and a way to get the next. |
@@ -113,6 +116,51 @@ is in a state when one of its cards is.
 named values); `in` and `notIn` with a list. `null` only on a field that can
 be null.
 
+### Narrowing a list
+
+`narrow(list, step)` works on a field that is a list of objects: a note's
+or card's `fields`, a note type's `fields` and `templates` (every such field
+in the description). `step` gets an element query with two methods, both
+optional:
+
+- `where(key, operator, value)`: the elements whose `key` is `value` (`eq`)
+  or one of the values (`in`). `key` is a key of the element holding text or
+  a whole number. One `where`, and only these two operators: the server
+  keeps elements only by membership. `in` with an empty list keeps none.
+- `select(parts...)`: only these parts of each element; without it,
+  elements are whole.
+
+```text
+notes.search("note:Kiku")
+  .select("id", "fields")
+  .narrow("fields", f => f.where("name", "in", ["Word", "Reading"]))
+  -> {id, fields: [{name: "Word", value, index}, {name: "Reading", value, index}]}
+
+  .narrow("fields", f => f.where("name", "eq", "Word").select("name", "text"))
+  -> {id, fields: [{name: "Word", text: "犬"}]}
+```
+
+- Rows have the list with only the kept elements, in the server's order (a
+  note type's), each with the selected parts. A value that matches no element
+  adds nothing: no placeholder, no reordering.
+- The list must be in the rows: a query without `select`, or with one that
+  names it. A second `narrow` on the same list replaces the first, and a
+  later `select` or `values` drops every `narrow` (the rows get a new shape).
+- A field's `text` (as Anki's Browser shows it: no HTML, on one line, media
+  filenames kept) exists only when `select` in the step names it. Whole
+  elements are `name`, `value`, `index`.
+- A narrowed query can be watched like any other: its list follows the same
+  resources (`x-from`), and the fingerprint is of the narrowed row.
+
+In the request, the list's term in `select` becomes
+`<wire>[<key> in [<values>]].(<parts>)`: without `where`, `<wire>[]`;
+without `select` in the step, no `.(…)`. Values are JSON, comma-separated,
+no spaces; `eq` sends a list of one. Parts always go in parentheses, even
+one (`.(text)`), so elements stay objects. Without a query `select`, the
+client sends every field of the row in wire names, in the description's
+order, with the list's term in place of its name. An empty list, `[<key> in []]`, needs add-on 0.7.7; an
+older one answers 400.
+
 ### The request
 
 A query is `GET <path>` with these parameters, or, when the URL would be
@@ -121,7 +169,7 @@ JSON body:
 
 | Parameter | Value |
 | --- | --- |
-| `select` | Wire names, comma-separated. Left out without `select`. |
+| `select` | Wire names, comma-separated, a narrowed list as its term (above). Left out without `select` and `narrow`. |
 | `shape` | `scalar` for `values`, otherwise `object`. |
 | `where` | One clause per filter, repeated: `<wire><op><value>`. |
 | `search` | The Anki search, as given, then each `is` term once, in order: `(<search>) is:suspended`, or the terms alone without a search. |
@@ -157,6 +205,10 @@ A client refuses these before any request, so a mistake fails at the call
 - `values` or `distinctOn` on a list or object field;
 - `is` with a state `names.json` doesn't list, or on a list that takes no search;
 - `select` with no fields; `take` with a negative count; a page size below 1;
+- `narrow` on a field that isn't a list of objects, or that the query's
+  `select` leaves out; in the step, a key or part the element doesn't have, a
+  key that holds neither text nor a whole number, an operator other than
+  `eq` and `in`, a second `where`, or `select` with no parts;
 - `watch` or `openBrowser` on a query they can't take (below), with the reason.
 
 A typed client makes the last a compile error that carries the same words as
@@ -172,7 +224,8 @@ the run-time error, so the editor says why:
 ## Writes
 
 Every write sends an `Idempotency-Key`: a new random key per call unless the
-caller gives one. Writes are never retried by the client. The body is
+caller gives one. Writes are never retried by the client unless the caller
+asks (Resending, below). The body is
 encoded before anything else is awaited (a key provider, the network), so a
 caller changing its input afterwards can't change what is sent.
 
@@ -257,6 +310,35 @@ happened, it raises "outcome unknown" with the key, and never retries:
 - the server answered 5xx (a 503 doesn't cancel a write);
 - the response can't be decoded.
 
+**Resending.** The outcome-unknown error can send its write again.
+`retry()` sends the same request (method, path, the encoded body, the same
+key) and returns or raises what the original call would. Seeing the key, the
+server answers the first attempt's result, waits for it while it runs, or
+runs the write when the first attempt never arrived. That is safe only while
+the server remembers the key, so:
+
+- The error has `resendableUntil`: when the first attempt was sent, plus the
+  key's retention (`x-retention-seconds` on the `Idempotency-Key` parameter
+  in the description, 600), less 60 seconds.
+- A resend sends `If-Session`: the server session the client last saw before
+  the first attempt, from the `Tsunagi-Session` header every `/v1`
+  response carries. When it has seen none yet, the client reads `GET /v1/health` once
+  before its first write. The server answers 412 when its session differs:
+  Anki restarted (the key is gone) or switched profile (the write would land
+  in another collection).
+- `retry()` after `resendableUntil`, or answered 412, raises "resend
+  expired". The write may or may not have happened: the app checks before
+  writing again (for a note, a search on its first field, or on a tag the app
+  adds), and the error's message says so.
+- A write sent without a key (the older raw form) has no `retry()`.
+
+`resendIfUnknown: true`, an option of every write, resends by itself: after
+1 s, then each wait twice as long up to 30 s, each attempt with its own
+deadline, until an answer, `resendableUntil`, a 412, or the call's
+cancellation. Then it raises what the last attempt gave: outcome unknown
+(still with `retry()`), or resend expired. A job write (sync) resent gets the
+same job, and waiting goes on as before.
+
 **Sync.** `POST /v1/collection:sync` answers the result (200) or a job (202,
 `job_id`). A job is polled at `GET /v1/jobs/{id}`, first after 500 ms, each
 wait 1.5 times longer up to 5 s, until `done` (the result), `failed` or
@@ -285,7 +367,9 @@ an HTTP 404).
 | HTTP error | any non-2xx answer | status, the body, `detail`, `reason`, `errors` |
 | authentication | 401 | as above |
 | permission | 403 | as above |
-| outcome unknown | a write whose result is unknown (above) | the key, the cause |
+| outcome unknown | a write whose result is unknown (above) | the key, the cause, `resendableUntil`, `retry()` |
+| resend expired | `retry()` or `resendIfUnknown` past the window, or after Anki restarted or switched profile | the key, why (`window` or `session`) |
+| profile changed | a watch's connection came back on another profile | the old and the new profile |
 | item rejected | a single-item write's item failed | the failure |
 | partial write | a batch with failed items | every result |
 | job failed | a job ended `failed` or `aborted` | the job id, status, detail |
@@ -358,9 +442,11 @@ that listens: the access cache, `onAccessChange`, and the features below.
 - **What it asks for.** The union of what its listeners need:
   `resources=` the resources, comma-separated and sorted; `types=` `change`
   (every data event of those resources) when there are resources, plus
-  `cards.answered` and `sync` when asked for. With no resources and no
-  types, `types=access.changed`, which needs no permission. Every stream
-  gets `access.changed`.
+  `cards.answered` and `sync` when asked for; and one
+  `select=<resource>:<columns>` per resource whose rows a listener wants
+  with the messages, the union of their columns, sorted. With no resources
+  and no types, `types=access.changed`, which needs no permission. Every
+  stream gets `access.changed`.
 - **Opening and closing.** It opens when the first listener joins and closes
   when the last one leaves, or on `close()`. When a listener joins that
   needs something the connection doesn't carry, the client reconnects with
@@ -400,6 +486,7 @@ watch = query.watch({
   added(rows, change)     the first load (change.initial), new rows, rows that joined
   updated(rows, change)   rows whose selected values changed
   removed(keys, change)   rows deleted, or no longer matching
+  status(state)           "reconnecting" when it loses Anki, "live" when it's back
   error(error)            the error that ended the watch
 })
 ```
@@ -417,6 +504,17 @@ watch = query.watch({
   a protocol error, or a handler raising. Anything else (a dropped
   connection, a 5xx, a timeout) is retried: the watch reads everything
   again after 1 s, doubling to 30 s.
+- `status` is called with `reconnecting` when the watch loses the server (its
+  connection drops, or a read fails and is retried), and with `live` once it
+  has read everything again; only when the state changes, never before the
+  first load completes. It is about the watch's link to Anki, not Anki's
+  state (syncing, busy: `collection.onSync`, `health()`).
+- A profile switch ends the watch with "profile changed" (the old and the new
+  profile): an app's copy belongs to one profile. The watch keeps the
+  profile of its first load's `ready` (`ready.profile`); a later `ready` with
+  another ends it. A restart of the same profile is a read again.
+- A handler may return a promise: the watch waits for it to settle before
+  its next call, and messages meanwhile are gathered (Batching and order).
 
 **What the watch keeps:** each row's key and a fingerprint of its selected
 values (a hash of the row as the server sent it). Not the rows.
@@ -444,6 +542,23 @@ ignored.
 | notes ids on a cards watch | find their cards (`cards`, `where=note_id in[<ids>]`, values `id`), then check those |
 | ids from another of its resources (cards on a reviews watch) | nothing: only that resource's `.stale` is followed |
 | any `.stale` of its resources; `day.changed`; `gap`; a `ready` after a drop | read everything again |
+| `sync` `started`, then `finished` | hold: gather messages, handle none; after `finished`, handle them together |
+| a `ready` whose `profile` differs from the first load's | end the watch: profile changed |
+
+**Rows with the message.** A watch on `notes`, `cards` or `reviews` whose
+select is plain fields (no narrowed list, not every field) adds them to its
+connection need: `select=<resource>:<their wire names>`. The server then
+sends the rows with `<own>.created` and `.updated` (`reviews.created`),
+under the resource's name, with the union of every listener's columns. The
+watch keeps a key's row from its latest message, cut to its own fields in
+its select's order, so its fingerprint matches a read's. A key whose latest
+message carried no row for it (an older server, a row that couldn't be read
+or is gone) is checked as below. Checking keys with rows:
+
+- Without a search or filters, no request: compare the rows.
+- With them, one request for which still match: the query narrowed to those
+  keys, values of the key (as below). Compare only the matching rows; the
+  others count as no longer matching.
 
 **Checking keys** is one request, read in pages of 2,000: the query
 (search, filters, select) narrowed to those keys. On notes and cards with a
@@ -470,6 +585,16 @@ Messages that arrive meanwhile are gathered and handled together next: a
 read again replaces any check, deletes win over updates of the same key, and
 a key's latest message gives its `by`/`app`. Handlers are called in the order
 `removed`, `updated`, `added`, once per `by`/`app` within a piece of work.
+When more than 10,000 keys are gathered, they become one read again instead
+of a check.
+
+**During a sync.** A watch also asks for `types=sync`, which the server
+sends only to apps allowed it (the capabilities report's `sync` option on
+`GET /v1/events`). From a sync's `started` to its `finished`, messages are
+gathered and none is handled, so the app never sees a half-synced
+collection; then they are handled together, as one piece of work. A `ready`
+after a drop ends the hold (it reads everything again). An app without the
+option gets no sync messages, and its messages are handled as they come.
 
 ## Listening
 
@@ -523,7 +648,9 @@ the app may not receive what it asked for, and returns a subscription.
   names, its type chosen by the status. A write the description gives an
   `Idempotency-Key` is keyed like the client's own writes; a read (`GET`, or
   a `POST …/query`) sends no key. A path parameter is one encoded segment;
-  empty, `.` or `..` is refused before sending. Nothing is retried.
+  empty, `.` or `..` is refused before sending. Nothing is retried unless
+  asked: `resendIfUnknown` and the error's `retry()` work on keyed raw writes
+  as on the client's own.
 - `raw.request(method, path, options)`, the older form, is deprecated: untyped,
   for routes newer than the client; a write sends a key only when the caller
   gives one.
@@ -538,6 +665,10 @@ covers at least:
   ids), an update, a check, an upsert;
 - queries with each operator kind, through `GET` and `POST /query`, paged
   and iterated, `count`;
+- a narrowed query: note fields by name, with and without parts, with
+  `text`, and an empty `in`;
+- a write resent with `retry()` after an outcome-unknown error answers the
+  first attempt's result (one note created);
 - every resource read whole (no `select`), and each of its sorts;
 - named values both ways (flag, queue, rating, review type);
 - card verbs, a media upload, a note delete;

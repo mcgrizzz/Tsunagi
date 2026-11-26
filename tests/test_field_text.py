@@ -51,3 +51,32 @@ def test_cards_select_and_filter_on_text(client):
     rows = get(client, "/v1/cards", where='fields[].text=="鳥"', select="id,question,fields[].text")
     assert [row["id"] for row in rows if row["fields"] == ["鳥", "bird"]] == [card_id]
     assert all("鳥" in row["question"] for row in rows) and len(rows) == 2
+
+
+def test_only_the_fields_a_filter_keeps_are_converted(client, col, monkeypatch):
+    note = add(client, "<b>犬</b>", "<i>dog</i>")
+    converted = []
+    convert = col._backend.html_to_text_line
+    monkeypatch.setattr(col._backend, "html_to_text_line", lambda **kw: converted.append(kw["text"]) or convert(**kw))
+    for path, where in (("/v1/notes", f"id=={note['id']}"), ("/v1/cards", f"note_id=={note['id']}")):
+        converted.clear()
+        rows = get(client, path, where=where, select='id,fields[name in ["Back"]].(name,text)')
+        assert rows[0]["fields"] == [{"name": "Back", "text": "dog"}]
+        assert converted == ["<i>dog</i>"], path
+    converted.clear()
+    get(client, "/v1/notes", where=f"id=={note['id']}", select='fields[index in [0]].text,fields[].(name,text)')
+    assert converted == ["<b>犬</b>", "<i>dog</i>"]  # one select names every field's
+
+
+def test_a_filter_on_text(client):
+    note = add(client, "<b>犬</b>", "dog")
+    rows = get(client, "/v1/notes", where=f"id=={note['id']}", select='fields[text in ["犬"]].name')
+    assert rows == [{"fields": ["Front"]}]
+
+
+def test_values_without_html_skip_the_conversion(col):
+    from tsunagi.adapters.anki.notes import field_text
+    values = ["", "犬", "a b", " a", "a ", " a", "a　", "a\tb", "a]b", "a>b", "&amp;", "a&b", "<b>a</b>",
+              "[sound:a.mp3]", "[[type:Back]]", "a\nb", "a\r\nb", "a<br>b", "\x1ca", "a​", "nbsp", "a\\b"]
+    for value in values:
+        assert field_text(col, value) == col._backend.html_to_text_line(text=value, preserve_media_filenames=True), value

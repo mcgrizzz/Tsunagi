@@ -83,9 +83,17 @@ anki.close(); // access() keeps a connection open to stay current
   `noteTypes`, `deckPresets`, `tags`, `media`. Field names, values and sorts
   come from Tsunagi's API description (generated into `src/generated.ts` when
   you build); your editor lists them.
-- `query.watch({ added, updated, removed })` keeps an app in step with a
-  query as Anki changes; `cards.onAnswered`, `collection.onSync`,
-  `decks.onCounts` and `onAccessChange` report events.
+- `query.narrow("fields", f => f.where("name", "in", mapped).select("name", "text"))`
+  keeps only some elements of a list in each row (a note's fields by name, a
+  note type's templates), or some parts of each; a field's `text`, without
+  HTML, comes only this way.
+- `query.watch({ added, updated, removed, status })` keeps an app in step
+  with a query as Anki changes, an app's own database too (handlers may be
+  async); `cards.onAnswered`, `collection.onSync`, `decks.onCounts` and
+  `onAccessChange` report events.
+- A write whose outcome is unknown (Anki was busy, the connection dropped)
+  can be sent again safely: `error.retry()`, or `{ resendIfUnknown: true }` on
+  the write.
 - `anki.raw.request("POST /v1/cards:set-ease", { body })` reaches every
   operation the client has no method for, typed from the API description in
   Tsunagi's own names: the route autocompletes, a misspelled key doesn't

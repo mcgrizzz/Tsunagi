@@ -90,11 +90,12 @@ def check_reviewer(app, screenshot):
         wait_for_page(reviewer.web, "Tsunagi reviewer question")
     except AssertionError:
         # Seen on CI and locally: Anki's reviewer page sometimes loads without
-        # its script bundle, so the card never renders. Re-render once; any
-        # other failure, or a second one, still fails the check.
-        if not scripts_missing(reviewer.web):
+        # its script bundle, or (Windows CI) with it too late for the page's
+        # first calls, so the card never renders and the page stays empty.
+        # Re-render once; any other failure, or a second one, still fails the check.
+        if not (seen.get("text") == "" or scripts_missing(reviewer.web)):
             raise
-        print("reviewer page loaded without its scripts; re-rendering once", flush=True)
+        print("reviewer page loaded without its card; re-rendering once", flush=True)
         reviewer.show()
         wait(lambda: reviewer.card is not None and reviewer.state == "question")
         wait_for_page(reviewer.web, "Tsunagi reviewer question")

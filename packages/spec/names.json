@@ -32,7 +32,10 @@
     ],
     "NoteTypeRow": [
       "req"
-    ],
+    ]
+  },
+  "selectOnly": {
+    "_": "Parts an element has only when a query's narrow() selects them (behavior.md, Narrowing a list): whole elements leave them out.",
     "NoteField": [
       "text"
     ]

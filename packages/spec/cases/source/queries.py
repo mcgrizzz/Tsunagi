@@ -1,5 +1,6 @@
 """Queries: the requests a query sends, and how answers decode. Built into ../queries.json by build.py."""
 import json
+from pathlib import Path
 
 
 def page(items, cursor=None, **extra): return {"status": 200, "body": {"items": items, "next_cursor": cursor, "stats": {}, **extra}}
@@ -101,6 +102,65 @@ cases = [
                  "response": page([], total=3)}],
   "result": 3},
 ]
+# narrow(): its step is {"$steps": [[method, args...], ...]}, called on the element query.
+steps = lambda *calls: {"$steps": [list(c) for c in calls]}
+_api = json.loads((Path(__file__).resolve().parents[4] / "tests/snapshots/openapi.json").read_text(encoding="utf-8"))
+_names = json.loads((Path(__file__).resolve().parents[2] / "names.json").read_text(encoding="utf-8"))
+# Every field of a note row in wire names, in the description's order (a narrow without select sends them all).
+note_wires = [w for w in _api["components"]["schemas"]["NoteRow"]["properties"]
+              if w not in _names["omit"]["*"] + _names["omit"].get("NoteRow", [])]
+word = {"name": "Word", "value": "<b>犬</b>", "index": 0}
+cases += [
+ {"name": "narrow keeps the elements whose key is one of the values, whole",
+  "call": q("notes", [["select", "id", "fields"], ["narrow", "fields", steps(["where", "name", "in", ["Word", "Reading"]])]], ["take", 5]),
+  "exchanges": [{"request": get("/v1/notes", select='id,fields[name in ["Word","Reading"]]', shape="object", limit="5"),
+                 "response": page([{"id": 1, "fields": [word, {"name": "Reading", "value": "いぬ", "index": 1}]}, {"id": 2, "fields": []}])}],
+  "result": [{"id": 1, "fields": [word, {"name": "Reading", "value": "いぬ", "index": 1}]}, {"id": 2, "fields": []}]},
+ {"name": "narrow's select gives only those parts, and a field's text only there; eq sends a list of one",
+  "call": q("notes", [["select", "id", "fields"], ["narrow", "fields", steps(["where", "name", "eq", "Word"], ["select", "name", "text"])]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/notes", select='id,fields[name in ["Word"]].(name,text)', shape="object", limit="1"),
+                 "response": page([{"id": 1, "fields": [{"name": "Word", "text": "犬"}]}])}],
+  "result": [{"id": 1, "fields": [{"name": "Word", "text": "犬"}]}]},
+ {"name": "parts go in parentheses even alone, so elements stay objects; no where keeps every element",
+  "call": q("cards", [["select", "id", "fields"], ["narrow", "fields", steps(["select", "value"])]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/cards", select="id,fields[].(value)", shape="object", limit="1"),
+                 "response": page([{"id": 7, "fields": [{"value": "犬"}, {"value": "dog"}]}])}],
+  "result": [{"id": 7, "fields": [{"value": "犬"}, {"value": "dog"}]}]},
+ {"name": "narrow without select sends every field, the list as its term",
+  "call": q("notes", [["narrow", "fields", steps(["where", "index", "in", [0]])]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/notes", select=",".join('fields[index in [0]]' if w == "fields" else w for w in note_wires),
+                                shape="object", limit="1"),
+                 "response": page([{"id": 1, "guid": "g", "note_type_id": 2, "note_type_name": "Kiku", "modified": 3, "tags": [],
+                                    "first_field": "犬", "fields": [word], "cards": [4]}])}],
+  "result": [{"id": 1, "guid": "g", "noteTypeId": 2, "noteTypeName": "Kiku", "modified": 3, "tags": [], "firstField": "犬",
+              "fields": [word], "cards": [4]}]},
+ {"name": "in with an empty list keeps no elements",
+  "call": q("notes", [["select", "id", "fields"], ["narrow", "fields", steps(["where", "name", "in", []])]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/notes", select="id,fields[name in []]", shape="object", limit="1"),
+                 "response": page([{"id": 1, "fields": []}])}],
+  "result": [{"id": 1, "fields": []}]},
+ {"name": "narrow on a note type's templates, by a whole number, values as JSON",
+  "call": q("noteTypes", [["select", "templates"], ["narrow", "templates", steps(["where", "name", "in", ['Say "hi"', "表"]], ["select", "index"])]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/note-types", select='templates[name in ["Say \\"hi\\"","表"]].(index)', shape="object", limit="1"),
+                 "response": page([{"templates": [{"index": 1}]}])}],
+  "result": [{"templates": [{"index": 1}]}]},
+ {"name": "a second narrow on a list replaces the first; a later select drops it",
+  "call": q("notes", [["select", "id", "fields"], ["narrow", "fields", steps(["where", "name", "eq", "A"])],
+                      ["narrow", "fields", steps(["where", "name", "eq", "B"])]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/notes", select='id,fields[name in ["B"]]', shape="object", limit="1"),
+                 "response": page([{"id": 1, "fields": []}])}],
+  "result": [{"id": 1, "fields": []}]},
+ {"name": "select after narrow is a new shape: the list comes whole",
+  "call": q("notes", [["select", "id", "fields"], ["narrow", "fields", steps(["select", "name"])], ["select", "id", "fields"]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/notes", select="id,fields", shape="object", limit="1"),
+                 "response": page([{"id": 1, "fields": [word]}])}],
+  "result": [{"id": 1, "fields": [word]}]},
+ {"name": "a protocol error: a narrowed element without a selected part",
+  "call": q("notes", [["select", "fields"], ["narrow", "fields", steps(["select", "name", "text"])]], ["take", 1]),
+  "exchanges": [{"request": get("/v1/notes", select="fields[].(name,text)", shape="object", limit="1"),
+                 "response": page([{"fields": [{"name": "Word"}]}])}],
+  "error": {"kind": "protocol"}},
+]
 refused = [
  ("an unknown field", "cards", [["select", "questoin"]]),
  ("a wire name instead of the client's", "cards", [["select", "note_id"]]),
@@ -120,6 +180,19 @@ refused = [
  ("a state Anki doesn't have", "cards", [["is", "sleeping"]]),
  ("Anki's term instead of the client's name", "cards", [["is", "learn"]]),
  ("is on a list that takes no search", "decks", [["is", "suspended"]]),
+ ("narrow on a list the rows don't have", "notes", [["select", "id"], ["narrow", "fields", steps()]]),
+ ("narrow on a list of strings", "notes", [["narrow", "tags", steps()]]),
+ ("narrow after values", "notes", [["values", "id"], ["narrow", "fields", steps()]]),
+ ("narrow keeping elements by contains", "notes", [["narrow", "fields", steps(["where", "value", "contains", "犬"])]]),
+ ("narrow with a second where", "notes", [["narrow", "fields", steps(["where", "name", "eq", "A"], ["where", "index", "eq", 0])]]),
+ ("narrow with a key the element doesn't have", "notes", [["narrow", "fields", steps(["where", "nmae", "eq", "A"])]]),
+ ("narrow with a value of the wrong type", "notes", [["narrow", "fields", steps(["where", "index", "in", ["0"]])]]),
+ ("narrow with a number that isn't whole", "notes", [["narrow", "fields", steps(["where", "index", "eq", 1.5])]]),
+ ("narrow keeping elements by true or false", "noteTypes", [["narrow", "fields", steps(["where", "sticky", "eq", True])]]),
+ ("narrow in without a list", "notes", [["narrow", "fields", steps(["where", "name", "in", "A"])]]),
+ ("narrow's select with no parts", "notes", [["narrow", "fields", steps(["select"])]]),
+ ("narrow's select with a part the element doesn't have", "notes", [["narrow", "fields", steps(["select", "txet"])]]),
+ ("narrow's select twice", "notes", [["narrow", "fields", steps(["select", "name"], ["select", "value"])]]),
 ]
 for name, resource, steps in refused:
     cases.append({"name": f"refused before sending: {name}", "call": q(resource, steps, ["take", 1]), "exchanges": [], "error": {"kind": "argument"}})

@@ -8,11 +8,21 @@ export interface Need {
   readonly resources?: readonly string[];
   /** Non-data types: cards.answered, sync. */
   readonly types?: readonly string[];
+  /** Columns to send with the events naming a resource's rows, by resource (select=notes:fields). */
+  readonly select?: Readonly<Record<string, readonly string[]>>;
+}
+
+/** Each `select=<resource>:<columns>` of a query, as resource -> columns. */
+function selects(query: URLSearchParams): Map<string, string[]> {
+  return new Map(query.getAll("select").map(value => {
+    const [resource, columns] = value.split(":") as [string, string];
+    return [resource, columns.split(",")];
+  }));
 }
 
 /** What a listener hears. A data message is the server's JSON, with `type`. */
 export type Signal =
-  | { readonly kind: "ready"; readonly resources: readonly string[] }
+  | { readonly kind: "ready"; readonly resources: readonly string[]; readonly profile: string }
   | { readonly kind: "message"; readonly message: Readonly<Record<string, unknown>> }
   | { readonly kind: "gap" }
   | { readonly kind: "accessChanged" }
@@ -74,6 +84,8 @@ export class EventConnection {
   up = false;
   /** What the last `ready` said the stream carries (resources the app may read). */
   resources: readonly string[] = [];
+  /** The open profile, as the last `ready` named it. */
+  profile = "";
 
   constructor(private readonly transport: Transport) {}
 
@@ -82,8 +94,11 @@ export class EventConnection {
     const query = new URLSearchParams(this.carrying);
     const resources = query.get("resources")?.split(",") ?? [];
     const types = query.get("types")?.split(",") ?? [];
+    const columns = selects(query);
     return this.up && (need.resources ?? []).every(resource => resources.includes(resource))
-      && (need.types ?? []).every(type => types.includes(type));
+      && (need.types ?? []).every(type => types.includes(type))
+      && Object.entries(need.select ?? {}).every(([resource, wanted]) =>
+        wanted.every(column => columns.get(resource)?.includes(column)));
   }
 
   join(listener: Listener): () => void {
@@ -108,14 +123,22 @@ export class EventConnection {
   private query(): URLSearchParams {
     const resources = new Set<string>();
     const types = new Set<string>();
+    const columns = new Map<string, Set<string>>();
     for (const { need } of this.listeners) {
       need.resources?.forEach(resource => resources.add(resource));
       need.types?.forEach(type => types.add(type));
+      for (const [resource, wanted] of Object.entries(need.select ?? {})) {
+        if (!columns.has(resource)) columns.set(resource, new Set());
+        wanted.forEach(column => columns.get(resource)!.add(column));
+      }
     }
     const query = new URLSearchParams();
     if (resources.size) {
       query.set("resources", [...resources].sort().join(","));
       query.set("types", ["change", ...[...types].sort()].join(","));
+      for (const resource of [...columns.keys()].sort()) {
+        query.append("select", `${resource}:${[...columns.get(resource)!].sort().join(",")}`);
+      }
     } else {
       query.set("types", types.size ? [...types].sort().join(",") : "access.changed");
     }
@@ -166,7 +189,8 @@ export class EventConnection {
             delay = FIRST_DELAY;
             this.up = true;
             this.resources = ready.resources;
-            this.tell({ kind: "ready", resources: ready.resources });
+            this.profile = ready.profile;
+            this.tell({ kind: "ready", resources: ready.resources, profile: ready.profile });
           } else if (frame.event === "access.changed") {
             this.tell({ kind: "accessChanged" });
           } else if (frame.event === "gap") {

@@ -7,17 +7,24 @@ import {
 } from "../dist/index.js";
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
-  status, headers: { "content-type": "application/json" },
+  status, headers: { "content-type": "application/json", "tsunagi-session": "s1" },
 });
 const page = (items, next_cursor = null) => json({ items, next_cursor, stats: {} });
 const input = () => ({ deck: "Japanese", noteType: "Basic", fields: { Front: "食べる", Back: "to eat" } });
-function fixture(responses, options = {}) {
+/** A fake server; it answers, unrecorded, the one health read a client makes before its first write. */
+function fixture(responses, { answerHealth = true, ...options } = {}) {
   const calls = [];
+  let session = false;
   const anki = new Tsunagi({
     baseUrl: "http://127.0.0.1:12345/proxy/",
     apiKey: "secret-key",
     fetch: async (url, init) => {
       const call = { url: new URL(url), ...init };
+      if (answerHealth && !session && init.method === "GET" && call.url.pathname.endsWith("/v1/health")) {
+        session = true;
+        return json({});
+      }
+      session = true;
       calls.push(call);
       assert.ok(responses.length, "unexpected extra request");
       const response = responses.shift();
@@ -121,10 +128,24 @@ test("pre-aborted writes send nothing; in-flight cancellation retains uncertaint
   await assert.rejects(second.anki.notes.create(input(), { signal: inFlight.signal }), error => error instanceof WriteOutcomeUnknownError && error.cause === reason);
 });
 
+test("retry() resends the first attempt's exact body and key, even after the input changed", async () => {
+  const { anki, calls } = fixture([json({ detail: "busy", reason: "busy" }, 503), json({ created: [{ index: 0, id: 5 }], failed: [] })]);
+  const note = input();
+  const error = await anki.notes.create(note).catch(caught => caught);
+  assert.ok(error instanceof WriteOutcomeUnknownError);
+  assert.ok(error.resendableUntil instanceof Date);
+  note.fields.Front = "changed";
+  assert.deepEqual(await error.retry(), { index: 0, id: 5, cards: null, files: null });
+  assert.equal(calls[1].body, calls[0].body);
+  assert.equal(calls[1].headers.get("Idempotency-Key"), calls[0].headers.get("Idempotency-Key"));
+  assert.equal(calls[0].headers.get("If-Session"), null);
+  assert.equal(calls[1].headers.get("If-Session"), "s1");
+});
+
 test("read deadlines bound stuck fetch and credential providers", async () => {
-  const stuck = fixture([() => new Promise(() => {})]);
+  const stuck = fixture([() => new Promise(() => {})], { answerHealth: false });
   await assert.rejects(stuck.anki.health({ timeoutMs: 20 }), RequestTimeoutError);
-  const credentials = fixture([], { apiKey: () => new Promise(() => {}) });
+  const credentials = fixture([], { apiKey: () => new Promise(() => {}), answerHealth: false });
   await assert.rejects(credentials.anki.health({ timeoutMs: 20 }), RequestTimeoutError);
   assert.equal(credentials.calls.length, 0);
 });
@@ -216,6 +237,8 @@ test("real HTTP transport completes the draft workflow against a local protocol 
   await anki.notes.update(note.id, { fields: { Back: "updated" } });
   assert.deepEqual(await anki.cards.select("id", "question").take(20), [{ id: 8, question: "hello" }]);
   assert.equal((await anki.collection.sync()).status, 0);
-  assert.equal(received.length, 5);
+  // The first write reads the server session once (packages/spec/behavior.md, Resending).
+  assert.deepEqual(received.map(call => `${call.method} ${call.url.split("?")[0]}`), [
+    "GET /v1/health", "POST /v1/notes", "PATCH /v1/notes/7", "GET /v1/cards", "POST /v1/collection:sync", "GET /v1/jobs/local"]);
   assert.ok(received.every(call => call.key === "local-key"));
 });

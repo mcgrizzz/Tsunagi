@@ -46,6 +46,8 @@ class TestSimpleRequests:
         assert resp.status_code == 200
         assert resp.headers["access-control-allow-origin"] == ORIGIN
         assert "Origin" in resp.headers.get("vary", "")
+        # A browser app may read the server session, to resend a write (6.143).
+        assert resp.headers["access-control-expose-headers"] == "Tsunagi-Session"
 
     def test_unknown_origin_is_403_without_cors_headers(self, client):
         resp = client.get("/v1/thing", headers={"Origin": OTHER})

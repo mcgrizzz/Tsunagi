@@ -23,7 +23,7 @@ as opening the Browser, isn't covered.
 | [asbplayer](https://github.com/asbplayer/asbplayer) | Subtitle player; mines sentence cards | [`62c4d6e`](https://github.com/asbplayer/asbplayer/tree/62c4d6e), 2026-10-15 | 20 |  |
 | [Easydict](https://github.com/tisfeng/Easydict) | macOS dictionary and translator; adds looked-up words | [`af5b654`](https://github.com/tisfeng/Easydict/tree/af5b654), 2026-10-16 | 3 |  |
 | [Flashcards (Obsidian)](https://github.com/reuseman/flashcards-obsidian) | Obsidian plugin; syncs cards from notes | [`2ca53d0`](https://github.com/reuseman/flashcards-obsidian/tree/2ca53d0), 2026-10-16 | 26 |  |
-| [Game Sentence Miner](https://github.com/bpwhelan/GameSentenceMiner) | Adds audio, screenshots and sentences to mined notes | [`c3499a0`](https://github.com/bpwhelan/GameSentenceMiner/tree/c3499a0), 2026-10-15 | 15 | Needs Tsunagi 0.7.5 or newer for media files named with a folder |
+| [Game Sentence Miner](https://github.com/bpwhelan/GameSentenceMiner) | Adds audio, screenshots and sentences to mined notes | [`bb62e5b`](https://github.com/bpwhelan/GameSentenceMiner/tree/bb62e5b), 2026-11-25 | 19 | Needs Tsunagi 0.7.5 or newer for media files named with a folder |
 | [GoldenDict-ng](https://github.com/xiaoyifang/goldendict-ng) | Desktop dictionary; sends articles to Anki as notes | [`5b1bade`](https://github.com/xiaoyifang/goldendict-ng/tree/5b1bade), 2026-10-16 | 5 |  |
 | [Jiten](https://github.com/Sirush/Jiten) | Imports known words and review history (jiten.moe) | [`fe383fc`](https://github.com/Sirush/Jiten/tree/fe383fc), 2026-10-15 | 9 |  |
 | [JL](https://github.com/rampaa/JL) | Pop-up dictionary for Windows; mines words | [`8995ac5`](https://github.com/rampaa/JL/tree/8995ac5), 2026-10-15 | 9 |  |
@@ -38,10 +38,10 @@ as opening the Browser, isn't covered.
 | [Obsidian_to_Anki](https://github.com/ObsidianToAnki/Obsidian_to_Anki) | Syncs Obsidian notes to Anki (plugin and script) | [`feb3db2`](https://github.com/ObsidianToAnki/Obsidian_to_Anki/tree/feb3db2), 2026-10-15 | 34 |  |
 | [Online Dictionary Helper](https://github.com/ninja33/ODH) | Pop-up dictionary extension; adds words as notes | [`d9b7bf8`](https://github.com/ninja33/ODH/tree/d9b7bf8), 2026-10-16 | 8 |  |
 | [Raycast Anki](https://github.com/raycast/extensions) | Anki extension for the Raycast launcher (macOS); browses, studies and adds notes | [`aad25dd3`](https://github.com/raycast/extensions/tree/aad25dd3), 2026-10-16 | 32 |  |
-| [Saladict](https://github.com/crimx/ext-saladict) | Pop-up dictionary extension; syncs its notebook | [`7d93a65`](https://github.com/crimx/ext-saladict/tree/7d93a65), 2026-10-15 | 10 |  |
+| [Saladict](https://github.com/crimx/ext-saladict) | Pop-up dictionary extension; syncs its notebook | [`1673df1`](https://github.com/crimx/ext-saladict/tree/1673df1), 2026-11-25 | 11 |  |
 | [simple-anki-sync](https://github.com/russluber/simple-anki-sync) | Syncs Markdown tables in Obsidian to Anki | [`36ddadd`](https://github.com/russluber/simple-anki-sync/tree/36ddadd), 2026-10-15 | 13 |  |
 | [Tabbi](https://github.com/ethanwchen/tabbi) | macOS notch app showing due counts and streaks | [`60fef5f`](https://github.com/ethanwchen/tabbi/tree/60fef5f), 2026-10-15 | 8 |  |
-| [Yanki](https://github.com/kitschpatrol/yanki) | Syncs Markdown to Anki (command line and Obsidian) | [`60603b4`](https://github.com/kitschpatrol/yanki/tree/60603b4), 2026-10-15 | 21 | Needs Tsunagi 0.7.5 or newer to delete a deck and its subdecks in one sync |
+| [Yanki](https://github.com/kitschpatrol/yanki) | Syncs Markdown to Anki (command line and Obsidian) | [`f8522b7`](https://github.com/kitschpatrol/yanki/tree/f8522b7), 2026-11-25 | 22 |  |
 | [Yomine](https://github.com/mcgrizzz/Yomine) | Japanese immersion miner | [`7044efc`](https://github.com/mcgrizzz/Yomine/tree/7044efc), 2026-10-15 | 13 | Works with AnkiConnect or with Tsunagi's own API; this checks its AnkiConnect mode |
 | [Yomitan](https://github.com/yomidevs/yomitan) | Pop-up dictionary extension; mines words | [`e7334a9`](https://github.com/yomidevs/yomitan/tree/e7334a9), 2026-10-15 | 22 |  |
 

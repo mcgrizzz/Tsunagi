@@ -1,11 +1,12 @@
 {
- "commit": "c3499a0",
+ "commit": "bb62e5b",
  "hints": {
   "multi": [
-   "GSM_Overlay/hachidori/anki-index.js:71",
-   "GSM_Overlay/hachidori/anki-index.js:73",
-   "GSM_Overlay/hachidori/anki-index.js:203",
-   "GSM_Overlay/hachidori/anki-index.js:217",
+   "GSM_Overlay/hachidori/anki-index.js:76",
+   "GSM_Overlay/hachidori/anki-index.js:78",
+   "GSM_Overlay/hachidori/anki-index.js:208",
+   "GSM_Overlay/hachidori/anki-index.js:222",
+   "GSM_Overlay/hachidori/anki-media.js:68",
    "GSM_Overlay/hachidori/anki.js:18",
    "GSM_Overlay/hachidori/anki.js:76",
    "GSM_Overlay/hachidori/anki.js:189",
@@ -15,7 +16,7 @@
   ],
   "port_8765": [
    "GSM_Overlay/hachidori/reader-options.js:23",
-   "GSM_Overlay/hachidori/settings.html:1132",
+   "GSM_Overlay/hachidori/settings.html:1208",
    "GSM_Overlay/jiten.reader/js/ajb.js:212",
    "GSM_Overlay/jiten.reader/js/background-worker.js:210",
    "GSM_Overlay/jiten.reader/js/pdf-reader.js:210",
@@ -37,62 +38,71 @@
    "GSM_Overlay/yomitan/lib/zip.js:697",
    "GSM_Overlay/yomitan/settings.html:1891",
    "GSM_Overlay/yomitan/settings.html:1896",
-   "GameSentenceMiner/util/config/configuration.py:854",
-   "GameSentenceMiner/util/platform/notification.py:19",
-   "GameSentenceMiner/util/platform/notification.py:53",
-   "electron-src/main/notifications.ts:116",
+   "GameSentenceMiner/util/config/configuration.py:894",
+   "GameSentenceMiner/util/platform/notification.py:54",
+   "GameSentenceMiner/util/platform/notification.py:88",
+   "electron-src/main/notifications.ts:127",
    "electron-src/renderer/src/components/SetupWizard.tsx:61",
    "scripts/check_sentence_furigana_against_anki.py:17"
   ],
   "version": [
    0,
+   1,
    6
   ]
  },
  "sites": {
   "addNote": [
    {
-    "at": "GSM_Overlay/hachidori/anki-mining.js:192",
+    "at": "GSM_Overlay/hachidori/anki-mining.js:220",
     "hash": "d0c45558aaa0bf4e"
    },
    {
-    "at": "GSM_Overlay/hachidori/background.js:480",
-    "hash": "4f040fad9bf9b3c1"
+    "at": "GSM_Overlay/hachidori/background.js:553",
+    "hash": "9d0adeb3ce5c64bb"
    },
    {
-    "at": "GSM_Overlay/hachidori/content.js:3850",
-    "hash": "8a43168453e90607"
+    "at": "GSM_Overlay/hachidori/content.js:4787",
+    "hash": "c295696e21b7bf61"
    },
    {
-    "at": "GSM_Overlay/hachidori/content.js:3853",
-    "hash": "d22d95e86827a006"
+    "at": "GSM_Overlay/hachidori/content.js:4791",
+    "hash": "cdbd7bafa501f51a"
    },
    {
     "at": "GSM_Overlay/hachidori/gsm/bridge.js:10",
     "hash": "c0795a11a5d52400"
    },
    {
-    "at": "GSM_Overlay/hachidori/gsm/bridge.js:115",
+    "at": "GSM_Overlay/hachidori/gsm/bridge.js:125",
     "hash": "6e432976e387b1b8"
    },
    {
-    "at": "GSM_Overlay/hachidori/manifest.json:41",
+    "at": "GSM_Overlay/hachidori/manifest.json:56",
     "hash": "740dca4bf57193dd"
    },
    {
-    "at": "GSM_Overlay/hachidori/reader-options.js:59",
-    "hash": "41a9986dde341e9e"
+    "at": "GSM_Overlay/hachidori/reader-options.js:61",
+    "hash": "797ee77113e400f1"
    },
    {
-    "at": "GSM_Overlay/hachidori/reader-options.js:102",
-    "hash": "7e72652cdcc600c2"
+    "at": "GSM_Overlay/hachidori/reader-options.js:119",
+    "hash": "01c815f5f5178401"
+   },
+   {
+    "at": "GSM_Overlay/hachidori/reader-options.js:135",
+    "hash": "511a2f0e3fcd9dfb"
+   },
+   {
+    "at": "GSM_Overlay/hachidori/search.js:358",
+    "hash": "318f9b28f1822a2c"
    },
    {
     "at": "GSM_Overlay/integrations/hachidori/bridge.js:10",
     "hash": "c0795a11a5d52400"
    },
    {
-    "at": "GSM_Overlay/integrations/hachidori/bridge.js:115",
+    "at": "GSM_Overlay/integrations/hachidori/bridge.js:125",
     "hash": "6e432976e387b1b8"
    },
    {
@@ -188,12 +198,20 @@
     "hash": "65e52e702b134077"
    },
    {
-    "at": "GameSentenceMiner/anki.py:596",
+    "at": "GameSentenceMiner/anki.py:626",
     "hash": "bd59054d018292ae"
    },
    {
-    "at": "GameSentenceMiner/anki.py:2459",
+    "at": "GameSentenceMiner/anki.py:2535",
     "hash": "66c20049d825d7de"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:714",
+    "hash": "6e6d5d4622b53f94"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:716",
+    "hash": "030f5f04756d7208"
    }
   ],
   "apiReflect": [
@@ -208,15 +226,15 @@
   ],
   "canAddNotes": [
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:88",
-    "hash": "e672d8717e7be65a"
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:113",
+    "hash": "4ffba2a9a7373e17"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:89",
-    "hash": "3ad573cb7d7e10c5"
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:114",
+    "hash": "08cf5ac18cfe9903"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:115",
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:146",
     "hash": "d599082cddf6ab1d"
    },
    {
@@ -242,11 +260,11 @@
   ],
   "canAddNotesWithErrorDetail": [
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:85",
-    "hash": "ba9b71232f5bc6e0"
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:110",
+    "hash": "44066503dc8146d7"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:108",
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:139",
     "hash": "ba31dbb7142700cf"
    },
    {
@@ -270,7 +288,7 @@
   ],
   "cardsInfo": [
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:222",
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:253",
     "hash": "1d88d077f931c6ef"
    },
    {
@@ -296,7 +314,7 @@
   ],
   "cardsToNotes": [
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:135",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:163",
     "hash": "25de7aca0971f525"
    }
   ],
@@ -308,7 +326,7 @@
   ],
   "deckNames": [
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:104",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:132",
     "hash": "0787afeaf95d24ff"
    },
    {
@@ -342,23 +360,31 @@
   ],
   "deleteMediaFile": [
    {
-    "at": "GSM_Overlay/hachidori/anki-worker.js:15",
-    "hash": "0f09faa29b79d9eb"
+    "at": "GSM_Overlay/hachidori/anki-worker.js:17",
+    "hash": "aab5628be7900baa"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:787",
+    "hash": "66083bb7b3f77213"
    }
   ],
   "deleteNotes": [
    {
-    "at": "GameSentenceMiner/anki.py:211",
+    "at": "GameSentenceMiner/anki.py:235",
     "hash": "5f0c777f1d33b360"
    },
    {
-    "at": "GameSentenceMiner/anki.py:601",
+    "at": "GameSentenceMiner/anki.py:631",
     "hash": "ce626c2260c2e67c"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:801",
+    "hash": "3b8cb8e558f442c8"
    }
   ],
   "findCards": [
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:129",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:157",
     "hash": "3cd2d24139644d3f"
    },
    {
@@ -378,7 +404,7 @@
     "hash": "0de74c2d7c64b00a"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3216",
+    "at": "GameSentenceMiner/anki.py:3326",
     "hash": "2400ec37da65e5d3"
    },
    {
@@ -392,33 +418,33 @@
   ],
   "findModelsByName": [
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:201",
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:232",
     "hash": "4473e6fa85c0f325"
    }
   ],
   "findNotes": [
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:239",
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:270",
     "hash": "4ca6bea49fa03b9d"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:192",
+    "at": "GSM_Overlay/hachidori/anki-index.js:197",
     "hash": "c50e09a8d3b2d400"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:193",
+    "at": "GSM_Overlay/hachidori/anki-index.js:198",
     "hash": "8198ff27cb6967de"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:218",
+    "at": "GSM_Overlay/hachidori/anki-index.js:223",
     "hash": "e3b7997fe12a624c"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:219",
+    "at": "GSM_Overlay/hachidori/anki-index.js:224",
     "hash": "c6881a4299563243"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:89",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:117",
     "hash": "fb068f3f07d22398"
    },
    {
@@ -442,16 +468,20 @@
     "hash": "66b17944223aecb9"
    },
    {
-    "at": "GameSentenceMiner/anki.py:280",
+    "at": "GameSentenceMiner/anki.py:304",
     "hash": "c6fcf050a270317f"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3196",
+    "at": "GameSentenceMiner/anki.py:3306",
     "hash": "0884585f95def785"
    },
    {
-    "at": "GameSentenceMiner/anki.py:4140",
+    "at": "GameSentenceMiner/anki.py:4337",
     "hash": "d8ebece9445cc91e"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:785",
+    "hash": "a70f12a9692ef2ad"
    },
    {
     "at": "GameSentenceMiner/util/cron/anki_card_sync.py:664",
@@ -474,21 +504,35 @@
     "hash": "4d866b9ec902e5c8"
    }
   ],
+  "getActiveProfile": [
+   {
+    "at": "GameSentenceMiner/session_review.py:124",
+    "hash": "6c1e39a2681b6227"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:461",
+    "hash": "0cf1d9cd237ed9e5"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:816",
+    "hash": "cd399675ae91f1d0"
+   }
+  ],
   "getDecks": [
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:131",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:159",
     "hash": "46d8b1661898a38d"
    }
   ],
   "getIntervals": [
    {
-    "at": "GameSentenceMiner/anki.py:4168",
+    "at": "GameSentenceMiner/anki.py:4367",
     "hash": "7155ed9e57d9ef99"
    }
   ],
   "getMediaFilesNames": [
    {
-    "at": "GSM_Overlay/hachidori/anki-media.js:13",
+    "at": "GSM_Overlay/hachidori/anki-media.js:14",
     "hash": "a16711e6028877af"
    }
   ],
@@ -500,7 +544,7 @@
   ],
   "guiBrowse": [
    {
-    "at": "GSM_Overlay/hachidori/anki-mining.js:537",
+    "at": "GSM_Overlay/hachidori/anki-mining.js:604",
     "hash": "d990e3df7308872c"
    },
    {
@@ -516,19 +560,19 @@
     "hash": "1f67328f28e72051"
    },
    {
-    "at": "GameSentenceMiner/util/platform/notification.py:23",
+    "at": "GameSentenceMiner/util/platform/notification.py:58",
     "hash": "1681ab1b044c9fbb"
    },
    {
-    "at": "GameSentenceMiner/util/platform/notification.py:33",
+    "at": "GameSentenceMiner/util/platform/notification.py:68",
     "hash": "9b8699a6219ca088"
    },
    {
-    "at": "electron-src/main/notifications.ts:52",
+    "at": "electron-src/main/notifications.ts:63",
     "hash": "4fa35f1d9af361b6"
    },
    {
-    "at": "electron-src/main/notifications.ts:63",
+    "at": "electron-src/main/notifications.ts:74",
     "hash": "a919c4597bfc51d6"
    }
   ],
@@ -542,11 +586,15 @@
     "hash": "276ae94ee36102cc"
    },
    {
-    "at": "GameSentenceMiner/util/platform/notification.py:56",
+    "at": "GameSentenceMiner/session_review.py:288",
+    "hash": "251f743af8e5f3e0"
+   },
+   {
+    "at": "GameSentenceMiner/util/platform/notification.py:91",
     "hash": "97a65227ecbec558"
    },
    {
-    "at": "electron-src/main/notifications.ts:88",
+    "at": "electron-src/main/notifications.ts:99",
     "hash": "45d93b5f882e4b4d"
    }
   ],
@@ -558,25 +606,29 @@
   ],
   "guiSelectedNotes": [
    {
-    "at": "GameSentenceMiner/anki.py:2444",
+    "at": "GameSentenceMiner/anki.py:591",
+    "hash": "441d8ff5d9dfd9f3"
+   },
+   {
+    "at": "GameSentenceMiner/anki.py:2520",
     "hash": "3b5198c22d2739ad"
    }
   ],
   "modelFieldNames": [
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:74",
+    "at": "GSM_Overlay/hachidori/anki-index.js:79",
     "hash": "a7e227e4b2ea19ff"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:65",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:93",
     "hash": "dcd39475b4d873b0"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:86",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:114",
     "hash": "ee107ea77c22be25"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:108",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:136",
     "hash": "5547e336221874ce"
    },
    {
@@ -600,7 +652,7 @@
     "hash": "003355d666376373"
    },
    {
-    "at": "GameSentenceMiner/ui/config_gui_qt.py:3001",
+    "at": "GameSentenceMiner/ui/config_gui_qt.py:3059",
     "hash": "6be820fe5e8cecc8"
    }
   ],
@@ -626,52 +678,72 @@
     "hash": "da63ca769e07734f"
    },
    {
-    "at": "GameSentenceMiner/ui/config_gui_qt.py:2971",
+    "at": "GameSentenceMiner/session_review.py:775",
+    "hash": "9f5620d6fa1f82c4"
+   },
+   {
+    "at": "GameSentenceMiner/ui/config_gui_qt.py:3029",
     "hash": "a59970c4cae283e6"
    }
   ],
   "modelNamesAndIds": [
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:236",
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:267",
     "hash": "264c2bd1cfb53406"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:60",
+    "at": "GSM_Overlay/hachidori/anki-index.js:64",
     "hash": "3f212ba9f573a9be"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:72",
+    "at": "GSM_Overlay/hachidori/anki-index.js:77",
     "hash": "d1577c9a464947f6"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:65",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:93",
     "hash": "dcd39475b4d873b0"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:103",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:131",
     "hash": "c816c39b79277492"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-setup.js:120",
+    "at": "GSM_Overlay/hachidori/anki-setup.js:148",
     "hash": "900b6dfee6cfeb3c"
+   }
+  ],
+  "modelStyling": [
+   {
+    "at": "GameSentenceMiner/session_review.py:777",
+    "hash": "8c9cee37d6189525"
+   }
+  ],
+  "modelTemplates": [
+   {
+    "at": "GameSentenceMiner/session_review.py:776",
+    "hash": "2bee838e4af2fe81"
    }
   ],
   "multi": [
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:71",
+    "at": "GSM_Overlay/hachidori/anki-index.js:76",
     "hash": "96ae9491bebdcffd"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:73",
+    "at": "GSM_Overlay/hachidori/anki-index.js:78",
     "hash": "7a770ced5b091c63"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:203",
+    "at": "GSM_Overlay/hachidori/anki-index.js:208",
     "hash": "94302c91c7c0682b"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:217",
+    "at": "GSM_Overlay/hachidori/anki-index.js:222",
     "hash": "6817166ab9564ec8"
+   },
+   {
+    "at": "GSM_Overlay/hachidori/anki-media.js:68",
+    "hash": "9eae850373e28d4c"
    },
    {
     "at": "GSM_Overlay/hachidori/anki.js:18",
@@ -700,27 +772,27 @@
   ],
   "notesInfo": [
    {
-    "at": "GSM_Overlay/hachidori/anki-duplicates.js:243",
+    "at": "GSM_Overlay/hachidori/anki-duplicates.js:274",
     "hash": "6cd119641fa560f9"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:198",
+    "at": "GSM_Overlay/hachidori/anki-index.js:203",
     "hash": "40f467fa3bbbdc91"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:204",
+    "at": "GSM_Overlay/hachidori/anki-index.js:209",
     "hash": "a748a6461294a959"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:224",
+    "at": "GSM_Overlay/hachidori/anki-index.js:229",
     "hash": "79fc83dbec6a7aa0"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-index.js:252",
+    "at": "GSM_Overlay/hachidori/anki-index.js:257",
     "hash": "26ca5966d9fb88e8"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-mining.js:32",
+    "at": "GSM_Overlay/hachidori/anki-mining.js:49",
     "hash": "516f90a51eb42f70"
    },
    {
@@ -732,24 +804,32 @@
     "hash": "e0010f76d7041bfe"
    },
    {
-    "at": "GameSentenceMiner/anki.py:286",
+    "at": "GameSentenceMiner/anki.py:310",
     "hash": "3cf4ea6c9b46ba3c"
    },
    {
-    "at": "GameSentenceMiner/anki.py:578",
+    "at": "GameSentenceMiner/anki.py:607",
     "hash": "07b9491f82818be7"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3200",
+    "at": "GameSentenceMiner/anki.py:3310",
     "hash": "1fab3adafbc18523"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3225",
+    "at": "GameSentenceMiner/anki.py:3335",
     "hash": "1e3852feecdcbf95"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3505",
-    "hash": "34e26cb5cccef54e"
+    "at": "GameSentenceMiner/anki.py:3659",
+    "hash": "6a290e397c6df487"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:463",
+    "hash": "343ab3712e5deebf"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:802",
+    "hash": "4ba075726a4bb518"
    },
    {
     "at": "GameSentenceMiner/util/cron/anki_card_sync.py:64",
@@ -774,37 +854,45 @@
   ],
   "removeTags": [
    {
-    "at": "GameSentenceMiner/anki.py:598",
+    "at": "GameSentenceMiner/anki.py:628",
     "hash": "7349988fa984e8f8"
    },
    {
-    "at": "GameSentenceMiner/anki.py:2461",
+    "at": "GameSentenceMiner/anki.py:2537",
     "hash": "f854548cc967dfbf"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:716",
+    "hash": "030f5f04756d7208"
    }
   ],
   "storeMediaFile": [
    {
-    "at": "GSM_Overlay/hachidori/anki-media.js:65",
+    "at": "GSM_Overlay/hachidori/anki-media.js:69",
+    "hash": "602be92ed706d7d0"
+   },
+   {
+    "at": "GSM_Overlay/hachidori/anki-media.js:101",
     "hash": "a63be7a1dcc0b4f7"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-worker.js:117",
-    "hash": "c527b94066f4aa0c"
+    "at": "GSM_Overlay/hachidori/anki-worker.js:195",
+    "hash": "c31fe4ebd7f3e75f"
    },
    {
-    "at": "GSM_Overlay/yomitan/js/background/backend.js:2706",
+    "at": "GSM_Overlay/yomitan/js/background/backend.js:2715",
     "hash": "2ada992cb248edfc"
    },
    {
-    "at": "GSM_Overlay/yomitan/js/background/backend.js:2726",
+    "at": "GSM_Overlay/yomitan/js/background/backend.js:2735",
     "hash": "f21125ce9ba2d9f8"
    },
    {
-    "at": "GSM_Overlay/yomitan/js/background/backend.js:2750",
+    "at": "GSM_Overlay/yomitan/js/background/backend.js:2759",
     "hash": "09cef9d910377107"
    },
    {
-    "at": "GSM_Overlay/yomitan/js/background/backend.js:2800",
+    "at": "GSM_Overlay/yomitan/js/background/backend.js:2809",
     "hash": "9aa23f5aad897884"
    },
    {
@@ -812,8 +900,8 @@
     "hash": "d98775ff2df7ee12"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3076",
-    "hash": "5368a21bbeed8b91"
+    "at": "GameSentenceMiner/anki.py:3158",
+    "hash": "e2aeae76a3104f57"
    }
   ],
   "suspend": [
@@ -880,15 +968,15 @@
     "hash": "61fa86318d027fbb"
    },
    {
-    "at": "GSM_Overlay/yomitan/js/display/display-anki.js:2070",
+    "at": "GSM_Overlay/yomitan/js/display/display-anki.js:2075",
     "hash": "ce577b8b6cbce55b"
    },
    {
-    "at": "GSM_Overlay/yomitan/js/display/display-anki.js:2075",
+    "at": "GSM_Overlay/yomitan/js/display/display-anki.js:2080",
     "hash": "3c7bf4f1b4471efe"
    },
    {
-    "at": "GSM_Overlay/yomitan/js/display/display-anki.js:2082",
+    "at": "GSM_Overlay/yomitan/js/display/display-anki.js:2087",
     "hash": "bca6d2c90de1161f"
    },
    {
@@ -908,7 +996,7 @@
     "hash": "dda865d8924c04ce"
    },
    {
-    "at": "GSM_Overlay/hachidori/anki-mining.js:187",
+    "at": "GSM_Overlay/hachidori/anki-mining.js:215",
     "hash": "b01e6516f5a36f0a"
    },
    {
@@ -920,16 +1008,20 @@
     "hash": "939614c8c05b5502"
    },
    {
-    "at": "GameSentenceMiner/anki.py:592",
-    "hash": "93e9c43acf590cfb"
+    "at": "GameSentenceMiner/anki.py:622",
+    "hash": "367a09ec32d79079"
    },
    {
-    "at": "GameSentenceMiner/anki.py:2453",
+    "at": "GameSentenceMiner/anki.py:2529",
     "hash": "6c615aa2045c37ce"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3124",
+    "at": "GameSentenceMiner/anki.py:3211",
     "hash": "eb1c4faf2b3ac78f"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:708",
+    "hash": "6f0cce3e760a7c58"
    }
   ],
   "version": [
@@ -974,15 +1066,15 @@
     "hash": "1315114572f0731e"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3097",
-    "hash": "300c71c22d4d205f"
+    "at": "GameSentenceMiner/anki.py:3179",
+    "hash": "d095da48c4a10bbe"
    },
    {
-    "at": "GameSentenceMiner/anki.py:3332",
+    "at": "GameSentenceMiner/anki.py:3444",
     "hash": "29c5d02234f76cb8"
    },
    {
-    "at": "GameSentenceMiner/anki.py:4140",
+    "at": "GameSentenceMiner/anki.py:4337",
     "hash": "d8ebece9445cc91e"
    },
    {
@@ -994,15 +1086,23 @@
     "hash": "b8345b8135c1db74"
    },
    {
-    "at": "GameSentenceMiner/ui/config_gui_qt.py:2922",
+    "at": "GameSentenceMiner/session_review.py:87",
+    "hash": "ef22800767fa4668"
+   },
+   {
+    "at": "GameSentenceMiner/session_review.py:191",
+    "hash": "438d1fdccac3d735"
+   },
+   {
+    "at": "GameSentenceMiner/ui/config_gui_qt.py:2980",
     "hash": "677200ea13ac8cf6"
    },
    {
-    "at": "GameSentenceMiner/util/config/configuration.py:537",
+    "at": "GameSentenceMiner/util/config/configuration.py:542",
     "hash": "c553980c4f5bdea0"
    },
    {
-    "at": "GameSentenceMiner/util/config/configuration.py:548",
+    "at": "GameSentenceMiner/util/config/configuration.py:553",
     "hash": "700c0b65e33ef6fb"
    },
    {
@@ -1014,15 +1114,15 @@
     "hash": "6008ee30662fd39b"
    },
    {
-    "at": "GameSentenceMiner/util/platform/notification.py:24",
+    "at": "GameSentenceMiner/util/platform/notification.py:59",
     "hash": "41c109ba0e072da2"
    },
    {
-    "at": "GameSentenceMiner/util/platform/notification.py:34",
+    "at": "GameSentenceMiner/util/platform/notification.py:69",
     "hash": "24f34770de60b422"
    },
    {
-    "at": "GameSentenceMiner/util/platform/notification.py:56",
+    "at": "GameSentenceMiner/util/platform/notification.py:91",
     "hash": "97a65227ecbec558"
    },
    {

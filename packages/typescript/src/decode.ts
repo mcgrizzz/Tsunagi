@@ -16,6 +16,8 @@ export interface FieldDescription extends FieldType {
   readonly optional?: boolean;
   /** Other resources it is built from (x-from). */
   readonly from?: readonly string[];
+  /** Only when narrow() selects it (a note field's text): whole objects leave it out. */
+  readonly selectOnly?: boolean;
 }
 export type Fields = Readonly<Record<string, FieldDescription>>;
 
@@ -56,11 +58,14 @@ export function decodeField(field: FieldDescription, value: unknown): unknown {
   return field.values[String(value)];
 }
 
+/** An object's fields when it is whole: all but the select-only ones. */
+export const wholeNames = (fields: Fields): string[] => Object.keys(fields).filter(name => !fields[name]!.selectOnly);
+
 /** An object in client names; `names` limits it to those fields (a query's selection). */
 export function decodeObject(fields: Fields, value: unknown, names: readonly string[] | null = null): Record<string, unknown> {
   const row = object(value);
   const result: Record<string, unknown> = {};
-  for (const name of names ?? Object.keys(fields)) result[name] = decodeField(fields[name]!, row[fields[name]!.wire]);
+  for (const name of names ?? wholeNames(fields)) result[name] = decodeField(fields[name]!, row[fields[name]!.wire]);
   return result;
 }
 

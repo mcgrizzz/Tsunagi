@@ -3,10 +3,12 @@ import type { AccessDecision } from "./access.js";
 import { accessTarget, registerAccess } from "./access-target.js";
 import type { AccessTarget } from "./access-target.js";
 import { ProtocolError } from "./errors.js";
-import { decodeField, decodeObject } from "./decode.js";
+import { decodeField, decodeObject, object } from "./decode.js";
 import type { FieldDescription } from "./decode.js";
-import { resources, states as stateTerms } from "./generated.js";
-import type { Rows } from "./generated.js";
+import { ElementQuery, elementTerm } from "./elements.js";
+import type { ElementState, GivenOnce } from "./elements.js";
+import { objectFields, resources, states as stateTerms } from "./generated.js";
+import type { Elements, Rows } from "./generated.js";
 import { DraftProtocol } from "./protocol.js";
 import type { QueryParams } from "./protocol.js";
 import { positive } from "./transport.js";
@@ -30,6 +32,18 @@ export type Operator<V> = "eq" | "ne" | "in" | "notIn"
   | (string extends NonNullable<V> ? "contains" | "startsWith" | "endsWith" : never);
 type Operand<V, O> = O extends "in" | "notIn" ? readonly V[]
   : O extends "eq" | "ne" ? V : NonNullable<V>;
+
+type FieldsOf<N extends QueryResource> = (typeof resources)[N]["fields"];
+/** The element type's name of a list of objects (a note's fields: NoteField); never for any other field. */
+type ListSchema<N extends QueryResource, K> = K extends keyof FieldsOf<N>
+  ? FieldsOf<N>[K] extends { kind: "array"; item: { kind: "object"; schema: infer S extends keyof Elements } } ? S : never
+  : never;
+/** The lists in a query's rows that narrow() takes: lists of objects. */
+export type ListKey<N extends QueryResource, R> = { [K in Key<R>]: [ListSchema<N, K>] extends [never] ? never : K }[Key<R>];
+type Whole<N extends QueryResource, K> = K extends keyof Rows[N] ? Rows[N][K] extends readonly (infer X)[] ? X : never : never;
+/** narrow()'s step on a list: the element with every part it can have, and as rows have it now. */
+export type ElementStep<N extends QueryResource, K> = ElementQuery<Elements[ListSchema<N, K>], Whole<N, K>>;
+type Narrowed<R, K, P> = { [X in keyof R]: X extends K ? P[] : R[X] };
 
 const symbols = {
   eq: "==", ne: "!=", gt: ">", gte: ">=", lt: "<", lte: "<=",
@@ -65,6 +79,7 @@ interface State {
   readonly states: readonly string[];  // Anki search terms from is(), in order
   readonly order?: string;
   readonly distinctOn?: string;
+  readonly narrow: Readonly<Record<string, ElementState>>;  // by the list's client name
 }
 
 export interface Page<T> {
@@ -124,7 +139,7 @@ export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWat
   constructor(
     protected readonly protocol: DraftProtocol,
     protected readonly resource: N,
-    private readonly state: State = { select: null, scalar: false, where: [], states: [] },
+    private readonly state: State = { select: null, scalar: false, where: [], states: [], narrow: {} },
   ) {
     registerAccess(this, protocol, `GET ${resources[resource].path}`);
   }
@@ -191,12 +206,32 @@ export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWat
   select<const K extends readonly [Key<Rows[N]>, ...Key<Rows[N]>[]]>(...fields: K): Query<N, Pick<Rows[N], K[number]>, W, B> {
     if (!fields.length) throw new TypeError("Select at least one field");
     fields.forEach(field => this.field(field));
-    return this.with({ select: [...new Set(fields)], scalar: false });
+    // A new shape for the rows: earlier narrow() calls went with the old one.
+    return this.with({ select: [...new Set(fields)], scalar: false, narrow: {} });
+  }
+  /**
+   * Only some elements of a list of objects in the rows, or some parts of each:
+   * `narrow("fields", f => f.where("name", "in", ["Word", "Reading"]).select("name", "text"))`.
+   * The list must be in the rows; a second narrow() on it replaces the first.
+   */
+  narrow<K extends ListKey<N, R>, P>(
+    list: K,
+    step: (elements: ElementStep<N, K>) => ElementQuery<unknown, P, true | GivenOnce, true | GivenOnce>,
+  ): Query<N, Narrowed<R, K, P>, W, B> {
+    const field = this.field(list);
+    const schema = field.kind === "array" && field.item?.kind === "object" ? field.item.schema : undefined;
+    if (schema === undefined) throw new TypeError(`${list} is not a list of objects`);
+    if (this.state.scalar || (this.state.select && !this.state.select.includes(list))) {
+      throw new TypeError(`${list} isn't in the rows: select it before narrow()`);
+    }
+    const result: unknown = step(new ElementQuery(objectFields[schema]) as ElementStep<N, K>);
+    if (!(result instanceof ElementQuery)) throw new TypeError("narrow()'s step must return its element query");
+    return this.with({ narrow: { ...this.state.narrow, [list]: result.state } });
   }
   /** Each row's value of one field, bare. */
   values<K extends ScalarKey<Rows[N]>>(field: K): Query<N, Rows[N][K], typeof notWatchable.values, B> {
     this.field(field, true);
-    return this.with({ select: [field], scalar: true, unwatchable: notWatchable.values });
+    return this.with({ select: [field], scalar: true, narrow: {}, unwatchable: notWatchable.values });
   }
 
   async take(count: number, options: RequestOptions = {}): Promise<R[]> {
@@ -249,6 +284,7 @@ export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWat
       keyWire: this.fields[key]!.wire,
       search,
       selected,
+      columns: selected && !Object.keys(this.state.narrow).length ? selected.map(name => this.fields[name]!.wire) : null,
       // From the description's x-from: a search follows what it reads, a field what it is built from.
       related: [...new Set([
         ...(search === undefined ? [] : (resources[this.resource].search as { from: readonly string[] } | null)?.from ?? []),
@@ -258,7 +294,7 @@ export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWat
         const params = query.params(false);
         return { ...params, where: [...params.where, ...narrow.where ?? []], ...(narrow.search === undefined ? {} : { search: narrow.search }) };
       },
-      decode: raw => decodeObject(this.fields, raw, selected),
+      decode: raw => query.decode(raw) as Record<string, unknown>,
     }, options.signal);
   }
 
@@ -275,10 +311,12 @@ export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWat
   }
 
   private params(total: boolean): QueryParams {
-    const { select, scalar, where, order, distinctOn } = this.state;
+    const { select, scalar, where, order, distinctOn, narrow } = this.state;
     const search = this.fullSearch;
+    // A narrowed list is a select term, so a query without select sends every field.
+    const names = select ?? (Object.keys(narrow).length ? Object.keys(this.fields) : null);
     return {
-      ...(select ? { select: select.map(name => this.fields[name]!.wire).join(",") } : {}),
+      ...(names ? { select: names.map(name => this.term(name)).join(",") } : {}),
       shape: scalar ? "scalar" : "object",
       where,
       ...(search === undefined ? {} : { search }),
@@ -287,11 +325,27 @@ export class Query<N extends QueryResource, R = Rows[N], W extends true | NotWat
       ...(total ? { include: "total" } : {}),
     };
   }
+  /** A field's select term: its wire name, or a narrowed list's (elementTerm). */
+  private term(name: string): string {
+    const field = this.fields[name]!;
+    const narrowed = this.state.narrow[name];
+    return narrowed ? elementTerm(field.wire, objectFields[field.item!.schema!], narrowed) : field.wire;
+  }
   private decode(value: unknown): R {
-    const { select, scalar } = this.state;
+    const { select, scalar, narrow } = this.state;
     // Every property is decoded with its field's description.
     if (scalar) return decodeField(this.fields[select![0]!]!, value) as R;
-    return decodeObject(this.fields, value, select) as R;
+    if (!Object.keys(narrow).length) return decodeObject(this.fields, value, select) as R;
+    const row = object(value);
+    const names = select ?? Object.keys(this.fields);
+    return Object.fromEntries(names.map(name => {
+      const field = this.fields[name]!;
+      const narrowed = narrow[name];
+      if (!narrowed) return [name, decodeField(field, row[field.wire])];
+      const items = row[field.wire];
+      if (!Array.isArray(items)) throw new ProtocolError(`Expected a list of ${field.wire}`);
+      return [name, items.map(item => decodeObject(objectFields[field.item!.schema!], item, narrowed.parts ?? null))];
+    })) as R;
   }
   private async readPage(size: number, total: boolean, cursor: string | null, seen: ReadonlySet<string>, options: RequestOptions): Promise<Page<R>> {
     options.signal?.throwIfAborted();

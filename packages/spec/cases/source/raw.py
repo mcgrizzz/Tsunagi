@@ -44,3 +44,18 @@ cases = [
   "exchanges": [{"request": req("POST", "/v1/notes", False, []), "response": ok({"created": [], "failed": []})}],
   "result": {"status": 200, "data": {"created": [], "failed": []}}},
 ]
+
+def learn_session(cases):
+    """A client that has seen no session reads GET /v1/health before its first
+    write (behavior.md, Resending): that exchange goes before the first keyed one."""
+    for case in cases:
+        exchanges = case.get("exchanges", [])
+        first = next((i for i, e in enumerate(exchanges) if e["request"].get("keyed") not in (False, None)), None)
+        if first is not None:
+            exchanges.insert(first, HEALTH)
+    return cases
+
+
+HEALTH = {"request": {"method": "GET", "path": "/v1/health", "query": {}, "keyed": False},
+          "response": {"status": 200, "body": {}, "headers": {"Tsunagi-Session": "s1"}}}
+learn_session(cases)

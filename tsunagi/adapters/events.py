@@ -83,7 +83,7 @@ class ApiOp:
 class _Subscriber:
     __slots__ = ("queue", "dropped", "ready", "types", "resources", "grants", "wake")
 
-    def __init__(self, session_id: str, after_seq: int, *,
+    def __init__(self, session_id: str, after_seq: int, *, profile: str,
                  types: Optional[FrozenSet[str]],
                  resources: Optional[FrozenSet[str]],
                  grants: Optional[FrozenSet[str]],
@@ -96,7 +96,7 @@ class _Subscriber:
         self.dropped = 0
         # Registration and its boundary are captured under the publish lock.
         # Kept outside the bounded queue, so overflow cannot displace ready.
-        self.ready = {"type": "ready", "session_id": session_id,
+        self.ready = {"type": "ready", "session_id": session_id, "profile": profile,
                       "after_seq": after_seq, "ts": int(time.time() * 1000)}
 
     def accepts(self, type: str) -> bool:
@@ -122,6 +122,7 @@ class EventBroker:
         # Why the last session ended, for its streams' close event.
         self.close_reason = "shutdown"
         self._session_id: Optional[str] = None
+        self._profile = ""
         self._collection: Any = None
         # ChangeScan for Anki-side changes; set by the app once a session starts.
         self.scanner: Any = None
@@ -130,13 +131,14 @@ class EventBroker:
         # Whether FSRS was on at the last look; a change alters what apps can do.
         self._fsrs: Optional[bool] = None
 
-    def start_session(self, collection: Any) -> str:
+    def start_session(self, collection: Any, profile: str = "") -> str:
         """Start a server/collection lifetime; old tokens stay closed forever."""
         with self._lock:
             self._subscribers.clear()
             self.scanner = None
             self.day_watch = None
             self._session_id = uuid4().hex
+            self._profile = profile
             self._collection = collection
             self._seq = 0
             self._draining = False
@@ -157,7 +159,7 @@ class EventBroker:
             token = self._next_token
             self._next_token += 1
             self._subscribers[token] = _Subscriber(
-                self._session_id, self._seq, types=types, resources=resources,
+                self._session_id, self._seq, profile=self._profile, types=types, resources=resources,
                 grants=grants, wake=wake)
             return token
 
@@ -270,6 +272,12 @@ class EventBroker:
             self._collection = None
             self.scanner = None
             self.day_watch = None
+
+    @property
+    def session_id(self) -> Optional[str]:
+        """This server's session: a new one each time a profile opens (and
+        the server starts), so a client can tell a restart or a switch."""
+        return self._session_id
 
     def is_draining(self, token: Optional[int] = None) -> bool:
         with self._lock:

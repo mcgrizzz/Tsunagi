@@ -11,16 +11,18 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Pop-up dictionary extension; syncs its notebook",
     "repo": "https://github.com/crimx/ext-saladict",
-    "commit": "7d93a65",
-    "read": "2026-10-15",
+    "commit": "1673df1",
+    "read": "2026-11-25",
     "files": [
         "src/background/sync-manager/services/ankiconnect/index.ts",
         "src/options/components/Entries/Notebook/sync-services/ankiconnect.tsx",
         "src/content/components/WordEditor/Notes.tsx",
     ],
     "uses": "axios, default branch dev",
-    "notes": "Defaults: deck 'Saladict', note type 'Saladict Word', no tags. Not tested: sync "
-             "(after adding, if 'syncServer' is on; errors ignored).",
+    "notes": "Defaults: deck 'Saladict', note type 'Saladict Word' (a Cloze type), no tags. Not tested: sync "
+             "(after adding, if 'syncServer' is on; errors ignored). A note type that isn't Cloze (made by an "
+             "older Saladict) stops syncing until migrated; the migration uses AnkiConnect's JSON-RPC API "
+             "(/api/v1), which Tsunagi answers 404, so Saladict says migration is unsupported.",
 }
 
 ENVELOPE = {"version": 6, "params": "always", "key": "null", "method": "POST"}
@@ -49,12 +51,15 @@ SENDS = {
                 "cardTemplates": [{"Back": str, "Front": str, "Name": str}],
                 "css": str,
                 "inOrderFields": [str],
+                "isCloze": True,
                 "modelName": str,
             },
         ],
         ("error",),
     ),
     "deckNames": ([{}], ("result", "error")),
+    # Before every upload: a type other than 1 (Cloze) is refused.
+    "findModelsByName": ([{"modelNames": [str]}], ("result[*].type", "error")),
     "findNotes": ([{"query": str}], ("result", "error")),
     "modelFieldNames": ([{"modelName": str}], ("result", "error")),
     "modelNames": ([{}], ("result", "error")),

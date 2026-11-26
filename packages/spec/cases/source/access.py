@@ -7,7 +7,7 @@ def caps(role, key="k1"):
         "features": {}}}
 EVENTS = {"method": "GET", "path": "/v1/events", "query": {"types": "access.changed"}}
 CAPS = {"method": "GET", "path": "/v1/capabilities", "query": {}, "keyed": False}
-ready = lambda heartbeat=15000: {"send": [{"event": "ready", "data": {"type": "ready", "session_id": "s", "after_seq": 0, "ts": 1, "resources": [], "heartbeat_ms": heartbeat}}]}
+ready = lambda heartbeat=15000: {"send": [{"event": "ready", "data": {"type": "ready", "session_id": "s", "profile": "User 1", "after_seq": 0, "ts": 1, "resources": [], "heartbeat_ms": heartbeat}}]}
 def start(role="Reader", heartbeat=15000):
     return [{"call": {"method": "access"}, "as": "first"},
             {"expect": {**EVENTS, "key": "k1"}, "stream": True}, ready(heartbeat),
@@ -44,6 +44,8 @@ cases = [
                        {"expect": EVENTS, "stream": True}, ready()] + fetched("Writer")},
  {"name": "a 401 or 403 to any request: the next access() fetches",
   "script": start() + [{"call": {"method": "notes.update", "args": [1, {"fields": {"Front": "a"}}]}, "as": "write"},
+                       # A first write reads the session (behavior.md, Resending).
+                       {"expect": {"method": "GET", "path": "/v1/health"}, "response": {"status": 200, "body": {}, "headers": {"Tsunagi-Session": "s1"}}},
                        {"expect": {"method": "PATCH", "path": "/v1/notes/1", "body": {"fields": {"Front": "a"}}}, "response": {"status": 403, "body": {"detail": "no"}}},
                        {"settle": "write", "error": {"kind": "permission"}}] + fetched("Reader")},
  {"name": "a new key: the next access() fetches with it, and the connection reconnects with it",

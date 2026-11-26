@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
-from typing import Annotated, Any, AsyncIterator, Dict, FrozenSet, List, Optional
+from typing import Annotated, Any, AsyncIterator, Dict, FrozenSet, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import StreamingResponse
 
 from ...adapters.events import (
@@ -39,8 +41,14 @@ from ...shared.permissions import (
     permitted,
     requires,
 )
+from ...shared.route_factory import ROW_READERS, RowReader
 
 router = APIRouter()
+log = logging.getLogger(__name__)
+
+# The resources whose events name rows that still exist: select=<resource>:<columns> sends them.
+ROW_RESOURCES = frozenset(name.split(".", 1)[0] for name in DATA_EVENT_TYPES
+                          if name.endswith((".created", ".updated")))
 
 
 def event_catalog() -> Dict[str, Dict[str, Any]]:
@@ -109,7 +117,14 @@ rated:1, prop:due=0) can now match other rows, though no row was written, so run
 again. It comes when a new day starts, and when changing "next day starts at" (in
 Anki's preferences or by sync) moves the day, even back. It comes with every change stream, whatever its resources (types=change, the
 default with resources, or types=day.changed), and needs events:changes like them.
-No full notes, card contents or media are sent. Fetch any contents your app needs through the normal API, with select to choose fields.
+Events name rows by ID. To get the rows too, add select=<resource>:<columns> for
+notes, cards or reviews, once per resource: select=notes:fields,tags&select=cards:queue,due.
+The columns are those of the resource's GET select, and id is always included.
+notes.created and notes.updated then carry notes, the rows as GET /v1/notes returns
+them, read when the event is sent; cards and reviews likewise. It needs read:notes
+(read:cards, read:reviews). A row deleted before then isn't listed, and if the rows
+can't be read the event comes without them: fetch them through the normal API.
+Without select, fetch any contents your app needs that way. Media is never sent.
 A resource with complete ID details does not also emit stale for that operation.
 Related resources can produce separate events: deleting a note produces
 notes.deleted and cards.deleted. Each notification has its own sequence number.
@@ -217,6 +232,42 @@ def _access_changed() -> Dict[str, Any]:
     return {"type": ACCESS_CHANGED, "ts": int(time.time() * 1000)}
 
 
+def _parse_select(values: Optional[List[str]],
+                  carried: FrozenSet[str]) -> Dict[str, Tuple[RowReader, str]]:
+    """Each select=<resource>:<columns>: the resource's reader and its checked select."""
+    selects: Dict[str, Tuple[RowReader, str]] = {}
+    for value in values or []:
+        resource, colon, columns = value.partition(":")
+        resource = resource.strip()
+        if not colon or resource not in ROW_RESOURCES or not columns.strip():
+            raise HTTPException(status_code=422, detail=(
+                "select must be <resource>:<columns>, for one of: " + ", ".join(sorted(ROW_RESOURCES))))
+        if resource in selects:
+            raise HTTPException(status_code=422, detail=f"select names {resource} more than once")
+        if resource not in carried:
+            raise HTTPException(status_code=422,
+                                detail=f"select names {resource}, but this stream sends no {resource} events")
+        reader = ROW_READERS[resource]
+        if not permitted(reader.permission):
+            raise HTTPException(status_code=403, detail=current_denial(reader.permission))
+        selects[resource] = (reader, reader.prepare(columns))
+    return selects
+
+
+async def _with_rows(event: Dict[str, Any], selects: Dict[str, Tuple[RowReader, str]]) -> Dict[str, Any]:
+    """The event with the rows its select asks for, read now; as it was if they can't be read."""
+    resource, _, kind = event["type"].partition(".")
+    if resource not in selects or kind not in ("created", "updated"):
+        return event
+    reader, select = selects[resource]
+    try:
+        rows = await run_in_threadpool(reader.read, event["ids"], select)
+    except Exception:
+        log.warning("Could not read the %s of %s", resource, event["type"], exc_info=True)
+        return event
+    return {**event, resource: rows}
+
+
 def _parse_filter(value: Optional[str], name: str,
                   allowed: FrozenSet[str]) -> Optional[FrozenSet[str]]:
     if value is None:
@@ -266,6 +317,11 @@ def stream_events(
                     "Selects changes unless types is explicit. "
                     "Combined types must match at least one selected data resource.",
     )] = None,
+    select: Annotated[Optional[List[str]], Query(
+        description="Send the rows with the events naming them: <resource>:<columns>, once per "
+                    "resource, for notes, cards or reviews, such as notes:fields,tags. The columns "
+                    "are the resource's GET select; id is always included. Needs read:<resource>.",
+    )] = None,
 ) -> StreamingResponse:
     selected_types = _parse_filter(types, "types", EVENT_TYPES)
     selected_resources = _parse_filter(resources, "resources", CHANGE_RESOURCES)
@@ -282,6 +338,7 @@ def stream_events(
         if not data_resources:
             raise HTTPException(status_code=422,
                                 detail="types must match at least one selected data resource")
+    selects = _parse_select(select, data_resources)
     # Listed in `ready`: what this stream can actually receive with the
     # caller's permissions.
     caller = current_caller.get()
@@ -341,6 +398,7 @@ def stream_events(
                     yield _sse_frame(_access_changed())
                 woken.clear()
                 for event in broker.drain(token):
+                    event = await _with_rows(event, selects)
                     # A yield can suspend across shutdown, profile switch or
                     # key rotation. Never continue emitting a drained batch.
                     reason = close_reason()

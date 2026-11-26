@@ -19,11 +19,12 @@ test("sync submits with an idempotency key and polls the accepted job without re
     },
   });
   assert.deepEqual(await anki.collection.sync(), { status: 0, serverMessage: "" });
+  // The first write reads the server session once, for resending (packages/spec/behavior.md, Resending).
   assert.deepEqual(calls.map(call => [call.method, call.url.pathname]), [
-    ["POST", "/v1/collection:sync"], ["GET", "/v1/jobs/sync-1"],
+    ["GET", "/v1/health"], ["POST", "/v1/collection:sync"], ["GET", "/v1/jobs/sync-1"],
   ]);
-  assert.equal(calls[0].headers.get("Idempotency-Key"), "sync-submission-key");
-  assert.equal(calls[1].headers.has("Idempotency-Key"), false);
+  assert.equal(calls[1].headers.get("Idempotency-Key"), "sync-submission-key");
+  assert.equal(calls[2].headers.has("Idempotency-Key"), false);
 });
 
 test("sync accepts supplied keys for deliberate recovery using the current server contract", async () => {
@@ -36,7 +37,7 @@ test("sync accepts supplied keys for deliberate recovery using the current serve
   const operation = await anki.collection.startSync({ idempotencyKey: "saved-sync" });
   await operation.wait();
   await anki.collection.sync({ idempotencyKey: "saved-sync" });
-  assert.deepEqual(keys, ["saved-sync", "saved-sync"]);
+  assert.deepEqual(keys, [null, "saved-sync", "saved-sync"]);  // the session read, once
 });
 
 test("uncertain sync submissions retain their cause and key without automatic retry", async t => {
@@ -60,11 +61,11 @@ test("uncertain sync submissions retain their cause and key without automatic re
       await assert.rejects(anki.collection.sync(), error => {
         assert.ok(error instanceof WriteOutcomeUnknownError);
         assert.equal(error.idempotencyKey, "uncertain-sync-key");
-        assert.match(error.message, /Preserve/);
+        assert.match(error.message, /retry\(\)/);
         checkCause(error);
         return true;
       });
-      assert.equal(calls, 1);
+      assert.equal(calls, 2);  // the session read, then the one submission
     });
   }
 });
@@ -85,5 +86,5 @@ test("the older raw form keys a write only when given a key, and still reports u
       return true;
     });
   }
-  assert.deepEqual(keys, [null, "explicit-key"]);
+  assert.deepEqual(keys, [null, null, "explicit-key"]);  // a keyed write reads the session first
 });

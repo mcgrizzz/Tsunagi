@@ -13,7 +13,7 @@ Add a note in Anki or through the API, and this arrives:
 
 ```text
 event: ready
-data: {"type":"ready","session_id":"5f0c…","after_seq":0,"ts":1790000000000,"resources":["notes"],"heartbeat_ms":15000}
+data: {"type":"ready","session_id":"5f0c…","profile":"User 1","after_seq":0,"ts":1790000000000,"resources":["notes"],"heartbeat_ms":15000}
 
 event: notes.created
 id: 5f0c…:1
@@ -21,8 +21,8 @@ data: {"type":"notes.created","ids":[1790000000123],"by":"ui",…}
 ```
 
 `ready` means you're connected: load the data you show now. After that, each
-message names what changed and gives the IDs, not the contents; fetch what you
-need through the normal API.
+message names what changed and gives the IDs. Fetch what you need through the
+normal API, or [get the rows with the message](#get-the-rows-with-the-message).
 
 If your app has a key, add `-H 'X-Api-Key: <key>'`. Use your port if it isn't
 `7777`.
@@ -77,12 +77,49 @@ await anki.notes.select("id", "firstField").watch({
 });
 ```
 
-- It loads the list, then reads only the notes each message names.
+- It loads the list, then reads only the notes each message names. When you
+  select plain fields, as here, the notes come with the message instead
+  ([below](#get-the-rows-with-the-message)), and with a search it only asks
+  which of them still match.
 - It reads everything again after `.stale`, `gap`, a reconnect, or Anki's
   day changing.
 - With a search, it also listens to what the search depends on (decks for
   `deck:`, cards for card states), and moves notes in and out of your list.
 - `updated` comes only when a field you selected changed.
+
+## Get the rows with the message
+
+If your app does something with each new or changed note, have the notes come
+with the message instead of fetching them. Add `select=notes:` and the columns
+you want, as you'd write them for `GET /v1/notes?select=`:
+
+```sh
+curl -N 'http://127.0.0.1:7777/v1/events?resources=notes&select=notes:fields,tags'
+```
+
+```text
+event: notes.created
+id: 5f0c…:1
+data: {"type":"notes.created","ids":[1790000000123],"notes":[{"id":1790000000123,"fields":[{"name":"Front","value":"犬","index":0},{"name":"Back","value":"dog","index":1}],"tags":["mined"]}],"by":"ui",…}
+```
+
+- `notes.created` and `notes.updated` then carry `notes`: the rows
+  `GET /v1/notes?where=id in [...]&select=id,fields,tags` would return. `id` is
+  always included.
+- Every save sends the whole row, and Anki's editor saves as you type. Name
+  only the fields you use, as on GET:
+  `select=notes:fields[name in ["Front"]].value,tags` sends
+  `{"id":…,"fields":["犬"],"tags":["mined"]}`.
+- Cards and reviews work the same way, each with its own columns:
+  `select=notes:fields&select=cards:queue,due&select=reviews:rating`. Cards
+  come on `cards.created` and `cards.updated`, reviews on `reviews.created`.
+- The rows are read when the message is sent, so they're current. A note
+  deleted by then isn't listed, and its `notes.deleted` follows.
+- Your app needs to be allowed to read that kind of thing (**read:notes**,
+  **read:cards**, **read:reviews**). Columns the rows don't have are refused
+  when you connect, as `GET /v1/notes` refuses them.
+- If Tsunagi couldn't read the rows, the message comes without them: fetch the
+  `ids` as usual. Messages without IDs (`.stale`, `gap`) never carry rows.
 
 ## Choose what to receive
 
@@ -90,6 +127,7 @@ await anki.notes.select("id", "firstField").watch({
 | --- | --- |
 | Every change to notes | `?resources=notes` |
 | Notes and cards | `?resources=notes,cards` |
+| New and changed notes, with their fields and tags | `?resources=notes&select=notes:fields,tags` |
 | Only note deletions | `?types=notes.deleted` |
 | Card answers | `?types=cards.answered` |
 | Sync start and finish | `?types=sync` |
@@ -157,6 +195,7 @@ data: {"by":"api","app":"Yomitan","anki":{"changes":["note","mtime","browser_tab
 | --- | --- |
 | `type` | The message name, also sent as `event:`. |
 | `ids` | The IDs that changed. Not on `.stale`. |
+| `notes`, `cards`, `reviews` | With `select`: the rows `ids` names ([above](#get-the-rows-with-the-message)). |
 | `by` | `api` for changes made through either API, `ui` for changes made in Anki. |
 | `app` | For changes made through the API: the app that made them. A dashboard can tell its own writes from another tool's. |
 | `seq`, `session_id`, `ts` | Order, server session and time (milliseconds). The `id:` line is `session_id:seq`. |
@@ -229,7 +268,8 @@ without telling Anki are reported with the next change Anki does announce.
   `timeout` / `max_events` if you asked for a limit.
 
 Missed messages aren't replayed after a reconnect: load your data again on
-the new `ready`. A new `session_id` means a new server session.
+the new `ready`. A new `session_id` means a new server session: Anki
+restarted, or, when `ready`'s `profile` differs too, switched profile.
 
 </details>
 
@@ -246,7 +286,7 @@ retry: 3000
 : connected
 
 event: ready
-data: {"type":"ready","session_id":"8839…","after_seq":0,"ts":1790894419127,"resources":[],"heartbeat_ms":15000}
+data: {"type":"ready","session_id":"8839…","profile":"User 1","after_seq":0,"ts":1790894419127,"resources":[],"heartbeat_ms":15000}
 
 event: sync
 id: 8839…:1

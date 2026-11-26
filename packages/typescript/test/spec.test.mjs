@@ -5,18 +5,24 @@ import { test } from "node:test";
 import { setImmediate as tick } from "node:timers/promises";
 import {
   Tsunagi, AuthenticationError, HttpError, ItemRejectedError, JobFailedError,
-  PartialWriteError, PermissionError, ProtocolError, WriteOutcomeUnknownError,
+  PartialWriteError, PermissionError, ProfileChangedError, ProtocolError, ResendExpiredError, WriteOutcomeUnknownError,
 } from "../dist/index.js";
 
 const folder = new URL("../../spec/cases/", import.meta.url);
 const files = readdirSync(folder).filter(name => name.endsWith(".json"));
 const base = "http://127.0.0.1:7777/";
 
-/** Arguments as this client takes them: {"$bytes": base64} is a Uint8Array. */
+/**
+ * Arguments as this client takes them: {"$bytes": base64} is a Uint8Array,
+ * {"$steps": [[method, ...args]]} a function making those calls (narrow's step).
+ */
 function argument(value) {
   if (Array.isArray(value)) return value.map(argument);
   if (value && typeof value === "object") {
     if (Object.keys(value).length === 1 && "$bytes" in value) return Uint8Array.from(Buffer.from(value.$bytes, "base64"));
+    if (Object.keys(value).length === 1 && "$steps" in value) {
+      return start => value.$steps.reduce((at, [method, ...args]) => at[method](...argument(args)), start);
+    }
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, argument(item)]));
   }
   return value;
@@ -28,6 +34,8 @@ function kind(error) {
   if (error instanceof PermissionError) return "permission";
   if (error instanceof HttpError) return "http";
   if (error instanceof WriteOutcomeUnknownError) return "outcomeUnknown";
+  if (error instanceof ResendExpiredError) return "resendExpired";
+  if (error instanceof ProfileChangedError) return "profileChanged";
   if (error instanceof ItemRejectedError) return "itemRejected";
   if (error instanceof PartialWriteError) return "partialWrite";
   if (error instanceof JobFailedError) return "jobFailed";
@@ -76,10 +84,11 @@ function checkRequest(expected, url, init) {
   if (expected.keyed === true) assert.ok(key);
   else if (expected.keyed === false) assert.equal(key, null);
   else if (typeof expected.keyed === "string") assert.equal(key, expected.keyed);
+  assert.equal(init.headers.get("If-Session"), expected.ifSession ?? null);
 }
 
-const respond = ({ status, body, text }) => text !== undefined ? new Response(text, { status })
-  : new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const respond = ({ status, body, text, headers = {} }) => text !== undefined ? new Response(text, { status, headers })
+  : new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 
 function outcomeOf(spec, promise) {
   return promise.then(result => ({ result }), error => ({
@@ -115,7 +124,7 @@ async function runExchanges(spec) {
 }
 
 async function runScript(spec, t) {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
   const settle = async () => { for (let i = 0; i < 200; i++) await tick(); };
   const pending = [];
   let stream = null;
@@ -142,7 +151,7 @@ async function runScript(spec, t) {
         if (step.listener) {
           const record = heard[step.listener] = [];
           // watch and onSync take named handlers, recorded as [name, ...arguments]; others one function.
-          const named = { watch: ["added", "updated", "removed"], onSync: ["started", "finished"] }[step.call.method.split(".").at(-1)];
+          const named = { watch: ["added", "updated", "removed", "status"], onSync: ["started", "finished"] }[step.call.method.split(".").at(-1)];
           const listener = named
             ? Object.fromEntries(named.map(name => [name, (...values) => record.push([name, ...values])])
               .concat([["error", error => record.push(["error", kind(error)])]]))
@@ -186,6 +195,11 @@ async function runScript(spec, t) {
       } else if (step.end) {
         stream.close();
         stream = null;
+      } else if (step.retry) {
+        // The call's outcome-unknown error, sent again.
+        const value = calls[step.retry].then(() => { throw new Error(`${step.retry} succeeded`); }, error => error.retry());
+        value.catch(() => {});
+        calls[step.as] = value;
       } else if (step.wait) {
         t.mock.timers.tick(step.wait);
       } else if (step.quiet) {

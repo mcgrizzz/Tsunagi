@@ -253,3 +253,67 @@ cases += [
                  "response": ok({"permission": "denied", "key": None, "app": None, "role": None, "key_required": True})}],
   "result": {"permission": "denied", "key": None, "app": None, "role": None, "keyRequired": True}},
 ]
+
+# Resending (behavior.md, Resending): scripts, with a clock the runner moves.
+session = {"expect": {"method": "GET", "path": "/v1/health", "query": {}, "keyed": False},
+           "response": {"status": 200, "body": {}, "headers": {"Tsunagi-Session": "s1"}}}
+created = {"created": [{"index": 0, "id": 42}], "failed": []}
+receipt = {"index": 0, "id": 42, "cards": None, "files": None}
+busy = ok({"detail": "busy", "reason": "busy"}, 503)
+def attempt(response, resend=False):
+    return {"expect": {**create([wire], keyed="k"), **({"ifSession": "s1"} if resend else {})}, "response": response}
+def unknown(options=None):
+    return [{"call": m("notes.create", note, {"idempotencyKey": "k", **(options or {})}), "as": "c"}, session, attempt(busy)]
+cases += [
+ {"name": "retry() sends the same request with the same key and If-Session, and answers as the call would",
+  "script": unknown() + [{"settle": "c", "error": {"kind": "outcomeUnknown", "idempotencyKey": "k"}},
+                         {"retry": "c", "as": "r"}, attempt(ok(created), resend=True), {"settle": "r", "result": receipt}]},
+ {"name": "a resend whose outcome is unknown again can retry() again",
+  "script": unknown() + [{"settle": "c", "error": {"kind": "outcomeUnknown"}}, {"retry": "c", "as": "r"},
+                         attempt(busy, resend=True), {"settle": "r", "error": {"kind": "outcomeUnknown", "idempotencyKey": "k"}},
+                         {"retry": "r", "as": "r2"}, attempt(ok(created), resend=True), {"settle": "r2", "result": receipt}]},
+ {"name": "retry() past the window (the key's retention less a minute) sends nothing: resend expired",
+  "script": unknown() + [{"settle": "c", "error": {"kind": "outcomeUnknown"}}, {"wait": 540_001},
+                         {"retry": "c", "as": "r"}, {"settle": "r", "error": {"kind": "resendExpired", "idempotencyKey": "k", "why": "window"}}]},
+ {"name": "a 412 to a resend (Anki restarted or switched profile): resend expired",
+  "script": unknown() + [{"settle": "c", "error": {"kind": "outcomeUnknown"}}, {"retry": "c", "as": "r"},
+                         attempt({"status": 412, "body": {"detail": "Anki restarted"}}, resend=True),
+                         {"settle": "r", "error": {"kind": "resendExpired", "why": "session"}}]},
+ {"name": "without a session from before the first attempt, retry() sends nothing: resend expired",
+  "script": [{"call": m("notes.create", note, {"idempotencyKey": "k"}), "as": "c"},
+             {"expect": session["expect"], "response": {"status": 500, "body": {"detail": "?"}}}, attempt(busy),
+             {"settle": "c", "error": {"kind": "outcomeUnknown"}}, {"retry": "c", "as": "r"},
+             {"settle": "r", "error": {"kind": "resendExpired", "why": "session"}}]},
+ {"name": "resendIfUnknown resends by itself after 1 s, then twice as long, until an answer",
+  "script": unknown({"resendIfUnknown": True}) + [{"wait": 999}, {"quiet": True}, {"wait": 1}, attempt(busy, resend=True),
+                                                  {"wait": 2_000}, attempt(ok(created), resend=True), {"settle": "c", "result": receipt}]},
+ {"name": "resendIfUnknown stops at a 412 with resend expired",
+  "script": unknown({"resendIfUnknown": True}) + [{"wait": 1_000}, attempt({"status": 412, "body": {"detail": "?"}}, resend=True),
+                                                  {"settle": "c", "error": {"kind": "resendExpired", "why": "session"}}]},
+ {"name": "a typed raw write can retry() too",
+  "script": [{"call": {"method": "raw.request", "args": ["POST /v1/cards:suspend", {"body": {"card_ids": [1]}, "idempotencyKey": "k"}]}, "as": "c"},
+             session, {"expect": post("/v1/cards:suspend", {"card_ids": [1]}, keyed="k"), "response": busy},
+             {"settle": "c", "error": {"kind": "outcomeUnknown"}}, {"retry": "c", "as": "r"},
+             {"expect": {**post("/v1/cards:suspend", {"card_ids": [1]}, keyed="k"), "ifSession": "s1"}, "response": ok({"affected": 1})},
+             {"settle": "r", "result": {"status": 200, "data": {"affected": 1}}}]},
+ {"name": "a write sent without a key (the older raw form) can't be resent",
+  "script": [{"call": {"method": "raw.request", "args": ["POST", "/v1/notes", {"body": []}]}, "as": "c"},
+             {"expect": post("/v1/notes", [], keyed=False), "response": busy},
+             {"settle": "c", "error": {"kind": "outcomeUnknown"}}, {"retry": "c", "as": "r"},
+             {"settle": "r", "error": {"kind": "argument"}}]},
+]
+
+def learn_session(cases):
+    """A client that has seen no session reads GET /v1/health before its first
+    write (behavior.md, Resending): that exchange goes before the first keyed one."""
+    for case in cases:
+        exchanges = case.get("exchanges", [])
+        first = next((i for i, e in enumerate(exchanges) if e["request"].get("keyed") not in (False, None)), None)
+        if first is not None:
+            exchanges.insert(first, HEALTH)
+    return cases
+
+
+HEALTH = {"request": {"method": "GET", "path": "/v1/health", "query": {}, "keyed": False},
+          "response": {"status": 200, "body": {}, "headers": {"Tsunagi-Session": "s1"}}}
+learn_session(cases)

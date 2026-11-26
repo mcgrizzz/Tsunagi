@@ -1,5 +1,5 @@
 {
- "commit": "60603b4",
+ "commit": "f8522b7",
  "hints": {
   "multi": [],
   "port_8765": [
@@ -14,11 +14,11 @@
     "hash": "f5e5e8fda2691eba"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:87",
+    "at": "src/lib/utilities/anki-connect.ts:88",
     "hash": "76f3046c0364622f"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:347",
+    "at": "src/lib/utilities/anki-connect.ts:348",
     "hash": "dd40eeab6964a066"
    }
   ],
@@ -30,13 +30,13 @@
   ],
   "changeDeck": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:184",
+    "at": "src/lib/utilities/anki-connect.ts:185",
     "hash": "22888f4084ffa848"
    }
   ],
   "createDeck": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:114",
+    "at": "src/lib/utilities/anki-connect.ts:115",
     "hash": "43b0eb60c3b62e7f"
    }
   ],
@@ -46,93 +46,93 @@
     "hash": "6b3a24ba53478a05"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:22",
+    "at": "src/lib/utilities/anki-connect.ts:23",
     "hash": "503138f563132013"
    }
   ],
-  "deckNames": [
+  "deckNamesAndIds": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:485",
-    "hash": "f691a5e89d1020f4"
+    "at": "src/lib/utilities/anki-connect.ts:489",
+    "hash": "d3e2e7290118b612"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:552",
+    "hash": "78251ed57d83c478"
    }
   ],
   "deleteDecks": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:627",
-    "hash": "2849607c8360833e"
+    "at": "src/lib/utilities/anki-connect.ts:592",
+    "hash": "9ae40733639e177b"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:638",
+    "at": "src/lib/utilities/anki-connect.ts:620",
     "hash": "9057673b8df4863b"
    }
   ],
   "deleteMediaFile": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:838",
+    "at": "src/lib/utilities/anki-connect.ts:820",
     "hash": "b8060f8c6cf88ef0"
    }
   ],
   "deleteNotes": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:38",
+    "at": "src/lib/utilities/anki-connect.ts:39",
     "hash": "a6d3a879ab11fcd4"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:50",
+    "at": "src/lib/utilities/anki-connect.ts:51",
     "hash": "4c361dea5c6824db"
+   }
+  ],
+  "findCards": [
+   {
+    "at": "src/lib/utilities/anki-connect.ts:460",
+    "hash": "720e984b500ad1ef"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:585",
+    "hash": "d91cf92d2f30b76f"
    }
   ],
   "findNotes": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:322",
+    "at": "src/lib/utilities/anki-connect.ts:323",
     "hash": "109d485ac6e558b6"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:343",
+    "at": "src/lib/utilities/anki-connect.ts:344",
     "hash": "9606fa3133336d95"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:346",
+    "at": "src/lib/utilities/anki-connect.ts:347",
     "hash": "b18c0a188f36c05d"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:528",
-    "hash": "7ac4e715069b9c06"
+    "at": "src/lib/utilities/anki-connect.ts:510",
+    "hash": "1dd0f63b7068852a"
    }
   ],
   "getDeckConfig": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:463",
-    "hash": "94d2b9f4bea605fc"
-   },
-   {
-    "at": "src/lib/utilities/anki-connect.ts:466",
-    "hash": "d4c47c74045561cc"
-   }
-  ],
-  "getDeckStats": [
-   {
-    "at": "src/lib/utilities/anki-connect.ts:571",
-    "hash": "4648fb043a239950"
-   },
-   {
-    "at": "src/lib/utilities/anki-connect.ts:590",
-    "hash": "9545a9bfd23c98ad"
+    "at": "src/lib/utilities/anki-connect.ts:454",
+    "hash": "75fa4d68ed7d830b"
    }
   ],
   "getDecks": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:369",
+    "at": "src/lib/utilities/anki-connect.ts:370",
     "hash": "8ddd7343bcb3c6e2"
    }
   ],
   "getMediaFilesNames": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:756",
+    "at": "src/lib/utilities/anki-connect.ts:738",
     "hash": "9cee4332c7331dbf"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:827",
+    "at": "src/lib/utilities/anki-connect.ts:809",
     "hash": "db50db060d1d82ca"
    }
   ],
@@ -148,21 +148,21 @@
   ],
   "modelStyling": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:686",
+    "at": "src/lib/utilities/anki-connect.ts:668",
     "hash": "a9bb111a21f3bcea"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:732",
+    "at": "src/lib/utilities/anki-connect.ts:714",
     "hash": "ed75003accf45589"
    }
   ],
   "notesInfo": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:346",
+    "at": "src/lib/utilities/anki-connect.ts:347",
     "hash": "b18c0a188f36c05d"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:356",
+    "at": "src/lib/utilities/anki-connect.ts:357",
     "hash": "0b4dedde98e136e7"
    }
   ],
@@ -174,21 +174,25 @@
   ],
   "requestPermission": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:886",
-    "hash": "3f9d74d81a9aabbe"
+    "at": "src/lib/utilities/anki-connect.ts:865",
+    "hash": "dbe74683518e27ea"
+   },
+   {
+    "at": "src/lib/utilities/anki-connect.ts:867",
+    "hash": "db01517323bb47ad"
    }
   ],
   "storeMediaFile": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:761",
+    "at": "src/lib/utilities/anki-connect.ts:743",
     "hash": "e46a3ac41e1a33ae"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:848",
+    "at": "src/lib/utilities/anki-connect.ts:830",
     "hash": "9a5e13d80636f4fa"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:859",
+    "at": "src/lib/utilities/anki-connect.ts:841",
     "hash": "6f034258c6fa6ef9"
    }
   ],
@@ -202,19 +206,19 @@
     "hash": "15e73db338298260"
    },
    {
-    "at": "src/lib/utilities/anki-connect.ts:910",
+    "at": "src/lib/utilities/anki-connect.ts:907",
     "hash": "1e790ca1c1a1ad7c"
    }
   ],
   "updateModelStyling": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:717",
+    "at": "src/lib/utilities/anki-connect.ts:699",
     "hash": "7532a38421ea93c6"
    }
   ],
   "updateNoteModel": [
    {
-    "at": "src/lib/utilities/anki-connect.ts:202",
+    "at": "src/lib/utilities/anki-connect.ts:203",
     "hash": "8b4d47b8a62d3fd9"
    }
   ]

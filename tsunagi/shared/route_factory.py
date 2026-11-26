@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -14,7 +15,9 @@ from typing import (
     List,
     Literal,
     Mapping,
+    NamedTuple,
     Optional,
+    Set,
     Type,
     Union,
     get_args,
@@ -51,7 +54,7 @@ from .model_export import model_row_dict
 from .permissions import requires
 from .planning import SourceCaps, _search_hydrator, make_plan
 from .query_encoding import render_query_page
-from .schemas.notes import FIELD_TEXT, WHOLE_ROW
+from .schemas.notes import FIELD_TEXT, WHOLE_ROW, some_field_text
 from .selecting import (
     SelectArrayMulti,
     SelectArrayPluck,
@@ -81,6 +84,19 @@ _SCALAR_TYPESET = frozenset(get_args(Scalar))
 # fetched in bounded slices rather than one call: each slice gets its own
 # budget, and a large `limit` can't turn a slow page into a 503.
 HYDRATE_CHUNK = 250
+
+
+class RowReader(NamedTuple):
+    """A resource's rows by id, selected as its GET's select would: the event
+    stream sends them with the events naming them (?select=notes:fields)."""
+    permission: str
+    prepare: Callable[[str], str]           # checks a select; returns it with id first
+    read: Callable[[List[int], str], List[Any]]
+
+
+# Filled by create_resource_routes, by resource_plural.
+ROW_READERS: Dict[str, RowReader] = {}
+
 
 def _stats(start_time: float) -> dict:
     duration_ms = (time.perf_counter() - start_time) * 1000.0
@@ -512,20 +528,30 @@ def _wanted_fields(select: Optional[str], where: Optional[List[str]]) -> Optiona
     building expensive ones. None means "the whole record".
     """
     wants = referenced_top_fields(select)
-    text = {FIELD_TEXT} if _names_field_text(select, where) else set()
+    text = _text_wants(select, where)
     if wants is None:
         return {WHOLE_ROW} | text if text else None
     return wants | {parse_where(w).tokens[0] for w in (where or [])} | text
 
 
-def _names_field_text(select: Optional[str], where: Optional[List[str]]) -> bool:
-    """Whether select or where names fields[].text, which is built only then."""
+def _text_wants(select: Optional[str], where: Optional[List[str]]) -> Set[str]:
+    """The fields[].text that select and where name, which is built only then:
+    FIELD_TEXT for every field's, a marker per element filter that keeps some
+    (fields[name in ["Word"]].text), or nothing."""
+    if any(parse_where(w).tokens == ("fields", "[]", "text") for w in where or []):
+        return {FIELD_TEXT}
+    some = set()
     for node in parse_select_csv(select) if select else ():
-        if isinstance(node, SelectArrayPluck) and node.base == ("fields",) and node.child == ("text",):
-            return True
-        if isinstance(node, SelectArrayMulti) and node.base == ("fields",) and ("text",) in node.children:
-            return True
-    return any(parse_where(w).tokens == ("fields", "[]", "text") for w in where or [])
+        if not isinstance(node, (SelectArrayPluck, SelectArrayMulti)) or node.base != ("fields",):
+            continue
+        if node.where is not None and node.where[0] == "text":
+            return {FIELD_TEXT}  # the filter itself reads every field's text
+        children = node.children if isinstance(node, SelectArrayMulti) else (node.child,)
+        if ("text",) in children:
+            if node.where is None:
+                return {FIELD_TEXT}
+            some.add(some_field_text(*node.where))
+    return some
 
 def _check_fields(select: Optional[str], where: Optional[List[str]], fields: FrozenSet[str]) -> None:
     """A name the rows don't have is a 400 naming the ones they do: a guessed
@@ -658,8 +684,7 @@ def _query_page(
             pred_wants = None
             if where:
                 required = {parse_where(w).tokens[0] for w in where} | {"id"}
-                if _names_field_text(None, where):
-                    required.add(FIELD_TEXT)
+                required |= _text_wants(None, where)
                 if wants is None or any(
                     group & wants and not group & required
                     for group in caps.expensive_groups
@@ -798,6 +823,22 @@ def create_resource_routes(
             return Response(render_query_page(page), media_type="application/json")
         return page
 
+    def prepare_select(select: str) -> str:
+        if fields is not None:
+            _check_fields(select, None, fields)
+        try:
+            named = referenced_top_fields(select) or set()
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve)) from ve
+        return select if "id" in named else f"id,{select}"
+
+    def read_rows(ids: List[int], select: str) -> List[Any]:
+        page = _execute_query(select=select, where=[f"id in [{','.join(map(str, ids))}]"],
+                              shape="object", limit=None, cursor=None, caps=caps, id_getter=id_getter)
+        return json.loads(render_query_page(page))["items"]
+
+    ROW_READERS[resource_plural] = RowReader(f"read:{permission_resource}", prepare_select, read_rows)
+
     # GET endpoint - query params in URL
     @router.get(
         path,
@@ -813,7 +854,8 @@ def create_resource_routes(
         select: Optional[str] = Query(default=None, description=(
             "Comma-separated fields to return, e.g. `id,name`. Arrays: `fields[]` returns every "
             "element, `fields[].name` one property of each, `fields[].(name,value)` several, and "
-            "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed.")),
+            "`fields[name in [\"Front\",\"Back\"]]` only the elements whose `name` is listed "
+            "(`fields[name in []]`: none).")),
         where: Optional[List[str]] = Query(default=None, description="Filter clauses (can specify multiple)"),
         # Documented only where it works (6.103); elsewhere it is a 400.
         search: Optional[str] = Query(default=None, include_in_schema=(

@@ -40,6 +40,7 @@ _SCALAR_TYPES = get_args(Scalar)
 #   flds[].name               # pluck one field
 #   flds[].(name,ord)         # multi-pluck
 #   fields[name in ["Front","Back"]]  # only the elements named Front or Back
+#   fields[name in []]        # none of them (an app's empty mapping)
 
 _SELECT_GRAMMAR = r"""
 start: sel ("," sel)*
@@ -57,7 +58,7 @@ arr_copy : NAME brack                              -> arr_copy
 arr_child: NAME brack DOT NAME                     -> arr_child
 arr_multi: NAME brack DOT LP group_items RP        -> arr_multi
 ?brack   : ARR | filter
-filter   : "[" NAME "in" "[" value ("," value)* "]" "]"
+filter   : "[" NAME "in" "[" [value ("," value)*] "]" "]"
 value    : ESCAPED_STRING -> string
          | SIGNED_INT     -> integer
 

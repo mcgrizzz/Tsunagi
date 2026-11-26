@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import threading
 import time
 from collections import OrderedDict
@@ -32,8 +33,8 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from ..shared.errors import AnkiBusyError, ValidationError
 from . import ops
 
-TTL = 600.0        # seconds a key is remembered after its request started
-MAX_ENTRIES = 1000
+TTL = 600.0        # seconds a key is remembered after its request started (x-retention-seconds)
+MAX_ENTRIES = 10_000  # a memory guard only: clients count on TTL (6.143)
 
 
 class _Entry:
@@ -54,15 +55,26 @@ class IdempotencyStore:
 
     def _expire(self, now: float) -> None:
         """Forget finished keys past TTL, then the oldest finished beyond
-        MAX_ENTRIES. A write still running is never forgotten."""
-        for scope in [s for s, e in self._entries.items()
-                      if e.done.is_set() and now - e.started >= TTL]:
+        MAX_ENTRIES, before their TTL: logged, since a client may still
+        resend them. A write still running is never forgotten."""
+        expired = []
+        for scope, entry in self._entries.items():
+            if now - entry.started < TTL:
+                break  # entries are in start order: the rest are newer
+            if entry.done.is_set():
+                expired.append(scope)
+        for scope in expired:
             del self._entries[scope]
+        dropped = 0
         while len(self._entries) > MAX_ENTRIES:
             oldest = next((s for s, e in self._entries.items() if e.done.is_set()), None)
             if oldest is None:
-                return
+                break
             del self._entries[oldest]
+            dropped += 1
+        if dropped:
+            logging.getLogger(__name__).warning(
+                "Forgot %d Idempotency-Keys before their %d s: more than %d writes kept", dropped, TTL, MAX_ENTRIES)
 
     def begin(self, scope: Tuple[str, ...], fingerprint: str) -> Tuple[_Entry, bool]:
         """(entry, True) for a new key; (existing entry, False) for a retry."""

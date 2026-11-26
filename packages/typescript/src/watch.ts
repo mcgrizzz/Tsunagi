@@ -1,5 +1,5 @@
 import { decodeAs } from "./decode.js";
-import { AuthenticationError, PermissionError, ProtocolError } from "./errors.js";
+import { AuthenticationError, PermissionError, ProfileChangedError, ProtocolError } from "./errors.js";
 import { events } from "./generated.js";
 import type { EventConnection, Signal } from "./events.js";
 import type { DraftProtocol, QueryParams } from "./protocol.js";
@@ -13,14 +13,20 @@ export interface Change {
   /** The app that made it, for `by: "api"`. */
   readonly app: string | null;
 }
+/**
+ * Each change handler may return a promise (writing to a database): the watch
+ * waits for it before its next call, and gathers changes meanwhile.
+ */
 export interface WatchHandlers<Row, Key> {
   /** The first load (`change.initial`), new rows, and rows that now match. */
-  added?(rows: Row[], change: Change): void;
+  added?(rows: Row[], change: Change): void | Promise<unknown>;
   /** Rows whose selected values changed. */
-  updated?(rows: Row[], change: Change): void;
+  updated?(rows: Row[], change: Change): void | Promise<unknown>;
   /** Rows deleted, or that no longer match. */
-  removed?(keys: Key[], change: Change): void;
-  /** The error that ended the watch. Without it, the subscription's `done` rejects. */
+  removed?(keys: Key[], change: Change): void | Promise<unknown>;
+  /** "reconnecting" when the watch loses Anki, "live" once it has read everything again. */
+  status?(state: "live" | "reconnecting"): void;
+  /** The error that ended the watch (ProfileChangedError when Anki switched profile). Without it, the subscription's `done` rejects. */
   error?(error: unknown): void;
 }
 
@@ -35,6 +41,8 @@ export interface Watched {
   readonly keyWire: string;
   readonly search: string | undefined;
   readonly selected: readonly string[] | null;  // client names; null for all
+  /** The select's wire names, in order, when they're all plain columns: the events can carry these rows. */
+  readonly columns: readonly string[] | null;
   /** Other resources whose changes can change its rows: the description's x-from, for its search and selected fields. */
   readonly related: readonly string[];
   /** The query's parameters, narrowed by more filters or a replacement search. */
@@ -43,6 +51,8 @@ export interface Watched {
 }
 
 const PAGE = 2_000;
+/** More keys than this gathered become one read again. */
+const MOST_PENDING = 10_000;
 const FIRST_DELAY = 1_000;
 const LONGEST_DELAY = 30_000;
 
@@ -73,15 +83,26 @@ const originOf = (message: Readonly<Record<string, unknown>>): Origin => {
 };
 const tag = (origin: Origin) => `${origin.by}\u0000${origin.app}`;
 
+/** The resources whose events can carry their rows (select=<resource>:<columns>). */
+const carried = new Set(["notes", "cards", "reviews"]);
+
 /** Messages gathered while the watch was busy. */
 class Pending {
   reread = false;
   check = new Map<unknown, Origin>();
+  rows = new Map<unknown, unknown>();      // keys to check whose message carried the row
+
   deleted = new Map<unknown, Origin>();
   viaCards = new Map<unknown, Origin>();   // card ids on a notes watch
   viaNotes = new Map<unknown, Origin>();   // note ids on a cards watch
   get empty(): boolean {
     return !this.reread && !this.check.size && !this.deleted.size && !this.viaCards.size && !this.viaNotes.size;
+  }
+  /** Too many keys to check: read everything again instead (it finds the deletes too). */
+  bound(): void {
+    if (this.check.size + this.deleted.size + this.viaCards.size + this.viaNotes.size <= MOST_PENDING) return;
+    this.reread = true;
+    this.check.clear(); this.rows.clear(); this.deleted.clear(); this.viaCards.clear(); this.viaNotes.clear();
   }
 }
 
@@ -94,6 +115,14 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
   let waitingForReady = true;
   let delay = FIRST_DELAY;
   let retry: ReturnType<typeof setTimeout> | undefined;
+  let syncing = false;               // between a sync's started and finished: hold
+  let profile: string | undefined;   // the first load's
+  let state: "live" | "reconnecting" = "live";
+  const setState = (next: "live" | "reconnecting") => {
+    if (!loaded || state === next) return;
+    state = next;
+    try { handlers.status?.(next); } catch (error) { throw new HandlerFailure(error); }
+  };
   let first!: { resolve: () => void; reject: (error: unknown) => void };
   const started = new Promise<Subscription>((resolve, reject) => {
     first = { resolve: () => resolve(subscription), reject };
@@ -101,6 +130,10 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
 
   const own = watched.events;
   const resources = [own, ...watched.related];
+  // Plain columns: the events carry the rows, cut to this watch's columns (behavior.md, Rows with the message).
+  const columns = carried.has(own) ? watched.columns : null;
+  const need = { resources, types: ["sync"], ...(columns ? { select: { [own]: columns } } : {}) };
+  const filtered = watched.search !== undefined || watched.params({}).where.length > 0;
   const fail = (error: unknown) => {
     if (!subscription.active) return;
     if (!loaded) first.reject(error);
@@ -114,12 +147,19 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
         fail(new PermissionError(403, { detail: `This app may not read ${own}.` }, "/v1/events", undefined));
         return;
       }
+      // An app's copy belongs to one profile: a switch ends the watch.
+      if (profile !== undefined && signal.profile !== profile) { fail(new ProfileChangedError(profile, signal.profile)); return; }
+      profile = signal.profile;
       waitingForReady = false;
+      syncing = false;  // a sync's finished may have been lost with the connection
       pending.reread = true;
     } else if (signal.kind === "down") {
       // Never connected: fail the awaited watch rather than wait forever.
       if (!loaded && waitingForReady && !signal.deliberate) { fail(signal.error); return; }
       waitingForReady = true;
+      if (!signal.deliberate) {
+        try { setState("reconnecting"); } catch (error) { fail(error instanceof HandlerFailure ? error.cause : error); }
+      }
       return;
     } else if (signal.kind === "gap") {
       pending.reread = true;
@@ -133,6 +173,8 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
     const type = String(raw.type);
     // Searches relative to today (is:due) match other rows, though none was written.
     if (type === "day.changed") { pending.reread = true; return; }
+    // Hold changes while Anki syncs, so the app never sees half a sync.
+    if (type === "sync") { syncing = raw.phase === "started"; return; }
     const entry = Object.hasOwn(events, type) ? events[type as keyof typeof events] : undefined;
     // The connection is shared: only this watch's resources count.
     if (!entry || !("resource" in entry) || !resources.includes(entry.resource)) return;
@@ -144,9 +186,20 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
     if (kind === "stale") { pending.reread = true; return; }
     if (resource === own) {
       if (kind === "deleted") {
-        for (const id of ids) { pending.deleted.set(id, origin); pending.check.delete(id); }
+        for (const id of ids) { pending.deleted.set(id, origin); pending.check.delete(id); pending.rows.delete(id); }
       } else if (kind === "created" || kind === "updated") {
-        for (const id of ids) if (!pending.deleted.has(id)) pending.check.set(id, origin);
+        // Rows the message carries, by key; a key without one is read (an older server, a failed read).
+        const rows = new Map<unknown, unknown>();
+        if (columns && Array.isArray(raw[own])) {
+          for (const row of raw[own] as Record<string, unknown>[]) {
+            rows.set(row[watched.keyWire], Object.fromEntries(columns.map(column => [column, row[column]])));
+          }
+        }
+        for (const id of ids) {
+          if (pending.deleted.has(id)) continue;
+          pending.check.set(id, origin);
+          if (rows.has(id)) pending.rows.set(id, rows.get(id)); else pending.rows.delete(id);
+        }
       } else if (kind === "counts") {
         for (const deck of message.decks ?? []) pending.check.set(deck.deckId, origin);
       }
@@ -155,6 +208,7 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
     } else if (own === "cards" && resource === "notes") {
       for (const id of ids) pending.viaNotes.set(id, origin);
     }
+    pending.bound();
   };
 
   /** One request per page: the rows matching the query, plus a key filter. */
@@ -198,8 +252,8 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
   type Changes = { removed: Map<unknown, Origin>; updated: Map<Row, Origin>; added: Map<Row, Origin> };
   const changes = (): Changes => ({ removed: new Map(), updated: new Map(), added: new Map() });
 
-  /** Calls in the order removed, updated, added; once per origin. A handler that raises ends the watch. */
-  const deliver = (found: Changes, initial: boolean) => {
+  /** Calls in the order removed, updated, added; once per origin, each awaited. A handler that raises ends the watch. */
+  const deliver = async (found: Changes, initial: boolean) => {
     for (const [name, entries] of [["removed", found.removed], ["updated", found.updated], ["added", found.added]] as const) {
       const groups = new Map<string, { origin: Origin; items: unknown[] }>();
       for (const [item, origin] of entries) {
@@ -208,8 +262,8 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
       }
       for (const { origin, items } of groups.values()) {
         if (!subscription.active) return;
-        const handler = handlers[name] as ((items: unknown[], change: Change) => void) | undefined;
-        try { handler?.(items, { initial: initial && name === "added", by: origin.by, app: origin.app }); }
+        const handler = handlers[name] as ((items: unknown[], change: Change) => unknown) | undefined;
+        try { await handler?.(items, { initial: initial && name === "added", by: origin.by, app: origin.app }); }
         catch (error) { throw new HandlerFailure(error); }
       }
     }
@@ -237,8 +291,9 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
     if (batch.reread) {
       const initial = !loaded;
       compare(found, await read({}), null);
-      deliver(found, initial);
+      await deliver(found, initial);
       if (initial) { loaded = true; first.resolve(); }
+      setState("live");
       return;
     }
     const check = new Map(batch.check);
@@ -252,13 +307,23 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
       const origin = [...batch.viaNotes.values()].at(-1)!;
       for (const id of ids) if (!check.has(id) && !batch.deleted.has(id)) check.set(id, origin);
     }
+    // Rows the messages carried need no read; with a search or filter, only which keys still match.
+    const carriedKeys = new Map([...check].filter(([key]) => batch.rows.has(key)));
+    for (const key of carriedKeys.keys()) check.delete(key);
+    if (carriedKeys.size) {
+      const matching = filtered
+        ? new Set(await values(watched.path, { ...watched.params(narrowTo(carriedKeys.keys())), select: watched.keyWire, shape: "scalar" }))
+        : null;
+      const rows = [...carriedKeys.keys()].filter(key => !matching || matching.has(key)).map(key => batch.rows.get(key));
+      compare(found, rows, carriedKeys);
+    }
     if (check.size) compare(found, await read(narrowTo(check.keys())), check);
     for (const [key, origin] of batch.deleted) if (seen.delete(key)) found.removed.set(key, origin);
-    deliver(found, false);
+    await deliver(found, false);
   };
 
   const work = () => {
-    if (busy || retry || waitingForReady || !subscription.active || pending.empty) return;
+    if (busy || retry || waitingForReady || syncing || !subscription.active || pending.empty) return;
     if (!loaded && !pending.reread) return;  // the first load comes first
     busy = true;
     const batch = pending;
@@ -276,19 +341,23 @@ export function watch<Row, Key>(handlers: WatchHandlers<Row, Key>, watched: Watc
       }
       // Anything else may pass: read everything again, later.
       pending.reread = true;
+      try { setState("reconnecting"); } catch (failure) { fail((failure as HandlerFailure).cause); return; }
       retry = setTimeout(() => { retry = undefined; work(); }, delay);
       delay = Math.min(delay * 2, LONGEST_DELAY);
     });
   };
 
   const leave = watched.connection.join({
-    need: { resources },
+    // sync: the server sends it only to apps that may have it; without it, changes come as they arrive.
+    need,
     hear: signal => {
       try { hear(signal); } catch (error) { fail(error); }
     },
     end: fail,
   });
   subscription.onEnd(() => { clearTimeout(retry); leave(); });
-  if (watched.connection.carries({ resources })) hear({ kind: "ready", resources: watched.connection.resources });
+  if (watched.connection.carries(need)) {
+    hear({ kind: "ready", resources: watched.connection.resources, profile: watched.connection.profile });
+  }
   return started;
 }

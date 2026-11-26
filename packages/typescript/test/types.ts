@@ -1,4 +1,4 @@
-import { Tsunagi } from "../src/index.js";
+import { ResendExpiredError, Tsunagi, WriteOutcomeUnknownError } from "../src/index.js";
 
 const anki = new Tsunagi({ baseUrl: "http://127.0.0.1:12345" });
 
@@ -245,3 +245,69 @@ async function contract() {
   access.checkMany({ create: "notes.create" });
 }
 void contract;
+
+// narrow(): some elements of a list, some parts of each (packages/spec/behavior.md, Narrowing a list).
+async function narrowing() {
+  const mapped = ["Word", "Reading"];
+  const vocab = await anki.notes.search("note:Kiku").select("id", "fields")
+    .narrow("fields", f => f.where("name", "in", mapped)).take(10);
+  const whole: { name: string; value: string; index: number }[] | undefined = vocab[0]?.fields;
+  const id: number | undefined = vocab[0]?.id;
+  // @ts-expect-error Whole elements have no text: only narrow's select names it.
+  vocab[0]?.fields[0]?.text;
+  const plain = await anki.notes.select("id", "fields")
+    .narrow("fields", f => f.where("name", "eq", "Word").select("name", "text")).take(10);
+  const text: string | undefined = plain[0]?.fields[0]?.text;
+  // @ts-expect-error Parts not selected are not there.
+  plain[0]?.fields[0]?.value;
+  const cards = await anki.cards.narrow("fields", f => f.select("value")).take(1);  // every field, whole rows
+  const value: string | undefined = cards[0]?.fields[0]?.value;
+  const interval: number | undefined = cards[0]?.interval;
+  const templates = await anki.noteTypes.select("id", "templates")
+    .narrow("templates", t => t.where("name", "eq", "Recognition").select("name", "index")).take(1);
+  const index: number | undefined = templates[0]?.templates[0]?.index;
+  void [whole, id, text, value, interval, index];
+  await anki.notes.select("id", "fields").narrow("fields", f => f.where("name", "in", [])).watch({});
+  // @ts-expect-error The list must be in the rows.
+  anki.notes.select("id").narrow("fields", f => f);
+  // @ts-expect-error Only lists of objects narrow: tags are strings.
+  anki.notes.narrow("tags", f => f);
+  // @ts-expect-error Elements are kept by eq or in only.
+  anki.notes.narrow("fields", f => f.where("value", "contains", "犬"));
+  // @ts-expect-error One where: the server keeps elements by one key.
+  anki.notes.narrow("fields", f => f.where("name", "eq", "Word").where("index", "eq", 0));
+  // @ts-expect-error A misspelled key is a compile error.
+  anki.notes.narrow("fields", f => f.where("nmae", "eq", "Word"));
+  // @ts-expect-error A key's values have its type.
+  anki.notes.narrow("fields", f => f.where("index", "in", ["0"]));
+  // @ts-expect-error A misspelled part is a compile error.
+  anki.notes.narrow("fields", f => f.select("txet"));
+  // @ts-expect-error Keys hold text or whole numbers, not true/false.
+  anki.noteTypes.narrow("fields", f => f.where("sticky", "eq", true));
+}
+void narrowing;
+
+// Resending (6.143) and watching an app's own copy (6.144).
+async function resending() {
+  const note = { deck: "Default", noteType: "Basic", fields: { Front: "a" } };
+  await anki.notes.create(note, { resendIfUnknown: true });
+  await anki.cards.suspend([1], { resendIfUnknown: true });
+  await anki.raw.request("POST /v1/cards:suspend", { body: { card_ids: [1] }, resendIfUnknown: true });
+  // @ts-expect-error resendIfUnknown is true or false.
+  await anki.notes.create(note, { resendIfUnknown: "yes" });
+  try { await anki.notes.create(note); } catch (error) {
+    if (error instanceof WriteOutcomeUnknownError) {
+      const until: Date | undefined = error.resendableUntil;
+      await error.retry();
+      void until;
+    }
+    if (error instanceof ResendExpiredError) { const why: "window" | "session" = error.why; void why; }
+  }
+  await anki.notes.select("id", "fields").watch({
+    added: async rows => { await Promise.resolve(rows); },
+    status: state => { const known: "live" | "reconnecting" = state; void known; },
+  });
+  // @ts-expect-error status names the watch's link to Anki only.
+  await anki.notes.select("id").watch({ status: (state: "syncing") => state });
+}
+void resending;

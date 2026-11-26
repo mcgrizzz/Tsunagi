@@ -34,7 +34,8 @@ Names are the client's, in camelCase (`noteType`, `createMany`,
 `idempotencyKey`). A client in another case converts them, in calls and in
 results, except inside a raw request's `path`, `query` and `body` and its
 answer's `data`, which are the server's names. `{"$bytes": "<base64>"}` in an
-argument is a byte array.
+argument is a byte array. `{"$steps": [[method, ...args], ...]}` is a function
+that makes those calls on what it is given, in order: `narrow`'s step.
 
 **`exchanges`**, in order. Each `request` lists:
 
@@ -44,16 +45,20 @@ argument is a byte array.
 - `body`: the JSON body, compared as JSON; left out means no body;
 - `keyed`: `true` when an `Idempotency-Key` must be sent, `false` when none
   may be; a string when it must be that key. Left out: not checked.
+- `ifSession`: the `If-Session` a resend must send; left out, none may be.
 
 Each `response` has a `status` and a JSON `body` (or `text` for a non-JSON
-body), always sent with `content-type: application/json` unless `text`.
+body), always sent with `content-type: application/json` unless `text`, and
+`headers` when it has more (`Tsunagi-Session`). A client that has seen no
+session reads `GET /v1/health` before its first write (behavior.md,
+Resending), so the cases show that exchange.
 The call must make exactly these requests, no more.
 
 **The outcome** is `result` (compared as JSON; `undefined` and absent are
 the same) or `error`: `{ "kind": <kind>, ...fields the error must have }`.
 Kinds: `argument` (refused before sending), `http`, `authentication`,
-`permission`, `outcomeUnknown`, `itemRejected`, `partialWrite`,
-`jobFailed`, `protocol`.
+`permission`, `outcomeUnknown`, `resendExpired`, `itemRejected`,
+`partialWrite`, `jobFailed`, `protocol`, and `profileChanged` (a watch's error).
 
 **`client`**, optional: constructor options for the case
 (`maxGetUrlLength`).
@@ -78,11 +83,12 @@ scenarios: a `script` of steps run in order, with a clock the runner moves.
 
 | Step | Meaning |
 | --- | --- |
-| `call`, `as` | Start a call without waiting for it; `as` names it. With `query` and `steps`, `method` is called on that query. A method that takes a listener gets a recording one, named by `listener`: for `watch` and `onSync`, named handlers recorded as `[name, ...arguments]` (`["error", kind]` for `error`). |
+| `call`, `as` | Start a call without waiting for it; `as` names it. With `query` and `steps`, `method` is called on that query. A method that takes a listener gets a recording one, named by `listener`: for `watch` (`added`, `updated`, `removed`, `status`) and `onSync`, named handlers recorded as `[name, ...arguments]` (`["error", kind]` for `error`). |
 | `expect`, then `response` or `stream` | A request the client must have made by now (any pending one that matches `method` and `path`), checked like an exchange's request, plus `key`: the `X-Api-Key` it must carry. `stream: true` answers with an open event stream. |
 | `send` | Messages on the open stream: `{event, data}`, or `{comment}`. |
 | `end` | The open stream ends. |
-| `wait` | Move the clock this many milliseconds. |
+| `retry`, `as` | The named call failed with outcome unknown: call its `retry()`; `as` names the new call. |
+| `wait` | Move the clock (timers and the date) this many milliseconds. |
 | `quiet` | No request is pending. |
 | `settle`, then `result`, `error` or `ok` | Wait for a named call. With `done: true`, wait for its subscription's `done`. `ok: true`: it must succeed, whatever it returns. |
 | `stop` | Stop the named call's subscription. |
