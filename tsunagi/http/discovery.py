@@ -2,7 +2,7 @@
 from fastapi.routing import APIRoute
 
 from ..adapters import addon_actions
-from ..adapters.events import ACCESS_CHANGED, CHANGE_RESOURCES, DAY_CHANGED
+from ..adapters.events import ACCESS_CHANGED, ADDONS, CHANGE_RESOURCES, DAY_CHANGED
 from ..shared.permissions import ADDON, PUBLIC, current_denial, permitted
 from ..shared.schemas.capabilities import CapabilityState, OperationCapability
 
@@ -59,6 +59,7 @@ def event_options():
                "cards.answered": needs("events:reviews"), DAY_CHANGED: needs("events:changes")}
     for resource in sorted(CHANGE_RESOURCES):
         options[resource] = needs("events:reviews" if resource == "reviews" else "events:changes")
+    options[ADDONS] = needs("read:addons")
     return options
 
 

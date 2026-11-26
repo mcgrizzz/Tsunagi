@@ -120,7 +120,8 @@ def providers_for_page() -> List[Dict[str, Any]]:
     return [{"id": p.id, "title": p.title, "unsupported": addon_actions.unavailable(p),
              "actions": [{"key": f"{p.id}/{i.name}", "title": i.title, "description": i.description,
                           "impact": i.impact, "shows_ui": i.shows_ui, "backup": i.backup} for i in p.items]}
-            for p in sorted(addon_actions.PROVIDERS.values(), key=lambda p: p.title.lower())]
+            for p in sorted(addon_actions.PROVIDERS.values(), key=lambda p: p.title.lower())
+            if p.items]  # a provider of events only has nothing to enable
 
 
 def page_state(cfg: Dict[str, Any], ankiconnect: Dict[str, Any]) -> Dict[str, Any]:

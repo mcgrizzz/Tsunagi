@@ -17,12 +17,17 @@ the same `provide`.
 Permissions: a read needs read:addons. Any other item needs the user's
 approval at its current impact (config `addon_enabled`) and a grant of
 `addon:<provider>/<item>` or the whole `addon` area.
+
+A provider can also declare events and send them on the event stream with
+the handle `provide` returns (`addons.<provider>.<event>`, read:addons).
 """
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import math
+import sys
 import threading
 from concurrent.futures import Future
 from dataclasses import dataclass, field
@@ -32,12 +37,13 @@ from typing import Any, Callable, Dict, List, Optional
 from ..shared.errors import ResourceNotFoundError, ValidationError, anki_error_detail
 from ..shared.permissions import ADDON, Caller, allows
 from .anki.collection import redraw_main_screen
+from .events import ADDON_EVENT_PREFIX, broker
 from .jobs import jobs
 from .ops import FOREVER, call_on_main, query_op_call
 from .settings import settings
 
 HOOK = "tsunagi.register"
-API_VERSION = 1
+API_VERSION = 2  # 2: events
 IMPACTS = ("read", "undoable", "destructive")
 PARAM_TYPES = ("integer", "number", "boolean", "string", "dates")
 SETTLE_TIMEOUT = 120.0  # seconds to wait for an add-on's follow-up work
@@ -74,6 +80,13 @@ class Item:
 
 
 @dataclass(frozen=True)
+class Event:
+    name: str
+    title: str
+    description: str
+
+
+@dataclass(frozen=True)
 class Provider:
     id: str
     title: str
@@ -87,6 +100,7 @@ class Provider:
     # when the action fails, to clean up.
     watch: Optional[Callable[[], Optional[Callable[[float], bool]]]] = None
     bundled: bool = False
+    events: List[Event] = field(default_factory=list)
 
 
 PROVIDERS: Dict[str, Provider] = {}
@@ -100,13 +114,15 @@ class Registry:
         self._bundled = bundled
 
     def provide(self, id: str, title: str, actions: List[Dict[str, Any]], *,
+                events: Optional[List[Dict[str, Any]]] = None,
                 available: Optional[Callable[[], Optional[str]]] = None,
                 watch: Optional[Callable[[], Any]] = None,
-                addon: Optional[str] = None) -> None:
-        """Offer `actions` under `id` (a-z, 0-9, _; the same on every install).
-        `addon` is the add-on folder they belong to, by default the one
-        defining the first action's `run`. Raises ValueError on a bad shape or
-        an id already used."""
+                addon: Optional[str] = None) -> "Emitter":
+        """Offer `actions` and `events` under `id` (a-z, 0-9, _; the same on
+        every install). `addon` is the add-on folder they belong to, by
+        default the one defining the first action's `run`, or else the one
+        calling. Returns what sends the events. Raises ValueError on a bad
+        shape or an id already used."""
         if not isinstance(id, str) or not id or not set(id) <= _ID_CHARS:
             raise ValueError(f"provider id {id!r} may only use a-z, 0-9 and _")
         if id in PROVIDERS:
@@ -116,9 +132,56 @@ class Registry:
         names = [i.name for i in items]
         if len(set(names)) != len(names):
             raise ValueError(f"{id}: two actions have the same name")
-        if addon is None and items:
-            addon = getattr(items[0].run, "__module__", "").split(".")[0] or None
-        PROVIDERS[id] = Provider(id, str(title), items, addon, available, watch, self._bundled)
+        declared = [_event(e) for e in events or []]
+        if len({e.name for e in declared}) != len(declared):
+            raise ValueError(f"{id}: two events have the same name")
+        if addon is None:
+            module = (getattr(items[0].run, "__module__", "") if items
+                      else sys._getframe(1).f_globals.get("__name__", ""))
+            addon = module.split(".")[0] or None
+        PROVIDERS[id] = Provider(id, str(title), items, addon, available, watch, self._bundled,
+                                 declared)
+        return Emitter(id)
+
+
+class Emitter:
+    """What `provide` returns: sends the provider's declared events."""
+
+    def __init__(self, provider_id: str) -> None:
+        self._provider = provider_id
+
+    def emit(self, name: str, payload: Any = None) -> None:
+        """Send `name` with `payload` on the event stream. Any thread; never
+        raises: an undeclared name or a payload JSON can't hold goes to the log."""
+        try:
+            provider = PROVIDERS.get(self._provider)
+            if provider is None or not any(e.name == name for e in provider.events):
+                log.warning("Add-on provider %s sent event %r, which it didn't declare",
+                            self._provider, name)
+                return
+            try:
+                # A copy, so the add-on changing its object later can't change the event.
+                payload = json.loads(json.dumps(payload, allow_nan=False))
+            except (TypeError, ValueError) as exc:
+                log.warning("Add-on provider %s sent event %r with a payload JSON can't hold: %s",
+                            self._provider, name, exc)
+                return
+            broker.publish(f"{ADDON_EVENT_PREFIX}{self._provider}.{name}", payload=payload)
+        except Exception:
+            log.exception("Could not send add-on provider %s's event %r", self._provider, name)
+
+
+def event_types() -> frozenset:
+    """Every declared event's name on the stream."""
+    return frozenset(f"{ADDON_EVENT_PREFIX}{p.id}.{e.name}"
+                     for p in list(PROVIDERS.values()) for e in p.events)
+
+
+def _event(spec: Dict[str, Any]) -> Event:
+    name = spec.get("name")
+    if not isinstance(name, str) or not name or not set(name) <= _ID_CHARS:
+        raise ValueError(f"event name {name!r} may only use a-z, 0-9 and _")
+    return Event(name, str(spec.get("title") or name), str(spec.get("description") or ""))
 
 
 def _item(spec: Dict[str, Any]) -> Item:
