@@ -262,10 +262,10 @@ and its existing media side effects.
 | --- | --- | --- |
 | `apiReflect` | implemented | Exact scope omission, validation errors, requested order and duplicate-action behavior covered by `test_shim_coverage_gaps.py`. |
 | `exportPackage` | implemented | Preserves AnkiConnect's legacy package format, media inclusion and `includeSched` behavior. Bypasses deprecated wrappers on newer Anki; retains the original exporter on older versions. |
-| `getActiveProfile` | implemented | Manual verification only (needs a live main window). |
-| `getProfiles` | implemented | Manual verification only (needs a live main window). |
+| `getActiveProfile` | implemented | Tested with a stand-in main window (`tests/test_v1_collection.py`). |
+| `getProfiles` | implemented | Checked by hand only (needs Anki's profile manager). |
 | `importPackage` | implemented | Preserves AnkiConnect's import behavior, including scheduling. On newer Anki, calls the backend directly with the wrapper's fixed options. Tsunagi API imports separately follow saved Anki choices and accept explicit overrides. |
-| `loadProfile` | implemented | Manual verification only. The collection is unavailable mid-switch; requests get a 503. |
+| `loadProfile` | implemented | Checked by hand only (needs Anki's profile manager). The collection is unavailable mid-switch; requests get a 503. |
 | `multi` | implemented |  |
 | `reloadCollection` | implemented | Returns `null` with an open collection. This is a no-op on supported Anki versions: it leaves caches and undo history intact. The Tsunagi API's reload endpoint is deprecated for the same reason. |
 | `requestPermission` | implemented | Deviation: Anki's own pages (card templates, add-on pages) are denied without a dialog and cannot use either API unless `gates.anki_page_scripts` is on. |
@@ -278,25 +278,25 @@ and its existing media side effects.
 | --- | --- | --- |
 | `guiAddCards` | implemented | Uses the legacy Add editor. Returns an explicit unsupported-editor error if Anki’s experimental Add window is open, preserving that draft. |
 | `guiAddNoteSetData` | implemented | Uses the legacy Add editor. Returns an explicit unsupported-editor error if Anki’s experimental Add window is open, preserving that draft. |
-| `guiAnswerCard` | implemented | Manual verification only (needs a live main window). |
+| `guiAnswerCard` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_reviewer.py`) and in a real Anki, offscreen (`tools/check_reviewer.py`). |
 | `guiBrowse` | implemented |  |
 | `guiCheckDatabase` | implemented | Tsunagi API equivalent: `POST /v1/collection:check-database`. |
 | `guiCurrentCard` | implemented | The Tsunagi API's `GET /v1/gui/current-card` reports null when no review is active; this raises, as canonical does. |
-| `guiDeckBrowser` | implemented | Manual verification only (needs a live main window). |
-| `guiDeckOverview` | implemented | Manual verification only (needs a live main window). |
+| `guiDeckBrowser` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_navigation.py`) and in a real Anki, offscreen (`tools/check_reviewer.py`). |
+| `guiDeckOverview` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_navigation.py`). |
 | `guiDeckReview` | implemented | Goes straight to the reviewer. Canonical routes through the overview first, which races the reviewer and can leave you on the deck page. |
 | `guiEditNote` | implemented | Opens a reusable standalone Anki editor with save-before-switch/close, history, Browser search and card preview. HTTP routing and Qt lifecycle are tested; a disposable Anki 26.08.1 app smoke check also passed editor open, preview and save/close. Complete visual equivalence remains unverified. The Tsunagi API's edit-note route still opens the Browser. |
 | `guiExitAnki` | implemented | Closes Anki, where upstream answers success and leaves it open ([above](#where-ankiconnect-is-broken-or-mislabeled)). Checked by hand (needs a live main window). |
 | `guiImportFile` | implemented | Waits for Anki's initial GUI call, not confirmed import completion. Dispatch has an operation timeout; accepted dialog interaction does not. Client HTTP timeouts still apply. |
-| `guiPlayAudio` | implemented | Manual verification only (needs a live main window). |
-| `guiReviewActive` | implemented | Manual verification only (needs a live main window). |
-| `guiSelectCard` | implemented | Manual verification only (needs a live main window). |
+| `guiPlayAudio` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_reviewer.py`) and in a real Anki, offscreen (`tools/check_reviewer.py`). |
+| `guiReviewActive` | implemented | Tested in a real Anki, offscreen (`tools/check_reviewer.py`). |
+| `guiSelectCard` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_gui.py`, `tests/test_parity_history.py`). |
 | `guiSelectNote` | implemented | Deprecated alias: accepts `note` containing a **card ID**; `guiSelectCard` accepts `card`. Fixed by the 2026-09-07 history audit. |
-| `guiSelectedNotes` | implemented | Manual verification only (needs a live main window). |
-| `guiShowAnswer` | implemented | Manual verification only (needs a live main window). |
-| `guiShowQuestion` | implemented | Manual verification only (needs a live main window). |
-| `guiStartCardTimer` | implemented | Manual verification only (needs a live main window). |
-| `guiUndo` | implemented | Manual verification only (needs a live main window). |
+| `guiSelectedNotes` | implemented | Returns the Browser's selection, which is checked in a real Anki, offscreen (`tools/check_browser.py`). |
+| `guiShowAnswer` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_reviewer.py`) and in a real Anki, offscreen (`tools/check_reviewer.py`). |
+| `guiShowQuestion` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_reviewer.py`) and in a real Anki, offscreen (`tools/check_reviewer.py`). |
+| `guiStartCardTimer` | implemented | Tested in a real Anki, offscreen (`tools/check_reviewer.py`). |
+| `guiUndo` | implemented | Tested with stand-ins for Anki's windows (`tests/test_compat_navigation.py`) and in a real Anki, offscreen (`tools/check_reviewer.py`). |
 
 ### Statistic Actions
 
