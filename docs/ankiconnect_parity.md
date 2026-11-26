@@ -95,6 +95,12 @@ can't be relying on, and keeps the rest so existing clients behave the same.
   reviewer. Tsunagi goes straight to the reviewer.
 - **`sync` syncs twice.** It syncs the collection, then starts a second sync
   through Anki's sync button. Tsunagi runs one sync and waits for it.
+- **`areDue` and `getIntervals` fail with "list index out of range"** for a
+  card that isn't new but has no review history (after an import, or a raw
+  queue change), and for an ID that isn't a card. Tsunagi answers the first
+  from the card itself (whether it's due; its current interval) and names the
+  missing card in its error. `getIntervals` with `complete` still answers `[]`
+  for both, as AnkiConnect does.
 - **`insertReviews` runs values as SQL.** Each value is pasted into the
   insert, so a value can be any SQL expression. Tsunagi accepts plain values
   only.
@@ -128,8 +134,6 @@ can't be relying on, and keeps the rest so existing clients behave the same.
   - `getDecks` lists unknown card IDs under `Default`.
   - `notesInfo` repeats a note's card IDs once for each batch of 999 note IDs
     it was found in.
-  - `areDue` and `getIntervals` fail with "list index out of range" for a
-    card with no review history or an ID that doesn't exist.
   - `guiSelectNote` takes a card ID, despite its name.
   - `addTags` takes an undocumented `add` argument.
 - **Six actions are undocumented:** `canAddNote`, `canAddNoteWithErrorDetail`,
@@ -147,7 +151,7 @@ supported behaviour. Actions checked by hand only are marked.
 | Action | Status | Notes |
 | --- | --- | --- |
 | `answerCards` | implemented | Uses the Tsunagi API's scheduler answer method. Missing keys and invalid ease preserve preceding answers; earlier invalid ease takes precedence over later missing keys. Responses, review rows and backend undo/redo are compared. |
-| `areDue` | implemented | Batched Tsunagi API reader, with strict history enabled by the AnkiConnect Shim. Matches upstream's error for non-new/missing cards without review history. |
+| `areDue` | implemented | Batched Tsunagi API reader. A card without review history is answered from its state, and a missing card is named in the error, where upstream fails with "list index out of range" ([above](#where-ankiconnect-is-broken-or-mislabeled)). |
 | `areSuspended` | implemented |  |
 | `cardsInfo` | implemented | Includes `fields`, which AnkiConnect added after `de6e6e1b` (2026-10-12): it picks the record's names to return, and what isn't asked for isn't read (no rendering unless `question` or `answer` is asked for). |
 | `cardsModTime` | implemented |  |
@@ -155,7 +159,7 @@ supported behaviour. Actions checked by hand only are marked.
 | `findCards` | implemented |  |
 | `forgetCards` | implemented |  |
 | `getEaseFactors` | implemented |  |
-| `getIntervals` | implemented | Batched. Missing last intervals raise the upstream error; complete=true still returns empty histories. The Tsunagi API's fallback defaults remain unchanged. |
+| `getIntervals` | implemented | Batched. A card without review history answers its current interval, and a missing card is named in the error, where upstream fails with "list index out of range" ([above](#where-ankiconnect-is-broken-or-mislabeled)); complete=true still returns empty histories. The Tsunagi API's fallback defaults remain unchanged. |
 | `relearnCards` | implemented | Sets the same type and queue as upstream's raw UPDATE, through Anki's card update. Unlike upstream, it can be undone: a raw UPDATE wipes Anki's whole undo history. |
 | `setDueDate` | implemented | Uses the Tsunagi API's scheduler mutation; exposes Anki's unprefixed invalid-input message. |
 | `setEaseFactors` | implemented | Uses the Tsunagi API's factor writer. Short arrays keep earlier writes, skip missing cards and fail at the first present card without a factor. Unlike upstream, the writes can be undone, as one step: upstream skips undo entries, which wipes Anki's whole undo history. |

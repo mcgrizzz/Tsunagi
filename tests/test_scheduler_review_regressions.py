@@ -34,13 +34,15 @@ def test_repeated_suspend_retains_upstream_result_and_skipped_validation(col, ca
     assert all(col.get_card(cid).queue == (-1 if suspend else 0) for cid in cards)
 
 
-def test_reviewless_reads_keep_native_defaults_and_shim_errors(col, cards):
+def test_reviewless_reads_keep_native_defaults_and_shim_answers(col, cards):
     cid = cards[0]
-    col.db.execute("update cards set type=2, queue=2, due=? where id=?", col.sched.today, cid)
+    col.db.execute("update cards set type=2, queue=2, ivl=5, due=? where id=?", col.sched.today, cid)
     assert card_intervals([cid]) == [0]
     assert cards_are_due([cid]) == [True]
-    for action in ["areDue", "getIntervals"]:
-        assert rpc(action, cards=[cid]) == {"result": None, "error": "list index out of range"}
+    # Upstream fails both with "list index out of range"; the Shim answers from
+    # the card itself (backlog 6.158).
+    assert rpc("areDue", cards=[cid]) == {"result": [True], "error": None}
+    assert rpc("getIntervals", cards=[cid]) == {"result": [5], "error": None}
     assert rpc("getIntervals", cards=[cid, 9999999999999], complete=True) == {
         "result": [[], []], "error": None,
     }

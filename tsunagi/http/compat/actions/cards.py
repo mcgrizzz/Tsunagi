@@ -16,7 +16,12 @@ from ....adapters.anki.cards import (
     set_card_values,
 )
 from ....adapters.anki.compat import raw_id_list
-from ....adapters.anki.reviews import card_intervals, cards_are_due
+from ....adapters.anki.reviews import (
+    card_intervals,
+    cards_are_due,
+    current_intervals,
+    missing_card_ids,
+)
 from ..registry import registry
 
 
@@ -125,11 +130,20 @@ def ac_areDue(p: DueParams) -> List[bool]:
             from ....adapters.anki.compat import raw_card_schedule
 
             return raw_card_schedule(ids, due=True)
-        if any(history == [] for history in card_intervals(ids, True)):
-            raise ValueError("list index out of range")
+        _refuse_missing(ids)
         return cards_are_due(ids)
     except TypeError as exc:
         raise ValueError(str(exc)) from exc
+
+
+def _refuse_missing(ids: List[int]) -> None:
+    # AnkiConnect fails with "list index out of range" on a card that doesn't
+    # exist, and on a card with no review history; that one now gets an answer
+    # from its current state, and this one an error naming it (backlog 6.158).
+    missing = set(missing_card_ids(ids))
+    for cid in ids:
+        if cid in missing:
+            raise ValueError(f"Card was not found: {cid}")
 
 
 @registry.register("getIntervals", params=GetIntervalsParams, permission="read:cards")
@@ -143,8 +157,11 @@ def ac_getIntervals(p: GetIntervalsParams) -> List[Any]:
         histories = card_intervals(ids, True)
         if p.complete:
             return histories
-        return [history[-1] if isinstance(history, list) else history for history in histories]
-    except (TypeError, IndexError) as exc:
+        _refuse_missing(ids)
+        now = current_intervals([cid for cid, history in zip(ids, histories) if history == []])
+        return [(history[-1] if history else now[cid]) if isinstance(history, list) else history
+                for cid, history in zip(ids, histories)]
+    except TypeError as exc:
         raise ValueError(str(exc)) from exc
 
 
