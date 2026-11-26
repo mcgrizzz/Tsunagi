@@ -46,27 +46,38 @@ TIMEOUT = 120
 
 
 class Client:
-    """Sequential requests, one new connection each, counting requests and bytes."""
+    """Sequential requests, one new connection each, counting requests and bytes.
+
+    While `started` is set, each request is also logged: what it was (the
+    action, or the method and path without the query, so no search terms) and
+    when it started and ended, in ms from `started`."""
 
     def __init__(self, endpoint, api_key):
         self.endpoint, self.api_key = endpoint, api_key
         self.requests = self.response_bytes = 0
+        self.started, self.log = None, []
 
-    async def _send(self, wire):
+    async def _send(self, wire, what):
+        sent = time.perf_counter()
         result = await exchange(self.endpoint, wire, TIMEOUT, return_payload=True)
         self.requests += 1
         self.response_bytes += result.get("response_bytes", 0)
+        if self.started is not None:
+            self.log.append({"what": what, "start_ms": round((sent - self.started) * 1000, 2),
+                             "end_ms": round((time.perf_counter() - self.started) * 1000, 2),
+                             "bytes": result.get("response_bytes", 0)})
         if result["outcome"] != "ok":
             raise RuntimeError(f"Request failed: {({k: v for k, v in result.items() if k != 'payload'})}")
         return result["payload"]
 
     async def action(self, name, **params):
-        return (await self._send(action_request(self.endpoint, name, params, self.api_key)))["result"]
+        return (await self._send(action_request(self.endpoint, name, params, self.api_key), name))["result"]
 
     async def rest(self, method, path, body=None, **query):
+        what = f"{method} {path}"
         if query:
             path += "?" + urlencode(query)
-        return await self._send(wire_request(self.endpoint, path, body, self.api_key, method))
+        return await self._send(wire_request(self.endpoint, path, body, self.api_key, method), what)
 
 
 def digest(value):
@@ -761,9 +772,11 @@ async def run(args, report):
             for trial in range(args.repeats + 1):   # trial 0 is the first-use run
                 await workload.setup(c, ctx, trial)
                 c.requests = c.response_bytes = 0
-                started = time.perf_counter()
+                c.log = []
+                started = c.started = time.perf_counter()
                 result = await getattr(workload, impl)(c, ctx, trial)
                 elapsed = (time.perf_counter() - started) * 1000
+                c.started = None
                 requests, size = c.requests, c.response_bytes
                 if workload.writes:
                     result = await workload.verify(c, ctx, trial)
@@ -771,7 +784,7 @@ async def run(args, report):
                 parts = ({key: digest(value) for key, value in result.items()}
                          if isinstance(result, dict) and len(result) <= 5 else None)
                 entry["trials"].append({"trial": trial, "elapsed_ms": elapsed, "requests": requests,
-                                        "response_bytes": size, "result_sha256": digest(result),
+                                        "response_bytes": size, "request_log": c.log, "result_sha256": digest(result),
                                         **({"part_sha256": parts} if parts else {})})
                 if trial == 0:
                     entry["result_sample"] = result if len(json.dumps(result)) < 4000 else None
