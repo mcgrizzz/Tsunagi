@@ -45,7 +45,8 @@ An app then runs it with
   (`addon:my_addon/rebuild`). Keep it the same on every install; your add-on's
   name in snake_case works well. An id another add-on already uses is refused,
   and the error goes to Tsunagi's log.
-- `registry.version` is `1`. Check it if you rely on something added later.
+- `registry.version` is `2`. Check it if you rely on something added later:
+  [events](#events) came in `2`.
 
 ## Actions
 
@@ -120,8 +121,71 @@ the same defaults and bounds as your dialogs.
 
 - `available`: a function returning `None`, or a short reason your actions
   can't run now (`"FSRS is off"`). Apps see the reason, and runs are refused.
+- `events`: the events your add-on sends ([below](#events)).
 - `addon`: your add-on's folder name. Tsunagi works it out from the module of
-  the first action's `run`, so you rarely need it.
+  the first action's `run` (or, with no actions, the module calling
+  `provide`), so you rarely need it.
+
+## Events
+
+Tell apps when something happens in your add-on, such as a study set
+finishing. Declare each event next to your actions, keep what `provide`
+returns, and call its `emit`:
+
+```python
+from anki.hooks import addHook
+
+tsunagi = None  # stays None when Tsunagi isn't installed
+
+
+def provide(registry):
+    global tsunagi
+    if registry.version < 2:
+        return  # a Tsunagi without events
+    tsunagi = registry.provide("my_addon", "My Add-on", actions=[], events=[{
+        "name": "set_done",
+        "title": "Set done",
+        "description": "A set of cards was finished: {deck, count, goal, ms}.",
+    }])
+
+
+def on_set_done(deck, count, goal, ms):
+    if tsunagi:
+        tsunagi.emit("set_done", {"deck": deck, "count": count, "goal": goal, "ms": ms})
+
+
+addHook("tsunagi.register", provide)
+```
+
+| Key | Required | Meaning |
+| --- | --- | --- |
+| `name` | yes | a-z, 0-9, _; unique within your provider |
+| `title` | no | a short name; defaults to `name` |
+| `description` | no | when it's sent, and what its payload holds |
+
+`emit(name, payload)` sends the event to every app listening. The payload
+is anything JSON can hold, or nothing. `emit` returns at once, from any
+thread, and never raises: a name you didn't declare, or a payload JSON can't
+hold (a `set`, `NaN`, your own objects), goes to Tsunagi's log instead. Nothing
+is sent while no profile is open. Events aren't kept: an app that isn't
+listening when you send one doesn't get it later.
+
+A provider can offer only events (`actions=[]`); it then doesn't appear on
+the Add-ons page, since there's nothing to enable.
+
+Apps receive it as `addons.my_addon.set_done`, with your payload in
+`payload`:
+
+```text
+event: addons.my_addon.set_done
+id: 5f0c…:7
+data: {"payload":{"deck":"Japanese","count":20,"goal":20,"ms":512000},"type":"addons.my_addon.set_done","seq":7,"session_id":"5f0c…","ts":1790000000000}
+```
+
+They ask for it with `?types=addons.my_addon.set_done`, or for every add-on's
+events with `?resources=addons`. An app needs **read:addons**, as it does for
+your `read` actions; the Default role has it. See
+[Listen for changes](events.md#add-on-events).
 
 ## Examples
 
