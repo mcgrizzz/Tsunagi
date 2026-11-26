@@ -14,33 +14,42 @@ measurements, which run Anki's collection code without a window, the Qt
 main-thread handoff or an HTTP server, are developer profiling data. They are
 in [performance notes](performance_notes.md).
 
-There are three benchmarks, all on Anki **26.09.2** with the same testing
-profile:
+There are three benchmarks, all with the same testing profile:
 
 - **[Real client workloads](#real-client-workloads):** ten goals taken from
-  real AnkiConnect clients, measured on **2026-10-03**.
+  real AnkiConnect clients, measured on **2026-11-26**.
 - **[Complete tasks](#complete-tasks):** four whole things a user does in
-  Yomitan, Obsidian_to_Anki and anki-mcp-server, measured on **2026-10-03**.
+  Yomitan, Obsidian_to_Anki and anki-mcp-server, measured on **2026-11-26**.
 - **[Many clients at once](#many-clients-at-once):** a burst of simultaneous
   note-ID lookups. AnkiConnect was measured on **2026-09-21**, the other two on
   **2026-09-23**.
 
-The client workloads and complete tasks were measured with Tsunagi 0.5.1
-(`70e0102`). The burst test was measured with `main` as of 2026-09-23 (around
-`634baf3`). Later changes, such as the per-route permission checks and the
-request log, add a few microseconds per request and are not in it.
+The client workloads and complete tasks were measured with Tsunagi 0.7.7 on
+Anki 26.09.4, against AnkiConnect as AnkiWeb served it on 2026-11-22, after
+its October 2026 rewrite. Every run is kept, with its versions and collection,
+in `website/data/benchmarks.json` ([what changed since
+2026-10-03](#since-the-last-run)). The burst test was measured on Anki 26.09.2
+with `main` as of 2026-09-23 (around `634baf3`). Later changes, such as the
+per-route permission checks and the request log, add a few microseconds per
+request and are not in it.
 
 ## Summary
 
-- **For the client goals, the Tsunagi API is fastest on eight of ten,** often
-  by a wide margin: fewer requests, and only the fields the client uses. It is
-  slower on two large reads (both review histories).
-- **For a whole mining session, the Tsunagi API took 326 ms against
-  AnkiConnect's 2,875 ms,** in 40 requests instead of 80. Loading Yomitan's
-  settings takes 4 to 6 ms through either Tsunagi API.
-- **The AnkiConnect Shim is faster than AnkiConnect on seven of ten goals**
-  with the same requests, even on one, and slower on two.
-- **All three APIs gave the same answers** in every run.
+- **For the client goals, the Tsunagi API is faster than AnkiConnect on all
+  ten,** often by a wide margin: fewer requests, and only the fields the client
+  uses. The AnkiConnect Shim is faster still on three: the change poll and both
+  review histories.
+- **For a whole mining session, the Tsunagi API took 328 ms against
+  AnkiConnect's 7,076 ms,** in 40 requests instead of 80. Loading Yomitan's
+  settings takes 4 to 6 ms through either Tsunagi API, and 192 ms through
+  AnkiConnect.
+- **The AnkiConnect Shim is faster than AnkiConnect on all ten goals** with
+  the same requests.
+- **AnkiConnect took almost four minutes for anki-mcp-server's review history
+  of all decks** (229 s), where both Tsunagi APIs took under 1.5 s.
+- **All three APIs gave the same answers** in every run but three: the first
+  three Tsunagi API runs of the mined note, made right after Anki started,
+  came back without a field another add-on fills in once it has loaded.
 - **Under load, both Tsunagi APIs answered every request.** AnkiConnect began
   refusing connections at 64 simultaneous requests and refused most at 256.
 
@@ -53,21 +62,23 @@ goal. Each run records a fingerprint of the answer, and the fingerprints of the
 three APIs were compared.
 
 Median of ten runs after a first run, in milliseconds, on the `[DEV] Yomine`
-testing profile: about 5,410 notes (mostly Kiku and Kaishi 1.5k mining cards),
-their review history and media. Lower is faster.
+testing profile: 5,410 notes and cards (mostly Kiku and Kaishi 1.5k mining
+cards), 281,534 reviews, 113 note types, 6 decks and 19,933 media files. Lower
+is faster. AnkiConnect's review history of all decks took minutes per run, so
+it was timed three times, with ten minutes allowed per request.
 
 | Client goal | Client code | AnkiConnect | AnkiConnect Shim | Tsunagi API |
 | --- | --- | ---: | ---: | ---: |
-| **Yomitan:** check 20 dictionary entries for duplicates and list the matching notes | [check](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L683-L700), [IDs](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L308-L362) | 157 (3 requests) | 98 (3) | **5.7** (2) |
-| **Yomitan,** same check with "Check for duplicates across all models" on | [options](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/data/anki-note-builder.js#L118-L131) | 167 (3) | 99 (3) | **4.2** (1) |
-| **Yomitan:** add a mined note with an audio file and a picture | [add](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/display/display-anki.js#L924), [media](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L279-L290) | 93 (3) | 26 (3) | **22** (1) |
-| **asbplayer:** attach a screenshot to the most recently added note | [find](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L549-L591), [update](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L730-L752) | 163 (5) | 25 (5) | **20** (3) |
-| **Yomine:** refresh known words: the term, reading and sentence of every note of the note types Yomine is set up for, plus each first card's latest interval | [notes](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L373-L392), [intervals](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L64-L95) | 1,157 (3, 85 MB) | 1,327 (3, 80 MB) | **763** (3, 8.9 MB) |
-| **asbplayer:** first build of the mined-words cache: notes, card details, suspension and study status | [notes and cards](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L426-L509), [status](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L575-L633), [batch sizes](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L8-L10) | 15,821 (441, 505 MB) | 10,680 (441, 475 MB) | **1,831** (8, 78 MB) |
-| **asbplayer:** 10-second poll for edited or reviewed cards | [poll](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L353-L364) | 30 | 4.2 | **3.4** |
-| **Obsidian_to_Anki:** regenerate the note-type table (every note type's field names) | [names](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/settings.ts#L350-L356), [fields](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/main.ts#L62-L71) | 3,591 (114) | 147 (114) | **11** (1) |
-| **anki-mcp-server:** review history for one deck | [one deck](https://github.com/ankimcp/anki-mcp-server/blob/2b2f9892d14dffa7f4fdedd05c4bcea09a4f61f5/src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts#L143-L157) | **435** (1, 9 MB) | 602 (1, 8 MB) | 795 (1, 19 MB) |
-| **anki-mcp-server:** review history for all decks | [all decks](https://github.com/ankimcp/anki-mcp-server/blob/2b2f9892d14dffa7f4fdedd05c4bcea09a4f61f5/src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts#L248-L285) | 1,198 (2, 32 MB) | **1,194** (2, 27 MB) | 1,407 (1, 35 MB) |
+| **Yomitan:** check 20 dictionary entries for duplicates and list the matching notes | [check](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L683-L700), [IDs](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L308-L362) | 252 (3 requests) | 101 (3) | **11** (2) |
+| **Yomitan,** same check with "Check for duplicates across all models" on | [options](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/data/anki-note-builder.js#L118-L131) | 258 (3) | 103 (3) | **4.8** (1) |
+| **Yomitan:** add a mined note with an audio file and a picture | [add](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/display/display-anki.js#L924), [media](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/comm/anki-connect.js#L279-L290) | 350 (3) | 28 (3) | **24** (1) |
+| **asbplayer:** attach a screenshot to the most recently added note | [find](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L549-L591), [update](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L730-L752) | 407 (5) | 26 (5) | **19** (3) |
+| **Yomine:** refresh known words: the term, reading and sentence of every note of the note types Yomine is set up for, plus each first card's latest interval | [notes](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L373-L392), [intervals](https://github.com/mcgrizzz/Yomine/blob/e3bb005b0f085c4a6269579b40f2f25f8faee595/src/anki/state.rs#L64-L95) | 2,742 (3, 85 MB) | 1,385 (3, 80 MB) | **689** (3, 9.0 MB) |
+| **asbplayer:** first build of the mined-words cache: notes, card details, suspension and study status | [notes and cards](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L426-L509), [status](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/dictionary-db/dictionary-db-anki.ts#L575-L633), [batch sizes](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L8-L10) | 29,503 (441, 505 MB) | 10,928 (441, 475 MB) | **1,849** (8, 79 MB) |
+| **asbplayer:** 10-second poll for edited or reviewed cards | [poll](https://github.com/killergerbah/asbplayer/blob/ff63e8fff2aaa0171ab36b1977346500713e2667/common/anki/anki.ts#L353-L364) | 62 | **3.1** | 4.5 |
+| **Obsidian_to_Anki:** regenerate the note-type table (every note type's field names) | [names](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/settings.ts#L350-L356), [fields](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/main.ts#L62-L71) | 7,168 (114) | 158 (114) | **12** (1) |
+| **anki-mcp-server:** review history for one deck | [one deck](https://github.com/ankimcp/anki-mcp-server/blob/2b2f9892d14dffa7f4fdedd05c4bcea09a4f61f5/src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts#L143-L157) | 1,706 (1, 9.3 MB) | **625** (1, 8.0 MB) | 806 (1, 20 MB) |
+| **anki-mcp-server:** review history for all decks | [all decks](https://github.com/ankimcp/anki-mcp-server/blob/2b2f9892d14dffa7f4fdedd05c4bcea09a4f61f5/src/mcp/primitives/essential/tools/review-stats/review-stats.tool.ts#L248-L285) | 229,439 (2, 32 MB) | **1,251** (2, 27 MB) | 1,398 (1, 38 MB) |
 
 Links point to each client at the commit that was read. Where a client's
 behavior depends on settings, the workload uses the defaults unless the row
@@ -79,20 +90,22 @@ says otherwise.
   batches of 10, because full card records are large; Obsidian_to_Anki asks for
   each note type's fields separately. The Tsunagi API does each goal in as few
   requests as it allows, selecting only the fields the client reads.
-- **AnkiConnect's small requests take about 30 ms each** even when the work is
-  tiny, as in the change poll. That per-request delay is why its many-request
-  goals are slow.
+- **AnkiConnect's small requests take about 60 ms each** even when the work is
+  tiny, as in the change poll (about 30 ms before its October 2026 rewrite).
+  That per-request delay is why its many-request goals are slow: reading 113
+  note types' fields one request each took 7.2 s.
 - **Known words:** AnkiConnect returns every note with all its fields, and
   Yomine keeps the three it needs from the note types it's set up for. The
   Tsunagi API asks for only those note types and those three fields
   (`select=fields[name in [...]]`), so its answer is a tenth of the size.
-- **The Tsunagi API is slower on two reads:** both review histories. Its
-  responses are larger for these, because each row
-  repeats its field names: for one deck's reviews, about 19 MB against
-  `cardReviews`' 9 MB of plain arrays. How much of the time difference that
-  explains has not been measured; the AnkiConnect Shim sends the smallest
-  review response and is still slower than AnkiConnect there, so server work
-  differs as well.
+- **The Tsunagi API is slower than the AnkiConnect Shim on both review
+  histories.** Its responses are larger for these, because each row repeats
+  its field names: for one deck's reviews, about 20 MB against `cardReviews`'
+  9 MB of plain arrays. How much of the time difference that explains has not
+  been measured.
+- **AnkiConnect's review history of all decks** asks for every card's reviews
+  in one `getReviewsOfCards` request. Before its October 2026 rewrite that took
+  1.2 s; now it takes 229 s for the same answer. Why hasn't been looked into.
 - **Listing duplicates:** Yomitan finds the matching notes with a search on
   the selected note type's first field name, which reads every note. The
   Tsunagi API asks for notes whose first field matches, using the index Anki's
@@ -129,6 +142,17 @@ already exist, and checks at the end that the note count is unchanged. Anki
 moves deleted media to its media trash; **Tools → Check Media → Empty Trash**
 clears it.
 
+### Since the last run
+
+The previous run, on 2026-10-03, used Tsunagi 0.5.1, Anki 26.09.2 and
+AnkiConnect from before its October 2026 rewrite, on the same profile. Since
+then, AnkiConnect got 1.5 to 4 times slower on every goal: the mining session
+went from 2,875 to 7,076 ms and note types' fields from 3,591 to 7,168 ms. The
+review history of all decks went from 1,198 ms to 229 s. Both Tsunagi APIs
+took about what they did before: most goals within 10%, and the
+few-millisecond ones within a millisecond or two, except listing duplicates
+through the Tsunagi API, which went from 5.7 to 11 ms.
+
 ## Complete tasks
 
 Four things a user actually does, from start to finish, each written the way
@@ -138,10 +162,10 @@ profile as above.
 
 | Task | Client code | AnkiConnect | AnkiConnect Shim | Tsunagi API |
 | --- | --- | ---: | ---: | ---: |
-| **Mine 10 new words:** ten lookups; each popup checks its own 3 to 5 entries for duplicates (some already saved), then the user adds one new word with audio, a picture and automatic suspension | [duplicates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L753), [suspend](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816) | 2,875 (80 requests, 18 KB) | 1,041 (80, 17 KB) | **326** (40, 16 KB) |
-| **Open Yomitan's Anki settings:** the deck list, the note types, and the selected note type's fields | [lists](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484), [fields](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170) | 94 (3, 4.7 KB) | **4.3** (3, 4.5 KB) | 6.4 (3, 4.7 KB) |
-| **Sync a note file (Obsidian_to_Anki):** 20 notes at once: 15 new (4 with a picture), 3 duplicates, one with an empty first field and one with a note type that doesn't exist | [sync request](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/files-manager.ts#L172-L232), [note options](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/setting-to-data.ts#L18-L26) | 199 (1, 1.3 KB) | 140 (1, 1.2 KB) | **66** (2, 1.9 KB) |
-| **Show an assistant the first new cards (anki-mcp-server):** how many new cards there are in all decks, and the first 10 with their text, deck, note type and schedule | [get_cards](https://github.com/ankimcp/anki-mcp-server/blob/2b2f9892d14dffa7f4fdedd05c4bcea09a4f61f5/src/mcp/primitives/essential/tools/get-cards.tool.ts#L109-L177) | 64 (2, 687 KB) | 22.3 (2, 641 KB) | **21.8** (2, 252 KB) |
+| **Mine 10 new words:** ten lookups; each popup checks its own 3 to 5 entries for duplicates (some already saved), then the user adds one new word with audio, a picture and automatic suspension | [duplicates](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L651-L753), [suspend](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/background/backend.js#L808-L816) | 7,076 (80 requests, 27 KB) | 1,026 (80, 17 KB) | **328** (40, 18 KB) |
+| **Open Yomitan's Anki settings:** the deck list, the note types, and the selected note type's fields | [lists](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L439-L484), [fields](https://github.com/yomidevs/yomitan/blob/d34832d756e05dc00945e5b7d7ebc80963299a7a/ext/js/pages/settings/anki-controller.js#L1100-L1170) | 192 (3, 5.0 KB) | **4.4** (3, 4.5 KB) | 5.9 (3, 4.8 KB) |
+| **Sync a note file (Obsidian_to_Anki):** 20 notes at once: 15 new (4 with a picture), 3 duplicates, one with an empty first field and one with a note type that doesn't exist | [sync request](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/files-manager.ts#L172-L232), [note options](https://github.com/ObsidianToAnki/Obsidian_to_Anki/blob/feb3db2708559bf386412ef6f8be00753faf7775/src/setting-to-data.ts#L18-L26) | 618 (1, 1.4 KB) | 140 (1, 1.2 KB) | **73** (2, 2.0 KB) |
+| **Show an assistant the first new cards (anki-mcp-server):** how many new cards there are in all decks, and the first 10 with their text, deck, note type and schedule | [get_cards](https://github.com/ankimcp/anki-mcp-server/blob/2b2f9892d14dffa7f4fdedd05c4bcea09a4f61f5/src/mcp/primitives/essential/tools/get-cards.tool.ts#L109-L177) | 124 (2, 688 KB) | 24 (2, 641 KB) | **20** (2, 252 KB) |
 
 **How to read it:**
 
@@ -285,8 +309,15 @@ Tsunagi and `--implementation upstream --url http://127.0.0.1:8765`. On
 Windows, `python tools/bench_switch.py ankiconnect --profile "YOUR TEST PROFILE"`
 closes Anki, turns AnkiConnect on and Tsunagi off, starts Anki again and waits
 until AnkiConnect answers; `bench_switch.py tsunagi` switches back.
-`--workloads` runs a subset, and `--repeats` sets the number of timed runs.
-The runner writes to the profile; use a testing profile.
+`--workloads` runs a subset, `--repeats` sets the number of timed runs, and
+`--timeout` how many seconds each request may take (120 by default). The
+runner writes to the profile; use a testing profile.
+
+To add a run to that history, name the reports
+`workloads-<native|shim|upstream>-<date>.json` (a run finished or retried in
+more reports: `workloads-upstream-<date>-<anything>.json`), then run
+`python tools/extract_benchmarks.py --date <date> --tsunagi <version>
+--anki <version> --ankiconnect "<which build>"`.
 
 ### Many clients at once
 
