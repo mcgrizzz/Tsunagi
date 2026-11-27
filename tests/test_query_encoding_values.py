@@ -36,7 +36,7 @@ class CustomRow(BaseModel):
 @pytest.mark.parametrize("value", [
     {"unicode": "食べる", "numbers": [0, -1, 1.5, 2**60], "bools": [True, False, None],
      "nested": [{"_sa_hidden": 3, "visible": []}], "_sa_root": 4},
-    {"text": '"_sa is text, not a key', "number": 2**60},
+    {"text": '"_sa is text, not a key', "number": 2**60, "beyond_64_bits": 2**70},
     {"enum": Name.FRONT, "integer_enum": Number.ONE},
     {1: "number key", None: "none key", Name.FRONT: "enum key"},
     {"dataclass": Value("Front"), "tuple": (1, 2), "set": {1, 2}},
@@ -47,6 +47,9 @@ def test_encoded_values_match_framework_without_changing_page(value):
     # `total` is sent only when include=total set it.
     expected = JSONResponse(jsonable_encoder(page, by_alias=True, exclude={"total"})).body
     assert query_encoding.render_query_page(page) == expected
+    # Pages of float-free rows take orjson first; anything it would render
+    # differently falls through to the same answer.
+    assert query_encoding.render_query_page(page, floatless=True) == expected
     assert JSONResponse(jsonable_encoder(page, by_alias=True, exclude={"total"})).body == expected
 
 

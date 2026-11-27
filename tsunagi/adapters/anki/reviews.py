@@ -169,6 +169,13 @@ def review_search_condition(col: Collection, query: str) -> Tuple[str, List[Any]
 
 
 @as_query_op
+def current_intervals(col: Collection, ids: Sequence[int]) -> Dict[int, int]:
+    """Each card's interval as the card holds it now: what getIntervals
+    answers for a card that has no review history (backlog 6.158)."""
+    return {int(i): int(v) for i, v in col.db.all(f"select id, ivl from cards where id in {_in_clause(ids)}")} if ids else {}
+
+
+@as_query_op
 def missing_card_ids(col: Collection, ids: Sequence[int]) -> List[int]:
     """Which of `ids` are not cards."""
     found = set(col.db.list(f"select id from cards where id in {_in_clause(ids)}")) if ids else set()

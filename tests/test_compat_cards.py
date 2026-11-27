@@ -353,24 +353,32 @@ class TestAreDueBatching:
         assert len(searches) <= 2               # is:new (+ maybe is:due), never per-card
         assert all(q.startswith("cid:") for q in searches)
 
-    def test_reviewless_review_card_matches_upstream_error(self, cards):
+    def test_reviewless_review_card_is_answered_from_its_state(self, cards, col):
         # A card shoved straight into the review queue (raw column write, no
-        # revlog rows) hits rows[-1] upstream and must report the same error.
+        # revlog rows) fails upstream with "list index out of range" (rows[-1]);
+        # the Shim answers whether it is due (backlog 6.158).
         client, cids = cards
         rpc(client, "setSpecificValueOfCard", {
             "card": cids[0], "keys": ["type", "queue"], "newValues": [2, 2],
             "warning_check": True})
-        resp = rpc(client, "areDue", {"cards": [cids[0]]})
-        assert resp == {"result": None, "error": "list index out of range"}
+        due = bool(col.find_cards(f"cid:{cids[0]} is:due"))
+        assert rpc(client, "areDue", {"cards": [cids[0]]}) == {"result": [due], "error": None}
 
-    def test_get_intervals_batches_and_matches_empty_history_error(self, cards, col):
+    def test_get_intervals_batches_and_answers_empty_history_from_the_card(self, cards, col):
         client, cids = cards
         rpc(client, "setSpecificValueOfCard", {
-            "card": cids[0], "keys": ["type", "queue"], "newValues": [2, 2],
+            "card": cids[0], "keys": ["type", "queue", "ivl"], "newValues": [2, 2, 7],
             "warning_check": True})
         searches = []
         orig = col.find_cards
         col.find_cards = lambda q, **kw: searches.append(q) or orig(q, **kw)
         resp = rpc(client, "getIntervals", {"cards": cids})
-        assert resp == {"result": None, "error": "list index out of range"}
+        assert resp == {"result": [7, 0], "error": None}   # its own interval; the new card's 0
         assert len(searches) == 1               # one is:new probe for the batch
+
+    def test_a_card_that_does_not_exist_is_named(self, cards):
+        # Upstream: "list index out of range" (backlog 6.158).
+        client, cids = cards
+        for action in ["areDue", "getIntervals"]:
+            assert rpc(client, action, {"cards": [cids[0], 9999999999999]}) == {
+                "result": None, "error": "Card was not found: 9999999999999"}
