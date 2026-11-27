@@ -308,7 +308,12 @@ Repeat with `--implementation shim`, then with AnkiConnect enabled instead of
 Tsunagi and `--implementation upstream --url http://127.0.0.1:8765`. On
 Windows, `python tools/bench_switch.py ankiconnect --profile "YOUR TEST PROFILE"`
 closes Anki, turns AnkiConnect on and Tsunagi off, starts Anki again and waits
-until AnkiConnect answers; `bench_switch.py tsunagi` switches back.
+until AnkiConnect answers; `bench_switch.py tsunagi` switches back. Both turn
+every other add-on off: add-ons that draw on the deck list redraw after each
+card change while Anki has focus, and every request waits for them (Study Time
+Stats added about half a second per card change on the test profile).
+`bench_switch.py restore --profile "YOUR USUAL PROFILE"` puts all add-ons back
+as they were and starts Anki on that profile.
 `--workloads` runs a subset, `--repeats` sets the number of timed runs, and
 `--timeout` how many seconds each request may take (120 by default). The
 runner writes to the profile; use a testing profile.
