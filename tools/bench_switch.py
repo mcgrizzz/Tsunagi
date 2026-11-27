@@ -11,7 +11,11 @@ has focus, and every request waits for them (0.3-0.5 s on 283,000 reviews,
 2026-11-27). The first switch saves each add-on's state to
 tsunagi-bench-addons.json beside addons21; `restore` puts them all back,
 deletes that file and starts Anki on the profile. --keep-addons leaves the
-other add-ons as they are.
+other add-ons as they are. A switch also minimizes Anki once it answers,
+so every API is measured with the window in the same state: focused, Anki
+redraws after each card change; minimized, each wait for Anki's main thread
+takes longer on Windows 11 (mine_session 330-630 ms by window state alone,
+2026-11-27).
 
 Windows only. Asks the running API to close Anki (AnkiConnect's
 guiExitAnki, which Tsunagi also answers; Tsunagi needs a key with the manage
@@ -66,6 +70,28 @@ def anki_running():
     out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq anki.exe", "/NH"],
                          capture_output=True, text=True).stdout
     return "anki.exe" in out.lower()
+
+
+def minimize(profile):
+    """Minimize Anki's main window ("<profile> - Anki"); False if it wasn't found."""
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    found = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def each(hwnd, _):
+        title = ctypes.create_unicode_buffer(512)
+        user32.GetWindowTextW(hwnd, title, 512)
+        if user32.IsWindowVisible(hwnd) and title.value == f"{profile} - Anki":
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(each, 0)
+    for hwnd in found:
+        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+    return bool(found)
 
 
 def wait(check, seconds, what):
@@ -124,7 +150,8 @@ def main():
              "(TSUNAGI_BENCH_API_KEY, with the manage permission) or AnkiConnect's, if it has one "
              "(ANKICONNECT_API_KEY). Or close Anki yourself and rerun")
 
-    if args.api == "restore":
+    restoring = args.api == "restore"
+    if restoring:
         saved = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
         for folder, disabled in saved.items():
             if (ADDONS / folder / "meta.json").exists():
@@ -160,6 +187,13 @@ def main():
     port = PORTS[args.api]
     print(f"Starting Anki on {args.profile!r}, waiting for {args.api} on port {port}...")
     wait(lambda: ask(args.api, "version", timeout=1.0) is not None, 120, f"{args.api} to answer on port {port}")
+    if not restoring:
+        # The window's state changes every timing (see above); minimized is the
+        # one a switch can always reach. Anki can take focus after it answers,
+        # so wait a little first.
+        time.sleep(5)
+        print("Anki minimized" if minimize(args.profile)
+              else f"Anki's window ({args.profile} - Anki) not found; minimize it yourself")
     print(f"Ready: {args.api} on http://127.0.0.1:{port}")
 
 

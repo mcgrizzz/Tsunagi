@@ -311,7 +311,9 @@ closes Anki, turns AnkiConnect on and Tsunagi off, starts Anki again and waits
 until AnkiConnect answers; `bench_switch.py tsunagi` switches back. Both turn
 every other add-on off: add-ons that draw on the deck list redraw after each
 card change while Anki has focus, and every request waits for them (Study Time
-Stats added about half a second per card change on the test profile).
+Stats added about half a second per card change on the test profile). They
+also minimize Anki once it answers: the window's state alone moved
+`mine_session` between 330 and 630 ms, so every API is measured minimized.
 `bench_switch.py restore --profile "YOUR USUAL PROFILE"` puts all add-ons back
 as they were and starts Anki on that profile.
 `--workloads` runs a subset, `--repeats` sets the number of timed runs, and
