@@ -1,5 +1,5 @@
 {
- "commit": "d9b7bf8",
+ "commit": "8ed596c",
  "hints": {
   "multi": [],
   "port_8765": [
@@ -14,15 +14,15 @@
  "sites": {
   "addNote": [
    {
-    "at": "src/bg/js/ankiconnect.js:70",
+    "at": "src/bg/js/ankiconnect.js:86",
     "hash": "79dc7867a3fc1107"
    },
    {
-    "at": "src/bg/js/serviceworker.js:327",
+    "at": "src/bg/js/serviceworker.js:339",
     "hash": "e1bdf74920352551"
    },
    {
-    "at": "src/bg/js/serviceworker.js:333",
+    "at": "src/bg/js/serviceworker.js:345",
     "hash": "521a123acd57e32b"
    },
    {
@@ -31,10 +31,10 @@
    },
    {
     "at": "src/fg/js/frontend.js:3",
-    "hash": "9ce5fd26ec32c9a7"
+    "hash": "531778534b9e1e0f"
    },
    {
-    "at": "src/fg/js/frontend.js:162",
+    "at": "src/fg/js/frontend.js:163",
     "hash": "7305f1a8486a721d"
    },
    {
@@ -44,42 +44,26 @@
   ],
   "deckNames": [
    {
-    "at": "src/bg/js/ankiconnect.js:76",
+    "at": "src/bg/js/ankiconnect.js:92",
     "hash": "5993c0a8fab8e3d9"
    }
   ],
   "modelFieldNames": [
    {
-    "at": "src/bg/js/ankiconnect.js:84",
+    "at": "src/bg/js/ankiconnect.js:100",
     "hash": "9f65d49629c0d0b4"
    }
   ],
   "modelNames": [
    {
-    "at": "src/bg/js/ankiconnect.js:80",
+    "at": "src/bg/js/ankiconnect.js:96",
     "hash": "de1848735070baf6"
    }
   ],
   "removeTags": [
    {
-    "at": "src/dict/cncn_Zdic.js:53",
-    "hash": "fc0e9e617c7850b1"
-   },
-   {
-    "at": "src/dict/cncn_Zdic.js:54",
-    "hash": "4fba36d6e119982e"
-   },
-   {
-    "at": "src/dict/cncn_Zdic.js:55",
-    "hash": "0f96a337fb794d01"
-   },
-   {
-    "at": "src/dict/cncn_Zdic_old.js:95",
-    "hash": "b4adba01710c46bb"
-   },
-   {
-    "at": "src/dict/cncn_Zdic_old.js:98",
-    "hash": "ab632c931e4f8b3f"
+    "at": "src/dict/cncn_Zdic.js:73",
+    "hash": "8aa2d7b77ec26d98"
    },
    {
     "at": "src/dict/decn_Eudict.js:87",
@@ -164,7 +148,7 @@
   ],
   "version": [
    {
-    "at": "src/bg/js/ankiconnect.js:92",
+    "at": "src/bg/js/ankiconnect.js:108",
     "hash": "6517464c85a41f92"
    }
   ]

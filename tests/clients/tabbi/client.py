@@ -5,8 +5,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "macOS notch app showing due counts and streaks",
     "repo": "https://github.com/ethanwchen/tabbi",
-    "commit": "60fef5f",
-    "read": "2026-10-15",
+    "commit": "0c26aac",
+    "read": "2026-11-28",
     "files": [
         "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift",
         "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift",
@@ -14,13 +14,19 @@ CLIENT = {
         "Sources/TabbiKitCore/Anki/AnkiConnectTransport.swift",
         "Sources/TabbiKitCore/Anki/AnkiSummary.swift",
         "Sources/TabbiKitCore/Anki/AnkiDeckOpener.swift",
+        "windows/src/core/anki/ankiConnectClient.ts",
+        "windows/src/core/anki/ankiConnectModels.ts",
+        "windows/src/core/anki/ankiConnectError.ts",
+        "windows/src/core/anki/ankiSummary.ts",
+        "windows/src/modules/anki/ankiStore.ts",
     ],
     "uses": "version 6; params and key left out when nil; multi inner actions carry version 6 (and the key when set)",
     "notes": ("Decodes every reply strictly (Codable): a missing key or a wrong type fails the call. "
               "getDeckStats replies are matched by deck_id. Since PR #131 a failed getDeckStats is asked "
               "again without Default, then deck by deck through multi. Errors are matched by text "
               "(api key, unsupported action, collection closed) and otherwise shown as Anki wrote them. "
-              "guiDeckReview and sync are not tested."),
+              "guiDeckReview and sync are not tested. The Windows app (windows/, TypeScript, since November 2026) "
+              "is a port of the same client: the same actions, requests and strict reading."),
 }
 
 ENVELOPE = {"version": 6, "params": "omit-when-empty", "key": "absent", "method": "POST"}

@@ -14,7 +14,7 @@ PICTURE = {"filename": "asbp_Show_ep01_83400.jpeg", "data": B64, "fields": ["Bac
 
 ENTRIES = named("asbplayer", [
     # Connection (AnkiSettingsTab.tsx L199-226): the app asks permission, the extension sends version;
-    # requiresApiKey reads requireApikey, requireApiKey and the error text (anki.ts L491-497).
+    # requiresApiKey reads requireApikey, requireApiKey and the error text (anki.ts L497-503).
     # The setup tutorial's default deck and note type (AnkiSettingsTab.tsx L35-79, L359-389).
     case("createDeck Sentences", "createDeck", {"deck": "Sentences"}, reads=["error"], effects=True),
     case("createModel Sentence Card", "createModel", {
@@ -29,7 +29,7 @@ ENTRIES = named("asbplayer", [
                                    '<p/>\n<div class="image">\n{{Image}}\n</div>\n<p/>\n{{Audio}}\n<p/>\n'
                                    '{{Source}}\n<p/>\n{{URL}}'}],
     }, reads=["error"]),
-    # Export (anki.ts L538-612): duplicates allowed, deck scope; audio and picture inline.
+    # Export (anki.ts L550-641): duplicates allowed, deck scope; audio and picture inline.
     case("addNote audio and picture", "addNote", {"note": {
         **note(fields={"Front": "犬が走る", "Back": "Show ep01 (00:01:23.4)"}, tags=["asbplayer"]),
         "options": OPTIONS, "audio": AUDIO, "picture": PICTURE}}, effects=True),

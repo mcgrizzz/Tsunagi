@@ -1,5 +1,5 @@
 {
- "checked": "2026-11-27",
+ "checked": "2026-11-28",
  "tools": {
   "anki_editor": {
    "read": "defeab6",
@@ -12,52 +12,14 @@
    "changed": []
   },
   "anki_mcp_server": {
-   "read": "e0e347f",
+   "read": "d7d6512",
    "latest": "d7d6512",
-   "changed": [
-    [
-     "deleteMediaFile",
-     "changed"
-    ],
-    [
-     "retrieveMediaFile",
-     "changed"
-    ],
-    [
-     "suspended",
-     "changed"
-    ],
-    [
-     "version",
-     "changed"
-    ]
-   ]
+   "changed": []
   },
   "asbplayer": {
-   "read": "62c4d6e",
+   "read": "910acf84",
    "latest": "910acf8",
-   "changed": [
-    [
-     "findNotes",
-     "changed"
-    ],
-    [
-     "notesInfo",
-     "changed"
-    ],
-    [
-     "sync",
-     "gone"
-    ],
-    [
-     "updateNoteFields",
-     "changed"
-    ],
-    [
-     "version",
-     "changed"
-    ]
-   ]
+   "changed": []
   },
   "easydict": {
    "read": "af5b654",
@@ -75,32 +37,14 @@
    "changed": []
   },
   "goldendict_ng": {
-   "read": "5b1bade",
+   "read": "36d3ebcf",
    "latest": "36d3ebc",
-   "changed": [
-    [
-     "version",
-     "changed"
-    ]
-   ]
+   "changed": []
   },
   "jiten": {
-   "read": "fe383fc",
+   "read": "d62ae140",
    "latest": "d62ae14",
-   "changed": [
-    [
-     "deckNamesAndIds",
-     "changed"
-    ],
-    [
-     "findCards",
-     "changed"
-    ],
-    [
-     "suspended",
-     "changed"
-    ]
-   ]
+   "changed": []
   },
   "jl": {
    "read": "8995ac5",
@@ -113,54 +57,9 @@
    "changed": []
   },
   "logseq_anki_sync": {
-   "read": "0d881e3",
-   "latest": "6959868",
-   "changed": [
-    [
-     "addNotes",
-     "changed"
-    ],
-    [
-     "deckNames",
-     "changed"
-    ],
-    [
-     "deleteNotes",
-     "changed"
-    ],
-    [
-     "exportPackage",
-     "changed"
-    ],
-    [
-     "getMediaFilesNames",
-     "changed"
-    ],
-    [
-     "guiBrowse",
-     "changed"
-    ],
-    [
-     "multi",
-     "changed"
-    ],
-    [
-     "reloadCollection",
-     "changed"
-    ],
-    [
-     "retrieveMediaFile",
-     "changed"
-    ],
-    [
-     "storeMediaFile",
-     "changed"
-    ],
-    [
-     "updateNote",
-     "changed"
-    ]
-   ]
+   "read": "6959868",
+   "latest": "e353a5e",
+   "changed": []
   },
   "lunatranslator": {
    "read": "0ee08c6",
@@ -198,22 +97,13 @@
    "changed": []
   },
   "odh": {
-   "read": "d9b7bf8",
+   "read": "8ed596c",
    "latest": "8ed596c",
-   "changed": [
-    [
-     "addNote",
-     "changed"
-    ],
-    [
-     "removeTags",
-     "changed"
-    ]
-   ]
+   "changed": []
   },
   "raycast_anki": {
    "read": "aad25dd3",
-   "latest": "87a6d3d0",
+   "latest": "97f8181c",
    "changed": []
   },
   "saladict": {
@@ -222,68 +112,14 @@
    "changed": []
   },
   "simple_anki_sync": {
-   "read": "36ddadd",
+   "read": "c352f9f",
    "latest": "c352f9f",
-   "changed": [
-    [
-     "deleteNotes",
-     "changed"
-    ]
-   ]
+   "changed": []
   },
   "tabbi": {
-   "read": "60fef5f",
+   "read": "0c26aac",
    "latest": "0c26aac",
-   "changed": [
-    [
-     "cardReviews",
-     "changed"
-    ],
-    [
-     "deckNamesAndIds",
-     "changed"
-    ],
-    [
-     "findCards",
-     "changed"
-    ],
-    [
-     "getDeckStats",
-     "changed"
-    ],
-    [
-     "getNumCardsReviewedByDay",
-     "changed"
-    ],
-    [
-     "getNumCardsReviewedToday",
-     "changed"
-    ],
-    [
-     "guiDeckOverview",
-     "changed"
-    ],
-    [
-     "guiDeckReview",
-     "changed"
-    ],
-    [
-     "multi",
-     "changed"
-    ],
-    [
-     "requestPermission",
-     "changed"
-    ],
-    [
-     "sync",
-     "changed"
-    ],
-    [
-     "version",
-     "changed"
-    ]
-   ]
+   "changed": []
   },
   "yanki": {
    "read": "f8522b7",
@@ -296,14 +132,9 @@
    "changed": []
   },
   "yomitan": {
-   "read": "e7334a9",
+   "read": "64b4eba7",
    "latest": "64b4eba",
-   "changed": [
-    [
-     "suspended",
-     "changed"
-    ]
-   ]
+   "changed": []
   }
  }
 }

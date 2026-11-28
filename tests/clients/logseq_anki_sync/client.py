@@ -7,8 +7,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Syncs Logseq blocks to Anki notes",
     "repo": "https://github.com/debanjandhar12/logseq-anki-sync",
-    "commit": "0d881e3",
-    "read": "2026-10-15",
+    "commit": "6959868",
+    "read": "2026-11-28",
     "files": [
         "src/anki-connect/AnkiConnect.ts",
         "src/anki-connect/internal/AnkiActionQueue.ts",
@@ -87,7 +87,8 @@ SENDS = {
     "removeTags": ([{"notes": [int], "tags": str}], ()),
     "requestPermission": ([{}], ("result.permission", "error")),
     "retrieveMediaFile": ([{"filename": str}], ()),
-    "storeMediaFile": ([{"data": str, "filename": str}], ()),
+    # When reading the asset fails, by its path on this computer (AssetOperation.ts, getPathForPassingToAnki).
+    "storeMediaFile": ([{"data": str, "filename": str}, {"filename": str, "path": str}], ()),
     "suspend": ([{"cards": [int]}], ("",)),
     "unsuspend": ([{"cards": [int]}], ("",)),
     "updateModelTemplates": (

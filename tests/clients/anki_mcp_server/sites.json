@@ -1,13 +1,13 @@
 {
- "commit": "e0e347f",
+ "commit": "d7d6512",
  "hints": {
   "multi": [],
   "port_8765": [
    ".docker/ankiconnect-config.json:6",
    ".docker/docker-compose.yml:10",
-   ".github/workflows/e2e-inspector-latest.yml:100",
-   ".github/workflows/e2e-npm-package.yml:67",
-   ".github/workflows/e2e-tests.yml:39",
+   ".github/workflows/e2e-inspector-latest.yml:104",
+   ".github/workflows/e2e-npm-package.yml:75",
+   ".github/workflows/e2e-tests.yml:43",
    "manifest.json:288",
    "manifest.json:289",
    "scripts/e2e-full.sh:47",
@@ -179,7 +179,7 @@
     "hash": "dba98202b450fead"
    },
    {
-    "at": "src/mcp/utils/anki.utils.ts:74",
+    "at": "src/mcp/utils/anki.utils.ts:111",
     "hash": "988f9cea700ec121"
    },
    {
@@ -392,7 +392,7 @@
    },
    {
     "at": "src/mcp/primitives/essential/tools/mediaActions/actions/deleteMediaFile.action.ts:37",
-    "hash": "9eec736400518dcb"
+    "hash": "f4389663733eea8d"
    }
   ],
   "deleteNotes": [
@@ -994,7 +994,7 @@
    },
    {
     "at": "src/mcp/primitives/essential/tools/mediaActions/actions/retrieveMediaFile.action.ts:40",
-    "hash": "c3f1a6b909d0dd39"
+    "hash": "476df973951b9c94"
    },
    {
     "at": "src/mcp/primitives/essential/tools/retrieve-media-file.tool.ts:16",
@@ -1068,6 +1068,10 @@
    }
   ],
   "suspended": [
+   {
+    "at": "src/mcp/primitives/essential/tools/deck-stats.tool.ts:55",
+    "hash": "40f54a1ffde51d3b"
+   },
    {
     "at": "src/mcp/primitives/essential/tools/get-cards.tool.ts:17",
     "hash": "bc725703921254b1"
@@ -1153,32 +1157,32 @@
   ],
   "version": [
    {
-    "at": ".github/workflows/e2e-inspector-latest.yml:100",
+    "at": ".github/workflows/e2e-inspector-latest.yml:104",
     "hash": "5fb1c06f6e89ec70"
    },
    {
-    "at": ".github/workflows/e2e-inspector-latest.yml:100",
+    "at": ".github/workflows/e2e-inspector-latest.yml:104",
     "hash": "5fb1c06f6e89ec70"
    },
    {
-    "at": ".github/workflows/e2e-npm-package.yml:67",
+    "at": ".github/workflows/e2e-npm-package.yml:75",
     "hash": "5fb1c06f6e89ec70"
    },
    {
-    "at": ".github/workflows/e2e-npm-package.yml:67",
+    "at": ".github/workflows/e2e-npm-package.yml:75",
     "hash": "5fb1c06f6e89ec70"
    },
    {
-    "at": ".github/workflows/e2e-tests.yml:39",
+    "at": ".github/workflows/e2e-tests.yml:43",
     "hash": "5fb1c06f6e89ec70"
    },
    {
-    "at": ".github/workflows/e2e-tests.yml:39",
+    "at": ".github/workflows/e2e-tests.yml:43",
     "hash": "5fb1c06f6e89ec70"
    },
    {
     "at": "manifest.json:5",
-    "hash": "f21db3f9f11cafc9"
+    "hash": "010eed8061895db1"
    },
    {
     "at": "scripts/e2e-full.sh:47",

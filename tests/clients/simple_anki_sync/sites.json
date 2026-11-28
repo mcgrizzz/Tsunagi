@@ -1,5 +1,5 @@
 {
- "commit": "36ddadd",
+ "commit": "c352f9f",
  "hints": {
   "multi": [],
   "port_8765": [
@@ -22,13 +22,13 @@
   ],
   "cardsInfo": [
    {
-    "at": "src/anki-service.ts:152",
+    "at": "src/anki-service.ts:156",
     "hash": "2c1247ff9d5c2095"
    }
   ],
   "changeDeck": [
    {
-    "at": "src/anki-service.ts:136",
+    "at": "src/anki-service.ts:140",
     "hash": "aae88c0bb6a70d42"
    },
    {
@@ -55,26 +55,26 @@
   "deleteNotes": [
    {
     "at": "src/anki-service.ts:109",
-    "hash": "1f769f118e00705a"
+    "hash": "353c65283786a729"
    },
    {
-    "at": "src/main.ts:566",
-    "hash": "edbf83ae8a9531c7"
+    "at": "src/main.ts:567",
+    "hash": "039076819ef847d4"
    },
    {
-    "at": "src/main.ts:625",
+    "at": "src/main.ts:630",
     "hash": "4fd39e6ab43773a8"
    }
   ],
   "modelNames": [
    {
-    "at": "src/anki-service.ts:166",
+    "at": "src/anki-service.ts:170",
     "hash": "e306a0fe7470ed0e"
    }
   ],
   "notesInfo": [
    {
-    "at": "src/anki-service.ts:120",
+    "at": "src/anki-service.ts:124",
     "hash": "39a99628ca2ba464"
    }
   ],
@@ -86,7 +86,7 @@
   ],
   "storeMediaFile": [
    {
-    "at": "src/anki-service.ts:174",
+    "at": "src/anki-service.ts:178",
     "hash": "5a9ff6865cd3eef8"
    }
   ],

@@ -14,7 +14,7 @@ def sent(fields, audio=()):
                      "audio": list(audio), "options": {"allowDuplicate": True}, "tags": []}}
 
 def clip(filename):
-    """Audio the dictionary served, base64 (articleview.cc buildAnkiAudioDataObject L84-111)."""
+    """Audio the dictionary served, base64 (articleview.cc buildAnkiAudioDataObject L103-130)."""
     return {"data": B64, "filename": filename, "fields": ["Back"]}
 
 def web_audio(col, ctx):

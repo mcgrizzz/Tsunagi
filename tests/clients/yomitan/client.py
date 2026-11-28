@@ -14,8 +14,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Pop-up dictionary extension; mines words",
     "repo": "https://github.com/yomidevs/yomitan",
-    "commit": "e7334a9",
-    "read": "2026-10-15",
+    "commit": "64b4eba7",
+    "read": "2026-11-28",
     "files": [
         "ext/js/comm/anki-connect.js",
         "ext/js/background/backend.js",

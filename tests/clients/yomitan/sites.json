@@ -1,5 +1,5 @@
 {
- "commit": "e7334a9",
+ "commit": "64b4eba7",
  "hints": {
   "multi": [
    "ext/js/comm/anki-connect.js:541"
@@ -82,19 +82,19 @@
     "hash": "0c51123a06d779bf"
    },
    {
-    "at": "ext/js/language/translator.js:1304",
+    "at": "ext/js/language/translator.js:1305",
     "hash": "7eccc4b5671d504f"
    },
    {
-    "at": "ext/js/language/translator.js:1337",
+    "at": "ext/js/language/translator.js:1338",
     "hash": "fb9c9a6ecf6250cf"
    },
    {
-    "at": "ext/js/language/translator.js:1826",
+    "at": "ext/js/language/translator.js:1827",
     "hash": "8a67c1d3738c3868"
    },
    {
-    "at": "ext/js/language/translator.js:1827",
+    "at": "ext/js/language/translator.js:1828",
     "hash": "65e52e702b134077"
    }
   ],
@@ -242,19 +242,19 @@
   ],
   "storeMediaFile": [
    {
-    "at": "ext/js/background/backend.js:2530",
+    "at": "ext/js/background/backend.js:2543",
     "hash": "2ada992cb248edfc"
    },
    {
-    "at": "ext/js/background/backend.js:2550",
+    "at": "ext/js/background/backend.js:2563",
     "hash": "f21125ce9ba2d9f8"
    },
    {
-    "at": "ext/js/background/backend.js:2574",
+    "at": "ext/js/background/backend.js:2587",
     "hash": "09cef9d910377107"
    },
    {
-    "at": "ext/js/background/backend.js:2624",
+    "at": "ext/js/background/backend.js:2637",
     "hash": "9aa23f5aad897884"
    },
    {
@@ -282,8 +282,8 @@
     "hash": "bca6d2c90de1161f"
    },
    {
-    "at": "ext/js/media/web-audio-local-audio.js:89",
-    "hash": "b7b4273ec8312ae0"
+    "at": "ext/js/media/web-audio-local-audio.js:82",
+    "hash": "76bf7dd685a6eba4"
    }
   ],
   "sync": [

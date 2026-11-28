@@ -18,17 +18,17 @@ as opening the Browser, isn't covered.
 | Tool | What it is | Checked | Requests checked | Notes |
 | --- | --- | --- | --- | --- |
 | [anki-editor](https://github.com/anki-editor/anki-editor) | Emacs mode; pushes Org-mode notes | [`defeab6`](https://github.com/anki-editor/anki-editor/tree/defeab6), 2026-10-16 | 29 |  |
-| [anki-mcp-server](https://github.com/ankimcp/anki-mcp-server) | Gives AI assistants tools to read and edit Anki (MCP) | [`e0e347f`](https://github.com/ankimcp/anki-mcp-server/tree/e0e347f), 2026-10-15 | 49 |  |
+| [anki-mcp-server](https://github.com/ankimcp/anki-mcp-server) | Gives AI assistants tools to read and edit Anki (MCP) | [`d7d6512`](https://github.com/ankimcp/anki-mcp-server/tree/d7d6512), 2026-11-28 | 49 |  |
 | [anki.koplugin](https://github.com/Ajatt-Tools/anki.koplugin) | KOReader plugin; mines words while reading | [`55b07ed`](https://github.com/Ajatt-Tools/anki.koplugin/tree/55b07ed), 2026-10-16 | 7 |  |
-| [asbplayer](https://github.com/asbplayer/asbplayer) | Subtitle player; mines sentence cards | [`62c4d6e`](https://github.com/asbplayer/asbplayer/tree/62c4d6e), 2026-10-15 | 20 |  |
+| [asbplayer](https://github.com/asbplayer/asbplayer) | Subtitle player; mines sentence cards | [`910acf84`](https://github.com/asbplayer/asbplayer/tree/910acf84), 2026-11-28 | 20 |  |
 | [Easydict](https://github.com/tisfeng/Easydict) | macOS dictionary and translator; adds looked-up words | [`af5b654`](https://github.com/tisfeng/Easydict/tree/af5b654), 2026-10-16 | 3 |  |
 | [Flashcards (Obsidian)](https://github.com/reuseman/flashcards-obsidian) | Obsidian plugin; syncs cards from notes | [`2ca53d0`](https://github.com/reuseman/flashcards-obsidian/tree/2ca53d0), 2026-10-16 | 26 |  |
 | [Game Sentence Miner](https://github.com/bpwhelan/GameSentenceMiner) | Adds audio, screenshots and sentences to mined notes | [`bb62e5b`](https://github.com/bpwhelan/GameSentenceMiner/tree/bb62e5b), 2026-11-25 | 19 | Needs Tsunagi 0.7.5 or newer for media files named with a folder |
-| [GoldenDict-ng](https://github.com/xiaoyifang/goldendict-ng) | Desktop dictionary; sends articles to Anki as notes | [`5b1bade`](https://github.com/xiaoyifang/goldendict-ng/tree/5b1bade), 2026-10-16 | 5 |  |
-| [Jiten](https://github.com/Sirush/Jiten) | Imports known words and review history (jiten.moe) | [`fe383fc`](https://github.com/Sirush/Jiten/tree/fe383fc), 2026-10-15 | 9 |  |
+| [GoldenDict-ng](https://github.com/xiaoyifang/goldendict-ng) | Desktop dictionary; sends articles to Anki as notes | [`36d3ebcf`](https://github.com/xiaoyifang/goldendict-ng/tree/36d3ebcf), 2026-11-28 | 5 |  |
+| [Jiten](https://github.com/Sirush/Jiten) | Imports known words and review history (jiten.moe) | [`d62ae140`](https://github.com/Sirush/Jiten/tree/d62ae140), 2026-11-28 | 9 |  |
 | [JL](https://github.com/rampaa/JL) | Pop-up dictionary for Windows; mines words | [`8995ac5`](https://github.com/rampaa/JL/tree/8995ac5), 2026-10-15 | 9 |  |
 | [LinguaCafe](https://github.com/simjanos-dev/LinguaCafe) | Self-hosted reading app; adds words to Anki | [`c1ea298`](https://github.com/simjanos-dev/LinguaCafe/tree/c1ea298), 2026-10-16 | 7 |  |
-| [logseq-anki-sync](https://github.com/debanjandhar12/logseq-anki-sync) | Syncs Logseq blocks to Anki notes | [`0d881e3`](https://github.com/debanjandhar12/logseq-anki-sync/tree/0d881e3), 2026-10-15 | 34 |  |
+| [logseq-anki-sync](https://github.com/debanjandhar12/logseq-anki-sync) | Syncs Logseq blocks to Anki notes | [`6959868`](https://github.com/debanjandhar12/logseq-anki-sync/tree/6959868), 2026-11-28 | 35 |  |
 | [LunaTranslator](https://github.com/HIllya51/LunaTranslator) | Visual novel translator; adds looked-up words | [`0ee08c6`](https://github.com/HIllya51/LunaTranslator/tree/0ee08c6), 2026-10-15 | 8 | Needs Tsunagi 0.7.5 or newer for all of its requests (it sends them as GET) |
 | [LUTE](https://github.com/LuteOrg/lute-v3) | Learning-through-reading app; exports terms as notes | [`933d084`](https://github.com/LuteOrg/lute-v3/tree/933d084), 2026-10-16 | 9 |  |
 | [Manatan](https://github.com/KolbyML/Manatan) | Immersion app for anime, manga and novels; mines words | [`92d3787`](https://github.com/KolbyML/Manatan/tree/92d3787), 2026-10-16 | 21 |  |
@@ -36,14 +36,14 @@ as opening the Browser, isn't covered.
 | [mokuro-reader](https://github.com/Gnathonic/mokuro-reader) | Manga reader; makes cards from page crops | [`bfaeb48`](https://github.com/Gnathonic/mokuro-reader/tree/bfaeb48), 2026-10-15 | 14 |  |
 | [mpvacious](https://github.com/Ajatt-Tools/mpvacious) | mpv script; makes cards from video | [`26e4102`](https://github.com/Ajatt-Tools/mpvacious/tree/26e4102), 2026-10-16 | 10 |  |
 | [Obsidian_to_Anki](https://github.com/ObsidianToAnki/Obsidian_to_Anki) | Syncs Obsidian notes to Anki (plugin and script) | [`feb3db2`](https://github.com/ObsidianToAnki/Obsidian_to_Anki/tree/feb3db2), 2026-10-15 | 34 |  |
-| [Online Dictionary Helper](https://github.com/ninja33/ODH) | Pop-up dictionary extension; adds words as notes | [`d9b7bf8`](https://github.com/ninja33/ODH/tree/d9b7bf8), 2026-10-16 | 8 |  |
+| [Online Dictionary Helper](https://github.com/ninja33/ODH) | Pop-up dictionary extension; adds words as notes | [`8ed596c`](https://github.com/ninja33/ODH/tree/8ed596c), 2026-11-28 | 8 |  |
 | [Raycast Anki](https://github.com/raycast/extensions) | Anki extension for the Raycast launcher (macOS); browses, studies and adds notes | [`aad25dd3`](https://github.com/raycast/extensions/tree/aad25dd3), 2026-10-16 | 32 |  |
 | [Saladict](https://github.com/crimx/ext-saladict) | Pop-up dictionary extension; syncs its notebook | [`1673df1`](https://github.com/crimx/ext-saladict/tree/1673df1), 2026-11-25 | 11 |  |
-| [simple-anki-sync](https://github.com/russluber/simple-anki-sync) | Syncs Markdown tables in Obsidian to Anki | [`36ddadd`](https://github.com/russluber/simple-anki-sync/tree/36ddadd), 2026-10-15 | 13 |  |
-| [Tabbi](https://github.com/ethanwchen/tabbi) | macOS notch app showing due counts and streaks | [`60fef5f`](https://github.com/ethanwchen/tabbi/tree/60fef5f), 2026-10-15 | 8 |  |
+| [simple-anki-sync](https://github.com/russluber/simple-anki-sync) | Syncs Markdown tables in Obsidian to Anki | [`c352f9f`](https://github.com/russluber/simple-anki-sync/tree/c352f9f), 2026-11-28 | 13 |  |
+| [Tabbi](https://github.com/ethanwchen/tabbi) | macOS notch app showing due counts and streaks | [`0c26aac`](https://github.com/ethanwchen/tabbi/tree/0c26aac), 2026-11-28 | 8 |  |
 | [Yanki](https://github.com/kitschpatrol/yanki) | Syncs Markdown to Anki (command line and Obsidian) | [`f8522b7`](https://github.com/kitschpatrol/yanki/tree/f8522b7), 2026-11-25 | 22 |  |
 | [Yomine](https://github.com/mcgrizzz/Yomine) | Japanese immersion miner | [`7044efc`](https://github.com/mcgrizzz/Yomine/tree/7044efc), 2026-10-15 | 13 | Works with AnkiConnect or with Tsunagi's own API; this checks its AnkiConnect mode |
-| [Yomitan](https://github.com/yomidevs/yomitan) | Pop-up dictionary extension; mines words | [`e7334a9`](https://github.com/yomidevs/yomitan/tree/e7334a9), 2026-10-15 | 22 |  |
+| [Yomitan](https://github.com/yomidevs/yomitan) | Pop-up dictionary extension; mines words | [`64b4eba7`](https://github.com/yomidevs/yomitan/tree/64b4eba7), 2026-11-28 | 22 |  |
 
 Using another AnkiConnect tool? Try it, and [open an issue](https://github.com/mcgrizzz/Tsunagi/issues) to say how it went.
 

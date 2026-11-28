@@ -1,5 +1,5 @@
 {
- "commit": "60fef5f",
+ "commit": "0c26aac",
  "hints": {
   "multi": [
    "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:23",
@@ -10,12 +10,32 @@
    "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:198",
    "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:241",
    "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:251",
-   "Sources/TabbiKitCore/Anki/AnkiSummary.swift:193"
+   "Sources/TabbiKitCore/Anki/AnkiSummary.swift:193",
+   "windows/src/core/anki/ankiConnectClient.ts:36",
+   "windows/src/core/anki/ankiConnectClient.ts:218",
+   "windows/src/core/anki/ankiConnectClient.ts:252",
+   "windows/src/core/anki/ankiConnectClient.ts:258",
+   "windows/src/core/anki/ankiConnectClient.ts:304",
+   "windows/src/core/anki/ankiConnectClient.ts:310",
+   "windows/src/core/anki/ankiConnectClient.ts:345",
+   "windows/src/core/anki/ankiSummary.ts:484"
   ],
   "port_8765": [
    "Sources/TabbiKitCore/Anki/AnkiConnectTransport.swift:32",
    "Sources/TabbiKitCore/Anki/AnkiConnectTransport.swift:37",
-   "site/build.py:865"
+   "site/build.py:951",
+   "windows/src/core/anki/ankiConnectClient.ts:34",
+   "windows/src-tauri/src/http.rs:40",
+   "windows/src-tauri/src/http.rs:41",
+   "windows/src-tauri/src/http.rs:648",
+   "windows/src-tauri/src/http.rs:649",
+   "windows/src-tauri/src/http.rs:650",
+   "windows/src-tauri/src/http.rs:659",
+   "windows/src-tauri/src/http.rs:675",
+   "windows/src-tauri/src/http.rs:678",
+   "windows/src-tauri/src/http.rs:679",
+   "windows/src-tauri/src/http.rs:682",
+   "windows/src-tauri/src/http.rs:689"
   ],
   "version": [
    6
@@ -62,6 +82,46 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:214",
     "hash": "56dae4a123a53c9f"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:299",
+    "hash": "40b42ae61ac7348e"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:304",
+    "hash": "e6314e97d0415e14"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:309",
+    "hash": "4ab941beb461a486"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:316",
+    "hash": "5188779ee39888b6"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:316",
+    "hash": "5188779ee39888b6"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectModels.ts:188",
+    "hash": "c46b8c57253eb868"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:35",
+    "hash": "7f370865f718712d"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:91",
+    "hash": "5738f783648950b2"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:483",
+    "hash": "381d788a3a4099e6"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:509",
+    "hash": "c821fb3a8c1317a1"
    }
   ],
   "deckNamesAndIds": [
@@ -72,12 +132,24 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift:34",
     "hash": "7bd595f9bdf3dbc4"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:203",
+    "hash": "a075c8cb8e2ef0f3"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectModels.ts:107",
+    "hash": "fefff57b7899f4bf"
    }
   ],
   "findCards": [
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:181",
     "hash": "08ada5f55c78b7f5"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:291",
+    "hash": "5ae246a883d7cdbb"
    }
   ],
   "getDeckStats": [
@@ -120,6 +192,50 @@
    {
     "at": "Sources/TabbiKitCore/Connections/ConnectionGallery.swift:25",
     "hash": "4ae8ebc5e37b11c0"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:247",
+    "hash": "614a91c498e7d2b5"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:252",
+    "hash": "b7e5908a51b9be51"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:256",
+    "hash": "0db8093d4389a23c"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:274",
+    "hash": "9b55cb4a3b8f7597"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:274",
+    "hash": "9b55cb4a3b8f7597"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:447",
+    "hash": "bc33fdda6ee4ec6b"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectModels.ts:127",
+    "hash": "f0195e9bc87542d0"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectionState.ts:199",
+    "hash": "732582747a5280ab"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:85",
+    "hash": "c5888808f5e859c4"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:183",
+    "hash": "bac18af8172db21d"
+   },
+   {
+    "at": "windows/src/core/connections/connectionGallery.ts:53",
+    "hash": "5a81be552e41fd1a"
    }
   ],
   "getNumCardsReviewedByDay": [
@@ -150,6 +266,34 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:211",
     "hash": "745d588995fda40d"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:286",
+    "hash": "6ea753aa8b933b67"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectModels.ts:157",
+    "hash": "4e2d14df0a612eb3"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:31",
+    "hash": "f0ed545185cac859"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:33",
+    "hash": "7297d9dfabb7e79c"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:89",
+    "hash": "f75c3c27e3b51161"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:507",
+    "hash": "3ff83475c5017e97"
+   },
+   {
+    "at": "windows/src/modules/anki/AnkiPanel.tsx:393",
+    "hash": "bfc9f6f291285150"
    }
   ],
   "getNumCardsReviewedToday": [
@@ -168,12 +312,40 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:210",
     "hash": "cc47bfe468ff262e"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:281",
+    "hash": "1dfc48648442e053"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectError.ts:269",
+    "hash": "158a288dad834f33"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:31",
+    "hash": "f0ed545185cac859"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:87",
+    "hash": "5b7bce86c3ccd1c7"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:506",
+    "hash": "5812e5b04ba91fe1"
    }
   ],
   "guiDeckOverview": [
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:220",
     "hash": "1e46de5330ed08ed"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:329",
+    "hash": "606709109788f7dd"
+   },
+   {
+    "at": "windows/src/modules/anki/ankiStore.ts:394",
+    "hash": "a924b25732f7338e"
    }
   ],
   "guiDeckReview": [
@@ -184,6 +356,14 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiDeckOpener.swift:128",
     "hash": "2790d3a154deffd0"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:324",
+    "hash": "5786d7b4a80c69ab"
+   },
+   {
+    "at": "windows/src/modules/anki/ankiStore.ts:394",
+    "hash": "a924b25732f7338e"
    }
   ],
   "multi": [
@@ -222,6 +402,38 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiSummary.swift:193",
     "hash": "667abcef049c0343"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:36",
+    "hash": "64399e16e8fcae4e"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:218",
+    "hash": "cd97b5b717c09b47"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:252",
+    "hash": "b7e5908a51b9be51"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:258",
+    "hash": "8b010f83b5b78d90"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:304",
+    "hash": "e6314e97d0415e14"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:310",
+    "hash": "676f4e3f18f1f4b6"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:345",
+    "hash": "6df4a7c9635608b9"
+   },
+   {
+    "at": "windows/src/core/anki/ankiSummary.ts:484",
+    "hash": "065238f8a273804b"
    }
   ],
   "requestPermission": [
@@ -236,6 +448,22 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiConnectModels.swift:3",
     "hash": "2dc61512505a91d0"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:169",
+    "hash": "1ad467f16d566f44"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:174",
+    "hash": "d784406a37e26fbd"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectError.ts:22",
+    "hash": "2573666f306af2f6"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectModels.ts:87",
+    "hash": "4ff27f86246aa040"
    }
   ],
   "sync": [
@@ -250,6 +478,26 @@
    {
     "at": "Sources/TabbiKitCore/Anki/AnkiConnectClient.swift:228",
     "hash": "62485cd6d77770e2"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:36",
+    "hash": "64399e16e8fcae4e"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:335",
+    "hash": "876de0cb174c6adf"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:337",
+    "hash": "5eda5d524a26ed75"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectError.ts:35",
+    "hash": "dd60d29d17908146"
+   },
+   {
+    "at": "windows/src/modules/anki/ankiStore.ts:467",
+    "hash": "514a05991cbfefea"
    }
   ],
   "version": [
@@ -266,12 +514,28 @@
     "hash": "99e9cb7c7fa79f06"
    },
    {
-    "at": "site/build.py:325",
+    "at": "site/build.py:354",
     "hash": "8d49c6e8d2631648"
    },
    {
-    "at": "site/build.py:328",
+    "at": "site/build.py:357",
     "hash": "3e3d07a13a2e6e99"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:40",
+    "hash": "7d9f653b468070ea"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:164",
+    "hash": "ade7fd7750785a24"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectClient.ts:346",
+    "hash": "a0dc92fee11ce1cd"
+   },
+   {
+    "at": "windows/src/core/anki/ankiConnectModels.ts:104",
+    "hash": "fdcbe4d81eb8ac35"
    }
   ]
  }
