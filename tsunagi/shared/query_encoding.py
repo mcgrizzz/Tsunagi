@@ -2,8 +2,12 @@
 import json
 from typing import Any
 
+import orjson
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+
+_PASSTHROUGH = (orjson.OPT_PASSTHROUGH_SUBCLASS | orjson.OPT_PASSTHROUGH_DATACLASS
+                | orjson.OPT_PASSTHROUGH_DATETIME)
 
 
 class _NeedsFrameworkEncoder(Exception):
@@ -14,7 +18,7 @@ def _unsupported(value: Any) -> Any:
     raise _NeedsFrameworkEncoder
 
 
-def render_query_page(page: Any) -> bytes:
+def render_query_page(page: Any, floatless: bool = False) -> bytes:
     # Called only for the standard Paginated[ModelRow] envelope. Its rows were
     # validated and projected by the query engine; field names are already final.
     # Most pages contain only JSON values, which the C encoder renders exactly as
@@ -23,6 +27,21 @@ def render_query_page(page: Any) -> bytes:
     # `total` is only sent when it was asked for (include=total).
     body = page.__dict__ if page.__dict__.get("total") is not None else {
         k: v for k, v in page.__dict__.items() if k != "total"}
+    if floatless and not page.__config__.json_encoders:
+        # orjson (Anki's own dependency) first: on a large page it is five
+        # times faster than json, with the same bytes (backlog 6.157). What it
+        # would render differently goes on to the encoders below: str, int,
+        # dict and list subclasses, dataclasses and datetimes by passthrough,
+        # non-string keys, ints beyond 64 bits and sets by refusing them. It
+        # would write NaN and infinity as null where json refuses them, so it
+        # is used only for rows that hold no floats (`floatless`).
+        try:
+            data = orjson.dumps(body, default=_unsupported, option=_PASSTHROUGH)
+        except (_NeedsFrameworkEncoder, TypeError):
+            pass
+        else:
+            if b'"_sa' not in data:
+                return data
     if not page.__config__.json_encoders:
         try:
             text = json.dumps(body, ensure_ascii=False, allow_nan=False,

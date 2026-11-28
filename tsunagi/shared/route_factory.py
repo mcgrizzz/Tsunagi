@@ -161,10 +161,16 @@ def _finish(
             get = lambda r: (r[one],)  # itemgetter of one key returns the value, not a tuple
         else:
             get = itemgetter(*(n.path[0] for n in nodes))
-        try:
-            final_items = [dict(zip(names, get(r))) for r in page_rows]
-        except KeyError:
-            final_items = None
+        if all(list(r) == names for r in page_rows):
+            # Sources that read only the selected columns (reviews) already
+            # built these rows, keys in this order: copying them again was a
+            # fifth of a large review read (backlog 6.157).
+            final_items = page_rows
+        else:
+            try:
+                final_items = [dict(zip(names, get(r))) for r in page_rows]
+            except KeyError:
+                final_items = None
     if final_items is None:
         include = selection_include(nodes)
         projected = [project_scalars(_as_dict(r, include), nodes) for r in page_rows]
@@ -816,11 +822,16 @@ def create_resource_routes(
     # Anki's deck presets keep keys this API doesn't list; their names aren't checked.
     fields = None if row_model.__config__.extra == "allow" else frozenset(row_model.__fields__)
 
+    # Rows whose every field is a plain int, str or bool can't hold a NaN, so
+    # their pages may use the faster encoder (render_query_page).
+    floatless = row_model.__config__.extra != "allow" and all(
+        f.outer_type_ in (int, str, bool) for f in row_model.__fields__.values())
+
     def query_response(page):
         # The shared query engine already validated and projected this
         # envelope; response_model only documents the rows.
         if type(page) is Paginated[ModelRow]:
-            return Response(render_query_page(page), media_type="application/json")
+            return Response(render_query_page(page, floatless), media_type="application/json")
         return page
 
     def prepare_select(select: str) -> str:
