@@ -68,7 +68,9 @@
 
   <section class="panel">
     <div class="panel-head"><h2>What was measured</h2>
-      <p class="hint">Every run keeps its versions and the collection it ran on, so runs can be compared over time.</p></div>
+      <p class="hint">Every run keeps its versions, the collection it ran on and the state Anki was in. Within a run, the three
+      APIs were measured in the same state. Between runs it can differ, and that moves the times: on 2026-11-27, with Anki
+      minimized, each Tsunagi API write took about 6 ms longer than on 2026-11-26.</p></div>
     <div class="run" id="run"></div>
   </section>
 
@@ -138,7 +140,8 @@
     const size = run.collection || {};
     $("run").innerHTML = `<div><h3>Versions</h3><dl>
         <dt>Tsunagi</dt><dd>${esc(run.tsunagi)}</dd><dt>Anki</dt><dd>${esc(run.anki)}</dd>
-        <dt>AnkiConnect</dt><dd>${esc(run.ankiconnect || "not recorded")}</dd></dl></div>
+        <dt>AnkiConnect</dt><dd>${esc(run.ankiconnect || "not recorded")}</dd>
+        <dt>Anki's state</dt><dd>${esc(run.conditions || "not recorded")}</dd></dl></div>
       <div><h3>The collection</h3><dl>${SIZE.filter(([k]) => size[k] != null).map(([k, l]) => `<dt>${l}</dt><dd>${fmt.int(size[k])}</dd>`).join("")}</dl>
         ${Object.keys(size).length < 2 ? '<p class="hint">This run recorded only the note count.</p>' : ""}
         <p class="hint">A real collection, used for Japanese mining: mostly mining and Kaishi 1.5k cards, with their review history and media.</p></div>`;

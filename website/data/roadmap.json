@@ -10,6 +10,9 @@
   {"title": "Python client", "state": "next",
    "about": "A thin client for scripts and Python apps, generated from the same API description.",
    "link": null},
+  {"title": "Faster review history", "state": "done", "release": "v0.7.8",
+   "about": "Review history answers sooner on large collections: about 0.94 s to 0.74 s for 280,000 reviews. `areDue` and `getIntervals` answer for cards that were never reviewed.",
+   "link": "https://github.com/mcgrizzz/Tsunagi/releases/tag/v0.7.8"},
   {"title": "Faster field text", "state": "done", "release": "v0.7.7",
    "about": "`fields[].text` converts only the fields a read names, and uses a field without HTML as it is. A filter on the text itself works.",
    "link": "https://github.com/mcgrizzz/Tsunagi/releases/tag/v0.7.7"}
