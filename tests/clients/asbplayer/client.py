@@ -7,8 +7,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Subtitle player; mines sentence cards",
     "repo": "https://github.com/asbplayer/asbplayer",
-    "commit": "62c4d6e",
-    "read": "2026-10-15",
+    "commit": "910acf84",
+    "read": "2026-11-28",
     "files": [
         "common/anki/anki.ts",
         "common/dictionary-db/dictionary-db-anki.ts",
@@ -19,7 +19,7 @@ CLIENT = {
         "common/src/fetcher.ts",
         "extension/src/handlers/video/http-post-handler.ts",
     ],
-    "uses": "Anki._executeAction (anki.ts L865-889): version 6, key only if set, params left out when null; "
+    "uses": "Anki._executeAction (anki.ts L900-924): version 6, key only if set, params left out when null; "
             "one POST per action, no multi; batches one after another",
     "notes": "Any error throws; an error containing 'duplicate' is a DuplicateNoteError. "
              "The extension proxies only 19 actions (http-post-handler.ts L5-25).",

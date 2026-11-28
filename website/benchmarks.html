@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmarks</title>
+<meta name="description" content="Real AnkiConnect tools' work, timed through AnkiConnect, Tsunagi's AnkiConnect shim and the Tsunagi API: every trial, requests and bytes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@300;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="explain.css">
+<style>
+  .wl { border-top: 1px solid var(--line); padding: 14px 0 12px; }
+  .wl:first-child { border-top: 0; }
+  .wl-head { display: flex; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; align-items: baseline; }
+  .wl-head b { font: 600 14px var(--mono); }
+  .wl-head .gain { font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  .wl-head .gain.slower { color: var(--bad); }
+  .wl .src { font-size: 13.5px; color: var(--muted); margin: 2px 0 6px; max-width: 92ch; }
+  .wl svg { display: block; width: 100%; height: auto; }
+  .wl svg text { font: 12px "IBM Plex Sans", sans-serif; fill: var(--muted); }
+  .wl svg .lbl { fill: var(--ink); }
+  .wl svg .val { fill: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wl svg .track { stroke: var(--grid); stroke-width: 10; stroke-linecap: round; }
+  .wl svg .trial { fill-opacity: .5; }
+  .wl svg .median { stroke-width: 3; stroke-linecap: round; }
+  .wl svg .bar { rx: 3; }
+  .wl svg .req { stroke: var(--surface); stroke-width: 1; }
+  .wl .acts { display: flex; gap: 14px; align-items: center; margin-top: 4px; }
+  .wl .play { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; font: inherit; font-size: 13px; padding: 2px 11px 2px 9px; cursor: pointer; }
+  .wl .play:hover { border-color: var(--accent); }
+  .wl svg .fill { rx: 5; }
+  .wl svg .fill.done { fill: var(--good); }
+  .wl svg .ok { fill: var(--good); font-weight: 600; }
+  .wl svg .no { fill: var(--bad); font-weight: 600; }
+  .wl svg .end { fill: var(--muted); font-size: 11px; }
+  .wl.playing .trial, .wl.playing .median, .wl.playing .req { opacity: .12; }
+  .wl svg .lbl.ts { fill: var(--api-ts); font-weight: 600; }
+  .run { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 18px; margin: 10px 0 0; }
+  .run div { min-width: 0; }
+  .run dt { font-size: 13px; color: var(--muted); }
+  .run dd { margin: 0; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+  .run .wide { grid-column: span 2; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 22px; margin: 12px 0 0; }
+  .facts div { min-width: 0; }
+  .facts dt { font-weight: 600; font-size: 14.5px; }
+  .facts dd { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+  @media (max-width: 480px) { .run .wide { grid-column: auto; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div>
+        <p class="eyebrow"><a class="brand" href="./"><span class="ja" lang="ja">繋ぎ</span> Tsunagi</a><span class="sep">·</span><a href="parity.html">AnkiConnect parity</a><span class="sep">·</span><a href="tools.html">Tested tools</a><span class="sep">·</span><span aria-current="page">Benchmarks</span><span class="sep">·</span><a href="roadmap.html">Roadmap &amp; releases</a><span class="sep">·</span><a href="https://github.com/mcgrizzz/Tsunagi">GitHub</a></p>
+        <h1>Real tools' work, timed <span class="accent">three ways</span></h1>
+        <p class="lede">Each workload is something a real AnkiConnect tool does, taken from its code. It runs against the
+          same Anki collection through AnkiConnect and through Tsunagi's AnkiConnect shim, sending exactly what the tool
+          sends, and through the Tsunagi API, written the way an app would use it.</p>
+      </div>
+      <button id="theme" class="btn" type="button" aria-label="Switch between light and dark">Theme</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="controls">
+    <span class="muted">Run</span>
+    <div class="seg" id="runs" role="group" aria-label="Which run"></div>
+  </div>
+  <div class="cards" id="stats"></div>
+
+  <section class="panel">
+    <div class="panel-head"><h2>What was measured</h2>
+      <p class="hint">A real Japanese mining collection. In a run, all three APIs ran in the same conditions; between runs
+        they can differ, so compare APIs within a run.</p></div>
+    <dl class="run" id="run"></dl>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Every workload</h2>
+      <p class="hint">Each dot is one timed run; the bar is the middle one. Each workload has its own scale, from zero to
+        its slowest run. Press <strong>Play</strong> to race the three: in Time, each bar fills at the measured pace;
+        in Requests, a ball goes from the tool to Anki and back once per request. <strong>Show each request</strong>
+        splits each bar into its requests: in Time, the middle run's requests where they happened, the gaps being the
+        tool's own time between them; in Requests, one segment per request. Hover one for what it was.</p>
+    </div>
+    <div class="controls">
+      <span class="muted">Show</span>
+      <div class="seg" id="measure" role="group" aria-label="Measure"></div>
+      <span class="muted">Order</span>
+      <div class="seg" id="order" role="group" aria-label="Order"></div>
+      <span class="muted">Play at</span>
+      <div class="seg" id="speed" role="group" aria-label="Speed"></div>
+      <label><input type="checkbox" id="each"> Show each request</label>
+    </div>
+    <div class="keys" id="keys"></div>
+    <div id="workloads"></div>
+  </section>
+
+  <section class="panel">
+    <h2>How to read this</h2>
+    <dl class="facts" id="method"></dl>
+  </section>
+</main>
+
+<footer class="wrap foot">Measured with <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/tools/benchmark_workloads.py">tools/benchmark_workloads.py</a>;
+  how to run it yourself is in <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/benchmarks.md#reproduce-the-benchmarks">docs/benchmarks.md</a>.
+  <span class="credit">I really enjoyed Jonathan Schoreels' <a href="https://jschoreels.github.io/anki-rwkv/">website on predicting memory with RWKV</a>, and it heavily inspired this site's style.</span></footer>
+<script src="site.js"></script>
+<script>
+(async () => {
+  const { load, esc, fmt, h, s, seg, bindTip, reducedMotion } = window.UI;
+  const $ = id => document.getElementById(id);
+  const API = [["AnkiConnect", "var(--api-ac)"], ["AnkiConnect Shim", "var(--api-shim)"], ["Tsunagi API", "var(--api-ts)"]];
+  const SIZE = [["notes", "Notes"], ["cards", "Cards"], ["reviews", "Reviews"], ["note_types", "Note types"], ["decks", "Decks"], ["media_files", "Media files"]];
+  const SCALE = { note_types: "note type", notes: "note", cards: "card" };
+  const { runs } = await load("benchmarks");
+  let run = runs[0], measure = "time", order = "gain", speed = 1;
+  let each = false;
+  const players = new Set();   // running animations, stopped when the view changes
+  const VW = 1000, left = 150, right = 190, rowH = 22;
+
+  // How many times faster than AnkiConnect; null when either didn't answer.
+  const gain = (w, label) => (w.results.AnkiConnect.failed || w.results[label].failed ? null : w.results.AnkiConnect.median_ms / w.results[label].median_ms);
+  const compared = label => run.workloads.filter(w => gain(w, label) != null);
+  const geo = label => Math.exp(compared(label).reduce((a, w) => a + Math.log(gain(w, label)), 0) / compared(label).length);
+  const failedSeconds = r => parseFloat(r.failed.match(/([\d.]+) s/)?.[1] ?? "120");
+  const card = ([k, v, sub, accent]) => `<div class="card"><div class="k">${k}</div><div class="v${accent ? " accent" : ""}">${v}</div><div class="s">${sub}</div></div>`;
+
+  function header() {
+    const W = run.workloads, session = W.find(w => w.name === "mine_session");
+    const failedAC = W.filter(w => w.results.AnkiConnect.failed);
+    const slowerTs = compared("Tsunagi API").filter(w => gain(w, "Tsunagi API") < 1).length;
+    const runsN = W[0].results["Tsunagi API"].trials_ms.length;
+    $("stats").innerHTML = [
+      ["Mining session, Tsunagi API", fmt.x(gain(session, "Tsunagi API")), `${fmt.ms(session.results["Tsunagi API"].median_ms)} vs ${fmt.ms(session.results.AnkiConnect.median_ms)} through AnkiConnect`, true],
+      ["Same tools, through the shim", fmt.x(geo("AnkiConnect Shim")), `faster than AnkiConnect, typically (geometric mean of ${compared("AnkiConnect Shim").length})` +
+        (failedAC.length ? `; AnkiConnect didn't answer ${failedAC.length} at all` : "")],
+      ["Through the Tsunagi API", fmt.x(geo("Tsunagi API")), `faster than AnkiConnect, typically; ${slowerTs ? `slower in ${slowerTs}` : `faster in all ${compared("Tsunagi API").length}`}`],
+      ["Measured", fmt.date(run.measured), `${runsN} runs of each workload, through each API`],
+    ].map(card).join("");
+    const size = run.collection || {};
+    const item = (k, v, wide) => `<div${wide ? ' class="wide"' : ""}><dt>${k}</dt><dd>${esc(v)}</dd></div>`;
+    $("run").innerHTML = [
+      item("Tsunagi", run.tsunagi), item("Anki", run.anki), item("AnkiConnect", run.ankiconnect || "not recorded", true),
+      item("Conditions", run.conditions || "not recorded", true),
+      ...SIZE.filter(([k]) => size[k] != null).map(([k, l]) => item(l, fmt.int(size[k]))),
+    ].join("");
+    const fewer = W.flatMap(w => API.filter(([l]) => w.results[l].trials_ms && w.results[l].trials_ms.length !== runsN)
+      .map(([l]) => `<code>${esc(w.name)}</code> through ${esc(l)}: ${w.results[l].trials_ms.length}, at ${fmt.ms(w.results[l].median_ms)} each.`));
+    const slower = compared("Tsunagi API").filter(w => gain(w, "Tsunagi API") < 1).map(w => `<code>${esc(w.name)}</code>`);
+    $("method").innerHTML = [
+      ["The bar", `The middle of ${runsN} timed runs per API. One more run before them warms up and isn't counted.${fewer.length ? ` Fewer runs where one took minutes: ${fewer.join(" ")}` : ""}`],
+      ["Same requests", "AnkiConnect and the shim get exactly what the tool sends. The Tsunagi API gets the same result the way an app would ask."],
+      ["Same answers", "Each run's result is fingerprinted and compared across the three, so a faster answer isn't a different one."],
+      ["Connections", run.limits.map(esc).join(" ")],
+      ["No answer", "A request with no answer in time shows that instead of a time, and its workload is left out of the speed-ups."],
+      ...(slower.length ? [["Slower", `The Tsunagi API is slower than AnkiConnect on ${slower.join(" and ")}. What's known about why is in <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/benchmarks.md">docs/benchmarks.md</a>.`]] : []),
+    ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  }
+
+  // One row per API: the measured view, and the pieces a Play animates.
+  function strip(w) {
+    const vals = { time: r => Math.max(...r.trials_ms), requests: r => r.requests, bytes: r => r.response_bytes };
+    const max = Math.max(...API.filter(([l]) => !w.results[l].failed).map(([l]) => vals[measure](w.results[l])));
+    const x = v => left + (VW - left - right) * v / max;
+    const svg = s("svg", { viewBox: `0 0 ${VW} ${API.length * rowH + 4}`, role: "img", "aria-label": `${w.name}, ${measure}` });
+    const rows = API.map(([label, color], i) => {
+      const r = w.results[label], y = i * rowH + rowH / 2 + 2, row = { label, color, r, y };
+      svg.append(s("text", { class: label === "Tsunagi API" ? "lbl ts" : "lbl", x: 0, y: y + 4 }, label));
+      if (measure !== "bytes") svg.append(s("line", { class: "track", x1: left, x2: VW - right, y1: y, y2: y }));
+      row.value = s("text", { class: "val", x: VW - right + 12, y: y + 4 });
+      row.note = s("text", { x: VW - right + 90, y: y + 4 });
+      if (r.failed) {
+        row.idle = () => { row.value.textContent = ""; row.value.setAttribute("class", "no"); row.value.textContent = "No answer"; row.note.textContent = r.failed; };
+      } else if (measure === "time" && each && r.log) {
+        r.log.forEach(q => {
+          const block = s("rect", { class: "req", x: x(q.start_ms), y: y - 6, width: Math.max(1, x(q.end_ms) - x(q.start_ms)), height: 12, rx: 1.5, fill: color });
+          bindTip(block, `<b>${esc(q.what)}</b>${esc(label)}: ${fmt.ms(q.end_ms - q.start_ms)} · ${fmt.bytes(q.bytes)} answered`);
+          svg.append(block);
+        });
+        const g = gain(w, label);
+        row.idle = () => {
+          row.value.setAttribute("class", "val"); row.value.textContent = fmt.ms(r.log.at(-1).end_ms);
+          row.note.textContent = `${r.requests} request${r.requests > 1 ? "s" : ""}`;
+        };
+      } else if (measure === "time") {
+        r.trials_ms.forEach((t, k) => {
+          const dot = s("circle", { class: "trial", cx: x(t), cy: y, r: 4.5, fill: color });
+          bindTip(dot, `<b>${esc(label)}</b>run ${k + 1}: ${fmt.ms(t)}`);
+          svg.append(dot);
+        });
+        svg.append(s("line", { class: "median", x1: x(r.median_ms), x2: x(r.median_ms), y1: y - 8, y2: y + 8, stroke: color }));
+        const g = gain(w, label);
+        row.idle = () => {
+          row.value.setAttribute("class", "val"); row.value.textContent = fmt.ms(r.median_ms);
+          row.note.textContent = label === "AnkiConnect" || g == null ? "" : `${fmt.x(g >= 1 ? g : 1 / g)} ${g >= 1 ? "faster" : "slower"}`;
+        };
+      } else {
+        const v = vals[measure](r);
+        const bar = s("rect", { class: "bar", x: left, y: y - 7, width: Math.max(2, x(v) - left), height: 14, fill: color });
+        bindTip(bar, `<b>${esc(label)}</b>${measure === "requests" ? `${v} requests` : `${fmt.bytes(v)} answered`}`);
+        svg.append(bar);
+        row.bar = bar;
+        if (measure === "requests" && each) {
+          // Dividers between requests, where they fit; each segment names its request when the run logged them.
+          const step = (x(v) - left) / v;
+          const parts = s("g");
+          for (let k = 0; k < v; k++) {
+            const q = r.log?.[k];
+            const seg = s("rect", { class: step >= 3 ? "req" : null, x: left + k * step, y: y - 7, width: step, height: 14, fill: "transparent" });
+            bindTip(seg, `<b>${esc(label)}, request ${k + 1} of ${v}</b>${q ? `${esc(q.what)}: ${fmt.ms(q.end_ms - q.start_ms)}` : "this run didn't record each request"}`);
+            parts.append(seg);
+          }
+          svg.append(parts);
+          row.parts = parts;
+        }
+        row.idle = () => { row.value.setAttribute("class", "val"); row.value.textContent = measure === "requests" ? `${v} requests` : fmt.bytes(v); row.note.textContent = ""; };
+      }
+      svg.append(row.value, row.note);
+      row.idle();
+      return row;
+    });
+    return { svg, rows, x };
+  }
+
+  // Each request's start and end in ms: the measured ones, or spread evenly over the median when the run didn't log them.
+  function requestTimes(r) {
+    if (r.log) return r.log.map(q => [q.start_ms, q.end_ms]);
+    const slot = r.median_ms / r.requests;
+    return Array.from({ length: r.requests }, (_, k) => [k * slot, k * slot + slot * 0.8]);
+  }
+
+  // Play one workload: in Time, bars fill to the median at the chosen pace; in Requests, a ball bounces once per request.
+  function play(box, w, view) {
+    const fills = [], balls = [];
+    view.rows.forEach(row => {
+      if (measure === "time") {
+        const f = s("rect", { class: "fill", x: left, y: row.y - 5, width: 0, height: 10, fill: row.color });
+        view.svg.insertBefore(f, row.value);
+        fills.push(f);
+      } else {
+        if (row.bar) row.bar.setAttribute("opacity", ".12");
+        if (row.parts) row.parts.remove();
+        const ball = s("circle", { cx: left, cy: row.y, r: 6, fill: row.color, stroke: "var(--surface)", "stroke-width": 2 });
+        view.svg.append(ball);
+        balls.push(ball);
+        row.times = row.r.failed ? [] : requestTimes(row.r);
+      }
+    });
+    const ends = view.rows.map(row => (row.r.failed ? failedSeconds(row.r) * 1000 : measure === "time" ? row.r.median_ms : row.times.at(-1)[1]));
+    const T = Math.max(...ends);
+    box.classList.add("playing");
+    let raf, t0 = performance.now();
+    const player = { stop: () => cancelAnimationFrame(raf) };
+    players.add(player);
+    const button = box.querySelector(".play");
+    button.textContent = "■ Stop";
+    function frame(now) {
+      const e = reducedMotion() ? T : (now - t0) * speed;
+      view.rows.forEach((row, i) => {
+        const done = e >= ends[i];
+        if (measure === "time") {
+          const target = row.r.failed ? VW - right : view.x(row.r.median_ms);
+          fills[i].setAttribute("width", Math.max(0, (target - left) * Math.min(1, e / ends[i])));
+          if (done) fills[i].setAttribute("class", row.r.failed ? "fill" : "fill done");
+          if (row.r.failed) { row.value.setAttribute("class", done ? "no" : "val"); row.value.textContent = done ? "No answer" : `${(e / 1000).toFixed(1)} s`; }
+          else { row.value.setAttribute("class", done ? "ok" : "val"); row.value.textContent = done ? `✓ ${fmt.ms(row.r.median_ms)}` : fmt.ms(e); }
+        } else {
+          const k = row.times.findIndex(([a, b]) => e >= a && e < b);
+          let pos = 0;
+          if (k >= 0) { const [a, b] = row.times[k]; const ph = (e - a) / (b - a); pos = ph < 0.5 ? ph * 2 : (1 - ph) * 2; }
+          balls[i].setAttribute("cx", left + (VW - right - left) * pos);
+          const n = row.times.filter(([, b]) => b <= e).length;
+          if (row.r.failed) { row.value.setAttribute("class", done ? "no" : "val"); row.value.textContent = done ? "No answer" : "waiting"; }
+          else { row.value.setAttribute("class", done ? "ok" : "val"); row.value.textContent = done ? `✓ ${row.r.requests} requests` : `${n} of ${row.r.requests}`; }
+        }
+      });
+      if (e < T) raf = requestAnimationFrame(frame);
+      else { players.delete(player); button.textContent = "↺ Reset"; }
+    }
+    raf = requestAnimationFrame(frame);
+    return player;
+  }
+
+  function workload(w) {
+    const g = gain(w, "Tsunagi API");
+    const verdict = w.results.AnkiConnect.failed ? `AnkiConnect: ${w.results.AnkiConnect.failed}`
+      : `Tsunagi API ${fmt.x(g >= 1 ? g : 1 / g)} ${g >= 1 ? "faster" : "slower"} than AnkiConnect`;
+    const scale = w.scales_with && run.collection?.[w.scales_with] != null
+      ? ` Its requests grow with the collection: one per ${SCALE[w.scales_with]}, and this collection has ${fmt.int(run.collection[w.scales_with])}.` : "";
+    const view = strip(w);
+    const box = h("div", { class: "wl" },
+      h("div", { class: "wl-head" }, h("b", {}, w.name), h("span", { class: `gain${g == null || g < 1 ? " slower" : ""}` }, verdict)),
+      h("div", { class: "src" }, w.source + (/[.)]$/.test(w.source) ? "" : ".") + scale),
+      view.svg);
+    let player = null;
+    const acts = h("div", { class: "acts" },
+      measure !== "bytes" ? h("button", { class: "play", type: "button", onclick: () => {
+        if (player && players.has(player)) { player.stop(); players.delete(player); }
+        if (box.classList.contains("playing")) { box.replaceWith(workload(w)); return; }   // stopped or finished: back to the measured view
+        player = play(box, w, view);
+      } }, "▶ Play") : null);
+    box.append(acts);
+    return box;
+  }
+
+  function draw() {
+    players.forEach(p => p.stop()); players.clear();
+    const rows = [...run.workloads];
+    if (order === "gain") rows.sort((a, b) => (gain(b, "Tsunagi API") ?? Infinity) - (gain(a, "Tsunagi API") ?? Infinity));
+    $("workloads").replaceChildren(...rows.map(workload));
+  }
+  $("keys").innerHTML = API.map(([l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join("");
+  seg($("runs"), runs.map(r => [r.measured, `${fmt.date(r.measured)} · Tsunagi ${r.tsunagi}`]), run.measured, v => { run = runs.find(r => r.measured === v); header(); draw(); });
+  seg($("measure"), [["time", "Time"], ["requests", "Requests"], ["bytes", "Answer size"]], measure, v => { measure = v; draw(); });
+  seg($("order"), [["gain", "Biggest gain first"], ["list", "As measured"]], order, v => { order = v; draw(); });
+  seg($("speed"), [[1, "Real time"], [0.1, "10× slower"]], speed, v => { speed = v; });
+  $("each").addEventListener("change", e => { each = e.target.checked; draw(); });
+  header();
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -18,7 +18,7 @@ To install Tsunagi and connect your tools, start with the
 
 - [Build your first integration](getting_started.md): check the connection,
   add a note, read it back, undo it, use an app key.
-- [API reference](https://mcgrizzz.github.io/Tsunagi/): every operation, for
+- [API reference](https://mcgrizzz.github.io/Tsunagi/reference/): every operation, for
   the latest release. [In Anki](playground.md), the same reference sends real
   requests.
 - [Create notes and upload media](creating_notes.md): save several notes,

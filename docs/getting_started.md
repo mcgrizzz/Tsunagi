@@ -110,7 +110,7 @@ request, so it can hide what it can't use.
 
 ## Next
 
-- **Every operation:** the [API reference](https://mcgrizzz.github.io/Tsunagi/),
+- **Every operation:** the [API reference](https://mcgrizzz.github.io/Tsunagi/reference/),
   or the [interactive one in Anki](playground.md) that sends real requests.
 - **Notes and media:** [creating notes](creating_notes.md), with duplicate
   checks and adding to a note you already have.

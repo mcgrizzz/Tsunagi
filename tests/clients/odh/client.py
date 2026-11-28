@@ -15,8 +15,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Pop-up dictionary extension; adds words as notes",
     "repo": "https://github.com/ninja33/ODH",
-    "commit": "d9b7bf8",
-    "read": "2026-10-16",
+    "commit": "8ed596c",
+    "read": "2026-11-28",
     "files": [
         "src/bg/js/ankiconnect.js",
         "src/bg/js/serviceworker.js",

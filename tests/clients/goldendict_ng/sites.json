@@ -1,5 +1,5 @@
 {
- "commit": "5b1bade",
+ "commit": "36d3ebcf",
  "hints": {
   "multi": [],
   "port_8765": [
@@ -36,6 +36,18 @@
    {
     "at": "src/ankiconnector.cc:98",
     "hash": "df70feb362c915f3"
+   },
+   {
+    "at": "src/config.cc:501",
+    "hash": "fad36836678990d6"
+   },
+   {
+    "at": "src/config.cc:502",
+    "hash": "364cbf2d36a0eb23"
+   },
+   {
+    "at": "src/config.cc:1337",
+    "hash": "ce1c3660e0a9ed2f"
    }
   ]
  }

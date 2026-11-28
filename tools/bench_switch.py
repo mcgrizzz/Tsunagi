@@ -3,6 +3,19 @@
 
     python tools/bench_switch.py ankiconnect --profile "My Test Profile"
     python tools/bench_switch.py tsunagi --profile "My Test Profile"
+    python tools/bench_switch.py restore --profile "My Usual Profile"
+
+Every other add-on is turned off too: add-ons that draw on the deck list
+(Study Time Stats, Review Heatmap) redraw after each card change while Anki
+has focus, and every request waits for them (0.3-0.5 s on 283,000 reviews,
+2026-11-27). The first switch saves each add-on's state to
+tsunagi-bench-addons.json beside addons21; `restore` puts them all back,
+deletes that file and starts Anki on the profile. --keep-addons leaves the
+other add-ons as they are. A switch also minimizes Anki once it answers,
+so every API is measured with the window in the same state: focused, Anki
+redraws after each card change; minimized, each wait for Anki's main thread
+takes longer on Windows 11 (mine_session 330-630 ms by window state alone,
+2026-11-27).
 
 Windows only. Asks the running API to close Anki (AnkiConnect's
 guiExitAnki, which Tsunagi also answers; Tsunagi needs a key with the manage
@@ -24,6 +37,7 @@ import urllib.request
 from pathlib import Path
 
 ADDONS = Path(os.environ.get("APPDATA", "")) / "Anki2" / "addons21"
+SNAPSHOT = ADDONS.parent / "tsunagi-bench-addons.json"
 ANKI_EXE = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Anki" / "anki.exe"
 ANKICONNECT = "2055492159"
 TSUNAGI = "tsunagi"
@@ -58,6 +72,28 @@ def anki_running():
     return "anki.exe" in out.lower()
 
 
+def minimize(profile):
+    """Minimize Anki's main window ("<profile> - Anki"); False if it wasn't found."""
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    found = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def each(hwnd, _):
+        title = ctypes.create_unicode_buffer(512)
+        user32.GetWindowTextW(hwnd, title, 512)
+        if user32.IsWindowVisible(hwnd) and title.value == f"{profile} - Anki":
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(each, 0)
+    for hwnd in found:
+        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+    return bool(found)
+
+
 def wait(check, seconds, what):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -76,17 +112,27 @@ def set_disabled(folder, disabled):
     return "off" if disabled else "on"
 
 
+def addon_states():
+    """Each add-on folder with a meta.json -> whether it is disabled."""
+    return {path.parent.name: bool(json.loads(path.read_text(encoding="utf-8")).get("disabled", False))
+            for path in sorted(ADDONS.glob("*/meta.json"))}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("api", choices=sorted(PORTS))
+    parser.add_argument("api", choices=sorted(PORTS) + ["restore"])
     parser.add_argument("--profile", default=os.environ.get("TSUNAGI_BENCH_PROFILE"),
                         help="Anki profile to open (or set TSUNAGI_BENCH_PROFILE)")
     parser.add_argument("--anki-exe", type=Path, default=ANKI_EXE)
+    parser.add_argument("--keep-addons", action="store_true",
+                        help="leave the other add-ons as they are")
     args = parser.parse_args()
     if not args.profile:
         parser.error("--profile is required (or set TSUNAGI_BENCH_PROFILE)")
     if not args.anki_exe.exists():
         parser.error(f"Anki not found at {args.anki_exe}; pass --anki-exe")
+    if args.api == "restore" and not SNAPSHOT.exists():
+        parser.error(f"nothing to restore: {SNAPSHOT} doesn't exist")
 
     if anki_running():
         print("Closing Anki...")
@@ -104,8 +150,29 @@ def main():
              "(TSUNAGI_BENCH_API_KEY, with the manage permission) or AnkiConnect's, if it has one "
              "(ANKICONNECT_API_KEY). Or close Anki yourself and rerun")
 
-    print(f"AnkiConnect {set_disabled(ANKICONNECT, args.api != 'ankiconnect')}, "
-          f"Tsunagi {set_disabled(TSUNAGI, args.api != 'tsunagi')}")
+    restoring = args.api == "restore"
+    if restoring:
+        saved = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+        for folder, disabled in saved.items():
+            if (ADDONS / folder / "meta.json").exists():
+                set_disabled(folder, disabled)
+        SNAPSHOT.unlink()
+        print(f"Add-ons restored ({sum(not d for d in saved.values())} on)")
+        # Wait for whichever API is on now; Tsunagi first.
+        args.api = next((api for api, folder in (("tsunagi", TSUNAGI), ("ankiconnect", ANKICONNECT))
+                         if not saved.get(folder, True)), None)
+    else:
+        if not args.keep_addons:
+            if not SNAPSHOT.exists():  # the state before the first switch, kept across switches
+                SNAPSHOT.write_text(json.dumps(addon_states(), indent=1), encoding="utf-8")
+            others = [f for f, disabled in addon_states().items()
+                      if not disabled and f not in (ANKICONNECT, TSUNAGI)]
+            for folder in others:
+                set_disabled(folder, True)
+            if others:
+                print(f"{len(others)} other add-ons off until `restore`")
+        print(f"AnkiConnect {set_disabled(ANKICONNECT, args.api != 'ankiconnect')}, "
+              f"Tsunagi {set_disabled(TSUNAGI, args.api != 'tsunagi')}")
     # Anki writes its console output (add-on warnings, tracebacks) to the
     # console of whatever started it. Start it through a short-lived cmd with a
     # hidden console of its own, so none of it lands in this terminal and
@@ -114,9 +181,19 @@ def main():
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      close_fds=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
                      | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    if args.api is None:
+        print(f"Started Anki on {args.profile!r}; neither API is on")
+        return
     port = PORTS[args.api]
     print(f"Starting Anki on {args.profile!r}, waiting for {args.api} on port {port}...")
     wait(lambda: ask(args.api, "version", timeout=1.0) is not None, 120, f"{args.api} to answer on port {port}")
+    if not restoring:
+        # The window's state changes every timing (see above); minimized is the
+        # one a switch can always reach. Anki can take focus after it answers,
+        # so wait a little first.
+        time.sleep(5)
+        print("Anki minimized" if minimize(args.profile)
+              else f"Anki's window ({args.profile} - Anki) not found; minimize it yourself")
     print(f"Ready: {args.api} on http://127.0.0.1:{port}")
 
 

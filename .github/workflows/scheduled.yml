@@ -3,8 +3,10 @@ name: Weekly checks
 # Runs once a week without a push: the full CI (suite on both supported Anki
 # versions, Qt checks, pip-audit), so a change in Anki, a dependency or the
 # runner shows before the next push; and upstream AnkiConnect against
-# docs/ankiconnect_parity.md, so an action it gains or drops shows. A failure
-# opens an issue labelled `weekly`, or comments on the one still open.
+# docs/ankiconnect_parity.md, so an action it gains or drops shows; and each
+# tested tool's latest code against the commit read (tools/check_clients.py),
+# so a tool that changes what it sends shows. A failure opens an issue
+# labelled `weekly`, or comments on the one still open.
 
 on:
   schedule:
@@ -48,9 +50,32 @@ jobs:
           fi
           exit "$code"
 
+  tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      drift: ${{ steps.check.outputs.drift }}
+      report: ${{ steps.check.outputs.report }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compare each tool's latest code with the commit read
+        id: check
+        run: |
+          set +e
+          python3 tools/check_clients.py | tee "$RUNNER_TEMP/tools.txt"
+          code=${PIPESTATUS[0]}
+          set -e
+          # 1 is a tool that changed or couldn't be cloned, reported as an issue; anything else is a broken check.
+          if [ "$code" = 1 ]; then
+            { echo "drift=true"; echo "report<<EOF"; grep -v ": no change$" "$RUNNER_TEMP/tools.txt"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$code"
+
   report:
-    needs: [ci, parity]
-    if: always() && (needs.ci.result != 'success' || needs.parity.result != 'success' || needs.parity.outputs.drift == 'true')
+    needs: [ci, parity, tools]
+    if: always() && (needs.ci.result != 'success' || needs.parity.result != 'success' || needs.parity.outputs.drift == 'true' || needs.tools.result != 'success' || needs.tools.outputs.drift == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -64,19 +89,23 @@ jobs:
           PARITY: ${{ needs.parity.result }}
           DRIFT: ${{ needs.parity.outputs.drift }}
           DRIFT_REPORT: ${{ needs.parity.outputs.report }}
+          TOOLS: ${{ needs.tools.result }}
+          TOOLS_DRIFT: ${{ needs.tools.outputs.drift }}
+          TOOLS_REPORT: ${{ needs.tools.outputs.report }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh label create weekly --color fbca04 \
-            --description "Weekly checks: CI or AnkiConnect drift" 2>/dev/null || true
+            --description "Weekly checks: CI, AnkiConnect or tested tools drift" 2>/dev/null || true
           report() {  # title, body
             num=$(gh issue list --label weekly --state open --json number,title \
               --jq ".[] | select(.title == \"$1\") | .number" | head -n 1)
             if [ -n "$num" ]; then gh issue comment "$num" --body "$2"
             else gh issue create --label weekly --title "$1" --body "$2"; fi
           }
-          if [ "$CI_RESULT" != success ] || [ "$PARITY" != success ]; then
+          if [ "$CI_RESULT" != success ] || [ "$PARITY" != success ] || [ "$TOOLS" != success ]; then
             report "Weekly checks failed" "CI: $CI_RESULT
           AnkiConnect check: $PARITY
+          Tested tools check: $TOOLS
 
           Run: $RUN_URL"
           fi
@@ -85,6 +114,15 @@ jobs:
 
           \`\`\`
           $DRIFT_REPORT
+          \`\`\`
+
+          Run: $RUN_URL"
+          fi
+          if [ "$TOOLS_DRIFT" = true ]; then
+            report "A tested tool's code changed" "Read each tool's changed call sites again (tools/scan_client.py CHECKOUT --compare NAME), update its declaration in tests/clients/, and save its sites.json.
+
+          \`\`\`
+          $TOOLS_REPORT
           \`\`\`
 
           Run: $RUN_URL"

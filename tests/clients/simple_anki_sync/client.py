@@ -13,8 +13,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Syncs Markdown tables in Obsidian to Anki",
     "repo": "https://github.com/russluber/simple-anki-sync",
-    "commit": "36ddadd",
-    "read": "2026-10-15",
+    "commit": "c352f9f",
+    "read": "2026-11-28",
     "files": [
         "src/anki-service.ts",
         "src/main.ts",
@@ -42,7 +42,7 @@ SENDS = {
     "changeDeck": ([{"cards": [int], "deck": str}], ("result", "error")),
     "createDeck": ([{"deck": str}], ("error",)),
     "deckNames": ([{}], ("result", "error")),
-    "deleteNotes": ([{"notes": [int]}], ("error",)),
+    "deleteNotes": ([{"notes": [int]}], ("result", "error")),
     "modelNames": ([{}], ("result", "error")),
     "notesInfo": (
         [{"notes": [int]}],

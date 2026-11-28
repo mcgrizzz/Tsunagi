@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap and releases</title>
+<meta name="description" content="What's being built in Tsunagi now, what's next, and every release so far.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@300;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .road { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .road h3 { margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; }
+  .item { border: 1px solid var(--line); border-left: 4px solid var(--dc); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+  .item b { display: block; }
+  .item p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+  .item a { font-size: 14px; }
+  .empty { color: var(--muted); font-size: 14px; }
+  .spark { display: flex; align-items: flex-end; gap: 3px; height: 54px; margin-top: 10px; }
+  .spark i { flex: 1; background: var(--seq-2); border-radius: 3px 3px 0 0; min-height: 3px; }
+  .spark i.hl { background: var(--accent); }
+  @media (max-width: 860px) { .road { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div>
+        <p class="eyebrow"><a class="brand" href="./"><span class="ja" lang="ja">繋ぎ</span> Tsunagi</a><span class="sep">·</span><a href="parity.html">AnkiConnect parity</a><span class="sep">·</span><a href="tools.html">Tested tools</a><span class="sep">·</span><a href="benchmarks.html">Benchmarks</a><span class="sep">·</span><span aria-current="page">Roadmap &amp; releases</span><span class="sep">·</span><a href="https://github.com/mcgrizzz/Tsunagi">GitHub</a></p>
+        <h1>What's being built, and what <span class="accent">shipped</span></h1>
+        <p class="lede">The work in progress and what comes next, then every release, newest first, with what changed.</p>
+      </div>
+      <button id="theme" class="btn" type="button" aria-label="Switch between light and dark">Theme</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="cards" id="stats"></div>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Roadmap</h2></div>
+    <div class="road" id="road"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Releases</h2>
+      <p class="hint">Each bar is a release, by how many changes its notes list. Open one for the details.</p>
+    </div>
+    <div class="spark" id="spark" aria-hidden="true"></div>
+    <ol class="timeline" id="releases"></ol>
+  </section>
+</main>
+
+<footer class="wrap foot">Releases from <a href="https://github.com/mcgrizzz/Tsunagi/releases">GitHub</a>, read when this site was built.
+  <span class="credit">I really enjoyed Jonathan Schoreels' <a href="https://jschoreels.github.io/anki-rwkv/">website on predicting memory with RWKV</a>, and it heavily inspired this site's style.</span></footer>
+<script src="site.js"></script>
+<script>
+(async () => {
+  const { load, esc, prose, fmt, h, bindTip } = window.UI;
+  const $ = id => document.getElementById(id);
+  const [{ items }, releases] = await Promise.all([load("roadmap"), load("releases")]);
+  const changes = r => r.sections.reduce((n, sec) => n + sec.items.length, 0);
+  const first = releases.at(-1), latest = releases[0];
+
+  $("stats").innerHTML = [
+    ["Latest release", esc(latest.tag), fmt.date(latest.date), true],
+    ["Releases", releases.length, `since ${fmt.date(first.date)}`],
+    ["Changes listed", releases.reduce((n, r) => n + changes(r), 0), "in the release notes"],
+    ["Being built now", items.filter(i => i.state === "now").length, items.filter(i => i.state === "now").map(i => esc(i.title)).join(", ")],
+  ].map(([k, v, sub, accent]) => `<div class="card"><div class="k">${k}</div><div class="v${accent ? " accent" : ""}">${v}</div><div class="s">${sub}</div></div>`).join("");
+
+  const STATES = [["now", "Building now", "var(--warn)"], ["next", "Next", "var(--accent)"], ["done", "Recently done", "var(--good)"]];
+  $("road").replaceChildren(...STATES.map(([state, title, color]) => {
+    const mine = items.filter(i => i.state === state);
+    return h("div", {}, h("h3", {}, title, h("span", { class: `tag ${state}` }, String(mine.length))),
+      mine.length ? mine.map(i => h("div", { class: "item", style: { "--dc": color } },
+        h("b", {}, i.title, i.release ? h("span", { class: "muted", style: { "font-weight": 400 } }, ` in ${i.release}`) : null),
+        h("p", { html: prose(i.about) }),
+        i.link ? h("a", { href: i.link }, "Read more") : null)) : h("p", { class: "empty" }, "Nothing here right now."));
+  }));
+
+  const most = Math.max(...releases.map(changes), 1);
+  $("spark").replaceChildren(...releases.slice().reverse().map(r => {
+    const bar = h("i", { style: { height: `${Math.max(6, 100 * changes(r) / most)}%` } });
+    bindTip(bar, `<b>${esc(r.tag)}</b>${fmt.date(r.date)} · ${changes(r)} changes listed`);
+    return bar;
+  }));
+
+  $("releases").replaceChildren(...releases.map((r, i) => {
+    const n = releases.length - i;
+    const body = h("div", { class: "body" },
+      h("h3", {}, h("a", { href: r.url }, r.tag)),
+      h("div", { class: "meta" }, `${fmt.date(r.date)}${changes(r) ? ` · ${changes(r)} changes` : ""}`),
+      r.summary ? h("p", { html: prose(r.summary) }) : null,
+      r.sections.length ? h("details", {},
+        h("summary", {}, "What changed"),
+        r.sections.map(sec => [h("h3", { style: { "font-size": ".95rem" } }, sec.name),
+          h("ul", {}, sec.items.map(it => h("li", { html: `<strong>${prose(it.title)}.</strong> ${prose(it.text)}` })))])) : null);
+    return h("li", { class: "tl", style: { "--dc": i === 0 ? "var(--accent)" : "var(--seq-2)" } }, h("span", { class: "dot" }, String(n)), body);
+  }));
+})();
+</script>
+</body>
+</html>

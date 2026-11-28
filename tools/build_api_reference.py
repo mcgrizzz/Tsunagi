@@ -1,6 +1,7 @@
 """Build the public API reference: the local reference page, read-only, over a
-release's API description. The API reference workflow publishes it to GitHub
-Pages; run it yourself to look at the result:
+release's API description. The site workflow (.github/workflows/site.yml)
+publishes it to GitHub Pages under /reference/; run it yourself to look at the
+result:
 
     python tools/build_api_reference.py --version 0.6.0 --out site
     python -m http.server -d site

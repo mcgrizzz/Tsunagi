@@ -4,8 +4,9 @@
   <a href="#install">Install</a> ·
   <a href="#replace-ankiconnect">Switch from AnkiConnect</a> ·
   <a href="docs/getting_started.md">Build an integration</a> ·
-  <a href="https://mcgrizzz.github.io/Tsunagi/">API reference</a> ·
-  <a href="docs/README.md">Documentation</a>
+  <a href="https://mcgrizzz.github.io/Tsunagi/reference/">API reference</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="https://mcgrizzz.github.io/Tsunagi/">Project site</a>
 </p>
 
 Tsunagi (繋ぎ, “connection”) is an Anki desktop add-on that can take over from
@@ -26,7 +27,7 @@ events, undoable writes, per-app permissions, FSRS tools and a typed
 TypeScript client come with it.
 
 **[Build your first integration →](docs/getting_started.md)** ·
-**[Browse the API reference](https://mcgrizzz.github.io/Tsunagi/)**
+**[Browse the API reference](https://mcgrizzz.github.io/Tsunagi/reference/)**
 
 > [!NOTE]
 > Experimental. Supports **Anki 26.08 and 26.09** (the current desktop release
@@ -73,7 +74,7 @@ by default ([app keys](config.md#apps--keys)).
 curl http://127.0.0.1:7777/v1/health
 ```
 
-Browse the [API reference](https://mcgrizzz.github.io/Tsunagi/), or open
+Browse the [API reference](https://mcgrizzz.github.io/Tsunagi/reference/), or open
 <http://127.0.0.1:7777/> while Anki runs to send real requests.
 
 **[Build your first integration →](docs/getting_started.md)**
@@ -114,7 +115,7 @@ Tsunagi API made 40 requests in 326 ms where AnkiConnect made 80 in 2,875 ms
 | **Live changes** | An [event stream](docs/events.md) of what changed in the collection. |
 | **A key per app** | Separate credentials and permissions for each integration. |
 | **FSRS** | Compute and evaluate parameters, and simulate study workload. |
-| **OpenAPI** | Browse every operation in the [API reference](https://mcgrizzz.github.io/Tsunagi/). |
+| **OpenAPI** | Browse every operation in the [API reference](https://mcgrizzz.github.io/Tsunagi/reference/). |
 
 **[Build your first integration →](docs/getting_started.md)** ·
 [Yomitan case study](docs/api_recipes.md): a real AnkiConnect integration,
@@ -172,7 +173,7 @@ private note content first.
 | Using AnkiConnect tools | Building an integration |
 | --- | --- |
 | [Compatibility notes](docs/ankiconnect_parity.md) | [Build your first integration](docs/getting_started.md) |
-| [Settings reference](config.md) | [API reference](https://mcgrizzz.github.io/Tsunagi/) ([in Anki](docs/playground.md)) |
+| [Settings reference](config.md) | [API reference](https://mcgrizzz.github.io/Tsunagi/reference/) ([in Anki](docs/playground.md)) |
 | [Security model](docs/security.md) | [Creating notes](docs/creating_notes.md) · [Events](docs/events.md) |
 | [Benchmarks](docs/benchmarks.md) | [Yomitan case study](docs/api_recipes.md) · [TypeScript client](packages/typescript/README.md) |
 

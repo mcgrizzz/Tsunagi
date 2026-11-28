@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tested tools</title>
+<meta name="description" content="The AnkiConnect tools Tsunagi is checked against: what each one sends, and when its code was last read.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@300;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
+  .tool { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tool .name { font-weight: 600; text-decoration: none; color: var(--ink); }
+  .tool .name:hover { color: var(--accent); text-decoration: underline; }
+  .tool .about { font-size: 14px; color: var(--muted); }
+  .works { display: flex; align-items: flex-start; gap: 6px; font-size: 14px; font-weight: 600; color: var(--good); margin-top: 4px; }
+  .works svg { flex: none; margin-top: 2px; }
+  .works small { display: block; font-weight: 400; color: var(--muted); }
+  .tool .meta { font-size: 13px; color: var(--muted); margin-top: auto; padding-top: 6px; }
+  .tool details summary { font-size: 13.5px; color: var(--accent); cursor: pointer; margin-top: 4px; }
+  .tool details p, .tool details dl { font-size: 13.5px; margin: 6px 0 0; }
+  .tool details dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 10px; }
+  .tool details dt { color: var(--muted); }
+  .tool details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .tool:target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .tool .fresh { font-size: 13px; color: var(--muted); }
+  .tool .fresh.changed { color: var(--warn); }
+  .head-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  a.btn { text-decoration: none; display: inline-block; }
+  .layers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .layer { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg); min-width: 0; }
+  .layer h3 { margin: 0 0 4px; }
+  .layer p { margin: 0; font-size: 14px; color: var(--muted); }
+  .layer .when { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13.5px; font-weight: 600; color: var(--good); }
+  .not-covered { font-size: 14px; color: var(--muted); margin: 12px 0 0; }
+  @media (max-width: 760px) { .layers { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 900px) { .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .tools { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div>
+        <p class="eyebrow"><a class="brand" href="./"><span class="ja" lang="ja">繋ぎ</span> Tsunagi</a><span class="sep">·</span><a href="parity.html">AnkiConnect parity</a><span class="sep">·</span><span aria-current="page">Tested tools</span><span class="sep">·</span><a href="benchmarks.html">Benchmarks</a><span class="sep">·</span><a href="roadmap.html">Roadmap &amp; releases</a><span class="sep">·</span><a href="https://github.com/mcgrizzz/Tsunagi">GitHub</a></p>
+        <h1 id="title">AnkiConnect tools that work with Tsunagi</h1>
+        <p class="lede">Each tool's code was read at a commit, and every request it sends is checked against Tsunagi on every
+          change. Switch from AnkiConnect and these keep working, with no change to the tool.</p>
+      </div>
+      <button id="theme" class="btn" type="button" aria-label="Switch between light and dark">Theme</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="cards" id="stats"></div>
+
+  <section class="panel">
+    <div class="panel-head row">
+      <h2>Every tool</h2>
+      <div class="head-actions">
+        <input type="search" id="search" placeholder="Find a tool or an action it sends" aria-label="Find a tool or an action it sends">
+        <a class="btn primary" href="https://github.com/mcgrizzz/Tsunagi/issues/new?template=missing-tool.yml">Suggest a missing tool</a>
+      </div>
+    </div>
+    <div class="tools" id="tools"></div>
+  </section>
+
+  <section class="panel" id="add">
+    <h2>How tools are checked</h2>
+    <div class="layers">
+      <div class="layer">
+        <h3>Every AnkiConnect action, on its own</h3>
+        <p>The main check: each action has tests of its own, whatever tool sends it. See
+          <a href="parity.html">AnkiConnect parity</a>.</p>
+        <p class="when"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs on every change to Tsunagi</p>
+      </div>
+      <div class="layer">
+        <h3>Each tool's requests, as it sends them</h3>
+        <p>On top of that, every request in each tool's code is compared with AnkiConnect's answer, for cards in every
+          state: new, learning, suspended, in a filtered deck and more.</p>
+        <p class="when"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs on every change to Tsunagi</p>
+      </div>
+      <div class="layer">
+        <h3>Each tool's latest code</h3>
+        <p>And each tool's newest code is compared with the commit that was read. Where the code that sends a request
+          changed, the tool is flagged to be read again.</p>
+        <p class="when"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs every week</p>
+      </div>
+    </div>
+    <p class="not-covered">Not covered: the tools' own code isn't run, so what a tool does with Anki's windows, such as
+      opening the Browser, isn't checked. Missing a tool? <a href="https://github.com/mcgrizzz/Tsunagi/issues/new?template=missing-tool.yml">Suggest it</a> and we'll add it.</p>
+  </section>
+</main>
+<footer class="wrap foot">Written from the tools' declarations in
+  <a href="https://github.com/mcgrizzz/Tsunagi/tree/main/tests/clients">tests/clients</a>.
+  <span class="credit">I really enjoyed Jonathan Schoreels' <a href="https://jschoreels.github.io/anki-rwkv/">website on predicting memory with RWKV</a>, and it heavily inspired this site's style.</span></footer>
+<script src="site.js"></script>
+<script>
+(async () => {
+  const { load, esc, prose, fmt, h } = window.UI;
+  const $ = id => document.getElementById(id);
+  const { tools } = await load("tools");
+  const requests = t => t.actions.reduce((n, a) => n + a.requests, 0);
+  const checked = tools.filter(t => t.compared && !t.compared.error);
+  const toRecheck = checked.filter(t => t.compared.changed.length);
+  const needs = tools.filter(t => t.needs);
+  $("stats").innerHTML = [
+    ["Tools that work", `${tools.length} of ${tools.length}`, "with every request they send", true],
+    ["Requests checked", fmt.int(tools.reduce((n, t) => n + requests(t), 0)), "on every change to Tsunagi"],
+    ["Need a recent Tsunagi", needs.length, needs.length ? `${needs.map(t => esc(t.name)).join(" and ")}: ${esc(needs[0].needs[0])} or newer` : "none"],
+    checked.length
+      ? ["Latest code compared", fmt.date(checked[0].compared.date), `${checked.length - toRecheck.length} unchanged · ${toRecheck.length} to read again`]
+      : ["Latest code compared", "not yet", "every week from now"],
+  ].map(([k, v, sub, accent]) => `<div class="card"><div class="k">${k}</div><div class="v${accent ? " accent" : ""}">${v}</div><div class="s">${sub}</div></div>`).join("");
+
+  const CHECK = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const card = t => {
+    const env = t.envelope;
+    const envelope = [`version ${env.version ?? "none"}`, env.key === "absent" ? "no key" : `key ${env.key}`, env.method].filter(Boolean).join(", ");
+    const sent = t.actions.map(a => {
+      const label = `${esc(a.name)}${a.requests > 1 ? ` <span class="n">×${a.requests}</span>` : ""}`;
+      return `<li>${a.code ? `<a href="${esc(a.code)}" title="Where ${esc(t.name)} sends it">${label}</a>` : `<span>${label}</span>`}</li>`;
+    }).join("");
+    return h("article", { class: "tool", id: `tool-${t.id}` },
+      h("a", { class: "name", href: t.repo }, t.name),
+      h("div", { class: "about" }, t.about),
+      h("div", { class: "works", html: t.needs
+        ? `${CHECK}<span>Works with Tsunagi ${esc(t.needs[0])} or newer<small>${esc(t.needs[1])}</small></span>`
+        : `${CHECK}<span>Works${t.note ? `<small>${prose(t.note)}</small>` : ""}</span>` }),
+      h("div", { class: "meta" }, `${requests(t)} requests checked · code read ${fmt.date(t.read)}`,
+        freshness(t)),
+      h("details", {}, h("summary", {}, "What it sends"),
+        h("ul", { class: "chips", html: sent }),
+        h("dl", { html: `<dt>Code read at</dt><dd><a href="${esc(t.repo)}/tree/${esc(t.commit)}"><code>${esc(t.commit)}</code></a></dd>
+          <dt>Sends</dt><dd>${esc(envelope)}</dd>${t.details ? `<dt>From its code</dt><dd>${prose(t.details)}</dd>` : ""}
+          ${t.compared?.changed?.length ? `<dt>Changed since</dt><dd>${t.compared.changed.map(a => `<code>${esc(a)}</code>`).join(" ")} in <a href="${esc(t.repo)}/compare/${esc(t.commit)}...${esc(t.compared.latest)}"><code>${esc(t.compared.latest)}</code></a></dd>` : ""}` })));
+  };
+  // When its latest code was last compared with the commit read, and what changed.
+  function freshness(t) {
+    const c = t.compared;
+    if (!c) return null;
+    if (c.error) return h("div", { class: "fresh" }, `Latest code couldn't be compared on ${fmt.date(c.date)}`);
+    const n = c.changed.length;
+    return n
+      ? h("div", { class: "fresh changed" }, `Code for ${n} action${n > 1 ? "s" : ""} changed since; to read again (compared ${fmt.date(c.date)})`)
+      : h("div", { class: "fresh" }, `Latest code compared ${fmt.date(c.date)}: no change`);
+  }
+  const cards = new Map(tools.map(t => [t, card(t)]));
+  $("tools").replaceChildren(...cards.values());
+  $("search").addEventListener("input", e => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const [t, el] of cards) {
+      el.hidden = Boolean(q) && !t.name.toLowerCase().includes(q) && !t.about.toLowerCase().includes(q)
+        && !t.actions.some(a => a.name.toLowerCase().includes(q));
+    }
+  });
+  if (location.hash) document.querySelector(location.hash)?.scrollIntoView({ block: "center" });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tsunagi</title>
+<meta name="description" content="Tsunagi connects apps and tools to Anki: it answers AnkiConnect's requests and adds its own API. Interactive explanations of how, plus parity, tested tools, benchmarks and the roadmap.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@300;500&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="explain.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div>
+        <p class="eyebrow"><span class="brand" aria-current="page"><span class="ja" lang="ja">繋ぎ</span> Tsunagi</span><span class="sep">·</span><a href="parity.html">AnkiConnect parity</a><span class="sep">·</span><a href="tools.html">Tested tools</a><span class="sep">·</span><a href="benchmarks.html">Benchmarks</a><span class="sep">·</span><a href="roadmap.html">Roadmap &amp; releases</a><span class="sep">·</span><a href="https://github.com/mcgrizzz/Tsunagi">GitHub</a></p>
+        <div class="hero">
+          <div class="mark-wrap">
+            <p class="mark" lang="ja">繋ぎ</p>
+            <p class="mark-gloss"><i>tsunagi</i>, a connection</p>
+          </div>
+          <div>
+            <h1>Connects your apps and tools to Anki</h1>
+            <p class="lede">An Anki add-on that answers AnkiConnect's requests, so the tools you use keep working, and adds an
+              API of its own for apps: fewer requests, changes as they happen, and a key and role for each app. This
+              page shows how, step by step.</p>
+          </div>
+        </div>
+      </div>
+      <button id="theme" class="btn" type="button" aria-label="Switch between light and dark">Theme</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="hub" aria-label="Project pages">
+    <a class="card" href="parity.html">
+      <h2>AnkiConnect parity</h2>
+      <p>Every AnkiConnect action: how Tsunagi answers it, what it needs, the Tsunagi API way, and where AnkiConnect itself is broken.</p>
+      <div class="stat" id="hub-parity">–</div>
+    </a>
+    <a class="card" href="tools.html">
+      <h2>Tested tools</h2>
+      <p>AnkiConnect tools whose code was read, request by request, and each request checked against Tsunagi.</p>
+      <div class="stat" id="hub-tools">–</div>
+    </a>
+    <a class="card" href="benchmarks.html">
+      <h2>Benchmarks</h2>
+      <p>Real tools' work timed through AnkiConnect, Tsunagi's AnkiConnect shim and the Tsunagi API.</p>
+      <div class="stat" id="hub-bench">–</div>
+    </a>
+    <a class="card" href="roadmap.html">
+      <h2>Roadmap &amp; releases</h2>
+      <p>What's being built now, what's next, and every release so far.</p>
+      <div class="stat" id="hub-roadmap">–</div>
+    </a>
+  </nav>
+
+  <section class="panel" id="session">
+    <div class="panel-head">
+      <h2>1. A mining session, three ways</h2>
+      <p class="hint">Yomitan, ten lookups. Each popup checks whether its words already exist in Anki, then you add the
+        word you looked up, with its audio and picture, and its card is suspended. The same session, timed against
+        AnkiConnect, Tsunagi's AnkiConnect shim and the Tsunagi API. Above, what you'd see; below, each block is one
+        request. Press Play.</p>
+    </div>
+    <div class="controls">
+      <button class="btn primary" type="button" id="s-play">Play</button>
+      <button class="btn" type="button" id="s-reset">Reset</button>
+      <div class="seg" id="s-speed" role="group" aria-label="Speed"></div>
+    </div>
+    <div class="readers" id="s-readers"></div>
+    <div class="replay" id="s-replay"></div>
+    <div class="explain" id="s-explain" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="popup">
+    <div class="panel-head">
+      <h2>2. One popup, request by request</h2>
+      <p class="hint">One lookup from that session, slowed down. You hover <span lang="ja">食べ物</span>, and Yomitan's
+        popup shows three entries for it: two that already exist in Anki, and the one you add now. Step through what Yomitan
+        sends to AnkiConnect, beside what an app sends to the Tsunagi API for the same result.</p>
+    </div>
+    <div class="controls">
+      <button class="btn primary" type="button" id="p-next">Next step</button>
+      <button class="btn" type="button" id="p-reset">Start over</button>
+      <span class="muted" id="p-count" aria-live="polite"></span>
+    </div>
+    <div class="popup-row">
+      <div class="mock" id="p-mock"></div>
+      <ol class="goals" id="p-goals"></ol>
+    </div>
+    <div class="grid2 lanes2">
+      <div><h3><i class="api" style="--fc:var(--api-ac)"></i>AnkiConnect</h3><div class="reqs" id="p-ac"></div></div>
+      <div><h3><i class="api" style="--fc:var(--api-ts)"></i>Tsunagi API</h3><div class="reqs" id="p-ts"></div></div>
+    </div>
+    <div class="explain" id="p-explain" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="events">
+    <div class="panel-head">
+      <h2>3. Changes, as they happen</h2>
+      <p class="hint">Change this toy note in Anki's Browser, as you would, or through the API, as an app would. You can
+        type in it too. An app on the Tsunagi
+        API listens to its event stream and is told about each change. A tool on AnkiConnect has no events, so it
+        keeps asking: asbplayer asks every 10 s for every card edited or reviewed today, then works out what's new.</p>
+    </div>
+    <div class="events">
+      <div class="toy">
+        <div class="toy-title">Anki's editor</div>
+        <label>Front <input id="e-front" value="犬" lang="ja" autocomplete="off"></label>
+        <label>Back <input id="e-back" value="dog" autocomplete="off"></label>
+        <div class="toy-row"><span>Tags</span><div class="toy-tags" id="e-tags"></div></div>
+        <div class="controls">
+          <button class="btn" type="button" id="e-ui">Change it in Anki's Browser</button>
+          <button class="btn" type="button" id="e-api">Change it through the API</button>
+        </div>
+        <div class="wait" id="e-wait"><i></i><span></span></div>
+        <span class="ui-cursor" id="e-cursor" hidden></span>
+      </div>
+      <div>
+        <div class="controls">
+          <span class="muted">The tool on AnkiConnect asks every</span>
+          <div class="seg" id="e-rate" role="group" aria-label="How often the tool on AnkiConnect asks"></div>
+        </div>
+        <div class="explain" id="e-explain" aria-live="polite"></div>
+      </div>
+    </div>
+    <div id="e-race"></div>
+  </section>
+
+  <section class="panel" id="roles">
+    <div class="panel-head">
+      <h2>4. Who may do what</h2>
+      <p class="hint">Every request comes from somewhere, and each app has a role. Pick who is asking and the role it has;
+        each square is one AnkiConnect action, lit when it's allowed. Below them, what only the Tsunagi API offers. Hover one
+        for the permission it needs.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" id="r-caller" role="group" aria-label="Who is asking"></div>
+    </div>
+    <div class="controls">
+      <span class="muted">With</span>
+      <div class="seg" id="r-role" role="group" aria-label="Role"></div>
+    </div>
+    <div class="waffle" id="r-waffle"></div>
+    <div class="extras" id="r-extras"></div>
+    <div class="keys" id="r-keys"></div>
+    <div class="explain" id="r-explain" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="start">
+    <h2>Where to start</h2>
+    <div class="flow">
+      <p class="flow-root">Which are you?</p>
+      <div class="flow-branches">
+        <div class="branch">
+          <h3>You use AnkiConnect tools</h3>
+          <ol class="steps">
+            <li><a href="https://ankiweb.net/shared/info/666370974">Install Tsunagi</a><span>from AnkiWeb, like any add-on</span></li>
+            <li><a href="https://github.com/mcgrizzz/Tsunagi#replace-ankiconnect">Switch from AnkiConnect</a><span>Tsunagi takes over its port and its settings</span></li>
+            <li><a href="tools.html">Check your tools</a><span>each one tested, request by request</span></li>
+            <li><strong>Keep using them</strong><span>no change to any tool</span></li>
+          </ol>
+        </div>
+        <div class="branch">
+          <h3>You build an app</h3>
+          <ol class="steps">
+            <li><a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/getting_started.md">Getting started</a><span>your first requests, step by step</span></li>
+            <li><a href="reference/">API reference</a><span>every route, with a playground</span></li>
+            <li><a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/events.md">Listen for changes</a><span>the event stream, as in 3</span></li>
+            <li><a href="https://www.npmjs.com/package/tsunagi-client">TypeScript client</a><span>typed, from npm</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">Source: <a href="https://github.com/mcgrizzz/Tsunagi">github.com/mcgrizzz/Tsunagi</a>.
+  The note, words and IDs in the examples are made up; the timings, requests, permissions and delays are Tsunagi's own.
+  <span class="credit">I really enjoyed Jonathan Schoreels' <a href="https://jschoreels.github.io/anki-rwkv/">website on predicting memory with RWKV</a>, and it heavily inspired this site's style.</span></footer>
+<script src="site.js"></script>
+<script src="home.js"></script>
+</body>
+</html>

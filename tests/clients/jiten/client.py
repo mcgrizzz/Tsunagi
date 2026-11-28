@@ -5,8 +5,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Imports known words and review history (jiten.moe)",
     "repo": "https://github.com/Sirush/Jiten",
-    "commit": "fe383fc",
-    "read": "2026-10-15",
+    "commit": "d62ae140",
+    "read": "2026-11-28",
     "files": [
         "Jiten.Web/app/components/AnkiConnectImport.vue",
         "Jiten.Web/app/composables/useAnkiMediaImport.ts",
@@ -17,7 +17,8 @@ CLIENT = {
              "findCards and the cardsInfo fallback"),
     "notes": ("A website (https://jiten.moe) calling http://127.0.0.1:8765 from the browser. cardsInfo with "
               "a fields filter is probed with cards: [] and, if it fails, plain cardsInfo is used. "
-              "getReviewsOfCards is probed with cards: []. findCards runs once per deck the user opens "
+              "getReviewsOfCards is probed with cards: []. Before importing, findCards with cid:0 checks for "
+              "AnkiConnect Android (it must answer a list). findCards runs once per deck the user opens "
               "(each step-2 load), cardsInfo once per 500 or 2000 cards, multi retrieveMediaFile in batches."),
 }
 

@@ -153,7 +153,7 @@ const noteTypes = await anki.noteTypes.select("id", "name", "fields").take(100);
 ## Try the endpoints
 
 Every request and response format is in the
-[API reference](https://mcgrizzz.github.io/Tsunagi/). To send them, open the
+[API reference](https://mcgrizzz.github.io/Tsunagi/reference/). To send them, open the
 [interactive reference](playground.md) in Anki, search for a path above and
 click **Test Request**. [Creating notes](creating_notes.md) covers single notes, batches and
 failures. Try creating and suspending in a throwaway profile.

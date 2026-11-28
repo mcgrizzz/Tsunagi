@@ -76,6 +76,12 @@ def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp
     # (the note with its files, suspend) through /v1; 3 for the check + 5 through AnkiConnect.
     assert native["mine_session"]["trials"][1]["requests"] == 40
     assert shim["mine_session"]["trials"][1]["requests"] == 80
+    # Each timed request is logged in order, by action or path, never with its query.
+    log = shim["mine_session"]["trials"][1]["request_log"]
+    assert len(log) == 80 and log[0]["what"] == "canAddNotesWithErrorDetail"
+    assert all(a["end_ms"] <= b["start_ms"] for a, b in zip(log, log[1:]))
+    assert {r["what"].split("?")[0] for r in native["mine_session"]["trials"][1]["request_log"]} <= {
+        "POST /v1/notes:check", "GET /v1/notes", "POST /v1/notes", "POST /v1/cards:suspend"}
     assert (native["client_settings"]["trials"][1]["requests"],
             shim["client_settings"]["trials"][1]["requests"]) == (3, 3)
     # One mined note with audio and a picture: the note with its files through /v1;
@@ -96,3 +102,11 @@ def test_both_apis_give_the_same_answers_with_fewer_tsunagi_requests(server, tmp
     assert len(vocab) == 13 and {v["term"] for v in vocab.values()} == {f"word{i}" for i in range(12)}
     outcomes = native["sync_notes_batch"]["result_sample"]["outcomes"]
     assert outcomes == ["added"] * 15 + ["duplicate"] * 3 + ["empty", "rejected"]
+
+
+def test_the_collection_size_comes_with_the_results(server, tmp_path):
+    # 12 Kiku notes and the Kiku+ one, one card each, no reviews yet.
+    size = asyncio.run(bw.collection(bw.Client(bw.Endpoint.parse(server), None)))
+    assert {k: size[k] for k in ("notes", "cards", "reviews", "media_files")} == {
+        "notes": 13, "cards": 13, "reviews": 0, "media_files": 0}
+    assert size["note_types"] >= 2 and size["decks"] >= 2

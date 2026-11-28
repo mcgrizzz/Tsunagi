@@ -1,0 +1,140 @@
+{
+ "checked": "2026-11-28",
+ "tools": {
+  "anki_editor": {
+   "read": "defeab6",
+   "latest": "defeab6",
+   "changed": []
+  },
+  "anki_koplugin": {
+   "read": "55b07ed",
+   "latest": "55b07ed",
+   "changed": []
+  },
+  "anki_mcp_server": {
+   "read": "d7d6512",
+   "latest": "d7d6512",
+   "changed": []
+  },
+  "asbplayer": {
+   "read": "910acf84",
+   "latest": "910acf8",
+   "changed": []
+  },
+  "easydict": {
+   "read": "af5b654",
+   "latest": "9a40d9d",
+   "changed": []
+  },
+  "flashcards_obsidian": {
+   "read": "2ca53d0",
+   "latest": "2ca53d0",
+   "changed": []
+  },
+  "game_sentence_miner": {
+   "read": "bb62e5b",
+   "latest": "bb62e5b",
+   "changed": []
+  },
+  "goldendict_ng": {
+   "read": "36d3ebcf",
+   "latest": "36d3ebc",
+   "changed": []
+  },
+  "jiten": {
+   "read": "d62ae140",
+   "latest": "d62ae14",
+   "changed": []
+  },
+  "jl": {
+   "read": "8995ac5",
+   "latest": "b6ce75c",
+   "changed": []
+  },
+  "linguacafe": {
+   "read": "c1ea298",
+   "latest": "c1ea298",
+   "changed": []
+  },
+  "logseq_anki_sync": {
+   "read": "6959868",
+   "latest": "e353a5e",
+   "changed": []
+  },
+  "lunatranslator": {
+   "read": "0ee08c6",
+   "latest": "dade058",
+   "changed": []
+  },
+  "lute": {
+   "read": "933d084",
+   "latest": "933d084",
+   "changed": []
+  },
+  "manatan": {
+   "read": "92d3787",
+   "latest": "569e850",
+   "changed": []
+  },
+  "memento": {
+   "read": "e45a792",
+   "latest": "27b786b",
+   "changed": []
+  },
+  "mokuro_reader": {
+   "read": "bfaeb48",
+   "latest": "1b0f755",
+   "changed": []
+  },
+  "mpvacious": {
+   "read": "26e4102",
+   "latest": "7b9ed6c",
+   "changed": []
+  },
+  "obsidian_to_anki": {
+   "read": "feb3db2",
+   "latest": "feb3db2",
+   "changed": []
+  },
+  "odh": {
+   "read": "8ed596c",
+   "latest": "8ed596c",
+   "changed": []
+  },
+  "raycast_anki": {
+   "read": "aad25dd3",
+   "latest": "97f8181c",
+   "changed": []
+  },
+  "saladict": {
+   "read": "1673df1",
+   "latest": "1673df1",
+   "changed": []
+  },
+  "simple_anki_sync": {
+   "read": "c352f9f",
+   "latest": "c352f9f",
+   "changed": []
+  },
+  "tabbi": {
+   "read": "0c26aac",
+   "latest": "0c26aac",
+   "changed": []
+  },
+  "yanki": {
+   "read": "f8522b7",
+   "latest": "f8522b7",
+   "changed": []
+  },
+  "yomine": {
+   "read": "7044efc",
+   "latest": "73badd8",
+   "changed": []
+  },
+  "yomitan": {
+   "read": "64b4eba7",
+   "latest": "64b4eba",
+   "changed": []
+  }
+ }
+}

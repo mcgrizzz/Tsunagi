@@ -52,7 +52,7 @@ ENTRIES = named("Yomitan", [
     case("multi findNotes one query", "multi",
          {"actions": [{"action": "findNotes", "params": {"query": '"front:犬"'}}]},
          version=V, reads=[""]),
-    # Duplicate details when tags/flags are shown or overwrite is on (backend.js L740-774).
+    # Duplicate details when tags/flags are shown or overwrite is on (backend.js L736-774).
     # {} (not null) for an unknown id: a null row throws in _normalizeNoteInfoArray.
     case("cardsInfo []", "cardsInfo", {"cards": []}, version=V, reads=[""]),
     case("addNote duplicate allowed", "addNote", {"note": ynote()}, version=V, reads=[""],

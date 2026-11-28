@@ -5,7 +5,7 @@ POST, Content-Type application/json, 3 s transfer timeout. The bodies are
 raw-string templates filled with QString::arg: version 6, params always, no
 key. addNote's note always carries `"options": {"allowDuplicate": true}`,
 `"tags": []` and an audio list: empty, or one item, base64 data the dictionary
-gave or a web audio url (ui/articleview.cc sendToAnki L464-506), named
+gave or a web audio url (ui/articleview.cc sendToAnki L494-536), named
 `<word>_<ms since epoch>.<ext>` and put in the definition field.
 """
 
@@ -16,8 +16,8 @@ CLIENT = {
     # For docs/compatible_clients.md (tools/compatible_clients.py).
     "about": "Desktop dictionary; sends articles to Anki as notes",
     "repo": "https://github.com/xiaoyifang/goldendict-ng",
-    "commit": "5b1bade",
-    "read": "2026-10-16",
+    "commit": "36d3ebcf",
+    "read": "2026-11-28",
     "files": [
         "src/ankiconnector.cc",
         "src/ankiconnector.hh",
@@ -48,13 +48,13 @@ SENDS = {
             {"note": {**_NOTE, "fields": {str: str}, "audio": []}},
             # Nothing selected and no article id, or an empty search line: an empty field.
             {"note": {**_NOTE, "fields": {str: (str, "")}, "audio": []}},
-            # Audio the dictionary served (buildAnkiAudioDataObject L84-111).
+            # Audio the dictionary served (buildAnkiAudioDataObject L103-130).
             {"note": {**_NOTE, "fields": {str: str},
                       "audio": [{"data": str, "fields": [str], "filename": str}]}},
             # A word with a slash in it ("AC/DC").
             {"note": {**_NOTE, "fields": {str: str},
                       "audio": [{"data": str, "fields": [str], "filename": PATH}]}},
-            # A web audio link (sendToAnki L495-503).
+            # A web audio link (sendToAnki L525-533).
             {"note": {**_NOTE, "fields": {str: str},
                       "audio": [{"fields": [str], "filename": str, "url": str}]}},
         ],

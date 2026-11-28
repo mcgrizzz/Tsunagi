@@ -1,0 +1,20 @@
+{
+ "_about": "Hand-written. state: now (being built), next (planned), done (shipped; name the release).",
+ "items": [
+  {"title": "Rust client", "state": "now",
+   "about": "The TypeScript client's design in Rust: rows and operations generated from the API description, one query builder, keyed writes, events and watching. It passes the same shared cases as the TypeScript client.",
+   "link": "https://github.com/mcgrizzz/Tsunagi/blob/main/docs/client_design.md"},
+  {"title": "Add-on events in the TypeScript client", "state": "next",
+   "about": "Add-ons can send their own events since 0.7.7. The client will let an app listen for them by name, typed like the built-in ones.",
+   "link": "https://github.com/mcgrizzz/Tsunagi/blob/main/docs/addon_providers.md#events"},
+  {"title": "Python client", "state": "next",
+   "about": "A thin client for scripts and Python apps, generated from the same API description.",
+   "link": null},
+  {"title": "Faster review history", "state": "done", "release": "v0.7.8",
+   "about": "Review history answers sooner on large collections: about 0.94 s to 0.74 s for 280,000 reviews. `areDue` and `getIntervals` answer for cards that were never reviewed.",
+   "link": "https://github.com/mcgrizzz/Tsunagi/releases/tag/v0.7.8"},
+  {"title": "Faster field text", "state": "done", "release": "v0.7.7",
+   "about": "`fields[].text` converts only the fields a read names, and uses a field without HTML as it is. A filter on the text itself works.",
+   "link": "https://github.com/mcgrizzz/Tsunagi/releases/tag/v0.7.7"}
+ ]
+}
