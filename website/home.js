@@ -322,7 +322,7 @@
   }
   let timer = null, deadline = 0, delay = 0, lastCause = null, waitRaf = null;
   const t0 = performance.now();
-  const BACKS = ["a dog", "dogs", "dog"];
+  const BACKS = ["a dog", "a big, friendly dog", "dogs", "dog"];
 
   function explainEvents() {
     const waiting = timer != null;
@@ -445,21 +445,23 @@
   race();
 
   // The same changes seen two ways: a tool polling AnkiConnect (every 10 s is asbplayer's poll,
-  // the change_poll benchmark), and the stream. The last 40 s, drawn as they pass.
+  // the change_poll benchmark), and the stream. The last 40 s, drawn as they pass: your changes on
+  // top, then each poll and each message, labelled with what it saw.
   function race() {
-    // Room above the first lane and below the second for what each one saw.
-    const SPAN = 40000, W = 1000, left = 150, right = 220, laneH = 26, top = 24, gap = 14;
-    const H = top + 2 * laneH + gap + 22;
-    const lanes = [["A tool on AnkiConnect", "var(--api-ac)"], ["Tsunagi's stream", "var(--api-ts)"]];
-    const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Polling AnkiConnect compared with the event stream" });
+    const SPAN = 40000, W = 1000, left = 150, right = 220;
+    // Each lane's top and height, and where its labels go: above it, or below it, in up to two rows.
+    const YOU = { y: 40, h: 16, pills: [28, 10] }, AC = { y: 102, h: 26, pills: [88, 70] }, TS = { y: 140, h: 26, pills: [180, 198] };
+    const H = 208;
+    const lanes = [["Your changes", null, YOU], ["A tool on AnkiConnect", "var(--api-ac)", AC], ["Tsunagi's stream", "var(--api-ts)", TS]];
+    const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Your changes, a tool polling AnkiConnect, and the event stream, over the last 40 seconds" });
     // Marks scroll out of the lanes on the left; clip them to the lanes.
     svg.append(s("defs", {}, s("clipPath", { id: "e-clip" }, s("rect", { x: left, y: 0, width: W - left - right, height: H }))));
-    const marks = s("g", { "clip-path": "url(#e-clip)" }), stats = [];
-    lanes.forEach(([label, color], i) => {
-      const y = top + i * (laneH + gap);
-      svg.append(s("rect", { class: "lane", x: left, y, width: W - left - right, height: laneH, rx: 5 }));
-      svg.append(s("text", { class: "lbl", x: 0, y: y + 17 }, label));
-      const n = s("text", { class: "num", x: W - right + 12, y: y + 11 }), sub = s("text", { x: W - right + 12, y: y + 25 });
+    const bands = s("g", { "clip-path": "url(#e-clip)" }), marks = s("g", { "clip-path": "url(#e-clip)" }), stats = [];
+    svg.append(bands);
+    lanes.forEach(([label, , lane]) => {
+      svg.append(s("rect", { class: "lane", x: left, y: lane.y, width: W - left - right, height: lane.h, rx: 5 }));
+      svg.append(s("text", { class: "lbl", x: 0, y: lane.y + lane.h / 2 + 5 }, label));
+      const n = s("text", { class: "num", x: W - right + 12, y: lane.y + lane.h / 2 - 2 }), sub = s("text", { x: W - right + 12, y: lane.y + lane.h / 2 + 12 });
       svg.append(n, sub);
       stats.push({ n, sub });
     });
@@ -477,9 +479,7 @@
       draw();
     });
 
-    // Each poll or message: how long the oldest change it was first to report had waited, and
-    // what it saw changed since the one before.
-    const stateAt = at => states.filter(st => st.at <= at).at(-1);
+    const stateAt = at => states.filter(st => st.at <= at).at(-1) ?? states[0];
     function seen(a, b) {
       const parts = [];
       if (a.front !== b.front) parts.push(`Front “${b.front}”`);
@@ -488,58 +488,88 @@
       a.tags.filter(tag => !b.tags.includes(tag)).forEach(tag => parts.push(`−${tag}`));
       return parts.join(", ") || "back as it was";
     }
+    // Your changes, a burst of typing counted as one: when it started and ended, and what it changed.
+    function bursts() {
+      const out = [];
+      states.slice(1).forEach((st, k) => {
+        const last = out.at(-1);
+        if (last && st.cause === "typing" && last.cause === "typing" && st.at - last.end <= TYPING_DELAY) {
+          last.end = st.at; last.after = st;
+        } else out.push({ start: st.at, end: st.at, cause: st.cause, before: states[k], after: st });
+      });
+      return out.map(b => ({ ...b, label: `${b.cause === "api" ? "API: " : b.cause === "typing" ? "typed " : ""}${seen(b.before, b.after)}` }));
+    }
+    // Each poll or message: how long the oldest change it was first to report had waited, and
+    // what it saw changed since the one before.
     function reports(times) {
       let prev = -Infinity;
       return times.map(at => {
         const caught = changes.filter(c => c > prev && c <= at);
         const r = { at, wait: caught.length ? at - Math.min(...caught) : null };
         if (caught.length) {
-          r.label = seen(stateAt(prev === -Infinity ? 0 : prev) ?? states[0], stateAt(at));
+          r.label = seen(stateAt(prev), stateAt(at));
           // Caught in the middle of typing: typed just before, and typing went on after.
           const after = states.find(st => st.at > at);
           r.partial = stateAt(at).cause === "typing" && after?.cause === "typing" && after.at - at <= TYPING_DELAY;
+          if (r.partial) r.label = `half typed: ${r.label}`;
         }
         prev = at;
         return r;
       });
+    }
+    // A label in a box, joined to its mark, in the first of the lane's label rows where it fits.
+    const textWidth = text => [...text].reduce((w, c) => w + (c.codePointAt(0) > 0x2e80 ? 11.5 : 6.3), 12);
+    function pill(rows, lane, mx, text, cls) {
+      const width = textWidth(text);
+      const start = Math.min(Math.max(mx - width / 2, left + 2), W - right - width - 2);
+      const row = rows.findIndex(placed => !placed.some(([a, b]) => start < b + 6 && start + width > a - 6));
+      if (row < 0) return;
+      rows[row].push([start, start + width]);
+      const cy = lane.pills[row], above = cy < lane.y;
+      marks.append(s("line", { class: "leader", x1: mx, x2: mx, y1: above ? cy + 7 : lane.y + lane.h, y2: above ? lane.y : cy - 7 }));
+      marks.append(s("rect", { class: `pill ${cls}`, x: start, y: cy - 7, width, height: 14, rx: 4 }));
+      marks.append(s("text", { class: `seen ${cls}`, x: start + width / 2, y: cy + 4, "text-anchor": "middle" }, text));
     }
     const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
     function draw() {
       const now = performance.now(), from = now - SPAN;
       const x = at => left + (W - left - right) * (at - from) / SPAN;
       for (; next <= now; next += every) polls.push(next);
-      const rows = [reports(polls), reports(sent.map(e => e.at))];
+      bands.replaceChildren();
       marks.replaceChildren();
-      changes.filter(c => c > from).forEach(c => marks.append(s("line", { class: "change", x1: x(c), x2: x(c), y1: top - 4, y2: top + 2 * laneH + gap + 4 })));
-      rows.forEach((row, i) => {
-        const y = top + i * (laneH + gap), color = lanes[i][1];
-        row.filter(r => r.at > from - 2000).forEach(r => {
-          if (r.wait != null) marks.append(s("rect", { class: "waited", x: Math.max(left, x(r.at - r.wait)), y: y + laneH / 2 - 2, width: Math.max(0, x(r.at) - Math.max(left, x(r.at - r.wait))), height: 4, fill: color }));
-          marks.append(s("rect", { class: r.wait != null ? "req" : "req empty", x: x(r.at) - 3, y: y + 4, width: 6, height: laneH - 8, rx: 2, fill: color, style: r.wait != null ? null : `stroke:${color}` }));
-        });
-        // What each one saw: edits caught half done first, then newest first, leaving out
-        // labels that would overlap; kept inside the lane at its ends.
-        const placed = [];
-        row.filter(r => r.label && r.at > from).reverse()
-          .sort((p, q) => Number(i === 0 && q.partial) - Number(i === 0 && p.partial))
-          .forEach(r => {
-            const partial = i === 0 && r.partial, text = partial ? `${r.label}, mid-edit` : r.label;
-            const width = text.length * 6.3 + 6, mx = x(r.at);
-            const [start, anchor] = mx + width / 2 > W - right ? [mx - width, "end"] : mx - width / 2 < left ? [mx, "start"] : [mx - width / 2, "middle"];
-            if (placed.some(([a, b]) => start < b + 8 && start + width > a - 8)) return;
-            placed.push([start, start + width]);
-            marks.append(s("text", { class: partial ? "seen partial" : "seen", x: anchor === "end" ? mx + 3 : anchor === "start" ? mx - 3 : mx,
-              y: i === 0 ? y - 7 : y + laneH + 15, "text-anchor": anchor }, text));
-          });
-        const told = row.filter(r => r.wait != null);
-        stats[i].n.textContent = i === 0 ? `${row.length} request${row.length === 1 ? "" : "s"}` : `${row.length} message${row.length === 1 ? "" : "s"}`;
-        stats[i].sub.textContent = told.length ? `${told.length} with news, ${(mean(told.map(r => r.wait)) / 1000).toFixed(1)} s after the change` : i === 0 ? "nothing new yet" : "";
+
+      // Your changes: a band down through every lane, so each poll and message reads against it.
+      const yours = bursts().filter(b => b.end > from - 2000);
+      const youRows = YOU.pills.map(() => []);
+      yours.forEach(b => {
+        bands.append(s("rect", { class: "band", x: x(b.start) - 1, y: YOU.y, width: Math.max(2, x(b.end) - x(b.start) + 2), height: TS.y + TS.h - YOU.y }));
+        marks.append(s("rect", { class: "you", x: x(b.start) - 2, y: YOU.y + 3, width: Math.max(4, x(b.end) - x(b.start) + 4), height: YOU.h - 6, rx: 2 }));
       });
+      yours.slice().reverse().forEach(b => pill(youRows, YOU, x((b.start + b.end) / 2), b.label, "you"));
+
+      const rows = [reports(polls), reports(sent.map(e => e.at))];
+      rows.forEach((row, i) => {
+        const [, color, lane] = lanes[i + 1];
+        row.filter(r => r.at > from - 2000).forEach(r => {
+          marks.append(s("rect", { class: r.wait != null ? "req" : "req empty", x: x(r.at) - 3, y: lane.y + 4, width: 6, height: lane.h - 8, rx: 2, fill: r.partial ? "var(--warn)" : color, style: r.wait != null ? null : `stroke:${color}` }));
+        });
+        // Edits caught half typed first, then newest first.
+        const labelRows = lane.pills.map(() => []);
+        row.filter(r => r.label && r.at > from).reverse()
+          .sort((p, q) => Number(Boolean(q.partial)) - Number(Boolean(p.partial)))
+          .forEach(r => pill(labelRows, lane, x(r.at), r.label, r.partial ? "partial" : i === 0 ? "ac" : "ts"));
+        const told = row.filter(r => r.wait != null);
+        stats[i + 1].n.textContent = i === 0 ? `${row.length} request${row.length === 1 ? "" : "s"}` : `${row.length} message${row.length === 1 ? "" : "s"}`;
+        stats[i + 1].sub.textContent = told.length ? `${told.length} with news, ${(mean(told.map(r => r.wait)) / 1000).toFixed(1)} s after the change` : i === 0 ? "nothing new yet" : "";
+      });
+      const all = bursts();
+      stats[0].n.textContent = `${all.length} change${all.length === 1 ? "" : "s"}`;
+      stats[0].sub.textContent = "";
       const asked = rows[0].length, empty = rows[0].filter(r => r.wait == null).length;
       note.innerHTML = !changes.length
         ? `The tool on AnkiConnect has asked ${asked} time${asked === 1 ? "" : "s"} since this page opened and found nothing new, because nothing changed. The stream has sent nothing. Change the note above.`
         : `On AnkiConnect, ${asked} requests so far, ${empty} of them for nothing; at this rate a change waits up to ${every / 1000} s to be seen. Asking more often sees changes sooner, with more requests` +
-          (rows[0].some(r => r.partial) ? ", and catches more edits half done (“mid-edit”): the tool reads the note as it is at that moment." : ".") +
+          (rows[0].some(r => r.partial) ? ", and reads more notes while you're still typing (“half typed”)." : ".") +
           ` The stream told the app ${rows[1].length} time${rows[1].length === 1 ? "" : "s"}, each once its change was done, and sent nothing in between.`;
     }
     let timer = null;
