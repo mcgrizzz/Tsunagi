@@ -51,7 +51,7 @@
   // Which of the popup's four steps each request is.
   const PHASE = { canAddNotesWithErrorDetail: 0, "POST /v1/notes:check": 0, findNotes: 1, multi: 1, "GET /v1/notes": 1,
     storeMediaFile: 2, addNote: 2, "POST /v1/notes": 2, findCards: 3, suspend: 3, "POST /v1/cards:suspend": 3 };
-  const PHASES = ["Saved?", "Notes", "Add", "Suspend"];
+  const PHASES = ["Exists?", "Notes", "Add", "Suspend"];
   const CURSOR = '<svg class="cursor" width="14" height="20" viewBox="0 0 14 20" aria-hidden="true"><path d="M1 1v15l4-4 3 7 3-1.3-3-6.7h5.5z" fill="var(--ink)" stroke="var(--surface)" stroke-width="1.2" stroke-linejoin="round"/></svg>';
 
   function readers(lanes) {
@@ -191,7 +191,7 @@
   const NOTE = w => ({ deckName: "Mining", modelName: "Kiku", fields: { Expression: w }, options: { allowDuplicate: false, duplicateScope: "collection" } });
   const STEPS = [
     {
-      goal: "Which entries are saved?",
+      goal: "Which entries already exist?",
       ac: [{ what: "canAddNotesWithErrorDetail", body: AC("canAddNotesWithErrorDetail", { notes: [NOTE("食べ物"), "… 食べる and 食 the same"] }),
              answer: "食べ物 can be added; 食べる and 食: “cannot create note because it is a duplicate”" }],
       ts: [{ what: "POST /v1/notes:check", body: JSON.stringify([{ deck_name: "Mining", note_type_name: "Kiku", fields: { Expression: "食べ物" } }, "… 食べる and 食 the same"]),
@@ -205,7 +205,7 @@
              answer: "[[1001, 1002], [1003]]" }],
       ts: [{ what: "GET /v1/notes", body: 'where=first_field in ["食べる","食"]\nselect=id,first_field',
              answer: "1001 食べる, 1002 食べる, 1003 食" }],
-      explain: "Each saved entry gets a button that opens its notes in Anki, so the popup needs to know which notes hold each word, whatever their note type. Through AnkiConnect that is a search for any of the words, then one search per word inside those results, sent together in a <code>multi</code>. The Tsunagi API reads the notes whose first field is one of the words, with that field, so one answer says which note holds which word.",
+      explain: "Each entry that exists gets a button that opens its notes in Anki, so the popup needs to know which notes hold each of those words, whatever their note type. Through AnkiConnect that is a search for any of the words, then one search per word inside those results, sent together in a <code>multi</code>. The Tsunagi API reads the notes whose first field is one of the words, with that field, so one answer says which note holds which word.",
     },
     {
       goal: "You add 食べ物, with audio and a picture",
@@ -247,7 +247,7 @@
     return step => rows.forEach(({ e, row, button }) => {
       const [text, cls] =
         step === 0 ? ["…", "wait"]
-        : e.notes ? (step >= 2 ? [`View ${e.notes > 1 ? `${e.notes} notes` : "note"}`, "view"] : ["Saved", "saved"])
+        : e.notes ? (step >= 2 ? [`View ${e.notes > 1 ? `${e.notes} notes` : "note"}`, "view"] : ["Exists", "saved"])
         : step >= 4 ? ["Added · suspended", "added"]
         : step >= 3 ? ["Added", "added"]
         : ["＋ Add", "add"];
@@ -260,7 +260,7 @@
 
   function popupSteps(lanes) {
     const showMock = popupMock();
-    // Timings from the session's second popup (two saved words, as here), when measured.
+    // Timings from the session's second popup (two existing words, as here), when measured.
     const timed = {};
     if (lanes) for (const [key, label] of [["ac", "AnkiConnect"], ["ts", "Tsunagi API"]]) {
       timed[key] = lanes.find(l => l.label === label).reqs.filter(q => q.popup === 2);
@@ -319,11 +319,14 @@
   const BACKS = ["a dog", "dogs", "dog"];
 
   function explainEvents() {
+    const waiting = timer != null;
     $("e-explain").innerHTML = {
-      null: `Type in Front or Back. Anki's editor saves as you type, so Tsunagi waits until ${TYPING_DELAY / 1000} s pass without a save, then tells the app once for the whole burst.`,
-      typing: `The app was told once for all that typing, ${TYPING_DELAY / 1000} s after the last save, and that the change was made in Anki, not by an app.`,
-      tag: `Other changes made in Anki are told after ${OP_DELAY / 1000} s of quiet. Anki tells Tsunagi that notes changed, not which, so Tsunagi lets the change settle, then finds the notes that changed.`,
-      api: "A change made through the API is told at once: Tsunagi knows exactly what the request changed, and which app made it.",
+      null: "Change the note. Each change shows below, beside what a tool on AnkiConnect would notice.",
+      typing: waiting
+        ? `Anki's editor saves as you type, so Tsunagi waits until ${TYPING_DELAY / 1000} s pass without a save, then tells the app once for the whole burst.`
+        : `The app was told once for all that typing, ${TYPING_DELAY / 1000} s after the last save, and that the change was made in Anki, not by an app.`,
+      tag: `${waiting ? "The app will be told" : "The app was told"} after ${OP_DELAY / 1000} s of quiet. Anki tells Tsunagi that notes changed, not which, so Tsunagi lets the change settle, then finds the notes that changed.`,
+      api: "Through the API, the note changes at once and the app is told at once: Tsunagi knows exactly what the request changed, and which app made it.",
     }[lastCause];
   }
   function flush() {
@@ -355,20 +358,48 @@
   }
   function drawTags() {
     $("e-tags").replaceChildren(...note.tags.map(t => h("span", {}, t)));
-    $("e-tag").textContent = note.tags.length ? "Remove the tag “mined” in the Browser" : "Add the tag “mined” in the Browser";
   }
+  // A field changing before your eyes: typed letter by letter in the Browser, or all at once by the API.
+  function flash(el) {
+    el.classList.remove("flash");
+    void el.offsetWidth;   // restart the animation
+    el.classList.add("flash");
+  }
+  const nextBack = () => BACKS[(BACKS.indexOf(note.back) + 1) % BACKS.length];
+  let uiTurn = 0;
   for (const [id, key] of [["e-front", "front"], ["e-back", "back"]]) {
     $(id).addEventListener("input", e => { note[key] = e.target.value; changes.push(performance.now()); mark("typing", TYPING_DELAY); });
   }
-  $("e-tag").addEventListener("click", () => {
-    note.tags = note.tags.length ? [] : ["mined"];
-    changes.push(performance.now());
-    drawTags();
-    mark("tag", OP_DELAY);
+  // The Browser takes turns: add or remove the tag, then type a new Back.
+  $("e-ui").addEventListener("click", () => {
+    if (uiTurn++ % 2 === 0) {
+      note.tags = note.tags.length ? [] : ["mined"];
+      changes.push(performance.now());
+      drawTags();
+      flash($("e-tags"));
+      mark("tag", OP_DELAY);
+      return;
+    }
+    const word = nextBack(), field = $("e-back"), buttons = [$("e-ui"), $("e-api")];
+    buttons.forEach(b => { b.disabled = true; });
+    field.classList.add("typing");
+    let n = 0;
+    note.back = field.value = "";
+    const type = setInterval(() => {
+      note.back = field.value = word.slice(0, ++n);
+      changes.push(performance.now());
+      mark("typing", TYPING_DELAY);
+      if (n === word.length) {
+        clearInterval(type);
+        field.classList.remove("typing");
+        buttons.forEach(b => { b.disabled = false; });
+      }
+    }, reducedMotion() ? 0 : 140);
   });
   $("e-api").addEventListener("click", () => {
-    note.back = BACKS[(BACKS.indexOf(note.back) + 1) % BACKS.length];
+    note.back = nextBack();
     $("e-back").value = note.back;
+    flash($("e-back"));
     lastCause = "api";
     changes.push(performance.now());
     sent.push({ at: performance.now(), by: "api" });

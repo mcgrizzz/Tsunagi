@@ -73,9 +73,10 @@ h3 { margin: 16px 0 6px; font-size: 1rem; font-weight: 600; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Home: the mark */
-.hero { display: flex; gap: 28px; align-items: center; }
+.hero { display: flex; gap: 28px; align-items: center; margin-top: 14px; }
+.mark-wrap { flex: none; }
 .mark { margin: 0; font-weight: 300; font-size: clamp(3.4rem, 10vw, 6.2rem); line-height: 1; color: var(--accent); }
-.mark rt { font: 500 .8rem "IBM Plex Sans", sans-serif; letter-spacing: .08em; color: var(--muted); }
+.mark-gloss { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 @media (max-width: 640px) { .hero { flex-direction: column; align-items: flex-start; gap: 8px; } }
 
 /* Stat cards and link cards */

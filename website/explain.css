@@ -82,6 +82,9 @@ i.api { display: inline-block; width: 12px; height: 12px; border-radius: 3px; ba
 .toy input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-width: 0; }
 .toy-tags { margin: 8px 0 0 60px; display: flex; gap: 6px; min-height: 22px; }
 .toy-tags span { font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; background: var(--surface); }
+.toy input.typing { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+@media (prefers-reduced-motion: no-preference) { .toy .flash { animation: flash 1s ease-out; } }
+@keyframes flash { from { background: color-mix(in srgb, var(--accent) 28%, var(--surface)); } }
 .wait { display: grid; grid-template-columns: 1fr; gap: 4px; margin-top: 6px; min-height: 34px; font-size: 13px; color: var(--muted); }
 .wait i { display: block; height: 6px; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; }
 .wait i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--p, 0%); background: var(--accent); border-radius: 3px; }
