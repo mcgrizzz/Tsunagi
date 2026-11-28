@@ -77,9 +77,9 @@
   <section class="panel" id="popup">
     <div class="panel-head">
       <h2>2. One popup, request by request</h2>
-      <p class="hint">Zoom in on one popup: <span lang="ja">猫</span> and <span lang="ja">犬</span> are already
-        saved, <span lang="ja">鳥</span> isn't, and you add <span lang="ja">空</span>. Step through what Yomitan sends
-        to AnkiConnect, beside what an app sends to the Tsunagi API for the same result.</p>
+      <p class="hint">One lookup from that session, slowed down. You hover <span lang="ja">食べ物</span>, and Yomitan's
+        popup shows three entries for it: two you saved before, and the one you add now. Step through what Yomitan
+        sends to AnkiConnect, beside what an app sends to the Tsunagi API for the same result.</p>
     </div>
     <div class="controls">
       <button class="btn primary" type="button" id="p-next">Next step</button>
@@ -100,13 +100,9 @@
   <section class="panel" id="events">
     <div class="panel-head">
       <h2>3. Changes, as they happen</h2>
-      <p class="hint">An app that keeps its own list of your notes listens to <code>GET /v1/events</code>. Edit this toy note the
-        way you would in Anki, or write to it as an app, and watch what arrives on the stream. Then change what
-        the app asked for. Below, the same changes seen by a tool on AnkiConnect, which has no events and has to ask.</p>
-    </div>
-    <div class="controls">
-      <span class="muted">The app asked for</span>
-      <div class="seg" id="e-select" role="group" aria-label="What the app asked for"></div>
+      <p class="hint">Edit this toy note the way you would in Anki, or change it as an app would. An app on the Tsunagi
+        API listens to its event stream and is told about each change. A tool on AnkiConnect has no events, so it
+        keeps asking: asbplayer asks every 10 s for every card edited or reviewed today, then works out what's new.</p>
     </div>
     <div class="events">
       <div class="toy">
@@ -120,16 +116,15 @@
         </div>
         <div class="wait" id="e-wait"><i></i><span></span></div>
       </div>
-      <div class="stream" id="e-stream" aria-live="polite"></div>
+      <div>
+        <div class="controls">
+          <span class="muted">The tool on AnkiConnect asks every</span>
+          <div class="seg" id="e-rate" role="group" aria-label="How often the tool on AnkiConnect asks"></div>
+        </div>
+        <div class="explain" id="e-explain" aria-live="polite"></div>
+      </div>
     </div>
-    <div class="explain" id="e-explain"></div>
-    <div class="race">
-      <h3>Asking vs being told</h3>
-      <p class="hint">asbplayer, on AnkiConnect, asks every 10 s for every card edited or reviewed today, then works out
-        what's new. The stream tells the app once, when the change is done. Each line is a change you made; each
-        block a request or message.</p>
-      <div id="e-race"></div>
-    </div>
+    <div id="e-race"></div>
   </section>
 
   <section class="panel" id="roles">

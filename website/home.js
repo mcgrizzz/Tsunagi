@@ -191,30 +191,30 @@
   const NOTE = w => ({ deckName: "Mining", modelName: "Kiku", fields: { Expression: w }, options: { allowDuplicate: false, duplicateScope: "collection" } });
   const STEPS = [
     {
-      goal: "Which of its words are saved?",
-      ac: [{ what: "canAddNotesWithErrorDetail", body: AC("canAddNotesWithErrorDetail", { notes: [NOTE("猫"), "… 犬, 鳥 and 空 the same"] }),
-             answer: "猫 and 犬: “cannot create note because it is a duplicate”; 鳥 and 空 can be added" }],
-      ts: [{ what: "POST /v1/notes:check", body: JSON.stringify([{ deck_name: "Mining", note_type_name: "Kiku", fields: { Expression: "猫" } }, "… 犬, 鳥 and 空 the same"]),
-             answer: "states: duplicate, duplicate, normal, normal" }],
-      explain: "Both ask one question in one request: could these four notes be added? AnkiConnect answers with an error message for each duplicate, which Yomitan reads; the Tsunagi API answers each with a state.",
+      goal: "Which entries are saved?",
+      ac: [{ what: "canAddNotesWithErrorDetail", body: AC("canAddNotesWithErrorDetail", { notes: [NOTE("食べ物"), "… 食べる and 食 the same"] }),
+             answer: "食べ物 can be added; 食べる and 食: “cannot create note because it is a duplicate”" }],
+      ts: [{ what: "POST /v1/notes:check", body: JSON.stringify([{ deck_name: "Mining", note_type_name: "Kiku", fields: { Expression: "食べ物" } }, "… 食べる and 食 the same"]),
+             answer: "states: normal, duplicate, duplicate" }],
+      explain: "Before it can show its buttons, the popup asks whether each of its three entries could be added. Both APIs do it in one request. AnkiConnect answers with an error message for each duplicate, which Yomitan reads; the Tsunagi API answers each with a state.",
     },
     {
       goal: "Which notes hold them?",
-      ac: [{ what: "findNotes", body: AC("findNotes", { query: '("expression:猫") or ("expression:犬")' }), answer: "[1001, 1002, 1003]" },
-           { what: "multi", body: AC("multi", { actions: [{ action: "findNotes", params: { query: 'nid:1001,1002,1003 ("expression:猫")' } }, "… the same for 犬"] }),
-             answer: "[[1001], [1002, 1003]]" }],
-      ts: [{ what: "GET /v1/notes", body: 'where=first_field in ["猫","犬"]\nselect=id,first_field',
-             answer: "1001 猫, 1002 犬, 1003 犬" }],
-      explain: "The popup shows which notes hold each saved word, whatever their note type. Through AnkiConnect that is a search for any of the words, then one search per word inside those results, sent together in a <code>multi</code>. The Tsunagi API reads the notes whose first field is one of the words, with that field, so one answer says which note holds which word.",
+      ac: [{ what: "findNotes", body: AC("findNotes", { query: '("expression:食べる") or ("expression:食")' }), answer: "[1001, 1002, 1003]" },
+           { what: "multi", body: AC("multi", { actions: [{ action: "findNotes", params: { query: 'nid:1001,1002,1003 ("expression:食べる")' } }, "… the same for 食"] }),
+             answer: "[[1001, 1002], [1003]]" }],
+      ts: [{ what: "GET /v1/notes", body: 'where=first_field in ["食べる","食"]\nselect=id,first_field',
+             answer: "1001 食べる, 1002 食べる, 1003 食" }],
+      explain: "Each saved entry gets a button that opens its notes in Anki, so the popup needs to know which notes hold each word, whatever their note type. Through AnkiConnect that is a search for any of the words, then one search per word inside those results, sent together in a <code>multi</code>. The Tsunagi API reads the notes whose first field is one of the words, with that field, so one answer says which note holds which word.",
     },
     {
-      goal: "Add 空 with its audio and picture",
-      ac: [{ what: "storeMediaFile", body: AC("storeMediaFile", { filename: "空.mp3", data: "SUQzBAAAAAAA…" }), answer: "\"空.mp3\"" },
-           { what: "storeMediaFile", body: AC("storeMediaFile", { filename: "空.jpg", data: "/9j/4AAQSkZJ…" }), answer: "\"空.jpg\"" },
-           { what: "addNote", body: AC("addNote", { note: { deckName: "Mining", modelName: "Kiku", fields: { Expression: "空", ExpressionAudio: "[sound:空.mp3]", Picture: "<img src=\"空.jpg\">" } } }),
+      goal: "You add 食べ物, with audio and a picture",
+      ac: [{ what: "storeMediaFile", body: AC("storeMediaFile", { filename: "食べ物.mp3", data: "SUQzBAAAAAAA…" }), answer: "\"食べ物.mp3\"" },
+           { what: "storeMediaFile", body: AC("storeMediaFile", { filename: "食べ物.jpg", data: "/9j/4AAQSkZJ…" }), answer: "\"食べ物.jpg\"" },
+           { what: "addNote", body: AC("addNote", { note: { deckName: "Mining", modelName: "Kiku", fields: { Expression: "食べ物", ExpressionAudio: "[sound:食べ物.mp3]", Picture: "<img src=\"食べ物.jpg\">" } } }),
              answer: "1004" }],
-      ts: [{ what: "POST /v1/notes", body: "include=cards\n" + JSON.stringify({ deck_name: "Mining", note_type_name: "Kiku", fields: { Expression: "空" },
-             audio: [{ filename: "空.mp3", data: "SUQzBAAAAAAA…", fields: ["ExpressionAudio"] }], picture: [{ filename: "空.jpg", data: "/9j/4AAQSkZJ…", fields: ["Picture"] }] }),
+      ts: [{ what: "POST /v1/notes", body: "include=cards\n" + JSON.stringify({ deck_name: "Mining", note_type_name: "Kiku", fields: { Expression: "食べ物" },
+             audio: [{ filename: "食べ物.mp3", data: "SUQzBAAAAAAA…", fields: ["ExpressionAudio"] }], picture: [{ filename: "食べ物.jpg", data: "/9j/4AAQSkZJ…", fields: ["Picture"] }] }),
              answer: "created: note 1004, cards [2001]" }],
       explain: "AnkiConnect stores each file first, then adds the note that refers to them: three requests. The Tsunagi API takes the files with the note and puts their references in the fields named, in one request. With <code>include=cards</code> it also answers with the new card's ID.",
     },
@@ -227,33 +227,34 @@
     },
   ];
 
-  // The popup itself: its four entries, as each step leaves them.
+  // The popup for one lookup: Yomitan's entries for the text under the cursor, as each step leaves them.
   const ENTRIES = [
-    { word: "猫", reading: "ねこ", gloss: "cat", saved: "note 1001" },
-    { word: "犬", reading: "いぬ", gloss: "dog", saved: "notes 1002, 1003" },
-    { word: "鳥", reading: "とり", gloss: "bird" },
-    { word: "空", reading: "そら", gloss: "sky", mine: true },
+    { word: "食べ物", reading: "たべもの", gloss: "food", mine: true },
+    { word: "食べる", reading: "たべる", gloss: "to eat", notes: 2 },
+    { word: "食", reading: "しょく", gloss: "meal; diet", notes: 1 },
   ];
   function popupMock() {
     const rows = ENTRIES.map(e => {
-      const state = h("span", { class: "state" });
-      const row = h("li", {}, h("span", { class: "term", lang: "ja" }, h("b", {}, e.word), " ", h("small", {}, e.reading)),
-        h("span", { class: "gloss" }, e.gloss), state);
-      return { e, row, state };
+      const button = h("span", { class: "ybtn" });
+      const row = h("li", {}, h("div", { class: "term", lang: "ja" }, h("b", {}, e.word), h("small", {}, e.reading)),
+        h("span", { class: "gloss" }, e.gloss), button);
+      return { e, row, button };
     });
-    $("p-mock").replaceChildren(
-      h("p", { class: "passage", lang: "ja" }, "…猫と犬が、", h("span", { class: "w now" }, "空"), "を飛ぶ鳥を見ていた…"),
-      h("div", { class: "ypop" }, h("div", { class: "ypop-bar" }, "Popup"), h("ul", {}, rows.map(r => r.row))));
-    return step => rows.forEach(({ e, row, state }) => {
-      let text = "", cls = "state";
-      if (step === 0) text = "";
-      else if (e.saved) { text = step >= 2 ? `Saved · ${e.saved}` : "Saved"; cls += " saved"; }
-      else if (e.mine && step >= 3) { text = step >= 4 ? "Added · suspended" : "Added, with audio and picture"; cls += " added"; }
-      else { text = "+ Add"; cls += " add"; }
-      state.className = cls;
-      state.textContent = text;
-      // The entries this step changed.
-      row.classList.toggle("hit", step > 0 && (step <= 2 ? Boolean(e.saved) || step === 1 : Boolean(e.mine)));
+    const pop = h("div", { class: "ypop" }, h("ul", {}, rows.map(r => r.row)));
+    $("p-mock").replaceChildren(h("div", { class: "reader-body" },
+      h("p", { class: "passage", lang: "ja" }, "昨日の夜、", h("span", { class: "w now" }, "食べ物", h("span", { class: "rcursor", html: CURSOR })), "の話をした。"),
+      pop));
+    return step => rows.forEach(({ e, row, button }) => {
+      const [text, cls] =
+        step === 0 ? ["…", "wait"]
+        : e.notes ? (step >= 2 ? [`View ${e.notes > 1 ? `${e.notes} notes` : "note"}`, "view"] : ["Saved", "saved"])
+        : step >= 4 ? ["Added · suspended", "added"]
+        : step >= 3 ? ["Added", "added"]
+        : ["＋ Add", "add"];
+      button.textContent = text;
+      button.className = `ybtn ${cls}`;
+      // What this step changed.
+      row.classList.toggle("hit", step === 1 || (step === 2 && Boolean(e.notes)) || (step >= 3 && Boolean(e.mine)));
     });
   }
 
@@ -309,54 +310,25 @@
   // =====================================================================
   // Tsunagi's own delays (tsunagi/adapters/change_scan.py): editor saves restart a 2 s wait, other
   // changes made in Anki a 0.5 s one; when the wait runs out, one scan finds what changed.
-  const TYPING_DELAY = 2000, OP_DELAY = 500, NOTE_ID = 1790000000123;
-  const SELECTS = [
-    ["ids", "resources=notes"],
-    ["rows", "select=notes:fields,tags"],
-    ["front", 'select=notes:fields[name in ["Front"]].value,tags'],
-  ];
+  const TYPING_DELAY = 2000, OP_DELAY = 500;
   const note = { front: $("e-front").value, back: $("e-back").value, tags: [] };
-  const sent = [];   // {at, by, note snapshot}
-  const changes = [];   // when the note changed in Anki, for the polling comparison
-  let mode = "ids", seq = 0, timer = null, deadline = 0, delay = 0, lastCause = null, waitRaf = null;
+  const sent = [];   // when the stream told the app: {at, by}
+  const changes = [];   // when the note changed in Anki
+  let timer = null, deadline = 0, delay = 0, lastCause = null, waitRaf = null;
   const t0 = performance.now();
   const BACKS = ["a dog", "dogs", "dog"];
 
-  function message(ev) {
-    const data = { type: "notes.updated", ids: [NOTE_ID], by: ev.by };
-    if (ev.app) data.app = ev.app;
-    if (mode === "rows") data.notes = [{ id: NOTE_ID, fields: [{ name: "Front", value: ev.note.front, index: 0 }, { name: "Back", value: ev.note.back, index: 1 }], tags: ev.note.tags }];
-    if (mode === "front") data.notes = [{ id: NOTE_ID, fields: [ev.note.front], tags: ev.note.tags }];
-    data.seq = ev.seq;
-    return JSON.stringify(data);
-  }
-  function renderStream(fresh) {
-    $("e-stream").replaceChildren(...(sent.length ? sent.slice().reverse().map((ev, i) => {
-      const text = message(ev);
-      return h("div", { class: `ev${fresh && i === 0 ? " new" : ""}` },
-        h("div", { class: "t" }, h("b", {}, "notes.updated"),
-          h("span", {}, `${((ev.at - t0) / 1000).toFixed(1)} s · ${ev.by === "api" ? "sent at once" : `after ${ev.delay / 1000} s of quiet`} · ${new TextEncoder().encode(text).length} bytes`)),
-        h("pre", { class: "json" }, text));
-    }) : [h("div", { class: "none" }, "Nothing yet. The stream is connected and waiting.")]));
-  }
   function explainEvents() {
-    const why = {
-      null: `Type in Front or Back. Anki's editor saves as you type, so Tsunagi waits until ${TYPING_DELAY / 1000} s pass without a save, then sends one message for the whole burst.`,
-      typing: `One message for all that typing, ${TYPING_DELAY / 1000} s after the last save. <code>by: "ui"</code>: it was made in Anki, not by an app.`,
-      tag: `Other changes made in Anki go out after ${OP_DELAY / 1000} s of quiet. Anki tells Tsunagi that notes changed, not which, so Tsunagi lets the change settle, then finds the notes that changed.`,
-      api: "A write through the API goes out at once: Tsunagi knows exactly what the request changed, and names the app that made it.",
+    $("e-explain").innerHTML = {
+      null: `Type in Front or Back. Anki's editor saves as you type, so Tsunagi waits until ${TYPING_DELAY / 1000} s pass without a save, then tells the app once for the whole burst.`,
+      typing: `The app was told once for all that typing, ${TYPING_DELAY / 1000} s after the last save, and that the change was made in Anki, not by an app.`,
+      tag: `Other changes made in Anki are told after ${OP_DELAY / 1000} s of quiet. Anki tells Tsunagi that notes changed, not which, so Tsunagi lets the change settle, then finds the notes that changed.`,
+      api: "A change made through the API is told at once: Tsunagi knows exactly what the request changed, and which app made it.",
     }[lastCause];
-    const how = {
-      ids: "The app asked for note changes only, so each message carries the note's ID; the app then reads the note itself.",
-      rows: "With <code>select</code>, the note comes with the message, so the app doesn't have to read it.",
-      front: "Naming only the field it uses, the app gets just that field's value, and the message stays small.",
-    }[mode];
-    $("e-explain").innerHTML = `${why} ${how}`;
   }
   function flush() {
     timer = null;
-    sent.push({ at: performance.now(), by: "ui", delay, seq: ++seq, note: { ...note, tags: [...note.tags] } });
-    renderStream(true);
+    sent.push({ at: performance.now(), by: "ui" });
     explainEvents();
   }
   function mark(cause, ms) {
@@ -373,7 +345,7 @@
     const bar = $("e-wait").firstElementChild, label = $("e-wait").lastElementChild;
     if (timer && left > 0) {
       bar.style.setProperty("--p", `${100 * (1 - left / delay)}%`);
-      label.textContent = `${lastCause === "typing" ? "Anki saved your typing" : "Changed in Anki"}: sending in ${(left / 1000).toFixed(1)} s unless something else changes`;
+      label.textContent = `${lastCause === "typing" ? "Anki saved your typing" : "Changed in Anki"}: telling the app in ${(left / 1000).toFixed(1)} s unless something else changes`;
       waitRaf = requestAnimationFrame(drawWait);
     } else {
       bar.style.setProperty("--p", "0%");
@@ -399,21 +371,21 @@
     $("e-back").value = note.back;
     lastCause = "api";
     changes.push(performance.now());
-    sent.push({ at: performance.now(), by: "api", app: "Your app", seq: ++seq, note: { ...note, tags: [...note.tags] } });
-    renderStream(true);
+    sent.push({ at: performance.now(), by: "api" });
     explainEvents();
   });
-  seg($("e-select"), SELECTS, mode, v => { mode = v; renderStream(false); explainEvents(); });
   race();
 
-  // The same changes seen two ways: a tool polling AnkiConnect every 10 s (asbplayer's poll,
-  // the change_poll benchmark), and the stream above. The last 40 s, drawn as they pass.
+  // The same changes seen two ways: a tool polling AnkiConnect (every 10 s is asbplayer's poll,
+  // the change_poll benchmark), and the stream. The last 40 s, drawn as they pass.
   function race() {
-    const POLL = 10000, SPAN = 40000, W = 1000, left = 150, right = 220, laneH = 26, top = 8, gap = 14;
+    const SPAN = 40000, W = 1000, left = 150, right = 220, laneH = 26, top = 8, gap = 14;
     const H = top + 2 * (laneH + gap);
     const lanes = [["A tool on AnkiConnect", "var(--api-ac)"], ["Tsunagi's stream", "var(--api-ts)"]];
-    const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Polling every 10 seconds compared with the event stream" });
-    const marks = s("g"), stats = [];
+    const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Polling AnkiConnect compared with the event stream" });
+    // Marks scroll out of the lanes on the left; clip them to the lanes.
+    svg.append(s("defs", {}, s("clipPath", { id: "e-clip" }, s("rect", { x: left, y: 0, width: W - left - right, height: H }))));
+    const marks = s("g", { "clip-path": "url(#e-clip)" }), stats = [];
     lanes.forEach(([label, color], i) => {
       const y = top + i * (laneH + gap);
       svg.append(s("rect", { class: "lane", x: left, y, width: W - left - right, height: laneH, rx: 5 }));
@@ -426,6 +398,15 @@
     $("e-race").append(h("div", { class: "replay" }, svg));
     const note = h("div", { class: "explain" });
     $("e-race").append(note);
+
+    // The tool's polls so far; changing the rate takes effect from the last poll.
+    let every = 10000, next = t0 + every;
+    const polls = [];
+    seg($("e-rate"), [[2000, "2 s"], [5000, "5 s"], [10000, "10 s, as asbplayer"], [30000, "30 s"]], every, v => {
+      every = v;
+      next = Math.max(performance.now(), (polls.at(-1) ?? t0) + v);
+      draw();
+    });
 
     // Each poll or message, with how long the oldest change it was first to report had waited.
     function reports(times) {
@@ -440,8 +421,7 @@
     function draw() {
       const now = performance.now(), from = now - SPAN;
       const x = at => left + (W - left - right) * (at - from) / SPAN;
-      const polls = [];
-      for (let at = t0 + POLL; at <= now; at += POLL) polls.push(at);
+      for (; next <= now; next += every) polls.push(next);
       const rows = [reports(polls), reports(sent.map(e => e.at))];
       marks.replaceChildren();
       changes.filter(c => c > from).forEach(c => marks.append(s("line", { class: "change", x1: x(c), x2: x(c), y1: top - 4, y2: H - gap + 4 })));
@@ -457,8 +437,8 @@
       });
       const asked = rows[0].length, empty = rows[0].filter(r => r.wait == null).length;
       note.innerHTML = !changes.length
-        ? `The tool on AnkiConnect has asked ${asked} time${asked === 1 ? "" : "s"} since this page opened, and found nothing new: nothing changed. The stream has sent nothing. Change the note above.`
-        : `On AnkiConnect, ${asked} requests so far, ${empty} of them for nothing; a change waits up to 10 s to be seen. The stream sent ${rows[1].length} message${rows[1].length === 1 ? "" : "s"}, each once its change was done.`;
+        ? `The tool on AnkiConnect has asked ${asked} time${asked === 1 ? "" : "s"} since this page opened and found nothing new, because nothing changed. The stream has sent nothing. Change the note above.`
+        : `On AnkiConnect, ${asked} requests so far, ${empty} of them for nothing; at this rate a change waits up to ${every / 1000} s to be seen. Asking more often sees changes sooner, with more requests. The stream told the app ${rows[1].length} time${rows[1].length === 1 ? "" : "s"}, each once its change was done, and sent nothing in between.`;
     }
     let timer = null;
     new IntersectionObserver(([entry]) => {
@@ -468,7 +448,6 @@
     }).observe(svg);
   }
   drawTags();
-  renderStream(false);
   explainEvents();
 
   // =====================================================================

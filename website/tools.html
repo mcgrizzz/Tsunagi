@@ -31,10 +31,9 @@
   a.btn { text-decoration: none; display: inline-block; }
   .layers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
   .layer { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg); min-width: 0; }
-  .layer.main { border-color: var(--accent); background: var(--accent-soft); }
-  .layer h3 { margin: 4px 0 4px; }
+  .layer h3 { margin: 0 0 4px; }
   .layer p { margin: 0; font-size: 14px; color: var(--muted); }
-  .layer .when { margin-top: 8px; font-size: 13px; color: var(--ink); }
+  .layer .when { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13.5px; font-weight: 600; color: var(--good); }
   .not-covered { font-size: 14px; color: var(--muted); margin: 12px 0 0; }
   @media (max-width: 760px) { .layers { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 900px) { .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -73,25 +72,23 @@
   <section class="panel" id="add">
     <h2>How tools are checked</h2>
     <div class="layers">
-      <div class="layer main">
-        <span class="tag next">The main check</span>
+      <div class="layer">
         <h3>Every AnkiConnect action, on its own</h3>
-        <p>Each action has tests of its own, whatever tool sends it. See <a href="parity.html">AnkiConnect parity</a>.</p>
-        <p class="when">On every change to Tsunagi</p>
+        <p>The main check: each action has tests of its own, whatever tool sends it. See
+          <a href="parity.html">AnkiConnect parity</a>.</p>
+        <p class="when"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs on every change to Tsunagi</p>
       </div>
       <div class="layer">
-        <span class="tag">Extra check</span>
         <h3>Each tool's requests, as it sends them</h3>
-        <p>Every request in the tool's code, compared with AnkiConnect's answer for cards in every state: new, learning,
-          suspended, in a filtered deck and more.</p>
-        <p class="when">On every change to Tsunagi</p>
+        <p>On top of that, every request in each tool's code is compared with AnkiConnect's answer, for cards in every
+          state: new, learning, suspended, in a filtered deck and more.</p>
+        <p class="when"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs on every change to Tsunagi</p>
       </div>
       <div class="layer">
-        <span class="tag">Extra check</span>
         <h3>Each tool's latest code</h3>
-        <p>Its newest code is compared with the commit that was read. Where the code that sends a request changed,
-          the tool is flagged to be read again.</p>
-        <p class="when">Every week</p>
+        <p>And each tool's newest code is compared with the commit that was read. Where the code that sends a request
+          changed, the tool is flagged to be read again.</p>
+        <p class="when"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs every week</p>
       </div>
     </div>
     <p class="not-covered">Not covered: the tools' own code isn't run, so what a tool does with Anki's windows, such as
