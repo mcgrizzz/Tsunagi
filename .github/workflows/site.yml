@@ -1,0 +1,83 @@
+name: Site
+
+# Publishes the project site (website/, tools/build_site.py) to GitHub Pages
+# (https://mcgrizzz.github.io/Tsunagi/), with the latest release's API
+# reference under /reference/: the add-on's local reference page, read-only,
+# over that release's API description (tools/build_api_reference.py). Runs when
+# a release is published, when main changes what the site shows, and weekly,
+# so the tested tools' comparison with their latest code (tools/check_clients.py)
+# stays current. Run it by hand with a tag to publish an earlier release's
+# reference. Needs Settings -> Pages -> Source: GitHub Actions.
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - "tools/build_site.py"
+      - "tools/build_api_reference.py"
+      - "tools/check_clients.py"
+      - "tests/clients/**"
+      - "docs/ankiconnect_parity.md"
+      - "tsunagi/http/compat/**"
+      - ".github/workflows/site.yml"
+  schedule:
+    - cron: "47 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose API reference to publish, such as v0.7.8 (the latest release if empty)
+        required: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Pick the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: echo "tag=${TAG:-$(gh release view --json tagName --jq .tagName)}" >> "$GITHUB_OUTPUT"
+
+      # 1 means a tool's code changed or couldn't be cloned: the site says so; the weekly checks open the issue.
+      - name: Compare each tested tool's latest code with the commit read
+        run: python3 tools/check_clients.py --save website/data/tools-check.json || [ $? -eq 1 ]
+
+      - name: Build the site
+        run: python3 tools/build_site.py --out site
+
+      - name: Build the reference from the release's API description
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git show "$TAG:tests/snapshots/openapi.json" > "$RUNNER_TEMP/openapi.json"
+          python3 tools/build_api_reference.py --version "${TAG#v}" \
+            --snapshot "$RUNNER_TEMP/openapi.json" --out site/reference
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5

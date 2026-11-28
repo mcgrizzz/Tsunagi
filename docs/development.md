@@ -195,13 +195,18 @@ The [Release workflow](../.github/workflows/release.yml):
 - A tag must point at the commit that was tested. A newer `main` needs a new
   version, not the old tag.
 - It uses GitHub's built-in token; no secret needed.
-- Publishing a release also publishes its API reference to GitHub Pages
-  (<https://mcgrizzz.github.io/Tsunagi/>), through the
-  [API reference workflow](../.github/workflows/api-reference.yml): the local
-  reference page, read-only, over that release's API description. Run the
-  workflow by hand with a tag to publish an earlier release's. To see it
-  locally: `python tools/build_api_reference.py --version 0.6.0`, then
-  `python -m http.server -d site`. It needs, once, **Settings → Pages →
+- Publishing a release also publishes the project site to GitHub Pages
+  (<https://mcgrizzz.github.io/Tsunagi/>), with that release's API reference
+  under <https://mcgrizzz.github.io/Tsunagi/reference/>, through the
+  [site workflow](../.github/workflows/site.yml): the site from `website/`
+  (`tools/build_site.py`), and the local reference page, read-only, over the
+  release's API description. The workflow also runs when `main` changes what
+  the site shows, and weekly, to refresh the tested tools' comparison with
+  their latest code (`tools/check_clients.py`). Run it by hand with a tag to
+  publish an earlier release's reference. To see it locally:
+  `python tools/build_site.py --out site`, then
+  `python tools/build_api_reference.py --version 0.7.8 --out site/reference`
+  and `python -m http.server -d site`. It needs, once, **Settings → Pages →
   Source: GitHub Actions**, and the `github-pages` environment to allow `v*`
   tags beside `main` (**Settings → Environments → github-pages**): a release
   runs the workflow on its tag, and an environment that allows only `main`

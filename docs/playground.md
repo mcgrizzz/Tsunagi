@@ -7,7 +7,7 @@ changed it). It's an interactive reference of every endpoint, built from the
 running server, where you can send real requests.
 
 Without Anki, the same reference for the latest release is at
-**<https://mcgrizzz.github.io/Tsunagi/>**. It can't send requests: a page on
+**<https://mcgrizzz.github.io/Tsunagi/reference/>**. It can't send requests: a page on
 another website can't reach your Anki.
 
 ## Try a request
