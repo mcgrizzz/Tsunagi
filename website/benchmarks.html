@@ -36,11 +36,17 @@
   .wl svg .no { fill: var(--bad); font-weight: 600; }
   .wl svg .end { fill: var(--muted); font-size: 11px; }
   .wl.playing .trial, .wl.playing .median, .wl.playing .req { opacity: .12; }
-  .run { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-  .run dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 6px 0 0; font-size: 14.5px; }
-  .run dt { color: var(--muted); }
-  .run dd { margin: 0; font-variant-numeric: tabular-nums; }
-  @media (max-width: 760px) { .run { grid-template-columns: minmax(0, 1fr); } }
+  .wl svg .lbl.ts { fill: var(--api-ts); font-weight: 600; }
+  .run { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 18px; margin: 10px 0 0; }
+  .run div { min-width: 0; }
+  .run dt { font-size: 13px; color: var(--muted); }
+  .run dd { margin: 0; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+  .run .wide { grid-column: span 2; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 22px; margin: 12px 0 0; }
+  .facts div { min-width: 0; }
+  .facts dt { font-weight: 600; font-size: 14.5px; }
+  .facts dd { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+  @media (max-width: 480px) { .run .wide { grid-column: auto; } }
 </style>
 </head>
 <body>
@@ -68,10 +74,9 @@
 
   <section class="panel">
     <div class="panel-head"><h2>What was measured</h2>
-      <p class="hint">Every run keeps its versions, the collection it ran on and the state Anki was in. Within a run, the three
-      APIs were measured in the same state. Between runs it can differ, and that moves the times: on 2026-11-27, with Anki
-      minimized, each Tsunagi API write took about 6 ms longer than on 2026-11-26.</p></div>
-    <div class="run" id="run"></div>
+      <p class="hint">A real Japanese mining collection. In a run, all three APIs ran in the same conditions; between runs
+        they can differ, so compare APIs within a run.</p></div>
+    <dl class="run" id="run"></dl>
   </section>
 
   <section class="panel">
@@ -96,9 +101,9 @@
     <div id="workloads"></div>
   </section>
 
-  <section class="panel prose">
+  <section class="panel">
     <h2>How to read this</h2>
-    <ul id="method"></ul>
+    <dl class="facts" id="method"></dl>
   </section>
 </main>
 
@@ -138,22 +143,23 @@
       ["Measured", fmt.date(run.measured), `${runsN} runs of each workload, through each API`],
     ].map(card).join("");
     const size = run.collection || {};
-    $("run").innerHTML = `<div><h3>Versions</h3><dl>
-        <dt>Tsunagi</dt><dd>${esc(run.tsunagi)}</dd><dt>Anki</dt><dd>${esc(run.anki)}</dd>
-        <dt>AnkiConnect</dt><dd>${esc(run.ankiconnect || "not recorded")}</dd>
-        <dt>Anki's state</dt><dd>${esc(run.conditions || "not recorded")}</dd></dl></div>
-      <div><h3>The collection</h3><dl>${SIZE.filter(([k]) => size[k] != null).map(([k, l]) => `<dt>${l}</dt><dd>${fmt.int(size[k])}</dd>`).join("")}</dl>
-        ${Object.keys(size).length < 2 ? '<p class="hint">This run recorded only the note count.</p>' : ""}
-        <p class="hint">A real collection, used for Japanese mining: mostly mining and Kaishi 1.5k cards, with their review history and media.</p></div>`;
+    const item = (k, v, wide) => `<div${wide ? ' class="wide"' : ""}><dt>${k}</dt><dd>${esc(v)}</dd></div>`;
+    $("run").innerHTML = [
+      item("Tsunagi", run.tsunagi), item("Anki", run.anki), item("AnkiConnect", run.ankiconnect || "not recorded", true),
+      item("Conditions", run.conditions || "not recorded", true),
+      ...SIZE.filter(([k]) => size[k] != null).map(([k, l]) => item(l, fmt.int(size[k]))),
+    ].join("");
+    const fewer = W.flatMap(w => API.filter(([l]) => w.results[l].trials_ms && w.results[l].trials_ms.length !== runsN)
+      .map(([l]) => `<code>${esc(w.name)}</code> through ${esc(l)}: ${w.results[l].trials_ms.length}, at ${fmt.ms(w.results[l].median_ms)} each.`));
+    const slower = compared("Tsunagi API").filter(w => gain(w, "Tsunagi API") < 1).map(w => `<code>${esc(w.name)}</code>`);
     $("method").innerHTML = [
-      `Each workload ran ${runsN + 1} times per API on one computer. The first run warms up and isn't counted; the bars are the middle of the other ${runsN}.`,
-      ...W.flatMap(w => API.filter(([l]) => w.results[l].trials_ms && w.results[l].trials_ms.length !== runsN)
-        .map(([l]) => `<code>${esc(w.name)}</code> through ${esc(l)} was timed ${w.results[l].trials_ms.length} times, as each run took ${fmt.ms(w.results[l].median_ms)}.`)),
-      "AnkiConnect and the shim get the same requests, from the tool's own code. The Tsunagi API version gets the same result the way an app would ask for it. Each run's result is fingerprinted and compared across the three, to check a faster answer isn't a different one.",
-      ...run.limits.map(esc),
-      "The runner waits a set time for each answer. A workload with a request that got no answer by then shows that instead of a time, and is left out of the speed-ups.",
-      ...(n => (n ? [`The Tsunagi API is slower than AnkiConnect on ${compared("Tsunagi API").filter(w => gain(w, "Tsunagi API") < 1).map(w => `<code>${esc(w.name)}</code>`).join(" and ")}. What's known about why is in <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/benchmarks.md">docs/benchmarks.md</a>.`] : []))(slowerTs),
-    ].map(t => `<li>${t}</li>`).join("");
+      ["The bar", `The middle of ${runsN} timed runs per API. One more run before them warms up and isn't counted.${fewer.length ? ` Fewer runs where one took minutes: ${fewer.join(" ")}` : ""}`],
+      ["Same requests", "AnkiConnect and the shim get exactly what the tool sends. The Tsunagi API gets the same result the way an app would ask."],
+      ["Same answers", "Each run's result is fingerprinted and compared across the three, so a faster answer isn't a different one."],
+      ["Connections", run.limits.map(esc).join(" ")],
+      ["No answer", "A request with no answer in time shows that instead of a time, and its workload is left out of the speed-ups."],
+      ...(slower.length ? [["Slower", `The Tsunagi API is slower than AnkiConnect on ${slower.join(" and ")}. What's known about why is in <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/benchmarks.md">docs/benchmarks.md</a>.`]] : []),
+    ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
   }
 
   // One row per API: the measured view, and the pieces a Play animates.
@@ -164,7 +170,7 @@
     const svg = s("svg", { viewBox: `0 0 ${VW} ${API.length * rowH + 4}`, role: "img", "aria-label": `${w.name}, ${measure}` });
     const rows = API.map(([label, color], i) => {
       const r = w.results[label], y = i * rowH + rowH / 2 + 2, row = { label, color, r, y };
-      svg.append(s("text", { class: "lbl", x: 0, y: y + 4 }, label));
+      svg.append(s("text", { class: label === "Tsunagi API" ? "lbl ts" : "lbl", x: 0, y: y + 4 }, label));
       if (measure !== "bytes") svg.append(s("line", { class: "track", x1: left, x2: VW - right, y1: y, y2: y }));
       row.value = s("text", { class: "val", x: VW - right + 12, y: y + 4 });
       row.note = s("text", { x: VW - right + 90, y: y + 4 });

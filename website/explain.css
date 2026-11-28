@@ -13,6 +13,26 @@
 .replay-empty { padding: 18px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 14.5px; }
 i.api { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--fc); margin-right: 7px; vertical-align: -1px; }
 
+/* 1. Readers: what you see while each API works */
+.readers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 4px 0 14px; }
+.reader { border: 1px solid var(--line); border-top: 3px solid var(--fc); border-radius: 10px; background: var(--bg); min-width: 0; overflow: hidden; }
+.reader-bar { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 13px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.reader-bar .count { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reader-body { position: relative; padding: 10px 12px 90px; }
+.passage { margin: 0 !important; font-size: 16px; line-height: 1.9; }
+.passage .w { border-radius: 3px; padding: 0 1px; }
+.passage .w.mined { box-shadow: inset 0 -2px 0 var(--fc); }
+.passage .w.now { background: color-mix(in srgb, var(--fc) 22%, transparent); }
+.rpop { position: absolute; width: 196px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, .12); }
+.rpop-word { font-size: 13px; color: var(--muted); }
+.rpop-word b { font-size: 17px; color: var(--ink); font-weight: 500; }
+.rpop-steps { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin: 4px 0; padding: 0; }
+.rpop-steps li { font-size: 10.5px; text-align: center; border-radius: 4px; padding: 1px 0; background: var(--cell-empty); color: var(--muted); white-space: nowrap; overflow: hidden; }
+.rpop-steps li.now { background: var(--fc); color: var(--surface); font-weight: 600; }
+.rpop-steps li.done { background: color-mix(in srgb, var(--fc) 25%, transparent); color: var(--ink); }
+.rpop-req { display: block; font-size: 11px; background: none; padding: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rcursor { position: absolute; pointer-events: none; }
+
 /* 2. Request by request */
 .goals { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0 4px; padding: 0; counter-reset: goal; }
 .goals li { counter-increment: goal; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 13.5px; color: var(--muted); background: var(--bg); }
@@ -20,6 +40,23 @@ i.api { display: inline-block; width: 12px; height: 12px; border-radius: 3px; ba
 .goals li.now { border-color: var(--accent); color: var(--ink); background: var(--accent-soft); }
 .goals li.done { color: var(--ink); }
 .lanes2 h3 { margin-top: 10px; }
+.popup-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; align-items: start; margin: 12px 0 4px; }
+.popup-row .goals { grid-template-columns: minmax(0, 1fr); margin: 0; }
+.mock { border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 10px 12px 12px; min-width: 0; }
+.mock .passage { font-size: 15px; color: var(--muted); --fc: var(--accent); }
+.ypop { margin-top: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 6px 18px rgba(0, 0, 0, .1); overflow: hidden; }
+.ypop-bar { font-size: 12px; color: var(--muted); padding: 3px 10px; border-bottom: 1px solid var(--line); }
+.ypop ul { list-style: none; margin: 0; padding: 0; }
+.ypop li { display: grid; grid-template-columns: 5.5em minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 14px; transition: background .3s; }
+.ypop li:first-child { border-top: 0; }
+.ypop li.hit { background: var(--accent-soft); }
+.ypop .term b { font-size: 17px; font-weight: 500; }
+.ypop .term small { color: var(--muted); }
+.ypop .gloss { color: var(--muted); min-width: 0; }
+.ypop .state { font-size: 12.5px; white-space: nowrap; }
+.ypop .state.saved { color: var(--good); font-weight: 600; }
+.ypop .state.add { border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; color: var(--ink); }
+.ypop .state.added { color: var(--accent); font-weight: 600; }
 .reqs { display: grid; gap: 8px; }
 .req-card { border: 1px solid var(--line); border-left: 4px solid var(--fc); border-radius: 8px; padding: 8px 10px; min-width: 0; }
 .req-card.old { opacity: .6; }
@@ -50,6 +87,11 @@ i.api { display: inline-block; width: 12px; height: 12px; border-radius: 3px; ba
 .stream .ev pre.json { margin-top: 4px; font-size: 12px; }
 .stream .none { color: var(--muted); font-size: 14px; padding: 6px; }
 @media (prefers-reduced-motion: no-preference) { .stream .ev.new { animation: arrive .3s ease-out; } }
+.race { margin-top: 18px; }
+.race h3 { margin: 0; }
+.replay .change { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; opacity: .7; }
+.replay .req.empty { fill: var(--surface); stroke-width: 1.5; }
+.replay .waited { opacity: .35; }
 
 /* 4. Waffle of actions (roles here, parity on its page) */
 .waffle { display: grid; gap: 10px 18px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); margin-top: 10px; }
@@ -65,8 +107,32 @@ i.api { display: inline-block; width: 12px; height: 12px; border-radius: 3px; ba
 .wcells button[data-n="2"] { background: var(--seq-2); }
 .wcells button[data-n="3"] { background: var(--seq-3); }
 .wcells button.bug { box-shadow: inset 0 0 0 2px var(--bad); }
+.extras { margin-top: 14px; }
+.extras h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.extras .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.extras .extra { border: 1px solid var(--line); background: var(--cell-empty); color: var(--muted); font: inherit; font-size: 13.5px; padding: 3px 11px; border-radius: 999px; cursor: default; }
+.extras .extra.on { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+
+/* Where to start: one question, two paths of steps */
+.flow { margin-top: 12px; }
+.flow-root { width: max-content; max-width: 100%; margin: 0 auto !important; padding: 6px 16px; border-radius: 999px; background: var(--accent); color: var(--surface); font-weight: 600; font-size: 14.5px; }
+.flow-branches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; position: relative; padding-top: 26px; }
+/* The fork: down from the question, across, and down to each path. */
+.flow-branches::before { content: ""; position: absolute; top: 12px; left: 25%; right: 25%; height: 14px; border: 2px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; }
+.flow-branches::after { content: ""; position: absolute; top: 0; left: 50%; width: 2px; height: 12px; background: var(--line); }
+.branch { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 4px; background: var(--bg); min-width: 0; }
+.branch h3 { margin: 0 0 10px; text-align: center; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.steps li { counter-increment: step; position: relative; padding: 0 0 14px 38px; display: flex; flex-direction: column; font-size: 14.5px; }
+.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 2px solid var(--accent); color: var(--accent); font-weight: 600; font-size: 13px; }
+.steps li:not(:last-child)::after { content: ""; position: absolute; left: 12px; top: 28px; bottom: 2px; width: 2px; background: var(--line); }
+.steps li a, .steps li strong { font-weight: 600; line-height: 26px; }
+.steps li span { font-size: 13.5px; color: var(--muted); }
 
 @media (max-width: 760px) {
+  .readers, .popup-row { grid-template-columns: minmax(0, 1fr); }
+  .flow-branches { grid-template-columns: minmax(0, 1fr); }
+  .flow-branches::before { left: 50%; right: auto; width: 0; border-width: 0 0 0 2px; border-radius: 0; }
   .goals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .events { grid-template-columns: minmax(0, 1fr); }
 }

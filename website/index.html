@@ -59,15 +59,17 @@
   <section class="panel" id="session">
     <div class="panel-head">
       <h2>1. A mining session, three ways</h2>
-      <p class="hint">Yomitan, ten lookups. Each popup checks whether its words are already saved, then you add one new
-        word with its audio and picture, and its card is suspended. The same session, timed against AnkiConnect,
-        Tsunagi's AnkiConnect shim and the Tsunagi API. Each block is one request. Press Play.</p>
+      <p class="hint">Yomitan, ten lookups. Each popup checks whether its words are already saved, then you add the
+        word you looked up, with its audio and picture, and its card is suspended. The same session, timed against
+        AnkiConnect, Tsunagi's AnkiConnect shim and the Tsunagi API. Above, what you'd see; below, each block is one
+        request. Press Play.</p>
     </div>
     <div class="controls">
       <button class="btn primary" type="button" id="s-play">Play</button>
       <button class="btn" type="button" id="s-reset">Reset</button>
       <div class="seg" id="s-speed" role="group" aria-label="Speed"></div>
     </div>
+    <div class="readers" id="s-readers"></div>
     <div class="replay" id="s-replay"></div>
     <div class="explain" id="s-explain" aria-live="polite"></div>
   </section>
@@ -84,7 +86,10 @@
       <button class="btn" type="button" id="p-reset">Start over</button>
       <span class="muted" id="p-count" aria-live="polite"></span>
     </div>
-    <ol class="goals" id="p-goals"></ol>
+    <div class="popup-row">
+      <div class="mock" id="p-mock"></div>
+      <ol class="goals" id="p-goals"></ol>
+    </div>
     <div class="grid2 lanes2">
       <div><h3><i class="api" style="--fc:var(--api-ac)"></i>AnkiConnect</h3><div class="reqs" id="p-ac"></div></div>
       <div><h3><i class="api" style="--fc:var(--api-ts)"></i>Tsunagi API</h3><div class="reqs" id="p-ts"></div></div>
@@ -97,7 +102,7 @@
       <h2>3. Changes, as they happen</h2>
       <p class="hint">An app that keeps its own list of your notes listens to <code>GET /v1/events</code>. Edit this toy note the
         way you would in Anki, or write to it as an app, and watch what arrives on the stream. Then change what
-        the app asked for.</p>
+        the app asked for. Below, the same changes seen by a tool on AnkiConnect, which has no events and has to ask.</p>
     </div>
     <div class="controls">
       <span class="muted">The app asked for</span>
@@ -118,13 +123,21 @@
       <div class="stream" id="e-stream" aria-live="polite"></div>
     </div>
     <div class="explain" id="e-explain"></div>
+    <div class="race">
+      <h3>Asking vs being told</h3>
+      <p class="hint">asbplayer, on AnkiConnect, asks every 10 s for every card edited or reviewed today, then works out
+        what's new. The stream tells the app once, when the change is done. Each line is a change you made; each
+        block a request or message.</p>
+      <div id="e-race"></div>
+    </div>
   </section>
 
   <section class="panel" id="roles">
     <div class="panel-head">
       <h2>4. Who may do what</h2>
       <p class="hint">Every request comes from somewhere, and each app has a role. Pick who is asking and the role it has;
-        each square is one AnkiConnect action, lit when it's allowed. Hover a square for the permission it needs.</p>
+        each square is one AnkiConnect action, lit when it's allowed. Below them, what only the Tsunagi API offers. Hover one
+        for the permission it needs.</p>
     </div>
     <div class="controls">
       <div class="seg" id="r-caller" role="group" aria-label="Who is asking"></div>
@@ -134,21 +147,36 @@
       <div class="seg" id="r-role" role="group" aria-label="Role"></div>
     </div>
     <div class="waffle" id="r-waffle"></div>
+    <div class="extras" id="r-extras"></div>
     <div class="keys" id="r-keys"></div>
     <div class="explain" id="r-explain" aria-live="polite"></div>
   </section>
 
-  <section class="panel prose">
+  <section class="panel" id="start">
     <h2>Where to start</h2>
-    <ul>
-      <li><strong>You use AnkiConnect tools.</strong> Install Tsunagi from <a href="https://ankiweb.net/shared/info/666370974">AnkiWeb</a>
-        and <a href="https://github.com/mcgrizzz/Tsunagi#replace-ankiconnect">switch from AnkiConnect</a>: Tsunagi takes over
-        its port and its settings. Check your tools on the <a href="tools.html">tested tools</a> page.</li>
-      <li><strong>You build an app.</strong> <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/getting_started.md">Getting started</a>
-        walks through the first requests; the <a href="https://mcgrizzz.github.io/Tsunagi/">API reference</a> lists every
-        route, with a playground; <a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/events.md">events</a> explains the stream.
-        From TypeScript, use the <a href="https://www.npmjs.com/package/tsunagi-client">typed client</a>.</li>
-    </ul>
+    <div class="flow">
+      <p class="flow-root">Which are you?</p>
+      <div class="flow-branches">
+        <div class="branch">
+          <h3>You use AnkiConnect tools</h3>
+          <ol class="steps">
+            <li><a href="https://ankiweb.net/shared/info/666370974">Install Tsunagi</a><span>from AnkiWeb, like any add-on</span></li>
+            <li><a href="https://github.com/mcgrizzz/Tsunagi#replace-ankiconnect">Switch from AnkiConnect</a><span>Tsunagi takes over its port and its settings</span></li>
+            <li><a href="tools.html">Check your tools</a><span>each one tested, request by request</span></li>
+            <li><strong>Keep using them</strong><span>no change to any tool</span></li>
+          </ol>
+        </div>
+        <div class="branch">
+          <h3>You build an app</h3>
+          <ol class="steps">
+            <li><a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/getting_started.md">Getting started</a><span>your first requests, step by step</span></li>
+            <li><a href="https://mcgrizzz.github.io/Tsunagi/">API reference</a><span>every route, with a playground</span></li>
+            <li><a href="https://github.com/mcgrizzz/Tsunagi/blob/main/docs/events.md">Listen for changes</a><span>the event stream, as in 3</span></li>
+            <li><a href="https://www.npmjs.com/package/tsunagi-client">TypeScript client</a><span>typed, from npm</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
   </section>
 </main>
 

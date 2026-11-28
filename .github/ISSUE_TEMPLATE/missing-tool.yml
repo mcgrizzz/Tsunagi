@@ -1,0 +1,41 @@
+name: Suggest a missing tool
+description: An AnkiConnect tool that isn't on the tested tools page yet.
+title: "Tool: "
+labels: ["tool"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: The tool
+      description: Its name.
+      placeholder: Yomitan
+    validations:
+      required: true
+  - type: input
+    id: code
+    attributes:
+      label: Where its code is
+      description: A link to its source code. We read the code to see what it sends; it isn't run.
+      placeholder: https://github.com/yomidevs/yomitan
+    validations:
+      required: true
+  - type: textarea
+    id: use
+    attributes:
+      label: What you use it for
+      description: Optional. The features you rely on help us look at the right requests first.
+  - type: dropdown
+    id: tried
+    attributes:
+      label: Have you tried it with Tsunagi?
+      options:
+        - Not yet
+        - Yes, it works
+        - Yes, and something doesn't work
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What doesn't work
+      description: Only if something doesn't work. What you did, what you expected, and what happened.

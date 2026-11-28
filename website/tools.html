@@ -25,6 +25,18 @@
   .tool details dt { color: var(--muted); }
   .tool details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   .tool:target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .tool .fresh { font-size: 13px; color: var(--muted); }
+  .tool .fresh.changed { color: var(--warn); }
+  .head-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  a.btn { text-decoration: none; display: inline-block; }
+  .layers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .layer { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg); min-width: 0; }
+  .layer.main { border-color: var(--accent); background: var(--accent-soft); }
+  .layer h3 { margin: 4px 0 4px; }
+  .layer p { margin: 0; font-size: 14px; color: var(--muted); }
+  .layer .when { margin-top: 8px; font-size: 13px; color: var(--ink); }
+  .not-covered { font-size: 14px; color: var(--muted); margin: 12px 0 0; }
+  @media (max-width: 760px) { .layers { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 900px) { .tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 560px) { .tools { grid-template-columns: minmax(0, 1fr); } }
 </style>
@@ -49,27 +61,41 @@
 
   <section class="panel">
     <div class="panel-head row">
-      <div><h2>Every tool</h2>
-        <p class="hint">Missing one you use? <a href="#add">Add it to the checks</a>.</p></div>
-      <input type="search" id="search" placeholder="Find a tool or an action it sends" aria-label="Find a tool or an action it sends">
+      <h2>Every tool</h2>
+      <div class="head-actions">
+        <input type="search" id="search" placeholder="Find a tool or an action it sends" aria-label="Find a tool or an action it sends">
+        <a class="btn primary" href="https://github.com/mcgrizzz/Tsunagi/issues/new?template=missing-tool.yml">Suggest a missing tool</a>
+      </div>
     </div>
     <div class="tools" id="tools"></div>
   </section>
 
-  <section class="panel prose" id="add">
+  <section class="panel" id="add">
     <h2>How tools are checked</h2>
-    <ul>
-      <li>Every AnkiConnect action has tests of its own (see <a href="parity.html">AnkiConnect parity</a>). The tools are
-        extra insurance, in case a tool sends something those tests don't expect.</li>
-      <li>For each tool, its source was read at the commit shown and every request it sends to Anki written down. On every
-        change, Tsunagi's tests check that each of those requests gets the answer AnkiConnect gave before its October 2026
-        rewrite, including for cards that are new, learning, in review, relearning, suspended, buried or in a filtered deck.</li>
-      <li>The tools' own code isn't run, so what a tool does with Anki's windows, such as opening the Browser, isn't covered.</li>
-      <li>Want a tool added to the checks? <a href="https://github.com/mcgrizzz/Tsunagi/compare">Open a pull request</a> with its
-        declaration (<a href="https://github.com/mcgrizzz/Tsunagi/blob/main/tests/clients/support.py">how to write one</a>: read its
-        code, list what it sends), or <a href="https://github.com/mcgrizzz/Tsunagi/issues/new?title=Add%20a%20tool%20to%20the%20checks%3A%20">open an issue</a>
-        naming it and we'll add it.</li>
-    </ul>
+    <div class="layers">
+      <div class="layer main">
+        <span class="tag next">The main check</span>
+        <h3>Every AnkiConnect action, on its own</h3>
+        <p>Each action has tests of its own, whatever tool sends it. See <a href="parity.html">AnkiConnect parity</a>.</p>
+        <p class="when">On every change to Tsunagi</p>
+      </div>
+      <div class="layer">
+        <span class="tag">Extra check</span>
+        <h3>Each tool's requests, as it sends them</h3>
+        <p>Every request in the tool's code, compared with AnkiConnect's answer for cards in every state: new, learning,
+          suspended, in a filtered deck and more.</p>
+        <p class="when">On every change to Tsunagi</p>
+      </div>
+      <div class="layer">
+        <span class="tag">Extra check</span>
+        <h3>Each tool's latest code</h3>
+        <p>Its newest code is compared with the commit that was read. Where the code that sends a request changed,
+          the tool is flagged to be read again.</p>
+        <p class="when">Every week</p>
+      </div>
+    </div>
+    <p class="not-covered">Not covered: the tools' own code isn't run, so what a tool does with Anki's windows, such as
+      opening the Browser, isn't checked. Missing a tool? <a href="https://github.com/mcgrizzz/Tsunagi/issues/new?template=missing-tool.yml">Suggest it</a> and we'll add it.</p>
   </section>
 </main>
 <footer class="wrap foot">Written from the tools' declarations in
@@ -81,13 +107,16 @@
   const $ = id => document.getElementById(id);
   const { tools } = await load("tools");
   const requests = t => t.actions.reduce((n, a) => n + a.requests, 0);
-  const newest = tools.reduce((a, t) => (t.read > a.read ? t : a));
+  const checked = tools.filter(t => t.compared && !t.compared.error);
+  const toRecheck = checked.filter(t => t.compared.changed.length);
   const needs = tools.filter(t => t.needs);
   $("stats").innerHTML = [
     ["Tools that work", `${tools.length} of ${tools.length}`, "with every request they send", true],
     ["Requests checked", fmt.int(tools.reduce((n, t) => n + requests(t), 0)), "on every change to Tsunagi"],
     ["Need a recent Tsunagi", needs.length, needs.length ? `${needs.map(t => esc(t.name)).join(" and ")}: ${esc(needs[0].needs[0])} or newer` : "none"],
-    ["Last checked", fmt.date(newest.read), esc(newest.name)],
+    checked.length
+      ? ["Latest code compared", fmt.date(checked[0].compared.date), `${checked.length - toRecheck.length} unchanged · ${toRecheck.length} to read again`]
+      : ["Latest code compared", "not yet", "every week from now"],
   ].map(([k, v, sub, accent]) => `<div class="card"><div class="k">${k}</div><div class="v${accent ? " accent" : ""}">${v}</div><div class="s">${sub}</div></div>`).join("");
 
   const CHECK = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -104,12 +133,24 @@
       h("div", { class: "works", html: t.needs
         ? `${CHECK}<span>Works with Tsunagi ${esc(t.needs[0])} or newer<small>${esc(t.needs[1])}</small></span>`
         : `${CHECK}<span>Works${t.note ? `<small>${prose(t.note)}</small>` : ""}</span>` }),
-      h("div", { class: "meta" }, `${requests(t)} requests checked · code read ${fmt.date(t.read)}`),
+      h("div", { class: "meta" }, `${requests(t)} requests checked · code read ${fmt.date(t.read)}`,
+        freshness(t)),
       h("details", {}, h("summary", {}, "What it sends"),
         h("ul", { class: "chips", html: sent }),
         h("dl", { html: `<dt>Code read at</dt><dd><a href="${esc(t.repo)}/tree/${esc(t.commit)}"><code>${esc(t.commit)}</code></a></dd>
-          <dt>Sends</dt><dd>${esc(envelope)}</dd>${t.details ? `<dt>From its code</dt><dd>${prose(t.details)}</dd>` : ""}` })));
+          <dt>Sends</dt><dd>${esc(envelope)}</dd>${t.details ? `<dt>From its code</dt><dd>${prose(t.details)}</dd>` : ""}
+          ${t.compared?.changed?.length ? `<dt>Changed since</dt><dd>${t.compared.changed.map(a => `<code>${esc(a)}</code>`).join(" ")} in <a href="${esc(t.repo)}/compare/${esc(t.commit)}...${esc(t.compared.latest)}"><code>${esc(t.compared.latest)}</code></a></dd>` : ""}` })));
   };
+  // When its latest code was last compared with the commit read, and what changed.
+  function freshness(t) {
+    const c = t.compared;
+    if (!c) return null;
+    if (c.error) return h("div", { class: "fresh" }, `Latest code couldn't be compared on ${fmt.date(c.date)}`);
+    const n = c.changed.length;
+    return n
+      ? h("div", { class: "fresh changed" }, `Code for ${n} action${n > 1 ? "s" : ""} changed since; to read again (compared ${fmt.date(c.date)})`)
+      : h("div", { class: "fresh" }, `Latest code compared ${fmt.date(c.date)}: no change`);
+  }
   const cards = new Map(tools.map(t => [t, card(t)]));
   $("tools").replaceChildren(...cards.values());
   $("search").addEventListener("input", e => {

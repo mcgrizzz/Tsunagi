@@ -3,8 +3,9 @@ Build the project site (website/) into a folder: its pages, plus the data they
 read, written from the same sources as the docs: the tested tools'
 declarations (tests/clients), the AnkiConnect parity page, each action's
 permission (its registration), the extracted benchmarks
-(website/data/benchmarks.json, tools/extract_benchmarks.py) and the GitHub
-releases. Each action's Tsunagi API route (website/data/native.json) is
+(website/data/benchmarks.json, tools/extract_benchmarks.py), the latest
+comparison of each tool's code (website/data/tools-check.json,
+tools/check_clients.py) and the GitHub releases. Each action's Tsunagi API route (website/data/native.json) is
 checked against the API description.
 
     python tools/build_site.py --out /tmp/tsunagi-site
@@ -129,6 +130,8 @@ def tools(groups):
     sys.path[:0] = [str(ROOT / "tests")]
     from clients.support import clients
 
+    check_file = SITE / "data/tools-check.json"
+    check = json.loads(check_file.read_text(encoding="utf-8")) if check_file.exists() else {"tools": {}}
     out = []
     for folder, module in sorted(clients().items(), key=lambda m: m[1].CLIENT["name"].lower()):
         c = module.CLIENT
@@ -137,11 +140,22 @@ def tools(groups):
             "id": folder, "name": c["name"], "about": c["about"], "repo": c["repo"],
             "commit": c["commit"], "read": c["read"], "note": c.get("note", ""),
             "needs": c.get("needs"), "details": c.get("notes", ""), "envelope": module.ENVELOPE,
+            # Its latest code against the commit read, when checked since that read.
+            "compared": compared(c, check["checked"], check["tools"][folder]) if folder in check["tools"] else None,
             "actions": [{"name": name, "requests": len(shapes), "group": groups.get(name, {}).get("group", "Other"),
                          "code": code_link(c, sites, name)}
                         for name, (shapes, _reads) in sorted(module.SENDS.items())],
         })
     return out
+
+
+def compared(c, date, r):
+    """One tool's latest comparison: when, the commit compared, and the actions whose code changed."""
+    if r["read"] != c["commit"]:   # the tool was read again since; that comparison is about the old commit
+        return None
+    if "error" in r:
+        return {"date": date, "error": r["error"]}
+    return {"date": date, "latest": r["latest"], "changed": [action for action, _state in r["changed"]]}
 
 
 def summary(groups, tool_rows, release_rows):
@@ -169,6 +183,7 @@ def build(out: Path):
     shutil.copytree(SITE, out)
     data = out / "data"
     (data / "native.json").unlink()   # folded into parity.json
+    (data / "tools-check.json").unlink(missing_ok=True)   # folded into tools.json
 
     def write(name, value):
         (data / f"{name}.json").write_text(json.dumps(value, ensure_ascii=False, indent=1), encoding="utf-8")

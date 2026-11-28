@@ -45,7 +45,65 @@
     popupSteps(lanes);
   }).catch(err => { $("s-replay").textContent = `The benchmark data didn't load: ${err.message}`; popupSteps(null); });
 
+  // What the person mining sees, one reader per API: the word looked up, its popup's step, the words mined so far.
+  const PASSAGE = [["今朝", "けさ"], "、", ["猫", "ねこ"], "が", ["窓", "まど"], "の", ["外", "そと"], "で", ["鳥", "とり"], "を見ていた。",
+    ["犬", "いぬ"], "は", ["庭", "にわ"], "で眠り、", ["空", "そら"], "は青く、", ["風", "かぜ"], "が静かに", ["木", "き"], "を揺らしていた。"];
+  // Which of the popup's four steps each request is.
+  const PHASE = { canAddNotesWithErrorDetail: 0, "POST /v1/notes:check": 0, findNotes: 1, multi: 1, "GET /v1/notes": 1,
+    storeMediaFile: 2, addNote: 2, "POST /v1/notes": 2, findCards: 3, suspend: 3, "POST /v1/cards:suspend": 3 };
+  const PHASES = ["Saved?", "Notes", "Add", "Suspend"];
+  const CURSOR = '<svg class="cursor" width="14" height="20" viewBox="0 0 14 20" aria-hidden="true"><path d="M1 1v15l4-4 3 7 3-1.3-3-6.7h5.5z" fill="var(--ink)" stroke="var(--surface)" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+
+  function readers(lanes) {
+    const views = lanes.map(l => {
+      const ends = [];
+      l.reqs.forEach(q => { ends[q.popup - 1] = Math.max(ends[q.popup - 1] ?? 0, q.end_ms); });
+      const words = [];
+      const passage = h("p", { class: "passage", lang: "ja" }, PASSAGE.map(part => {
+        if (typeof part === "string") return part;
+        const w = h("span", { class: "w" }, part[0]);
+        words.push(w);
+        return w;
+      }));
+      const count = h("span", { class: "count" });
+      const word = h("div", { class: "rpop-word", lang: "ja" });
+      const steps = PHASES.map(name => h("li", {}, name));
+      const req = h("code", { class: "rpop-req" });
+      const pop = h("div", { class: "rpop", hidden: true }, word, h("ol", { class: "rpop-steps" }, steps), req);
+      const cursor = h("span", { class: "rcursor", hidden: true, html: CURSOR });
+      const box = h("div", { class: "reader", style: { "--fc": l.color } },
+        h("div", { class: "reader-bar" }, h("b", {}, h("i", { class: "api", style: { "--fc": l.color } }), l.label), count),
+        h("div", { class: "reader-body" }, passage, pop, cursor));
+      return { l, ends, words, count, word, steps, req, pop, cursor, box };
+    });
+    $("s-readers").replaceChildren(...views.map(v => v.box));
+    return t => views.forEach(v => {
+      const mined = v.ends.filter(e => e <= t).length;
+      v.words.forEach((w, i) => w.className = i < mined ? "w mined" : "w");
+      v.count.textContent = t >= v.l.end ? `10 mined in ${fmt.ms(v.l.end)}` : `${mined} of 10 mined`;
+      const active = t > 0 && t < v.l.end ? mined : -1;
+      v.pop.hidden = v.cursor.hidden = active < 0;
+      if (active < 0) return;
+      const w = v.words[active];
+      w.className = "w now";
+      // The request in flight, or the last one answered while the tool works between requests.
+      const mine = v.l.reqs.filter(q => q.popup === active + 1);
+      const q = mine.filter(r => r.start_ms <= t).at(-1);
+      const phase = q ? PHASE[q.what] ?? 0 : -1;
+      v.word.innerHTML = `<b>${esc(PASSAGE.filter(x => typeof x !== "string")[active][0])}</b> <span>${esc(PASSAGE.filter(x => typeof x !== "string")[active][1])}</span>`;
+      v.steps.forEach((li, i) => li.className = i < phase || (q && t >= q.end_ms && i === phase) ? "done" : i === phase ? "now" : "");
+      v.req.textContent = q ? q.what : "looking up";
+      // Under the word, kept inside the reader.
+      const body = v.pop.parentElement, maxLeft = body.clientWidth - v.pop.offsetWidth - 4;
+      v.pop.style.left = `${Math.max(4, Math.min(maxLeft, w.offsetLeft - 8))}px`;
+      v.pop.style.top = `${w.offsetTop + w.offsetHeight + 6}px`;
+      v.cursor.style.left = `${w.offsetLeft + w.offsetWidth * 0.6}px`;
+      v.cursor.style.top = `${w.offsetTop + w.offsetHeight * 0.5}px`;
+    });
+  }
+
   function replay(lanes, when) {
+    const showReaders = readers(lanes);
     const W = 1000, left = 150, right = 150, top = 26, laneH = 30, gap = 16;
     const T = Math.max(...lanes.map(l => l.end));
     const x = t => left + (W - left - right) * t / T;
@@ -89,6 +147,7 @@
     let t = 0, speed = 1, raf = null, last = 0;
     const [ac, shim, ts] = lanes;
     function draw() {
+      showReaders(t);
       clip.setAttribute("width", x(t));
       head.setAttribute("x1", x(t)); head.setAttribute("x2", x(t));
       lanes.forEach((l, i) => {
@@ -168,7 +227,38 @@
     },
   ];
 
+  // The popup itself: its four entries, as each step leaves them.
+  const ENTRIES = [
+    { word: "猫", reading: "ねこ", gloss: "cat", saved: "note 1001" },
+    { word: "犬", reading: "いぬ", gloss: "dog", saved: "notes 1002, 1003" },
+    { word: "鳥", reading: "とり", gloss: "bird" },
+    { word: "空", reading: "そら", gloss: "sky", mine: true },
+  ];
+  function popupMock() {
+    const rows = ENTRIES.map(e => {
+      const state = h("span", { class: "state" });
+      const row = h("li", {}, h("span", { class: "term", lang: "ja" }, h("b", {}, e.word), " ", h("small", {}, e.reading)),
+        h("span", { class: "gloss" }, e.gloss), state);
+      return { e, row, state };
+    });
+    $("p-mock").replaceChildren(
+      h("p", { class: "passage", lang: "ja" }, "…猫と犬が、", h("span", { class: "w now" }, "空"), "を飛ぶ鳥を見ていた…"),
+      h("div", { class: "ypop" }, h("div", { class: "ypop-bar" }, "Popup"), h("ul", {}, rows.map(r => r.row))));
+    return step => rows.forEach(({ e, row, state }) => {
+      let text = "", cls = "state";
+      if (step === 0) text = "";
+      else if (e.saved) { text = step >= 2 ? `Saved · ${e.saved}` : "Saved"; cls += " saved"; }
+      else if (e.mine && step >= 3) { text = step >= 4 ? "Added · suspended" : "Added, with audio and picture"; cls += " added"; }
+      else { text = "+ Add"; cls += " add"; }
+      state.className = cls;
+      state.textContent = text;
+      // The entries this step changed.
+      row.classList.toggle("hit", step > 0 && (step <= 2 ? Boolean(e.saved) || step === 1 : Boolean(e.mine)));
+    });
+  }
+
   function popupSteps(lanes) {
+    const showMock = popupMock();
     // Timings from the session's second popup (two saved words, as here), when measured.
     const timed = {};
     if (lanes) for (const [key, label] of [["ac", "AnkiConnect"], ["ts", "Tsunagi API"]]) {
@@ -187,6 +277,7 @@
     }
     function render() {
       [...$("p-goals").children].forEach((li, i) => li.className = i === step - 1 ? "now" : i < step - 1 ? "done" : "");
+      showMock(step);
       const timing = key => (timed[key] && counts[key] ? `, ${fmt.ms(ms[key])}` : "");
       $("p-count").textContent = step ? `AnkiConnect: ${counts.ac} requests${timing("ac")} · Tsunagi API: ${counts.ts}${timing("ts")}` : "";
       $("p-next").disabled = step === STEPS.length;
@@ -226,6 +317,7 @@
   ];
   const note = { front: $("e-front").value, back: $("e-back").value, tags: [] };
   const sent = [];   // {at, by, note snapshot}
+  const changes = [];   // when the note changed in Anki, for the polling comparison
   let mode = "ids", seq = 0, timer = null, deadline = 0, delay = 0, lastCause = null, waitRaf = null;
   const t0 = performance.now();
   const BACKS = ["a dog", "dogs", "dog"];
@@ -294,10 +386,11 @@
     $("e-tag").textContent = note.tags.length ? "Remove the tag “mined” in the Browser" : "Add the tag “mined” in the Browser";
   }
   for (const [id, key] of [["e-front", "front"], ["e-back", "back"]]) {
-    $(id).addEventListener("input", e => { note[key] = e.target.value; mark("typing", TYPING_DELAY); });
+    $(id).addEventListener("input", e => { note[key] = e.target.value; changes.push(performance.now()); mark("typing", TYPING_DELAY); });
   }
   $("e-tag").addEventListener("click", () => {
     note.tags = note.tags.length ? [] : ["mined"];
+    changes.push(performance.now());
     drawTags();
     mark("tag", OP_DELAY);
   });
@@ -305,11 +398,75 @@
     note.back = BACKS[(BACKS.indexOf(note.back) + 1) % BACKS.length];
     $("e-back").value = note.back;
     lastCause = "api";
+    changes.push(performance.now());
     sent.push({ at: performance.now(), by: "api", app: "Your app", seq: ++seq, note: { ...note, tags: [...note.tags] } });
     renderStream(true);
     explainEvents();
   });
   seg($("e-select"), SELECTS, mode, v => { mode = v; renderStream(false); explainEvents(); });
+  race();
+
+  // The same changes seen two ways: a tool polling AnkiConnect every 10 s (asbplayer's poll,
+  // the change_poll benchmark), and the stream above. The last 40 s, drawn as they pass.
+  function race() {
+    const POLL = 10000, SPAN = 40000, W = 1000, left = 150, right = 220, laneH = 26, top = 8, gap = 14;
+    const H = top + 2 * (laneH + gap);
+    const lanes = [["A tool on AnkiConnect", "var(--api-ac)"], ["Tsunagi's stream", "var(--api-ts)"]];
+    const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Polling every 10 seconds compared with the event stream" });
+    const marks = s("g"), stats = [];
+    lanes.forEach(([label, color], i) => {
+      const y = top + i * (laneH + gap);
+      svg.append(s("rect", { class: "lane", x: left, y, width: W - left - right, height: laneH, rx: 5 }));
+      svg.append(s("text", { class: "lbl", x: 0, y: y + 17 }, label));
+      const n = s("text", { class: "num", x: W - right + 12, y: y + 11 }), sub = s("text", { x: W - right + 12, y: y + 25 });
+      svg.append(n, sub);
+      stats.push({ n, sub });
+    });
+    svg.append(marks);
+    $("e-race").append(h("div", { class: "replay" }, svg));
+    const note = h("div", { class: "explain" });
+    $("e-race").append(note);
+
+    // Each poll or message, with how long the oldest change it was first to report had waited.
+    function reports(times) {
+      let prev = -Infinity;
+      return times.map(at => {
+        const caught = changes.filter(c => c > prev && c <= at);
+        prev = at;
+        return { at, wait: caught.length ? at - Math.min(...caught) : null };
+      });
+    }
+    const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+    function draw() {
+      const now = performance.now(), from = now - SPAN;
+      const x = at => left + (W - left - right) * (at - from) / SPAN;
+      const polls = [];
+      for (let at = t0 + POLL; at <= now; at += POLL) polls.push(at);
+      const rows = [reports(polls), reports(sent.map(e => e.at))];
+      marks.replaceChildren();
+      changes.filter(c => c > from).forEach(c => marks.append(s("line", { class: "change", x1: x(c), x2: x(c), y1: top - 4, y2: H - gap + 4 })));
+      rows.forEach((row, i) => {
+        const y = top + i * (laneH + gap), color = lanes[i][1];
+        row.filter(r => r.at > from - 2000).forEach(r => {
+          if (r.wait != null) marks.append(s("rect", { class: "waited", x: Math.max(left, x(r.at - r.wait)), y: y + laneH / 2 - 2, width: Math.max(0, x(r.at) - Math.max(left, x(r.at - r.wait))), height: 4, fill: color }));
+          marks.append(s("rect", { class: r.wait != null ? "req" : "req empty", x: x(r.at) - 3, y: y + 4, width: 6, height: laneH - 8, rx: 2, fill: color, style: r.wait != null ? null : `stroke:${color}` }));
+        });
+        const told = row.filter(r => r.wait != null);
+        stats[i].n.textContent = i === 0 ? `${row.length} request${row.length === 1 ? "" : "s"}` : `${row.length} message${row.length === 1 ? "" : "s"}`;
+        stats[i].sub.textContent = told.length ? `${told.length} with news, ${(mean(told.map(r => r.wait)) / 1000).toFixed(1)} s after the change` : i === 0 ? "nothing new yet" : "";
+      });
+      const asked = rows[0].length, empty = rows[0].filter(r => r.wait == null).length;
+      note.innerHTML = !changes.length
+        ? `The tool on AnkiConnect has asked ${asked} time${asked === 1 ? "" : "s"} since this page opened, and found nothing new: nothing changed. The stream has sent nothing. Change the note above.`
+        : `On AnkiConnect, ${asked} requests so far, ${empty} of them for nothing; a change waits up to 10 s to be seen. The stream sent ${rows[1].length} message${rows[1].length === 1 ? "" : "s"}, each once its change was done.`;
+    }
+    let timer = null;
+    new IntersectionObserver(([entry]) => {
+      clearInterval(timer);
+      timer = entry.isIntersecting ? setInterval(draw, reducedMotion() ? 1000 : 100) : null;
+      draw();
+    }).observe(svg);
+  }
   drawTags();
   renderStream(false);
   explainEvents();
@@ -335,6 +492,13 @@
               about: "Another device on your network gets No access without a key, unless you change that under Requests without a key. With an app's key, it gets that app's role." },
   };
   const PATHS = new Set(["storeMediaFile", "addNote", "addNotes"]);   // take a file `path`: local_files
+  // Permissions no AnkiConnect action needs: Everything grants them, Default doesn't (docs/api_design.md).
+  const EXTRAS = [
+    ["local_files", "Name files on this computer by path", "From a browser, a website or another device. A program on this computer may anyway: it already runs as you."],
+    ["memory_state", "Rewrite FSRS memory state", "Set a card's stability and difficulty directly, as an import from another scheduler would."],
+    ["addon", "Run other add-ons' actions", "Actions other add-ons offer through Tsunagi; each one also has to be turned on in Tsunagi's settings."],
+    ["events:reviews", "Hear each answer live", "One message on the event stream for every card answered, with its rating and new schedule."],
+  ];
   load("parity").then(({ actions }) => {
     let caller = "program", role = "default";
     const groups = [...new Set(actions.map(a => a.group))];
@@ -367,8 +531,19 @@
       const verdict = st === "on" ? "Allowed" : st === "half" ? "Allowed, but not with a file's path: that needs <code>local_files</code>" : "Refused";
       return `<b>${esc(a.name)}</b>${need}<div class="m">${verdict}</div>`;
     }
+    const extras = EXTRAS.map(([perm, label, about]) => {
+      const pill = h("button", { type: "button", class: "extra" }, label);
+      bindTip(pill, () => `<b>${esc(label)}</b>needs <code>${esc(perm)}</code><div class="m">${esc(about)}</div><div class="m">${extraOn(perm) ? "Allowed" : "Refused"}</div>`);
+      return [perm, pill];
+    });
+    $("r-extras").replaceChildren(h("h4", {}, "Only in the Tsunagi API"), h("div", { class: "pills" }, extras.map(([, pill]) => pill)));
+    function extraOn(perm) {
+      if (role === "none") return false;
+      return ROLES[role].grants.some(g => g === perm || g === perm.split(":")[0]) || (perm === "local_files" && CALLERS[caller].paths);
+    }
     function draw() {
       let on = 0;
+      extras.forEach(([perm, pill]) => pill.classList.toggle("on", extraOn(perm)));
       for (const a of actions) {
         const st = state(a);
         cells.get(a.name).className = st === "off" ? "" : st;
@@ -380,7 +555,8 @@
       const c = CALLERS[caller], keyless = c.keyless === role;
       $("r-explain").innerHTML = `${c.about} ${keyless ? "That's the role shown." : `This is the role <strong>${ROLES[role].name}</strong>, given to its key.`} ` +
         `<strong>${ROLES[role].name}</strong> allows ${on} of ${actions.length} actions.` +
-        (role === "default" ? " It is everything AnkiConnect allows, except reading files on this computer from a browser or another device." : "") +
+        (role === "default" ? " That's everything AnkiConnect allows. Everything allows the same actions, plus what only the Tsunagi API has, below." : "") +
+        (role === "everything" ? " The same actions as Default, plus what only the Tsunagi API has, below." : "") +
         (role === "none" ? " Only <code>requestPermission</code> answers: an app without access can ask for it." : "");
     }
     seg($("r-caller"), Object.entries(CALLERS).map(([k, v]) => [k, v.label]), caller, v => {

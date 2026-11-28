@@ -1,0 +1,309 @@
+{
+ "checked": "2026-11-27",
+ "tools": {
+  "anki_editor": {
+   "read": "defeab6",
+   "latest": "defeab6",
+   "changed": []
+  },
+  "anki_koplugin": {
+   "read": "55b07ed",
+   "latest": "55b07ed",
+   "changed": []
+  },
+  "anki_mcp_server": {
+   "read": "e0e347f",
+   "latest": "d7d6512",
+   "changed": [
+    [
+     "deleteMediaFile",
+     "changed"
+    ],
+    [
+     "retrieveMediaFile",
+     "changed"
+    ],
+    [
+     "suspended",
+     "changed"
+    ],
+    [
+     "version",
+     "changed"
+    ]
+   ]
+  },
+  "asbplayer": {
+   "read": "62c4d6e",
+   "latest": "910acf8",
+   "changed": [
+    [
+     "findNotes",
+     "changed"
+    ],
+    [
+     "notesInfo",
+     "changed"
+    ],
+    [
+     "sync",
+     "gone"
+    ],
+    [
+     "updateNoteFields",
+     "changed"
+    ],
+    [
+     "version",
+     "changed"
+    ]
+   ]
+  },
+  "easydict": {
+   "read": "af5b654",
+   "latest": "9a40d9d",
+   "changed": []
+  },
+  "flashcards_obsidian": {
+   "read": "2ca53d0",
+   "latest": "2ca53d0",
+   "changed": []
+  },
+  "game_sentence_miner": {
+   "read": "bb62e5b",
+   "latest": "bb62e5b",
+   "changed": []
+  },
+  "goldendict_ng": {
+   "read": "5b1bade",
+   "latest": "36d3ebc",
+   "changed": [
+    [
+     "version",
+     "changed"
+    ]
+   ]
+  },
+  "jiten": {
+   "read": "fe383fc",
+   "latest": "d62ae14",
+   "changed": [
+    [
+     "deckNamesAndIds",
+     "changed"
+    ],
+    [
+     "findCards",
+     "changed"
+    ],
+    [
+     "suspended",
+     "changed"
+    ]
+   ]
+  },
+  "jl": {
+   "read": "8995ac5",
+   "latest": "b6ce75c",
+   "changed": []
+  },
+  "linguacafe": {
+   "read": "c1ea298",
+   "latest": "c1ea298",
+   "changed": []
+  },
+  "logseq_anki_sync": {
+   "read": "0d881e3",
+   "latest": "6959868",
+   "changed": [
+    [
+     "addNotes",
+     "changed"
+    ],
+    [
+     "deckNames",
+     "changed"
+    ],
+    [
+     "deleteNotes",
+     "changed"
+    ],
+    [
+     "exportPackage",
+     "changed"
+    ],
+    [
+     "getMediaFilesNames",
+     "changed"
+    ],
+    [
+     "guiBrowse",
+     "changed"
+    ],
+    [
+     "multi",
+     "changed"
+    ],
+    [
+     "reloadCollection",
+     "changed"
+    ],
+    [
+     "retrieveMediaFile",
+     "changed"
+    ],
+    [
+     "storeMediaFile",
+     "changed"
+    ],
+    [
+     "updateNote",
+     "changed"
+    ]
+   ]
+  },
+  "lunatranslator": {
+   "read": "0ee08c6",
+   "latest": "dade058",
+   "changed": []
+  },
+  "lute": {
+   "read": "933d084",
+   "latest": "933d084",
+   "changed": []
+  },
+  "manatan": {
+   "read": "92d3787",
+   "latest": "569e850",
+   "changed": []
+  },
+  "memento": {
+   "read": "e45a792",
+   "latest": "27b786b",
+   "changed": []
+  },
+  "mokuro_reader": {
+   "read": "bfaeb48",
+   "latest": "1b0f755",
+   "changed": []
+  },
+  "mpvacious": {
+   "read": "26e4102",
+   "latest": "7b9ed6c",
+   "changed": []
+  },
+  "obsidian_to_anki": {
+   "read": "feb3db2",
+   "latest": "feb3db2",
+   "changed": []
+  },
+  "odh": {
+   "read": "d9b7bf8",
+   "latest": "8ed596c",
+   "changed": [
+    [
+     "addNote",
+     "changed"
+    ],
+    [
+     "removeTags",
+     "changed"
+    ]
+   ]
+  },
+  "raycast_anki": {
+   "read": "aad25dd3",
+   "latest": "87a6d3d0",
+   "changed": []
+  },
+  "saladict": {
+   "read": "1673df1",
+   "latest": "1673df1",
+   "changed": []
+  },
+  "simple_anki_sync": {
+   "read": "36ddadd",
+   "latest": "c352f9f",
+   "changed": [
+    [
+     "deleteNotes",
+     "changed"
+    ]
+   ]
+  },
+  "tabbi": {
+   "read": "60fef5f",
+   "latest": "0c26aac",
+   "changed": [
+    [
+     "cardReviews",
+     "changed"
+    ],
+    [
+     "deckNamesAndIds",
+     "changed"
+    ],
+    [
+     "findCards",
+     "changed"
+    ],
+    [
+     "getDeckStats",
+     "changed"
+    ],
+    [
+     "getNumCardsReviewedByDay",
+     "changed"
+    ],
+    [
+     "getNumCardsReviewedToday",
+     "changed"
+    ],
+    [
+     "guiDeckOverview",
+     "changed"
+    ],
+    [
+     "guiDeckReview",
+     "changed"
+    ],
+    [
+     "multi",
+     "changed"
+    ],
+    [
+     "requestPermission",
+     "changed"
+    ],
+    [
+     "sync",
+     "changed"
+    ],
+    [
+     "version",
+     "changed"
+    ]
+   ]
+  },
+  "yanki": {
+   "read": "f8522b7",
+   "latest": "f8522b7",
+   "changed": []
+  },
+  "yomine": {
+   "read": "7044efc",
+   "latest": "73badd8",
+   "changed": []
+  },
+  "yomitan": {
+   "read": "e7334a9",
+   "latest": "64b4eba",
+   "changed": [
+    [
+     "suspended",
+     "changed"
+    ]
+   ]
+  }
+ }
+}
