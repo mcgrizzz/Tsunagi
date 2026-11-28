@@ -314,6 +314,12 @@
   const note = { front: $("e-front").value, back: $("e-back").value, tags: [] };
   const sent = [];   // when the stream told the app: {at, by}
   const changes = [];   // when the note changed in Anki
+  const states = [{ at: performance.now(), front: note.front, back: note.back, tags: [] }];   // the note after each change, and its cause
+  function changed(cause) {
+    const at = performance.now();
+    changes.push(at);
+    states.push({ at, cause, front: note.front, back: note.back, tags: [...note.tags] });
+  }
   let timer = null, deadline = 0, delay = 0, lastCause = null, waitRaf = null;
   const t0 = performance.now();
   const BACKS = ["a dog", "dogs", "dog"];
@@ -356,8 +362,52 @@
       waitRaf = null;
     }
   }
+  // The tags as the Browser shows them: an × on each, a + when there are none. Clicking them is a Browser change.
   function drawTags() {
-    $("e-tags").replaceChildren(...note.tags.map(t => h("span", {}, t)));
+    $("e-tags").replaceChildren(...(note.tags.length
+      ? note.tags.map(tag => h("span", { class: "chip" }, tag, h("button", { type: "button", class: "x", "aria-label": `Remove the tag ${tag}`, onclick: toggleTag }, "×")))
+      : [h("button", { type: "button", class: "plus", "aria-label": "Add the tag mined", onclick: toggleTag }, "+")]));
+  }
+  function toggleTag() {
+    note.tags = note.tags.length ? [] : ["mined"];
+    changed("tag");
+    drawTags();
+    flash($("e-tags"));
+    mark("tag", OP_DELAY);
+  }
+  // The Browser's pointer: from the button to what it clicks, then a click.
+  function pointAt(target) {
+    const cursor = $("e-cursor");
+    if (reducedMotion()) return Promise.resolve();
+    const box = cursor.parentElement.getBoundingClientRect();
+    const place = r => { cursor.style.left = `${r.left - box.left + r.width / 2}px`; cursor.style.top = `${r.top - box.top + r.height / 2}px`; };
+    return new Promise(done => {
+      cursor.className = "ui-cursor";
+      cursor.innerHTML = CURSOR;
+      cursor.hidden = false;
+      place($("e-ui").getBoundingClientRect());
+      void cursor.offsetWidth;
+      cursor.classList.add("moving");
+      place(target.getBoundingClientRect());
+      setTimeout(() => {
+        cursor.classList.add("click");
+        setTimeout(() => { done(); setTimeout(() => { cursor.hidden = true; }, 450); }, 200);
+      }, 600);
+    });
+  }
+  function typeBack() {
+    const word = nextBack(), field = $("e-back");
+    field.classList.add("typing");
+    note.back = field.value = "";
+    let n = 0;
+    return new Promise(done => {
+      const type = setInterval(() => {
+        note.back = field.value = word.slice(0, ++n);
+        changed("typing");
+        mark("typing", TYPING_DELAY);
+        if (n === word.length) { clearInterval(type); field.classList.remove("typing"); done(); }
+      }, reducedMotion() ? 0 : 140);
+    });
   }
   // A field changing before your eyes: typed letter by letter in the Browser, or all at once by the API.
   function flash(el) {
@@ -368,40 +418,27 @@
   const nextBack = () => BACKS[(BACKS.indexOf(note.back) + 1) % BACKS.length];
   let uiTurn = 0;
   for (const [id, key] of [["e-front", "front"], ["e-back", "back"]]) {
-    $(id).addEventListener("input", e => { note[key] = e.target.value; changes.push(performance.now()); mark("typing", TYPING_DELAY); });
+    $(id).addEventListener("input", e => { note[key] = e.target.value; changed("typing"); mark("typing", TYPING_DELAY); });
   }
-  // The Browser takes turns: add or remove the tag, then type a new Back.
-  $("e-ui").addEventListener("click", () => {
-    if (uiTurn++ % 2 === 0) {
-      note.tags = note.tags.length ? [] : ["mined"];
-      changes.push(performance.now());
-      drawTags();
-      flash($("e-tags"));
-      mark("tag", OP_DELAY);
-      return;
-    }
-    const word = nextBack(), field = $("e-back"), buttons = [$("e-ui"), $("e-api")];
+  // The Browser takes turns: click the tag's × or the +, then type a new Back.
+  $("e-ui").addEventListener("click", async () => {
+    const buttons = [$("e-ui"), $("e-api")];
     buttons.forEach(b => { b.disabled = true; });
-    field.classList.add("typing");
-    let n = 0;
-    note.back = field.value = "";
-    const type = setInterval(() => {
-      note.back = field.value = word.slice(0, ++n);
-      changes.push(performance.now());
-      mark("typing", TYPING_DELAY);
-      if (n === word.length) {
-        clearInterval(type);
-        field.classList.remove("typing");
-        buttons.forEach(b => { b.disabled = false; });
-      }
-    }, reducedMotion() ? 0 : 140);
+    if (uiTurn++ % 2 === 0) {
+      await pointAt($("e-tags").querySelector("button"));
+      toggleTag();
+    } else {
+      await pointAt($("e-back"));
+      await typeBack();
+    }
+    buttons.forEach(b => { b.disabled = false; });
   });
   $("e-api").addEventListener("click", () => {
     note.back = nextBack();
     $("e-back").value = note.back;
     flash($("e-back"));
     lastCause = "api";
-    changes.push(performance.now());
+    changed("api");
     sent.push({ at: performance.now(), by: "api" });
     explainEvents();
   });
@@ -410,8 +447,9 @@
   // The same changes seen two ways: a tool polling AnkiConnect (every 10 s is asbplayer's poll,
   // the change_poll benchmark), and the stream. The last 40 s, drawn as they pass.
   function race() {
-    const SPAN = 40000, W = 1000, left = 150, right = 220, laneH = 26, top = 8, gap = 14;
-    const H = top + 2 * (laneH + gap);
+    // Room above the first lane and below the second for what each one saw.
+    const SPAN = 40000, W = 1000, left = 150, right = 220, laneH = 26, top = 24, gap = 14;
+    const H = top + 2 * laneH + gap + 22;
     const lanes = [["A tool on AnkiConnect", "var(--api-ac)"], ["Tsunagi's stream", "var(--api-ts)"]];
     const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Polling AnkiConnect compared with the event stream" });
     // Marks scroll out of the lanes on the left; clip them to the lanes.
@@ -439,13 +477,30 @@
       draw();
     });
 
-    // Each poll or message, with how long the oldest change it was first to report had waited.
+    // Each poll or message: how long the oldest change it was first to report had waited, and
+    // what it saw changed since the one before.
+    const stateAt = at => states.filter(st => st.at <= at).at(-1);
+    function seen(a, b) {
+      const parts = [];
+      if (a.front !== b.front) parts.push(`Front “${b.front}”`);
+      if (a.back !== b.back) parts.push(`Back “${b.back}”`);
+      b.tags.filter(tag => !a.tags.includes(tag)).forEach(tag => parts.push(`+${tag}`));
+      a.tags.filter(tag => !b.tags.includes(tag)).forEach(tag => parts.push(`−${tag}`));
+      return parts.join(", ") || "back as it was";
+    }
     function reports(times) {
       let prev = -Infinity;
       return times.map(at => {
         const caught = changes.filter(c => c > prev && c <= at);
+        const r = { at, wait: caught.length ? at - Math.min(...caught) : null };
+        if (caught.length) {
+          r.label = seen(stateAt(prev === -Infinity ? 0 : prev) ?? states[0], stateAt(at));
+          // Caught in the middle of typing: typed just before, and typing went on after.
+          const after = states.find(st => st.at > at);
+          r.partial = stateAt(at).cause === "typing" && after?.cause === "typing" && after.at - at <= TYPING_DELAY;
+        }
         prev = at;
-        return { at, wait: caught.length ? at - Math.min(...caught) : null };
+        return r;
       });
     }
     const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -455,13 +510,27 @@
       for (; next <= now; next += every) polls.push(next);
       const rows = [reports(polls), reports(sent.map(e => e.at))];
       marks.replaceChildren();
-      changes.filter(c => c > from).forEach(c => marks.append(s("line", { class: "change", x1: x(c), x2: x(c), y1: top - 4, y2: H - gap + 4 })));
+      changes.filter(c => c > from).forEach(c => marks.append(s("line", { class: "change", x1: x(c), x2: x(c), y1: top - 4, y2: top + 2 * laneH + gap + 4 })));
       rows.forEach((row, i) => {
         const y = top + i * (laneH + gap), color = lanes[i][1];
         row.filter(r => r.at > from - 2000).forEach(r => {
           if (r.wait != null) marks.append(s("rect", { class: "waited", x: Math.max(left, x(r.at - r.wait)), y: y + laneH / 2 - 2, width: Math.max(0, x(r.at) - Math.max(left, x(r.at - r.wait))), height: 4, fill: color }));
           marks.append(s("rect", { class: r.wait != null ? "req" : "req empty", x: x(r.at) - 3, y: y + 4, width: 6, height: laneH - 8, rx: 2, fill: color, style: r.wait != null ? null : `stroke:${color}` }));
         });
+        // What each one saw: edits caught half done first, then newest first, leaving out
+        // labels that would overlap; kept inside the lane at its ends.
+        const placed = [];
+        row.filter(r => r.label && r.at > from).reverse()
+          .sort((p, q) => Number(i === 0 && q.partial) - Number(i === 0 && p.partial))
+          .forEach(r => {
+            const partial = i === 0 && r.partial, text = partial ? `${r.label}, mid-edit` : r.label;
+            const width = text.length * 6.3 + 6, mx = x(r.at);
+            const [start, anchor] = mx + width / 2 > W - right ? [mx - width, "end"] : mx - width / 2 < left ? [mx, "start"] : [mx - width / 2, "middle"];
+            if (placed.some(([a, b]) => start < b + 8 && start + width > a - 8)) return;
+            placed.push([start, start + width]);
+            marks.append(s("text", { class: partial ? "seen partial" : "seen", x: anchor === "end" ? mx + 3 : anchor === "start" ? mx - 3 : mx,
+              y: i === 0 ? y - 7 : y + laneH + 15, "text-anchor": anchor }, text));
+          });
         const told = row.filter(r => r.wait != null);
         stats[i].n.textContent = i === 0 ? `${row.length} request${row.length === 1 ? "" : "s"}` : `${row.length} message${row.length === 1 ? "" : "s"}`;
         stats[i].sub.textContent = told.length ? `${told.length} with news, ${(mean(told.map(r => r.wait)) / 1000).toFixed(1)} s after the change` : i === 0 ? "nothing new yet" : "";
@@ -469,7 +538,9 @@
       const asked = rows[0].length, empty = rows[0].filter(r => r.wait == null).length;
       note.innerHTML = !changes.length
         ? `The tool on AnkiConnect has asked ${asked} time${asked === 1 ? "" : "s"} since this page opened and found nothing new, because nothing changed. The stream has sent nothing. Change the note above.`
-        : `On AnkiConnect, ${asked} requests so far, ${empty} of them for nothing; at this rate a change waits up to ${every / 1000} s to be seen. Asking more often sees changes sooner, with more requests. The stream told the app ${rows[1].length} time${rows[1].length === 1 ? "" : "s"}, each once its change was done, and sent nothing in between.`;
+        : `On AnkiConnect, ${asked} requests so far, ${empty} of them for nothing; at this rate a change waits up to ${every / 1000} s to be seen. Asking more often sees changes sooner, with more requests` +
+          (rows[0].some(r => r.partial) ? ", and catches more edits half done (“mid-edit”): the tool reads the note as it is at that moment." : ".") +
+          ` The stream told the app ${rows[1].length} time${rows[1].length === 1 ? "" : "s"}, each once its change was done, and sent nothing in between.`;
     }
     let timer = null;
     new IntersectionObserver(([entry]) => {
